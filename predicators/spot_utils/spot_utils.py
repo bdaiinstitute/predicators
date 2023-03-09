@@ -28,6 +28,9 @@ from predicators.spot_utils.helpers.graph_nav_command_line import \
     GraphNavInterface
 from predicators.structs import Object
 
+VELOCITY_CMD_DURATION = 1 # sec
+VELOCITY_BASE_SPEED = 0.5 # m/s
+
 g_image_click = None
 g_image_display = None
 
@@ -53,6 +56,11 @@ graph_nav_loc_to_id = {
     "room_2_room_0_outside_1": "ace-worm-opjd54QQSj5acIX19ve8jg=="
 }
 
+OBJECT_LOCATION = input("\n(Init State) Where is object located?\n\n>> ")
+ROOM_TABLE_LOCATION = input("\n(Init State) Where is room table located?\n\n>> ")
+
+assert OBJECT_LOCATION in graph_nav_loc_to_id.keys()
+assert ROOM_TABLE_LOCATION in graph_nav_loc_to_id.keys()
 
 # pylint: disable=no-member
 class SpotControllers():
@@ -121,11 +129,11 @@ class SpotControllers():
 
         waypoint_id = ""
         if objs[1].name == 'soda_can':
-            waypoint_id = graph_nav_loc_to_id['kitchen_counter_1']
+            waypoint_id = graph_nav_loc_to_id[OBJECT_LOCATION]
         elif objs[1].name == 'counter':
-            waypoint_id = graph_nav_loc_to_id['kitchen_counter_1']
+            waypoint_id = graph_nav_loc_to_id[OBJECT_LOCATION]
         elif objs[1].name == 'snack_table':
-            waypoint_id = graph_nav_loc_to_id['room_0_inside_0']
+            waypoint_id = graph_nav_loc_to_id[ROOM_TABLE_LOCATION]
         else:
             raise NotImplementedError()
         self.navigate_to(waypoint_id)
@@ -272,6 +280,12 @@ class SpotControllers():
         arm."""
         assert self.robot.is_powered_on(), "Robot power on failed."
         assert basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING
+
+        vel_command = RobotCommandBuilder.synchro_velocity_command(v_x=-VELOCITY_BASE_SPEED, v_y=0.0, v_rot=0.0)
+        self.robot_command_client.robot_command(command=vel_command, end_time_secs=time.time() + VELOCITY_CMD_DURATION)
+
+        self.robot.logger.info("Move back command issued.")
+        time.sleep(2)
 
         # Take a picture with a camera
         self.robot.logger.info(f'Getting an image from: {self._image_source}')
@@ -491,12 +505,17 @@ class SpotControllers():
         try:
             # (1) Initialize location
             self.graph_nav_command_line.set_initial_localization_fiducial()
-
+        except Exception as e:
+            print(e)
+        
+        try:
             # (2) Get localization state
             self.graph_nav_command_line.get_localization_state()
-
+        except Exception as e:
+            print(e)
+        
+        try:
             # (4) Navigate to
             self.graph_nav_command_line.navigate_to([waypoint_id])
-
         except Exception as e:
             print(e)
