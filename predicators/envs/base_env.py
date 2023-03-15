@@ -279,6 +279,7 @@ class BaseEnv(abc.ABC):
         prompt_prefix = self._get_language_goal_prompt_prefix(object_names)
         prompt = prompt_prefix + f"\n# {language_goal}"
         llm = OpenAILLM(CFG.llm_model_name)
+        print("Prompt:", prompt)
         responses = llm.sample_completions(prompt,
                                            temperature=0.0,
                                            seed=CFG.seed,

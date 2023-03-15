@@ -34,6 +34,8 @@ class SpotEnv(BaseEnv):
         self._robot_type = Type("robot", [])
         self._can_type = Type("soda_can", [])
         self._surface_type = Type("flat_surface", [])
+        self._snack_type = Type("snack", [])
+        self._toy_type = Type("toy", [])
 
         # Predicates
         # Note that all classifiers assigned here just directly use
@@ -195,16 +197,47 @@ class SpotEnv(BaseEnv):
     def _generate_tasks(self, num_tasks: int) -> List[Task]:
         tasks: List[Task] = []
         spot = Object("spot", self._robot_type)
-        kitchen_counter = Object("counter", self._surface_type)
-        snack_table = Object("snack_table", self._surface_type)
-        soda_can = Object("soda_can", self._can_type)
+        
+        drink_counter = Object("drink_counter", self._surface_type)
+        snack_counter = Object("snack_counter", self._surface_type)
+        storage_counter = Object("storage_counter", self._surface_type)
+        work_table = Object("work_table", self._surface_type)
+
+        soda_can1 = Object("soda_can1", self._can_type)
+        soda_can2 = Object("soda_can2", self._can_type)
+        soda_can3 = Object("soda_can3", self._can_type)
+
+        banana = Object("banana", self._snack_type)
+        chips = Object("chips", self._snack_type)
+        snack_box = Object("snack_box", self._snack_type)
+
+        toy1 = Object('toy1', self._toy_type)
+        toy2 = Object('toy2', self._toy_type)
+        cup = Object('cup', self._toy_type)
+        
         for _ in range(num_tasks):
             init_state = _PDDLEnvState.from_ground_atoms(
                 {
                     GroundAtom(self._HandEmpty, [spot]),
-                    GroundAtom(self._On, [soda_can, kitchen_counter])
-                }, [spot, kitchen_counter, snack_table, soda_can])
-            goal = {GroundAtom(self._On, [soda_can, snack_table])}
+                    GroundAtom(self._On, [soda_can1, drink_counter]),
+                    GroundAtom(self._On, [soda_can2, drink_counter]),
+                    GroundAtom(self._On, [soda_can3, drink_counter]),
+
+                    # GroundAtom(self._On, [banana, snack_counter]),
+                    # GroundAtom(self._On, [chips, snack_counter]),
+                    # GroundAtom(self._On, [snack_box, snack_counter]),
+
+                    # GroundAtom(self._On, [toy1, storage_counter]),
+                    # GroundAtom(self._On, [toy2, storage_counter]),
+                    # GroundAtom(self._On, [cup, storage_counter]),
+
+                }, [
+                    spot, work_table,
+                    drink_counter, soda_can1, soda_can2, soda_can3,
+                    snack_counter, # banana, chips, snack_box,
+                    # storage_counter, toy1, toy2, cup,
+                ])
+            goal = {GroundAtom(self._On, [soda_can1, work_table])}
             tasks.append(Task(init_state, goal))
         return tasks
 
@@ -280,6 +313,9 @@ class SpotEnv(BaseEnv):
         """
         with open(json_file, "r", encoding="utf-8") as f:
             json_dict = json.load(f)
+            # TODO make flag
+            json_dict['language_goal'] = input("\n[ChatGPT-Spot] What do you need from me?\n\n>> ")
+            print(json_dict)
         # Parse objects.
         type_name_to_type = {t.name: t for t in self.types}
         object_name_to_object: Dict[str, Object] = {}
