@@ -28,11 +28,14 @@ from predicators.spot_utils.helpers.graph_nav_command_line import \
     GraphNavInterface
 from predicators.structs import Object
 
+import torch
+
 VELOCITY_CMD_DURATION = 1 # sec
 VELOCITY_BASE_SPEED = 0.5 # m/s
 
 g_image_click = None
 g_image_display = None
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
 
 graph_nav_loc_to_id = {
     "microwave_0": "sudden-buck-mZtfRKlks3p+yJjac4NenQ==",
@@ -52,15 +55,22 @@ graph_nav_loc_to_id = {
     "storage_room_0_inside_0": "abuzz-newt-Rx1E8Dzhs7jLRhmono.YXA==",
     "storage_room_0_outside_1": "curly-colt-28WukUdR02W3QbBCSzqUsw==",
     "room_2_outside_0": "averse-dayfly-sl2pPLUDDSiRvCjdt6jj9g==",
-    "room_2_room_0_inside_0": "unary-amoeba-WGnqua.JuUXk1xFO3JalXQ==",
-    "room_2_room_0_outside_1": "ace-worm-opjd54QQSj5acIX19ve8jg=="
+    "room_2_inside_0": "unary-amoeba-WGnqua.JuUXk1xFO3JalXQ==",
+    "room_2__outside_1": "ace-worm-opjd54QQSj5acIX19ve8jg=="
 }
 
-OBJECT_LOCATION = input("\n(Init State) Where is object located?\n\n>> ")
-ROOM_TABLE_LOCATION = input("\n(Init State) Where is room table located?\n\n>> ")
+DRINK_COUNTER_MAP = 'kitchen_counter_1'
+SNACK_COUNTER_MAP = 'kitchen_counter_0'
+STORAGE_COUNTER_MAP = 'storage_room_0_inside_0'
+WORK_TABLE_MAP = 'room_0_inside_0' #input("\n(Init State) Where is room table located?\n\n>> ")
 
-assert OBJECT_LOCATION in graph_nav_loc_to_id.keys()
-assert ROOM_TABLE_LOCATION in graph_nav_loc_to_id.keys()
+assert WORK_TABLE_MAP in graph_nav_loc_to_id.keys()
+
+# OBJECT_LOCATION = "kitchen_counter_1" #input("\n(Init State) Where is object located?\n\n>> ")
+# ROOM_TABLE_LOCATION = "room_0_inside_0" #input("\n(Init State) Where is room table located?\n\n>> ")
+
+# assert OBJECT_LOCATION in graph_nav_loc_to_id.keys()
+# assert ROOM_TABLE_LOCATION in graph_nav_loc_to_id.keys()
 
 # pylint: disable=no-member
 class SpotControllers():
@@ -71,9 +81,9 @@ class SpotControllers():
         self._hostname = CFG.spot_robot_ip
         self._verbose = False
         self._force_45_angle_grasp = False
-        self._force_horizontal_grasp = False
+        self._force_horizontal_grasp = True
         self._force_squeeze_grasp = False
-        self._force_top_down_grasp = True
+        self._force_top_down_grasp = False
         self._image_source = "hand_color_image"
 
         self.hand_x, self.hand_y, self.hand_z = (0.80, 0, 0.45)
@@ -103,6 +113,7 @@ class SpotControllers():
             ImageClient.default_service_name)
         self.manipulation_api_client = self.robot.ensure_client(
             ManipulationApiClient.default_service_name)
+        self.lease_client.take()
         self.lease_keepalive = bosdyn.client.lease.LeaseKeepAlive(
             self.lease_client, must_acquire=True, return_at_exit=True)
 
@@ -127,21 +138,34 @@ class SpotControllers():
         """Controller that navigates to specific pre-specified locations."""
         print("NavigateTo", objs)
 
-        waypoint_id = ""
-        if objs[1].name == 'soda_can':
-            waypoint_id = graph_nav_loc_to_id[OBJECT_LOCATION]
-        elif objs[1].name == 'counter':
-            waypoint_id = graph_nav_loc_to_id[OBJECT_LOCATION]
-        elif objs[1].name == 'snack_table':
-            waypoint_id = graph_nav_loc_to_id[ROOM_TABLE_LOCATION]
+        # waypoint_id = ""
+        # objects by types
+        if objs[1].type.name == 'soda_can':
+            waypoint_id = graph_nav_loc_to_id[DRINK_COUNTER_MAP]
+        elif objs[1].type.name == 'snack':
+            waypoint_id = graph_nav_loc_to_id[SNACK_COUNTER_MAP]
+        elif objs[1].type.name == 'toy':
+            waypoint_id = graph_nav_loc_to_id[STORAGE_COUNTER_MAP]
+         
+        
+        # surface
+        elif objs[1].name == 'drink_counter':
+            waypoint_id = graph_nav_loc_to_id[DRINK_COUNTER_MAP]
+        elif objs[1].name == 'snack_counter':
+            waypoint_id = graph_nav_loc_to_id[SNACK_COUNTER_MAP]
+        elif objs[1].name == 'storage_counter':
+            waypoint_id = graph_nav_loc_to_id[STORAGE_COUNTER_MAP]
+        elif objs[1].name == 'work_table':
+            waypoint_id = graph_nav_loc_to_id[WORK_TABLE_MAP]
         else:
             raise NotImplementedError()
+        
         self.navigate_to(waypoint_id)
 
     def graspController(self, objs: Sequence[Object]) -> None:
         """Wrapper method for grasp controller."""
         print("Grasp", objs)
-        self.arm_object_grasp()
+        self.arm_object_grasp(objs[1])
 
     def placeOntopController(self, objs: Sequence[Object]) -> None:
         """Wrapper method for placeOnTop controller."""
@@ -275,7 +299,7 @@ class SpotControllers():
 
         return grasp
 
-    def arm_object_grasp(self) -> None:
+    def arm_object_grasp(self, obj) -> None:
         """A simple example of using the Boston Dynamics API to command Spot's
         arm."""
         assert self.robot.is_powered_on(), "Robot power on failed."
@@ -309,22 +333,61 @@ class SpotControllers():
         else:
             img = cv2.imdecode(img, -1)
 
-        # Show the image to the user and wait for them to click on a pixel
-        self.robot.logger.info('Click on an object to start grasping...')
-        image_title = 'Click to grasp'
-        cv2.namedWindow(image_title)
-        cv2.setMouseCallback(image_title, self.cv_mouse_callback)
+        # # Show the image to the user and wait for them to click on a pixel
+        # self.robot.logger.info('Click on an object to start grasping...')
+        # image_title = 'Click to grasp'
+        # cv2.namedWindow(image_title)
+        # cv2.setMouseCallback(image_title, self.cv_mouse_callback)
 
-        # pylint: disable=global-variable-not-assigned
+        # # pylint: disable=global-variable-not-assigned
+        # global g_image_click, g_image_display
+        # g_image_display = img
+        # cv2.imshow(image_title, g_image_display)
+        # while g_image_click is None:
+        #     key = cv2.waitKey(1) & 0xFF
+        #     if key == ord('q') or key == ord('Q'):
+        #         # Quit
+        #         print('"q" pressed, exiting.')
+        #         sys.exit()
+
+        #####################
         global g_image_click, g_image_display
         g_image_display = img
-        cv2.imshow(image_title, g_image_display)
-        while g_image_click is None:
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == ord('Q'):
-                # Quit
-                print('"q" pressed, exiting.')
-                sys.exit()
+        # Inference
+        results = model([g_image_display], size=g_image_display.shape[0]) # batch of images
+
+        # Results
+        #results.print()
+        # results.show()
+
+        #results.xyxy[0]  # im1 predictions (tensor)
+        #print(results.xyxy[0])
+        for result in results.xyxy[0]:
+            x = float(result[0] + result[2])/2
+            y = float(result[1] + result[3])/2
+            prob = float(result[4])
+            name = model.names[int(result[5])]
+            print(name, x, y, prob)
+            if 'soda_can' in obj.name and name == 'bottle':
+                g_image_click = (int(x), int(y))
+                break
+        
+        if g_image_click is None:       
+            # # Show the image to the user and wait for them to click on a pixel
+            self.robot.logger.info('Click on an object to start grasping...')
+            image_title = 'Click to grasp'
+            cv2.namedWindow(image_title)
+            cv2.setMouseCallback(image_title, self.cv_mouse_callback)
+
+            # pylint: disable=global-variable-not-assigned
+            cv2.imshow(image_title, g_image_display)
+            while g_image_click is None:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == ord('Q'):
+                    # Quit
+                    print('"q" pressed, exiting.')
+                    sys.exit()
+        #####################
 
         self.robot.\
             logger.info(f"Object at ({g_image_click[0]}, {g_image_click[1]})")
@@ -383,15 +446,23 @@ class SpotControllers():
 
         time.sleep(1.0)
 
-        ### (wmcclinton) Does not work!!! Stow the arm
+        ### TODO (wmcclinton) Does not work!!! Stow the arm
+        # To allow stowing
+        grasp_carry_state_override = manipulation_api_pb2.ApiGraspedCarryStateOverride(override_request=3)
+        grasp_override_request = manipulation_api_pb2.ApiGraspOverrideRequest(carry_state_override=grasp_carry_state_override)
+        cmd_response = self.manipulation_api_client.grasp_override_command(grasp_override_request)
+        #
+        
         stow_cmd = RobotCommandBuilder.arm_stow_command()
         stow_command_id = self.robot_command_client.robot_command(stow_cmd)
         self.robot.logger.info("Stow command issued.")
         block_until_arm_arrives(self.robot_command_client, stow_command_id,
                                 3.0)
-        ###
 
         self.robot.logger.info('Finished grasp.')
+
+        g_image_click = None
+        g_image_display = None  
 
         time.sleep(2.0)
 
