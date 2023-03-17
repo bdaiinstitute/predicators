@@ -62,6 +62,7 @@ graph_nav_loc_to_id = {
 DRINK_COUNTER_MAP = 'kitchen_counter_1'
 SNACK_COUNTER_MAP = 'kitchen_counter_0'
 STORAGE_COUNTER_MAP = 'storage_room_0_inside_0'
+ROOM_TABLE_MAP = 'room_2_inside_0'
 WORK_TABLE_MAP = 'room_0_inside_0' #input("\n(Init State) Where is room table located?\n\n>> ")
 
 assert WORK_TABLE_MAP in graph_nav_loc_to_id.keys()
@@ -138,13 +139,11 @@ class SpotControllers():
         """Controller that navigates to specific pre-specified locations."""
         print("NavigateTo", objs)
 
-        # waypoint_id = ""
-        # objects by types
-        if objs[1].type.name == 'soda_can':
+        if 'soda_can' in objs[1].name:
             waypoint_id = graph_nav_loc_to_id[DRINK_COUNTER_MAP]
-        elif objs[1].type.name == 'snack':
+        elif 'snack' in objs[1].name:
             waypoint_id = graph_nav_loc_to_id[SNACK_COUNTER_MAP]
-        elif objs[1].type.name == 'toy':
+        elif 'wipes' in objs[1].name:
             waypoint_id = graph_nav_loc_to_id[STORAGE_COUNTER_MAP]
          
         
@@ -157,6 +156,8 @@ class SpotControllers():
             waypoint_id = graph_nav_loc_to_id[STORAGE_COUNTER_MAP]
         elif objs[1].name == 'work_table':
             waypoint_id = graph_nav_loc_to_id[WORK_TABLE_MAP]
+        elif objs[1].name == 'room_table':
+            waypoint_id = graph_nav_loc_to_id[ROOM_TABLE_MAP]
         else:
             raise NotImplementedError()
         
@@ -357,8 +358,8 @@ class SpotControllers():
         results = model([g_image_display], size=g_image_display.shape[0]) # batch of images
 
         # Results
-        #results.print()
-        # results.show()
+        # results.print()
+        results.show()
 
         #results.xyxy[0]  # im1 predictions (tensor)
         #print(results.xyxy[0])
@@ -368,10 +369,22 @@ class SpotControllers():
             prob = float(result[4])
             name = model.names[int(result[5])]
             print(name, x, y, prob)
-            if 'soda_can' in obj.name and name == 'bottle':
+            if 'soda_can' in obj.name and name in ['bottle', 'cup', 'can']:
                 g_image_click = (int(x), int(y))
+                self._force_horizontal_grasp = False
+                self._force_top_down_grasp = True
                 break
-        
+            if 'snack' in obj.name and name == '???':
+                g_image_click = (int(x), int(y))
+                self._force_horizontal_grasp = True
+                self._force_top_down_grasp = False
+                break
+            if 'clorox_wipes' in obj.name and name == 'cup':
+                g_image_click = (int(x), int(y))
+                self._force_horizontal_grasp = True
+                self._force_top_down_grasp = False
+                break
+
         if g_image_click is None:       
             # # Show the image to the user and wait for them to click on a pixel
             self.robot.logger.info('Click on an object to start grasping...')
