@@ -32,10 +32,8 @@ class SpotEnv(BaseEnv):
 
         # Types
         self._robot_type = Type("robot", [])
-        self._can_type = Type("soda_can", [])
+        self._can_type = Type("object", [])
         self._surface_type = Type("flat_surface", [])
-        self._snack_type = Type("snack", [])
-        self._toy_type = Type("toy", [])
 
         # Predicates
         # Note that all classifiers assigned here just directly use
@@ -202,18 +200,18 @@ class SpotEnv(BaseEnv):
         snack_counter = Object("snack_counter", self._surface_type)
         storage_counter = Object("storage_counter", self._surface_type)
         work_table = Object("work_table", self._surface_type)
+        room_table = Object("room_table", self._surface_type)
 
         soda_can1 = Object("soda_can1", self._can_type)
         soda_can2 = Object("soda_can2", self._can_type)
         soda_can3 = Object("soda_can3", self._can_type)
 
-        banana = Object("banana", self._snack_type)
-        chips = Object("chips", self._snack_type)
-        snack_box = Object("snack_box", self._snack_type)
+        snack1 = Object("snack1", self._can_type)
+        snack2 = Object("snack2", self._can_type)
+        snack3 = Object("snack3", self._can_type)
 
-        toy1 = Object('toy1', self._toy_type)
-        toy2 = Object('toy2', self._toy_type)
-        cup = Object('cup', self._toy_type)
+        wipes = Object("clorox_wipes", self._can_type)
+
         
         for _ in range(num_tasks):
             init_state = _PDDLEnvState.from_ground_atoms(
@@ -222,20 +220,15 @@ class SpotEnv(BaseEnv):
                     GroundAtom(self._On, [soda_can1, drink_counter]),
                     GroundAtom(self._On, [soda_can2, drink_counter]),
                     GroundAtom(self._On, [soda_can3, drink_counter]),
-
-                    # GroundAtom(self._On, [banana, snack_counter]),
-                    # GroundAtom(self._On, [chips, snack_counter]),
-                    # GroundAtom(self._On, [snack_box, snack_counter]),
-
-                    # GroundAtom(self._On, [toy1, storage_counter]),
-                    # GroundAtom(self._On, [toy2, storage_counter]),
-                    # GroundAtom(self._On, [cup, storage_counter]),
-
+                    GroundAtom(self._On, [snack1, snack_counter]),
+                    GroundAtom(self._On, [snack2, snack_counter]),
+                    GroundAtom(self._On, [snack3, snack_counter]),
+                    GroundAtom(self._On, [wipes, storage_counter]),
                 }, [
-                    spot, work_table,
+                    spot, work_table, room_table,
                     drink_counter, soda_can1, soda_can2, soda_can3,
-                    snack_counter, # banana, chips, snack_box,
-                    # storage_counter, toy1, toy2, cup,
+                    snack_counter, snack1, snack2, snack3,
+                    storage_counter, wipes,
                 ])
             goal = {GroundAtom(self._On, [soda_can1, work_table])}
             tasks.append(Task(init_state, goal))
@@ -259,15 +252,13 @@ class SpotEnv(BaseEnv):
         available_predicates = ", ".join(
             [p.name for p in sorted(self.goal_predicates)])
         available_objects = ", ".join(sorted(object_names))
-        # We could extract the object names, but this is simpler.
-        assert {"spot", "counter", "snack_table",
-                "soda_can"}.issubset(object_names)
+        # # We could extract the object names, but this is simpler.
+        # assert {"spot", "counter", "snack_table",
+        #         "soda_can"}.issubset(object_names)
         prompt = f"""# The available predicates are: {available_predicates}
 # The available objects are: {available_objects}
-# Use the available predicates and objects to convert natural language goals into JSON goals.
-        
-# Hey spot, can you move the soda can to the snack table?
-{{"On": [["soda_can", "snack_table"]]}}
+# Use the available predicates and objects to convert natural language goals into PDDL JSON goals.
+# (eg. {{"On": [["apple", "snack_table"]]}})
 """
         return prompt
 
@@ -313,33 +304,43 @@ class SpotEnv(BaseEnv):
         """
         with open(json_file, "r", encoding="utf-8") as f:
             json_dict = json.load(f)
-            # TODO make flag
-            json_dict['language_goal'] = input("\n[ChatGPT-Spot] What do you need from me?\n\n>> ")
-            print(json_dict)
-        # Parse objects.
-        type_name_to_type = {t.name: t for t in self.types}
-        object_name_to_object: Dict[str, Object] = {}
-        for obj_name, type_name in json_dict["objects"].items():
-            obj_type = type_name_to_type[type_name]
-            obj = Object(obj_name, obj_type)
-            object_name_to_object[obj_name] = obj
-        assert set(object_name_to_object).issubset(set(json_dict["init"])), \
-            "The init state can only include objects in `objects`."
-        assert set(object_name_to_object).issuperset(set(json_dict["init"])), \
-            "The init state must include every object in `objects`."
-        # Parse initial state.
-        init_dict: Dict[Object, Dict[str, float]] = {}
-        for obj_name, obj_dict in json_dict["init"].items():
-            obj = object_name_to_object[obj_name]
-            init_dict[obj] = obj_dict.copy()
+        # # Parse objects.
+        # type_name_to_type = {t.name: t for t in self.types}
+        # object_name_to_object: Dict[str, Object] = {}
+        # for obj_name, type_name in json_dict["objects"].items():
+        #     obj_type = type_name_to_type[type_name]
+        #     obj = Object(obj_name, obj_type)
+        #     object_name_to_object[obj_name] = obj
+        # assert set(object_name_to_object).issubset(set(json_dict["init"])), \
+        #     "The init state can only include objects in `objects`."
+        # assert set(object_name_to_object).issuperset(set(json_dict["init"])), \
+        #     "The init state must include every object in `objects`."
+        # # Parse initial state.
+        # init_dict: Dict[Object, Dict[str, float]] = {}
+        # for obj_name, obj_dict in json_dict["init"].items():
+        #     obj = object_name_to_object[obj_name]
+        #     init_dict[obj] = obj_dict.copy()
 
-        # NOTE: We need to parse out init preds to create a simulator state.
-        init_preds = self._parse_init_preds_from_json(json_dict["init_preds"],
-                                                      object_name_to_object)
-        # NOTE: mypy gets mad at this usage here because we're putting
-        # predicates into the PDDLEnvState when the signature actually
-        # expects Arrays.
-        init_state = _PDDLEnvState(init_dict, init_preds)  # type: ignore
+        # # NOTE: We need to parse out init preds to create a simulator state.
+        # init_preds = self._parse_init_preds_from_json(json_dict["init_preds"],
+        #                                               object_name_to_object)
+        # # NOTE: mypy gets mad at this usage here because we're putting
+        # # predicates into the PDDLEnvState when the signature actually
+        # # expects Arrays.
+        # init_state = _PDDLEnvState(init_dict, init_preds)  # type: ignore
+
+        ########
+        object_name_to_object: Dict[str, Object] = {}
+        tasks = self._generate_tasks(num_tasks=1)
+        init_state = tasks[0].init
+        json_dict["init"] = init_state
+        for obj, obj_dict in json_dict["init"].data.items():
+            object_name_to_object[obj.name] = obj
+        # TODO make flag
+        print(f"\n{object_name_to_object}\n")
+        json_dict['language_goal'] = input("\n[ChatGPT-Spot] What do you need from me?\n\n>> ")
+        print(json_dict)
+        ########
 
         # Parse goal.
         if "goal" in json_dict:
