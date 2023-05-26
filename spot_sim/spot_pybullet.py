@@ -16,7 +16,7 @@ spotArmId = p.loadURDF("spot_description/spot_arm.urdf", spotArmStartPos, spotAr
 
 tableStartPos = [2,0,0]
 tableStartOrientation = p.getQuaternionFromEuler([0,0,0])
-tableId = p.loadURDF("bullet3/data/table/table.urdf", tableStartPos, tableStartOrientation)
+tableId = p.loadURDF("urdfs/table/table.urdf", tableStartPos, tableStartOrientation)
 
 
 # Load Other URDFs
