@@ -348,7 +348,10 @@ class SpotGroceryEnv(SpotEnv):
 
 class SpotBikeEnv(SpotEnv):
     """An environment containing bike-repair related tasks for a real Spot
-    robot to execute."""
+    robot to execute.
+
+    TODO:
+    """
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -663,16 +666,10 @@ class SpotBikeEnv(SpotEnv):
                     GroundAtom(self._SurfaceNotTooHigh,
                                [spot, tool_room_table]),
                     GroundAtom(self._SurfaceTooHigh, [spot, high_wall_rack]),
-                }, [
-                    spot, hammer, low_wall_rack, bag, movable_platform,
-                    hex_key, hex_screwdriver, brush, tool_room_table,
-                    high_wall_rack, movable_platform
-                ])
+                }, [spot, hammer, low_wall_rack, bag, movable_platform])
             goal = {
                 GroundAtom(self._InBag, [hammer, bag]),
-                GroundAtom(self._InBag, [brush, bag]),
-                GroundAtom(self._InBag, [hex_key, bag]),
-                GroundAtom(self._InBag, [hex_screwdriver, bag]),
+                GroundAtom(self._InBag, [brush, bag])
             }
             tasks.append(EnvironmentTask(init_state, goal))
         return tasks
