@@ -82,7 +82,7 @@ class _SpotControllers():
         self._force_top_down_grasp = False
         self._image_source = "hand_color_image"
 
-        self.hand_x, self.hand_y, self.hand_z = (0.80, 0, 0.45)
+        self.hand_x, self.hand_y, self.hand_z = (0.80, 0, 0.25)
 
         # See hello_spot.py for an explanation of these lines.
         bosdyn.client.util.setup_logging(self._verbose)
@@ -418,6 +418,11 @@ class _SpotControllers():
 
         time.sleep(1.0)
 
+        tmp_hand_z = self.hand_z
+        self.hand_z = 0.6
+        self.hand_movement([0.07], open_gripper=False)
+        self.hand_z = tmp_hand_z
+
         # Allow Stowing and Stow Arm
         grasp_carry_state_override = manipulation_api_pb2.\
             ApiGraspedCarryStateOverride(override_request=3)
@@ -460,7 +465,7 @@ class _SpotControllers():
                 break
             time.sleep(0.1)
 
-    def hand_movement(self, params: Sequence[float]) -> None:
+    def hand_movement(self, params: Sequence[float], open_gripper=True) -> None:
         """Move arm to infront of robot an open gripper."""
         # Move the arm to a spot in front of the robot, and open the gripper.
         assert self.robot.is_powered_on(), "Robot power on failed."
@@ -501,9 +506,13 @@ class _SpotControllers():
             odom_T_hand.rot.x, odom_T_hand.rot.y, odom_T_hand.rot.z,
             ODOM_FRAME_NAME, seconds)
 
-        # Make the open gripper RobotCommand
-        gripper_command = RobotCommandBuilder.\
-            claw_gripper_open_fraction_command(0.0)
+        if not open_gripper:
+            # Make the open gripper RobotCommand
+            gripper_command = RobotCommandBuilder.\
+                claw_gripper_open_fraction_command(0.0)
+        else:
+            gripper_command = RobotCommandBuilder.\
+                claw_gripper_open_fraction_command(1.0)
 
         # Combine the arm and gripper commands into one RobotCommand
         command = RobotCommandBuilder.build_synchro_command(
@@ -520,9 +529,13 @@ class _SpotControllers():
 
         time.sleep(2)
 
-        # Make the open gripper RobotCommand
-        gripper_command = RobotCommandBuilder.\
-            claw_gripper_open_fraction_command(1.0)
+        if not open_gripper:
+            # Make the open gripper RobotCommand
+            gripper_command = RobotCommandBuilder.\
+                claw_gripper_open_fraction_command(0.0)
+        else:
+            gripper_command = RobotCommandBuilder.\
+                claw_gripper_open_fraction_command(1.0)
 
         # Combine the arm and gripper commands into one RobotCommand
         command = RobotCommandBuilder.build_synchro_command(
