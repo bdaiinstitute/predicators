@@ -498,6 +498,8 @@ class _SpotControllers():
         # TODO Keep the same orientation during hand movement
         # Read current quaternion
         # Set qw, qx, qy, qz
+        robot_state = self.robot_state_client.get_robot_state()
+        import ipdb; ipdb.set_trace()
 
         # Rotation as a quaternion
         qw = np.cos((np.pi / 4) / 2)
