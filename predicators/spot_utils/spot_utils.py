@@ -79,7 +79,7 @@ OBJECT_COLOR_BOUNDS = {
 }
 
 
-def _find_object_center(img: cv2.Image, obj_name: str) -> Tuple[int, int]:
+def _find_object_center(img, obj_name: str) -> Tuple[int, int]:
     # Crop
     crop_min_x, crop_max_x, crop_min_y, crop_max_y = OBJECT_CROPS[obj_name]
     cropped_img = img[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
