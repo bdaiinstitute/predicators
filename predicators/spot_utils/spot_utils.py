@@ -495,6 +495,10 @@ class _SpotControllers():
         assert self.robot.is_powered_on(), "Robot power on failed."
         assert basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING
 
+        # TODO Keep the same orientation during hand movement
+        # Read current quaternion
+        # Set qw, qx, qy, qz
+
         # Rotation as a quaternion
         qw = np.cos((np.pi / 4) / 2)
         qx = 0
