@@ -14,6 +14,7 @@ import bosdyn.client.lease
 import bosdyn.client.util
 import cv2
 import numpy as np
+import torch
 from bosdyn.api import arm_command_pb2, basic_command_pb2, estop_pb2, \
     geometry_pb2, image_pb2, manipulation_api_pb2
 from bosdyn.api.basic_command_pb2 import RobotCommandFeedbackStatus
@@ -61,6 +62,9 @@ graph_nav_loc_to_id = {
     "6-13_corner": "gooey-mamba-nbmRlRr8J0KPsCztt0Wkyw==",
     "trash": "holy-aphid-SuqZLSjvRUjUxCDywLIFhw=="
 }
+
+# YOLO v5 model
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
 
 
 # pylint: disable=no-member
@@ -210,7 +214,7 @@ class _SpotControllers():
         elif params[3] == -1:
             self._force_horizontal_grasp = True
             self._force_top_down_grasp = False
-        self.arm_object_grasp()
+        self.arm_object_grasp(objs[1])
         if not all(params[:3] == [0.0, 0.0, 0.0]):
             self.hand_movement(params[:3], open_gripper=False)
         self.stow_arm()
@@ -353,7 +357,7 @@ class _SpotControllers():
 
         return grasp
 
-    def arm_object_grasp(self) -> None:
+    def arm_object_grasp(self, obj) -> None:
         """A simple example of using the Boston Dynamics API to command Spot's
         arm."""
         assert self.robot.is_powered_on(), "Robot power on failed."
@@ -381,22 +385,69 @@ class _SpotControllers():
         else:
             img = cv2.imdecode(img, -1)
 
-        # Show the image to the user and wait for them to click on a pixel
-        self.robot.logger.info('Click on an object to start grasping...')
-        image_title = 'Click to grasp'
-        cv2.namedWindow(image_title)
-        cv2.setMouseCallback(image_title, self.cv_mouse_callback)
+        ###### Changed ######
 
-        # pylint: disable=global-variable-not-assigned, global-statement
+        # # Show the image to the user and wait for them to click on a pixel
+        # self.robot.logger.info('Click on an object to start grasping...')
+        # image_title = 'Click to grasp'
+        # cv2.namedWindow(image_title)
+        # cv2.setMouseCallback(image_title, self.cv_mouse_callback)
+
+        # # pylint: disable=global-variable-not-assigned
+        # global g_image_click, g_image_display
+        # g_image_display = img
+        # cv2.imshow(image_title, g_image_display)
+        # while g_image_click is None:
+        #     key = cv2.waitKey(1) & 0xFF
+        #     if key == ord('q') or key == ord('Q'):
+        #         # Quit
+        #         print('"q" pressed, exiting.')
+        #         sys.exit()
+
+        ########## To This ###########
+
         global g_image_click, g_image_display
         g_image_display = img
-        cv2.imshow(image_title, g_image_display)
-        while g_image_click is None:
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == ord('Q'):
-                # Quit
-                print('"q" pressed, exiting.')
-                sys.exit()
+        # Inference
+        results = model([g_image_display],
+                        size=g_image_display.shape[0])  # batch of images
+        # Results
+        results.print()
+        results.show()
+        #results.xyxy[0]  # im1 predictions (tensor)
+        #print(results.xyxy[0])
+        for result in results.xyxy[0]:
+            x = float(result[0] + result[2]) / 2
+            y = float(result[1] + result[3]) / 2
+            prob = float(result[4])
+            name = model.names[int(result[5])]
+            print(name, x, y, prob)
+            if 'soda_can' in obj.name and name in ['bottle', 'cup', 'can']:
+                break
+            if 'snack' in obj.name and name == '???':
+                g_image_click = (int(x), int(y))
+                break
+            if 'clorox_wipes' in obj.name and name == 'cup':
+                break
+
+        if g_image_click is None:
+            # Show the image to the user and wait for them to click on a pixel
+            self.robot.logger.info('Click on an object to start grasping...')
+            image_title = 'Click to grasp'
+            cv2.namedWindow(image_title)
+            cv2.setMouseCallback(image_title, self.cv_mouse_callback)
+
+            # pylint: disable=global-variable-not-assigned, global-statement
+            g_image_display = img
+            cv2.imshow(image_title, g_image_display)
+            while g_image_click is None:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == ord('Q'):
+                    # Quit
+                    print('"q" pressed, exiting.')
+                    sys.exit()
+
+        #####################
 
         # pylint: disable=unsubscriptable-object
         self.robot.\
