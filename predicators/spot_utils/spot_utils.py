@@ -385,26 +385,7 @@ class _SpotControllers():
         else:
             img = cv2.imdecode(img, -1)
 
-        ###### Changed ######
-
-        # # Show the image to the user and wait for them to click on a pixel
-        # self.robot.logger.info('Click on an object to start grasping...')
-        # image_title = 'Click to grasp'
-        # cv2.namedWindow(image_title)
-        # cv2.setMouseCallback(image_title, self.cv_mouse_callback)
-
-        # # pylint: disable=global-variable-not-assigned
-        # global g_image_click, g_image_display
-        # g_image_display = img
-        # cv2.imshow(image_title, g_image_display)
-        # while g_image_click is None:
-        #     key = cv2.waitKey(1) & 0xFF
-        #     if key == ord('q') or key == ord('Q'):
-        #         # Quit
-        #         print('"q" pressed, exiting.')
-        #         sys.exit()
-
-        ########## To This ###########
+        #####################
 
         global g_image_click, g_image_display
         g_image_display = img
