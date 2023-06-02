@@ -67,6 +67,7 @@ OBJECT_CROPS = {
     "hammer": (160, 450, 160, 350),
     "hex_key": (160, 450, 160, 350),
     "brush": (100, 400, 350, 480),
+    "hex_screwdriver": (100, 400, 350, 480),
 }
 
 OBJECT_COLOR_BOUNDS = {
@@ -74,6 +75,7 @@ OBJECT_COLOR_BOUNDS = {
     "hammer": ((0, 0, 50), (40, 40, 200)),
     "hex_key": ((0, 50, 50), (40, 150, 200)),
     "brush": ((0, 100, 200), (80, 255, 255)),
+    "hex_screwdriver": ((0, 0, 50), (40, 40, 200)),
 }
 
 
@@ -440,11 +442,16 @@ class _SpotInterface():
         global g_image_click, g_image_display
 
         # If the object is known, use hacky sampling technique.
-        if obj.name in ["hammer", "hex_key", "brush"]:
+        if obj.name in ["hammer", "hex_key", "brush", "hex_screwdriver"]:
             g_image_click = _find_object_center(img, obj.name)
 
         # Unknown object, ask for manual sample.
         else:
+
+            # cv2.imwrite("sampler_images/table/img16.png", img)
+            # import sys
+            # sys.exit(0)
+
             # Show the image to the user and wait for them to click on a pixel
             self.robot.logger.info('Click on an object to start grasping...')
             image_title = 'Click to grasp'
