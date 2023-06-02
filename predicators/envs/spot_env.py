@@ -919,9 +919,9 @@ class SpotBikeEnv(SpotEnv):
             init_state = self._build_partial_perception_state(
                 init_dict, init_atoms)
             goal = {
-                GroundAtom(self._InBag, [hammer, bag]),
-                GroundAtom(self._InBag, [brush, bag]),
-                GroundAtom(self._InBag, [hex_key, bag]),
+                # GroundAtom(self._InBag, [hammer, bag]),
+                # GroundAtom(self._InBag, [brush, bag]),
+                # GroundAtom(self._InBag, [hex_key, bag]),
                 GroundAtom(self._InBag, [hex_screwdriver, bag]),
             }
             tasks.append(EnvironmentTask(init_state, goal))
