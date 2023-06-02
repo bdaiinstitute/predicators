@@ -24,6 +24,14 @@ OBJECT_COLOR_BOUNDS = {
     "hex_screwdriver": ((0, 0, 50), (40, 40, 200)),
 }
 
+OBJECT_GRASP_OFFSET = {
+    # dx, dy
+    "hammer": (0, 0),
+    "hex_key": (0, 50),
+    "brush": (0, 0),
+    "hex_screwdriver": (0, 0),
+}
+
 
 def _find_center(img: Image,
                  obj_name: str,
@@ -73,6 +81,11 @@ def _find_center(img: Image,
     x = cropped_x + crop_min_x
     y = cropped_y + crop_min_y
 
+    # Apply offset.
+    dx, dy = OBJECT_GRASP_OFFSET[obj_name]
+    x = np.clip(x + dx, 0, img.shape[1])
+    y = np.clip(y + dy, 0, img.shape[0])
+
     if outfile is not None:
         cv2.circle(img, (x, y), 5, (0, 255, 0), -1)
         cv2.imwrite(str(outfile), img)
@@ -90,14 +103,14 @@ def _main() -> None:
     #     outfile = Path(f"sampler_images/wall/labelled_{obj_name}{n}.png")
     #     _find_center(img, obj_name, outfile)
 
-    # # Hex Key
-    # obj_name = "hex_key"
-    # img_nums = [2, 6, 7, 8, 9, 10]
-    # for n in img_nums:
-    #     img_file = Path(f"sampler_images/wall/img{n}.png")
-    #     img = cv2.imread(str(img_file))
-    #     outfile = Path(f"sampler_images/wall/labelled_{obj_name}{n}.png")
-    #     _find_center(img, obj_name, outfile)
+    # Hex Key
+    obj_name = "hex_key"
+    img_nums = [2, 6, 7, 8, 9, 10]
+    for n in img_nums:
+        img_file = Path(f"sampler_images/wall/img{n}.png")
+        img = cv2.imread(str(img_file))
+        outfile = Path(f"sampler_images/wall/labelled_{obj_name}{n}.png")
+        _find_center(img, obj_name, outfile)
 
     # # Brush
     # obj_name = "brush"
@@ -108,14 +121,14 @@ def _main() -> None:
     #     outfile = Path(f"sampler_images/table/labelled_{obj_name}{n}.png")
     #     _find_center(img, obj_name, outfile)
 
-    # Screwdriver
-    obj_name = "hex_screwdriver"
-    img_nums = [12, 13, 14, 15, 16]
-    for n in img_nums:
-        img_file = Path(f"sampler_images/table/img{n}.png")
-        img = cv2.imread(str(img_file))
-        outfile = Path(f"sampler_images/table/labelled_{obj_name}{n}.png")
-        _find_center(img, obj_name, outfile)
+    # # Screwdriver
+    # obj_name = "hex_screwdriver"
+    # img_nums = [12, 13, 14, 15, 16]
+    # for n in img_nums:
+    #     img_file = Path(f"sampler_images/table/img{n}.png")
+    #     img = cv2.imread(str(img_file))
+    #     outfile = Path(f"sampler_images/table/labelled_{obj_name}{n}.png")
+    #     _find_center(img, obj_name, outfile)
 
 
 if __name__ == "__main__":
