@@ -227,6 +227,7 @@ class _SpotInterface():
         elif params[3] == -1:
             self._force_horizontal_grasp = True
             self._force_top_down_grasp = False
+        self.hand_movement(params[:3], open_gripper=True, stow_after=False)
         self.arm_object_grasp(objs[1])
         if not all(params[:3] == [0.0, 0.0, 0.0]):
             self.hand_movement(params[:3], open_gripper=False)
@@ -503,7 +504,7 @@ class _SpotInterface():
                                 3.0)
         time.sleep(1.0)
 
-    def hand_movement(self, params: Array, open_gripper: bool = True) -> None:
+    def hand_movement(self, params: Array, open_gripper: bool = True, stow_after: bool = True) -> None:
         """Move arm to infront of robot an open gripper."""
         # Move the arm to a spot in front of the robot, and open the gripper.
         assert self.robot.is_powered_on(), "Robot power on failed."
@@ -537,6 +538,30 @@ class _SpotInterface():
 
         odom_T_hand = odom_T_flat_body * math_helpers.SE3Pose.from_obj(
             flat_body_T_hand)
+        
+        # Allow Stowing and Stow Arm
+        grasp_carry_state_override = manipulation_api_pb2.\
+            ApiGraspedCarryStateOverride(override_request=3)
+        grasp_override_request = manipulation_api_pb2.\
+            ApiGraspOverrideRequest(
+            carry_state_override=grasp_carry_state_override)
+        cmd_response = self.manipulation_api_client.\
+            grasp_override_command(grasp_override_request)
+        self.robot.logger.info(cmd_response)
+        
+        # Stow the arm and close the gripper.
+        stow_cmd = RobotCommandBuilder.arm_stow_command()
+        gripper_close_command = RobotCommandBuilder.\
+            claw_gripper_open_fraction_command(0.0)
+        # Combine the arm and gripper commands into one RobotCommand
+        stow_and_close_command = RobotCommandBuilder.build_synchro_command(
+            gripper_close_command, stow_cmd)
+        stow_and_close_command_id = self.robot_command_client.robot_command(
+            stow_and_close_command)
+        self.robot.logger.info("Stow command issued.")
+        block_until_arm_arrives(self.robot_command_client,
+                                stow_and_close_command_id, 3.0)
+        time.sleep(1)
 
         # duration in seconds
         seconds = 2
@@ -581,18 +606,20 @@ class _SpotInterface():
         # Wait until the arm arrives at the goal.
         block_until_arm_arrives(self.robot_command_client, cmd_id, 3.0)
         time.sleep(2)
-        # Finally, stow the arm and close the gripper.
-        stow_cmd = RobotCommandBuilder.arm_stow_command()
-        gripper_close_command = RobotCommandBuilder.\
-            claw_gripper_open_fraction_command(0.0)
-        # Combine the arm and gripper commands into one RobotCommand
-        stow_and_close_command = RobotCommandBuilder.build_synchro_command(
-            gripper_close_command, stow_cmd)
-        stow_and_close_command_id = self.robot_command_client.robot_command(
-            stow_and_close_command)
-        self.robot.logger.info("Stow command issued.")
-        block_until_arm_arrives(self.robot_command_client,
-                                stow_and_close_command_id, 3.0)
+
+        if stow_after:
+            # Finally, stow the arm and close the gripper.
+            stow_cmd = RobotCommandBuilder.arm_stow_command()
+            gripper_close_command = RobotCommandBuilder.\
+                claw_gripper_open_fraction_command(0.0)
+            # Combine the arm and gripper commands into one RobotCommand
+            stow_and_close_command = RobotCommandBuilder.build_synchro_command(
+                gripper_close_command, stow_cmd)
+            stow_and_close_command_id = self.robot_command_client.robot_command(
+                stow_and_close_command)
+            self.robot.logger.info("Stow command issued.")
+            block_until_arm_arrives(self.robot_command_client,
+                                    stow_and_close_command_id, 3.0)
 
     def navigate_to(self, waypoint_id: str, params: Array) -> None:
         """Use GraphNavInterface to localize robot and go to a location."""
