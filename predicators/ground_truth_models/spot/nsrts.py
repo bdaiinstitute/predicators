@@ -7,6 +7,7 @@ import numpy as np
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotEnv
 from predicators.ground_truth_models import GroundTruthNSRTFactory
+from predicators.spot_utils.spot_utils import get_spot_interface
 from predicators.structs import NSRT, Array, GroundAtom, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
@@ -24,6 +25,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
                   predicates: Dict[str, Predicate],
                   options: Dict[str, ParameterizedOption]) -> Set[NSRT]:
 
+        spot_interface = get_spot_interface()
+
         def move_sampler(state: State, goal: Set[GroundAtom],
                          rng: np.random.Generator,
                          objs: Sequence[Object]) -> Array:
@@ -36,6 +39,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
         def grasp_sampler(state: State, goal: Set[GroundAtom],
                           rng: np.random.Generator,
                           objs: Sequence[Object]) -> Array:
+            # TODO: move logic from spot utils into here
             del state, goal, rng
             if objs[1].type.name == "bag":  # pragma: no cover
                 return np.array([0.0, 0.0, 0.0, -1.0])
@@ -48,7 +52,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
                           objs: Sequence[Object]) -> Array:
             del state, goal, rng
             if objs[2].type.name == "bag":  # pragma: no cover
-                return np.array([0.0, 0.0, -0.25])
+                dx, dy = spot_interface.get_place_offset("bag")
+                return np.array([dx, dy, -0.25])
             return np.array([0.0, 0.0, 0.0])
 
         env = get_or_create_env(env_name)

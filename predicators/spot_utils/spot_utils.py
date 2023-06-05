@@ -67,7 +67,8 @@ obj_name_to_apriltag_id = {
     "hammer": "401",
     "brush": "402",
     "hex_key": "403",
-    "hex_screwdriver": "404"
+    "hex_screwdriver": "404",
+    "bag": "405",
 }
 
 OBJECT_CROPS = {
@@ -753,6 +754,71 @@ class _SpotInterface():
         if (time.perf_counter() - start_time) > COMMAND_TIMEOUT:
             logging.info("Timed out waiting for movement to execute!")
         return False
+
+    def get_place_offset(self, object_name: str) -> Tuple[float, float]:
+        """Use april tag to find dx, dy position."""
+        # TODO: refactor grasp code to use this function?
+        apriltag_id = obj_name_to_apriltag_id[object_name]
+
+        # Take a picture with a camera
+        source_to_img = {}
+        for image_source in [
+            "frontleft_fisheye_image",
+            "frontright_fisheye_image"
+        ]:
+
+            self.robot.logger.info(f'Getting an image from: {image_source}')
+            time.sleep(1)
+            image_responses = self.image_client.get_image_from_sources(
+                [image_source])
+
+            if len(image_responses) != 1:
+                print(f'Got invalid number of images: {str(len(image_responses))}')
+                print(image_responses)
+                assert False
+
+            image = image_responses[0]
+            if image.shot.image.pixel_format == image_pb2.Image.\
+                PIXEL_FORMAT_DEPTH_U16:
+                dtype = np.uint16  # type: ignore
+            else:
+                dtype = np.uint8  # type: ignore
+            img = np.fromstring(image.shot.image.data, dtype=dtype)  # type: ignore
+            if image.shot.image.format == image_pb2.Image.FORMAT_RAW:
+                img = img.reshape(image.shot.image.rows, image.shot.image.cols)
+            else:
+                img = cv2.imdecode(img, -1)
+
+            source_to_img[image_source] = img
+
+            # Save the images.
+            filename = f"place_sampler_images/{image_source}_{int(time.time())}.png"
+            cv2.imwrite(filename, img)
+            print(f"Wrote out to {filename}.")
+
+        sys.exit(0)
+
+        # Define the AprilTags detector options and then detect the tags.
+        self.robot.logger.info("[INFO] detecting AprilTags...")
+        options = apriltag.DetectorOptions(families="tag36h11")
+        detector = apriltag.Detector(options)
+        results = detector.detect(img)
+        self.robot.logger.info(f"[INFO] {len(results)} AprilTags detected")
+        for result in results:
+            if str(result.tag_id) == apriltag_id:
+                x, y = results[0].center
+                break
+        else:
+            raise ValueError("April tag not found.")
+
+        dx = x - img.shape[1] // 2
+        dy = y - img.shape[0] // 2
+
+        # Scale in some hacky way.
+        import ipdb
+        ipdb.set_trace()
+
+        return (dx, dy)
 
 
 @functools.lru_cache(maxsize=None)
