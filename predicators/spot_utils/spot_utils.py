@@ -246,6 +246,11 @@ class _SpotInterface():
         blocking_stand(self.robot_command_client, timeout_sec=10)
         self.robot.logger.info("Robot standing.")
 
+        for obj_name in ["brush", "toolbag", "hex_screwdriver", "tool_room_table", "front_tool_room"]:
+            tmp = self.helper_find_object(obj_name)
+            print(obj_name, tmp)
+        import ipdb; ipdb.set_trace()
+
     def get_localized_state(self) -> Any:
         """Get localized state from GraphNav client."""
         exec_start, exec_sec = time.perf_counter(), 0.0
@@ -479,6 +484,40 @@ class _SpotInterface():
                         source_name=source_name)
                     obj_poses.update(viewable_obj_poses)
                 self.relative_move(0.0, 0.0, 45.0)
+        return obj_poses
+    
+    def helper_find_object(
+            self,
+            obj_name_to_find: Optional[str] = None) -> Dict[int, Tuple[float, float, float]]:
+        """Walks around and spins around to find object poses by apriltag."""
+        obj_poses: Dict[int, Tuple[float, float, float]] = {}
+        angles = [(np.cos((np.pi / 4) / 2), 0.0, np.sin((np.pi / 4) / 2), 0.0),
+                  (np.cos((np.pi / 4)), 0.0, np.sin((np.pi / 4)), 0.0)]  
+        if obj_name_to_find is not None:
+            tag_id = obj_name_to_apriltag_id[obj_name_to_find]
+        else:
+            tag_id = None
+        for _ in range(8):
+            for angle in angles:
+                self.hand_movement(np.array([-0.2, 0.0, -0.25]),
+                                keep_hand_pose=False,
+                                angle=angle)
+                obj_poses.update(self.get_apriltag_pose_from_camera())
+                if tag_id is not None and tag_id in obj_poses.keys():
+                    return {tag_id: obj_poses[tag_id]}
+                print(obj_poses)
+                self.stow_arm()
+            for source_name in [
+                    "hand_color_image", "left_fisheye_image",
+                    "back_fisheye_image"
+            ]:
+                viewable_obj_poses = self.get_apriltag_pose_from_camera(
+                    source_name=source_name)
+                obj_poses.update(viewable_obj_poses)
+                if tag_id is not None and tag_id in obj_poses.keys():
+                    return {tag_id: obj_poses[tag_id]}
+                print(obj_poses)
+            self.relative_move(0.0, 0.0, 45.0)
         return obj_poses
 
     def verify_estop(self, robot: Any) -> None:
@@ -766,7 +805,8 @@ class _SpotInterface():
                       obj: Optional[Object] = None,
                       open_gripper: bool = True,
                       keep_hand_pose: bool = True,
-                      use_object_location: bool = False) -> None:
+                      use_object_location: bool = False,
+                      angle: Optional[Tuple[float, float, float, float]] = None) -> None:
         """Move arm to infront of robot an open gripper."""
         # Move the arm to a spot in front of the robot, and open the gripper.
         assert self.robot.is_powered_on(), "Robot power on failed."
@@ -780,12 +820,14 @@ class _SpotInterface():
                 BODY_FRAME_NAME, "hand")
             qw, qx, qy, qz = body_T_hand.rot.w, body_T_hand.rot.x,\
                 body_T_hand.rot.y, body_T_hand.rot.z
-        else:
+        elif angle == None:
             # Set downward place rotation as a quaternion.
             qw = np.cos((np.pi / 4))
             qx = 0
             qy = np.sin((np.pi / 4))
             qz = 0
+        else:
+            qw, qx, qy, qz = angle
         flat_body_Q_hand = geometry_pb2.Quaternion(w=qw, x=qx, y=qy, z=qz)
 
         # Make the arm pose RobotCommand
