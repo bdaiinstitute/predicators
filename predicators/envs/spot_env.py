@@ -376,8 +376,10 @@ class SpotEnv(BaseEnv):
             for a in init_atoms
             if a.predicate not in self.continuous_feature_predicates
         }
-        init_state = self._build_partial_perception_state(
-            init_dict, init_atoms)
+        init_state = self._generate_tasks(CFG.num_test_tasks)[0].init_obs
+        # init_state = self._build_partial_perception_state(
+        #     init_dict, init_atoms)
+
         # Parse goal.
         if "goal" in json_dict:
             goal = self._parse_goal_from_json(json_dict["goal"],
@@ -949,10 +951,10 @@ class SpotBikeEnv(SpotEnv):
             init_state = self._build_partial_perception_state(
                 init_dict, init_atoms)
             goal = {
-                GroundAtom(self._InBag, [hammer, bag]),
-                GroundAtom(self._InBag, [brush, bag]),
-                GroundAtom(self._InBag, [hex_key, bag]),
-                GroundAtom(self._InBag, [hex_screwdriver, bag]),
+                GroundAtom(self._On, [brush, tool_room_table]),
+                GroundAtom(self._On, [hex_key, tool_room_table]),
+                GroundAtom(self._On, [hex_screwdriver, tool_room_table]),
+                GroundAtom(self._HandEmpty, [spot])
             }
             tasks.append(EnvironmentTask(init_state, goal))
         return tasks

@@ -10,7 +10,7 @@
     "high_wall_rack": "flat_surface",
     "toolbag": "bag"},
     "init": 
-    {"spot": {},
+    {"spot": {"gripper_open_percentage": 0.0, "curr_held_item_id": 0.0},
     "hammer": {},
     "low_wall_rack": {},
     "movable_platform": {},
