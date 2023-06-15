@@ -241,6 +241,12 @@ class _SpotInterface():
         blocking_stand(self.robot_command_client, timeout_sec=10)
         self.robot.logger.info("Robot standing.")
 
+        objects_to_find = objects = [
+            "hammer", "hex_key", "hex_screwdriver", "brush", "tool_room_table",
+            "low_wall_rack", "toolbag", "extra_room_table", "floor"
+        ]
+        found = self._scan_for_objects(["tool_room_table", "tool_room_platform", "low_wall_rack"], objects_to_find)
+
     def get_camera_images(self) -> Dict[str, Image]:
         """Get all camera images."""
         camera_images: Dict[str, Image] = {}
@@ -535,7 +541,8 @@ class _SpotInterface():
         obj_poses: Dict[str, Tuple[float, float, float]] = {
             "floor": (0.0, 0.0, -1.0)
         }
-        angles = [(np.cos((np.pi / 4) / 2), 0.0, np.sin((np.pi / 4) / 2), 0.0),
+        angles = [(np.cos(np.pi / 8), 0.0, np.sin(np.pi / 8), 0.0),
+                  (np.cos(np.pi / 6), 0.0, np.sin(np.pi / 6), 0.0),
                   (np.cos((np.pi / 4)), 0.0, np.sin((np.pi / 4)), 0.0)]  
         for waypoint in waypoints:
             waypoint_id = graph_nav_loc_to_id[waypoint]
@@ -929,7 +936,7 @@ class _SpotInterface():
         # Wait until the arm arrives at the goal.
         block_until_arm_arrives(self.robot_command_client, cmd_id, 3.0)
 
-        time.sleep(1.0)
+        #time.sleep(1.0)
 
         if not open_gripper:
             gripper_command = RobotCommandBuilder.\
@@ -948,7 +955,7 @@ class _SpotInterface():
 
         # Wait until the arm arrives at the goal.
         block_until_arm_arrives(self.robot_command_client, cmd_id, 3.0)
-        time.sleep(1.0)
+        #time.sleep(1.0)
 
     def navigate_to(self, waypoint_id: str, params: Array) -> None:
         """Use GraphNavInterface to localize robot and go to a location."""
@@ -1018,7 +1025,7 @@ class _SpotInterface():
                     == traj_feedback.BODY_STATUS_SETTLED):
                 logging.info("Arrived at the goal.")
                 return True
-            time.sleep(1)
+            # time.sleep(1)
         if (time.perf_counter() - start_time) > COMMAND_TIMEOUT:
             logging.info("Timed out waiting for movement to execute!")
         return False
