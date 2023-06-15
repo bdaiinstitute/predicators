@@ -436,9 +436,9 @@ class SpotBikeEnv(SpotEnv):
         self._robot_type = Type(
             "robot",
             ["gripper_open_percentage", "curr_held_item_id", "x", "y", "z"])
-        self._tool_type = Type("tool", ["x", "y", "z"])
-        self._surface_type = Type("flat_surface", ["x", "y", "z"])
-        self._bag_type = Type("bag", ["x", "y", "z"])
+        self._tool_type = Type("tool", ["x", "y", "z", "position_known"])
+        self._surface_type = Type("flat_surface", ["x", "y", "z", "position_known"])
+        self._bag_type = Type("bag", ["x", "y", "z", "position_known"])
         self._platform_type = Type("platform", ["x", "y", "z"])
 
         # Predicates
@@ -496,6 +496,14 @@ class SpotBikeEnv(SpotEnv):
         self._PlatformNear = Predicate(
             "PlatformNear", [self._platform_type, self._surface_type],
             _create_dummy_predicate_classifier(self._temp_PlatformNear))
+        self._ToolPositionKnown = Predicate(
+            "ToolPositionKnown", [self._robot_type, self._tool_type],
+            self._tool_pos_known_classifier
+        )
+        self._SurfacePositionKnown = Predicate(
+            "SurfacePositionKnown", [self._robot_type, self._tool_type],
+            self._surface_pos_known_classifier
+        )
 
         # STRIPS Operators (needed for option creation)
         # MoveToTool
@@ -791,6 +799,14 @@ class SpotBikeEnv(SpotEnv):
     def _surface_not_too_high_classifier(self, state: State,
                                          objects: Sequence[Object]) -> bool:
         return not self._surface_too_high_classifier(state, objects)
+    
+    def _tool_pos_known_classifier(self, state: State, objects: Sequence[Object]) -> bool:
+        _, tool = objects
+        return state.get(tool, "position_known") > 0.5
+    
+    def _surface_pos_known_classifier(self, state: State, objects: Sequence[Object]) -> bool:
+        _, surface = objects
+        return state.get(surface, "position_known") > 0.5
 
     @classmethod
     def get_name(cls) -> str:
