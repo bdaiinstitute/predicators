@@ -145,37 +145,46 @@ PROCESSED_QUEUE = Queue(QUEUE_MAXSIZE)
 class AsyncImage(AsyncPeriodicQuery):
     """Grab image."""
 
-    def __init__(self, image_client, image_sources):
+    def __init__(self, image_client, image_sources, sleep_between_capture):
         # Period is set to be about 15 FPS
         super(AsyncImage, self).__init__('images', image_client, LOGGER, period_sec=0.067)
         self.image_sources = image_sources
+        self.sleep_between_capture = sleep_between_capture
 
     def _handle_result(self, result):
         # global DEBUG_COUNT
 
         image_response = result[0]
 
-        if image_response.shot.image.pixel_format == image_pb2.Image.\
-            PIXEL_FORMAT_DEPTH_U16:
-            dtype = np.uint16  # type: ignore
-        else:
-            dtype = np.uint8  # type: ignore
-        img = np.fromstring(image_response.shot.image.data,
-                            dtype=dtype)  # type: ignore
-        if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
-            img = img.reshape(image_response.shot.image.rows,
-                            image_response.shot.image.cols)
-        else:
-            img = cv2.imdecode(img, -1)
+        source = image_response.source.name
+        entry = {}
+        entry[source] = {
+            "image_response": image_response,
+        }
+
+        try:
+            RAW_IMAGES_QUEUE.put_nowait(entry)
+        except Full as exc:
+            print(f'RAW_IMAGES_QUEUE is full: {exc}')
+        time.sleep(self.sleep_between_capture)
+
+        # if image_response.shot.image.pixel_format == image_pb2.Image.\
+        #     PIXEL_FORMAT_DEPTH_U16:
+        #     dtype = np.uint16  # type: ignore
+        # else:
+        #     dtype = np.uint8  # type: ignore
+        # img = np.fromstring(image_response.shot.image.data,
+        #                     dtype=dtype)  # type: ignore
+        # if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+        #     img = img.reshape(image_response.shot.image.rows,
+        #                     image_response.shot.image.cols)
+        # else:
+        #     img = cv2.imdecode(img, -1)
         # import imageio
         # imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
         # DEBUG_COUNT += 1
 
-        ret = super()._handle_result((image_response, img))
-
-        self._proto = (image_response, img)
-
-        return ret
+        return super()._handle_result(result)
 
     def _start_query(self):
 
@@ -188,56 +197,55 @@ class AsyncImage(AsyncPeriodicQuery):
         return self._client.get_image_async(requests)
 
 
-def capture_images(image_task, sleep_between_capture):
-    """ Captures images and places them on the queue
+# def capture_images(image_task, sleep_between_capture):
+#     """ Captures images and places them on the queue
 
-    Args:
-        image_task (AsyncImage): Async task that provides the images response to use
-        sleep_between_capture (float): Time to sleep between each image capture
-    """
+#     Args:
+#         image_task (AsyncImage): Async task that provides the images response to use
+#         sleep_between_capture (float): Time to sleep between each image capture
+#     """
 
-    DEBUG_COUNT = 0
+#     DEBUG_COUNT = 0
 
-    while not SHUTDOWN_FLAG.value:
-        get_im_resp = image_task.proto
-        if not get_im_resp:
-            continue
-        entry = {}
-        image_response, img = get_im_resp
-        print("LEN get_im_resp:", len(get_im_resp))
-        # Add the full image response to the queue.
-        try:
-            source = image_response.source.name
-            entry[source] = {
-                "image_response": image_response,
-                "time": time.time()
-            }
-            print("ADDED IMAGE RESPONSE TO QUEUE!!!!!")
+#     while not SHUTDOWN_FLAG.value:
+#         get_im_resp = image_task.proto
+#         if not get_im_resp:
+#             continue
+#         entry = {}
+#         image_response, img = get_im_resp
+#         # Add the full image response to the queue.
+#         try:
+#             source = image_response.source.name
+#             entry[source] = {
+#                 "image_response": image_response,
+#                 "time": time.time()
+#             }
+#             print("ADDED IMAGE RESPONSE TO QUEUE!!!!!")
 
-            # if image_response.shot.image.pixel_format == image_pb2.Image.\
-            #     PIXEL_FORMAT_DEPTH_U16:
-            #     dtype = np.uint16  # type: ignore
-            # else:
-            #     dtype = np.uint8  # type: ignore
-            # img = np.fromstring(image_response.shot.image.data,
-            #                     dtype=dtype)  # type: ignore
-            # if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
-            #     img = img.reshape(image_response.shot.image.rows,
-            #                     image_response.shot.image.cols)
-            # else:
-            #     img = cv2.imdecode(img, -1)
+#             if image_response.shot.image.pixel_format == image_pb2.Image.\
+#                 PIXEL_FORMAT_DEPTH_U16:
+#                 dtype = np.uint16  # type: ignore
+#             else:
+#                 dtype = np.uint8  # type: ignore
+#             img = np.fromstring(image_response.shot.image.data,
+#                                 dtype=dtype)  # type: ignore
+#             if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+#                 img = img.reshape(image_response.shot.image.rows,
+#                                 image_response.shot.image.cols)
+#             else:
+#                 img = cv2.imdecode(img, -1)
             
-            import imageio
-            imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
-            DEBUG_COUNT += 1
+#             import imageio
+#             imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
+#             DEBUG_COUNT += 1
 
-        except Exception as exc:  # pylint: disable=broad-except
-            print(f'Exception occurred during image capture {exc}')
-        try:
-            RAW_IMAGES_QUEUE.put_nowait(entry)
-        except Full as exc:
-            print(f'RAW_IMAGES_QUEUE is full: {exc}')
-        time.sleep(sleep_between_capture)
+#         except Exception as exc:  # pylint: disable=broad-except
+#             print(f'Exception occurred during image capture {exc}')
+#         try:
+#             RAW_IMAGES_QUEUE.put_nowait(entry)
+#         except Full as exc:
+#             print(f'RAW_IMAGES_QUEUE is full: {exc}')
+#         time.sleep(sleep_between_capture)
 
 
 
@@ -458,7 +466,8 @@ class _SpotInterface():
 
         image_client = self.image_client
         source_list = CAMERA_NAMES
-        image_task = AsyncImage(image_client, source_list)
+        sleep_between_capture = 0.2
+        image_task = AsyncImage(image_client, source_list, sleep_between_capture)
         task_list = [image_task]
         _async_tasks = AsyncTasks(task_list)
         # This thread starts the async tasks for image and robot state retrieval
@@ -468,12 +477,11 @@ class _SpotInterface():
         # Wait for the first responses.
         while any(task.proto is None for task in task_list):
             time.sleep(0.1)
-        # Start image capture process
-        sleep_between_capture = 0.2
-        image_capture_thread = Process(target=capture_images,
-                                       args=(image_task, sleep_between_capture),
-                                       daemon=True)
-        image_capture_thread.start()
+        # # Start image capture process
+        # image_capture_thread = Process(target=capture_images,
+        #                                args=(image_task, sleep_between_capture),
+        #                                daemon=True)
+        # image_capture_thread.start()
 
         waypoints = ["tool_room_table", "low_wall_rack"]
         obj_name_to_loc = self._scan_for_objects(waypoints, object_names)
@@ -537,7 +545,6 @@ class _SpotInterface():
             for source, data in entry.items():
                 print("CHECK 3")
                 print("source:", source)
-                print("time:", data["time"])
                 image_response = data["image_response"]
                 start_time = time.time()
 
@@ -556,9 +563,9 @@ class _SpotInterface():
                     img = cv2.imdecode(img, -1)
 
                 
-                # import imageio
-                # imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
-                # DEBUG_COUNT += 1
+                import imageio
+                imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
+                DEBUG_COUNT += 1
 
                 obj_poses = self._get_apriltag_pose_from_image_response(img, image_response, source,
                     fiducial_size = 76.2)
