@@ -1,8 +1,13 @@
 """Utility functions to interface with the Boston Dynamics Spot robot."""
 
 import functools
+import io
+from multiprocessing import Barrier, Process, Queue, Value
+from queue import Empty, Full
+from threading import BrokenBarrierError, Thread
 import logging
 import os
+import signal
 import sys
 import time
 from typing import Any, Collection, Dict, Optional, Sequence, Tuple
@@ -11,6 +16,8 @@ import apriltag
 import bosdyn.client
 import bosdyn.client.estop
 import bosdyn.client.lease
+from bosdyn.api.image_pb2 import ImageSource
+from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 import bosdyn.client.util
 import cv2
 import numpy as np
@@ -105,6 +112,61 @@ CAMERA_NAMES = [
     "frontleft_fisheye_image", "frontright_fisheye_image", "back_fisheye_image"
 ]
 
+#################### Async image capture helper functions ####################
+
+SHUTDOWN_FLAG = Value('i', 0)
+OBJECT_DETECTION_BARRIER = None  # TODO figure out what this actually does
+
+def signal_handler(signal, frame):
+    """For multiprocessing."""
+    SHUTDOWN_FLAG.value = 1
+
+signal.signal(signal.SIGINT, signal_handler)
+
+def _update_thread(async_task):
+    while True:
+        async_task.update()
+        time.sleep(0.01)
+
+# Create queues for processing images.
+QUEUE_MAXSIZE = 10
+RAW_IMAGES_QUEUE = Queue(QUEUE_MAXSIZE)
+PROCESSED_QUEUE = Queue(QUEUE_MAXSIZE)
+
+
+class AsyncImage(AsyncPeriodicQuery):
+    """Obtain an image response and add it to the queue.."""
+
+    def __init__(self, image_client, image_sources, logger, sleep_between_capture=0.2,
+                 period_sec=0.067, quality_percent=100):
+        # Period is set to be about 15 FPS
+        super(AsyncImage, self).__init__('images', image_client, logger, period_sec=period_sec)
+        self.image_sources = image_sources
+        self.sleep_between_capture = sleep_between_capture
+        self.quality_percent = quality_percent
+
+    def _handle_result(self, result):
+        # This is different from the SDK examples, but the SDK examples don't
+        # seem to work. In particular, the first frame is repeatedly processed
+        # instead of a stream of frames.
+        image_response = result[0]
+        try:
+            RAW_IMAGES_QUEUE.put_nowait(image_response)
+        except Full as exc:
+            print(f'RAW_IMAGES_QUEUE is full: {exc}')
+        time.sleep(self.sleep_between_capture)
+        return super()._handle_result(result)
+
+    def _start_query(self):
+        requests = [build_image_request(
+            source_name,
+            quality_percent=self.quality_percent,
+            pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
+            for source_name in self.image_sources]
+        return self._client.get_image_async(requests)
+
+############################# End async helpers ##############################
+
 
 def _find_object_center(img: Image,
                         obj_name: str) -> Optional[Tuple[int, int]]:
@@ -193,6 +255,32 @@ class _SpotInterface():
                 RuntimeError):
             logging.warning("Could not connect to Spot!")
 
+        # Set up image detection.
+        self.robot.start_time_sync(0.001)
+        num_object_detection_processes = 1
+        global OBJECT_DETECTION_BARRIER  # pylint: disable=global-statement
+        OBJECT_DETECTION_BARRIER = Barrier(num_object_detection_processes + 1)
+        for _ in range(num_object_detection_processes):
+            process = Process(
+                target=self.process_images_from_async_queue, args=tuple(), daemon=True)
+            process.start()
+        
+        # Sleep to give the processes time to initialize.
+        try:
+            OBJECT_DETECTION_BARRIER.wait()
+        except BrokenBarrierError as exc:
+            raise RuntimeError(f'Error waiting for processes: {exc}')
+
+        image_task = AsyncImage(self.image_client, CAMERA_NAMES, self.robot.logger)
+        task_list = [image_task]  # maybe add more tasks in the future
+        _async_tasks = AsyncTasks(task_list)
+        update_thread = Thread(target=_update_thread, args=[_async_tasks])
+        update_thread.daemon = True
+        update_thread.start()
+        # Wait for the first responses.
+        while any(task.proto is None for task in task_list):
+            time.sleep(0.1)
+
     def _connect_to_spot(self) -> None:
         # See hello_spot.py for an explanation of these lines.
         bosdyn.client.util.setup_logging(self._verbose)
@@ -258,22 +346,8 @@ class _SpotInterface():
             source_name,
             quality_percent=100,
             pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
-        image_response = self.image_client.get_image([img_req])
-
-        # Format image before detecting apriltags.
-        if image_response[0].shot.image.pixel_format == image_pb2.Image.\
-            PIXEL_FORMAT_DEPTH_U16:
-            dtype = np.uint16  # type: ignore
-        else:
-            dtype = np.uint8  # type: ignore
-        img = np.fromstring(image_response[0].shot.image.data,
-                            dtype=dtype)  # type: ignore
-        if image_response[0].shot.image.format == image_pb2.Image.FORMAT_RAW:
-            img = img.reshape(image_response[0].shot.image.rows,
-                              image_response[0].shot.image.cols)
-        else:
-            img = cv2.imdecode(img, -1)
-
+        image_response = self.image_client.get_image([img_req])[0]
+        img = self.image_response_to_image(image_response)
         return (img, image_response)
 
     def get_objects_in_view(self) -> Dict[str, Tuple[float, float, float]]:
@@ -292,6 +366,59 @@ class _SpotInterface():
             for t, p in tag_to_pose.items()
         }
         return obj_name_to_pose
+
+    def image_response_to_image(self, image_response):
+        # Format image before detecting apriltags.
+        if image_response.shot.image.pixel_format == image_pb2.Image.\
+            PIXEL_FORMAT_DEPTH_U16:
+            dtype = np.uint16  # type: ignore
+        else:
+            dtype = np.uint8  # type: ignore
+        img = np.fromstring(image_response.shot.image.data,
+                            dtype=dtype)  # type: ignore
+        if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+            img = img.reshape(image_response.shot.image.rows,
+                              image_response.shot.image.cols)
+        else:
+            img = cv2.imdecode(img, -1)
+        return img
+
+    def process_images_from_async_queue(self):
+
+        seen = set()  # TODO remove
+
+        if OBJECT_DETECTION_BARRIER is None:
+            return
+
+        try:
+            OBJECT_DETECTION_BARRIER.wait()
+        except BrokenBarrierError as exc:
+            print(f'Error waiting for processes to initialize: {exc}')
+            return False
+
+        while not SHUTDOWN_FLAG.value:
+            try:
+                image_response = RAW_IMAGES_QUEUE.get_nowait()
+            except Empty:
+                time.sleep(0.1)
+                continue
+
+            img = self.image_response_to_image(image_response)
+            obj_name_to_pose = self._get_apriltag_pose_from_image(img, image_response)
+
+            processed_entry = {
+                "source": source,
+                "poses": obj_name_to_pose,
+            }
+
+            seen.update(set(obj_name_to_pose))
+            print("SEEN:", seen)
+
+            try:
+                PROCESSED_QUEUE.put_nowait(processed_entry)
+            except Full as exc:
+                print(f'PROCESSED_QUEUE is full: {exc}')
+        return True
 
     def get_robot_pose(self) -> Tuple[float, float, float]:
         """Get the x, y, z position of the robot body."""
@@ -348,7 +475,10 @@ class _SpotInterface():
         position tuple in the map frame.
         """
         img, image_response = self.get_single_camera_image(source_name)
+        return self._get_apriltag_pose_from_image(img, image_response, source_name, fiducial_size)
 
+    # TODO add typing
+    def _get_apriltag_pose_from_image(self, img, image_response, source_name, fiducial_size: float = 76.2):
         # Camera body transform.
         camera_tform_body = get_a_tform_b(
             image_response[0].shot.transforms_snapshot,
@@ -385,19 +515,23 @@ class _SpotInterface():
                     fiducial_rt_camera_frame[0], fiducial_rt_camera_frame[1],
                     fiducial_rt_camera_frame[2])
 
-            # Get graph_nav to body frame.
-            state = self.get_localized_state()
-            gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
-                state.localization.seed_tform_body)
+            # TODO!!! get robot state asynchronously
+            # # Get graph_nav to body frame.
+            # state = self.get_localized_state()
+            # gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
+            #     state.localization.seed_tform_body)
 
-            # Apply transform to fiducial to body location
-            fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
-                body_tform_fiducial[0], body_tform_fiducial[1],
-                body_tform_fiducial[2])
+            # # Apply transform to fiducial to body location
+            # fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
+            #     body_tform_fiducial[0], body_tform_fiducial[1],
+            #     body_tform_fiducial[2])
+
+            fiducial_rt_gn_origin = (0.0, 0.0, 0.0)
 
             # This only works for small fiducials because of initial size.
             if detection.tag_id in obj_name_to_apriltag_id.values():
                 obj_poses[detection.tag_id] = fiducial_rt_gn_origin
+            
 
         return obj_poses
 
