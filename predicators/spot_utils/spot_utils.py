@@ -3,6 +3,7 @@
 import functools
 import logging
 import os
+import threading
 import sys
 import time
 from typing import Any, Collection, Dict, Optional, Sequence, Tuple
@@ -190,6 +191,10 @@ class _SpotInterface():
                 bosdyn.client.exceptions.UnableToConnectToRobotError,
                 RuntimeError):
             logging.warning("Could not connect to Spot!")
+
+        # Asynchronously collect images and detect objects with April tags.
+        self.robot.start_time_sync(0.001)
+        self._start_object_detection_thread()
 
     def _connect_to_spot(self) -> None:
         # See hello_spot.py for an explanation of these lines.
@@ -384,15 +389,18 @@ class _SpotInterface():
                     fiducial_rt_camera_frame[0], fiducial_rt_camera_frame[1],
                     fiducial_rt_camera_frame[2])
 
-            # Get graph_nav to body frame.
-            state = self.get_localized_state()
-            gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
-                state.localization.seed_tform_body)
+            # # Get graph_nav to body frame.
+            # state = self.get_localized_state()
+            # gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
+            #     state.localization.seed_tform_body)
 
-            # Apply transform to fiducial to body location
-            fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
-                body_tform_fiducial[0], body_tform_fiducial[1],
-                body_tform_fiducial[2])
+            # # Apply transform to fiducial to body location
+            # fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
+            #     body_tform_fiducial[0], body_tform_fiducial[1],
+            #     body_tform_fiducial[2])
+
+            # TODO
+            fiducial_rt_gn_origin = (0.0, 0.0, 0.0)
 
             # This only works for small fiducials because of initial size.
             if detection.tag_id in obj_name_to_apriltag_id.values():
@@ -539,17 +547,30 @@ class _SpotInterface():
                 logging.info("All objects located!")
                 break
             for _ in range(8):
-                objects_in_view = self.get_objects_in_view()
-                obj_poses.update(objects_in_view)
-                logging.info("Seen objects:")
-                logging.info(set(obj_poses))
-                remaining_objects = set(objects_to_find) - set(obj_poses)
-                if not remaining_objects:
-                    break
-                logging.info("Still searching for objects:")
-                logging.info(remaining_objects)
-                self.relative_move(0.0, 0.0, np.pi / 4)
+                # objects_in_view = self.get_objects_in_view()
+                # obj_poses.update(objects_in_view)
+                # logging.info("Seen objects:")
+                # logging.info(set(obj_poses))
+                # remaining_objects = set(objects_to_find) - set(obj_poses)
+                # if not remaining_objects:
+                #     break
+                # logging.info("Still searching for objects:")
+                # logging.info(remaining_objects)
+                self.relative_move(0.0, 0.0, np.pi / 4, sleep_time=0.0)
         return obj_poses
+
+    def _start_object_detection_thread(self) -> None:
+        # TODO: gracefully kill threads.
+        th = threading.Thread(target=self._async_detect_objects, args=tuple())
+        th.start()
+
+    def _async_detect_objects(self):
+        while True:
+            print("objects detected:")
+            print(self.get_objects_in_view())
+
+            time.sleep(0.2)
+
 
     def verify_estop(self, robot: Any) -> None:
         """Verify the robot is not estopped."""
@@ -962,7 +983,8 @@ class _SpotInterface():
                       dx: float,
                       dy: float,
                       dyaw: float,
-                      stairs: bool = False) -> bool:
+                      stairs: bool = False,
+                      sleep_time: float = 1) -> bool:
         """Move to relative robot position in body frame."""
         transforms = self.robot_state_client.get_robot_state(
         ).kinematic_state.transforms_snapshot
@@ -1006,7 +1028,7 @@ class _SpotInterface():
                     == traj_feedback.BODY_STATUS_SETTLED):
                 logging.info("Arrived at the goal.")
                 return True
-            time.sleep(1)
+            time.sleep(sleep_time)
         if (time.perf_counter() - start_time) > COMMAND_TIMEOUT:
             logging.info("Timed out waiting for movement to execute!")
         return False
