@@ -3,15 +3,24 @@
 import functools
 import logging
 import os
+import io
+import signal
 import sys
 import time
 from typing import Any, Collection, Dict, Optional, Sequence, Tuple
+from multiprocessing import Barrier, Process, Queue, Value
+from queue import Empty, Full
+from threading import BrokenBarrierError, Thread
+
+from PIL import Image as PILImage
 
 import apriltag
 import bosdyn.client
 import bosdyn.client.estop
 import bosdyn.client.lease
 import bosdyn.client.util
+from bosdyn.api.image_pb2 import ImageSource
+from bosdyn.client.async_tasks import AsyncPeriodicQuery, AsyncTasks
 import cv2
 import numpy as np
 from bosdyn.api import basic_command_pb2, estop_pb2, geometry_pb2, image_pb2, \
@@ -21,7 +30,7 @@ from bosdyn.client import math_helpers
 from bosdyn.client.estop import EstopClient
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, \
     GRAV_ALIGNED_BODY_FRAME_NAME, ODOM_FRAME_NAME, VISION_FRAME_NAME, \
-    get_a_tform_b, get_se2_a_tform_b, get_vision_tform_body
+    get_a_tform_b, get_se2_a_tform_b, get_vision_tform_body, GROUND_PLANE_FRAME_NAME
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.manipulation_api_client import ManipulationApiClient
 from bosdyn.client.robot_command import RobotCommandBuilder, \
@@ -101,7 +110,135 @@ OBJECT_GRASP_OFFSET = {
 
 COMMAND_TIMEOUT = 20.0
 
-CAMERA_NAMES = ["hand_color_image", "left_fisheye_image", "back_fisheye_image"]
+# CAMERA_NAMES = ["hand_color_image", "left_fisheye_image", "back_fisheye_image"]
+CAMERA_NAMES = ["back_fisheye_image"]
+
+# TODO: add depth cameras for front cameras, like in example.
+
+# TODO clean and move
+LOGGER = bosdyn.client.util.get_logger()
+SHUTDOWN_FLAG = Value('i', 0)
+OBJECT_DETECTION_BARRIER = None
+
+def signal_handler(signal, frame):
+    print('Interrupt caught, shutting down')
+    SHUTDOWN_FLAG.value = 1
+
+signal.signal(signal.SIGINT, signal_handler)
+
+
+def _update_thread(async_task):
+    while True:
+        async_task.update()
+        time.sleep(0.01)
+
+
+# Don't let the queues get too backed up
+QUEUE_MAXSIZE = 10
+RAW_IMAGES_QUEUE = Queue(QUEUE_MAXSIZE)
+PROCESSED_QUEUE = Queue(QUEUE_MAXSIZE)
+
+
+# DEBUG_COUNT = 0
+
+
+class AsyncImage(AsyncPeriodicQuery):
+    """Grab image."""
+
+    def __init__(self, image_client, image_sources):
+        # Period is set to be about 15 FPS
+        super(AsyncImage, self).__init__('images', image_client, LOGGER, period_sec=0.067)
+        self.image_sources = image_sources
+
+    def _handle_result(self, result):
+        # global DEBUG_COUNT
+
+        image_response = result[0]
+
+        if image_response.shot.image.pixel_format == image_pb2.Image.\
+            PIXEL_FORMAT_DEPTH_U16:
+            dtype = np.uint16  # type: ignore
+        else:
+            dtype = np.uint8  # type: ignore
+        img = np.fromstring(image_response.shot.image.data,
+                            dtype=dtype)  # type: ignore
+        if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+            img = img.reshape(image_response.shot.image.rows,
+                            image_response.shot.image.cols)
+        else:
+            img = cv2.imdecode(img, -1)
+        # import imageio
+        # imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
+        # DEBUG_COUNT += 1
+
+        ret = super()._handle_result((image_response, img))
+
+        self._proto = (image_response, img)
+
+        return ret
+
+    def _start_query(self):
+
+        requests = [build_image_request(
+            source_name,
+            quality_percent=100,
+            pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
+            for source_name in self.image_sources]
+
+        return self._client.get_image_async(requests)
+
+
+def capture_images(image_task, sleep_between_capture):
+    """ Captures images and places them on the queue
+
+    Args:
+        image_task (AsyncImage): Async task that provides the images response to use
+        sleep_between_capture (float): Time to sleep between each image capture
+    """
+
+    DEBUG_COUNT = 0
+
+    while not SHUTDOWN_FLAG.value:
+        get_im_resp = image_task.proto
+        if not get_im_resp:
+            continue
+        entry = {}
+        image_response, img = get_im_resp
+        print("LEN get_im_resp:", len(get_im_resp))
+        # Add the full image response to the queue.
+        try:
+            source = image_response.source.name
+            entry[source] = {
+                "image_response": image_response,
+                "time": time.time()
+            }
+            print("ADDED IMAGE RESPONSE TO QUEUE!!!!!")
+
+            # if image_response.shot.image.pixel_format == image_pb2.Image.\
+            #     PIXEL_FORMAT_DEPTH_U16:
+            #     dtype = np.uint16  # type: ignore
+            # else:
+            #     dtype = np.uint8  # type: ignore
+            # img = np.fromstring(image_response.shot.image.data,
+            #                     dtype=dtype)  # type: ignore
+            # if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+            #     img = img.reshape(image_response.shot.image.rows,
+            #                     image_response.shot.image.cols)
+            # else:
+            #     img = cv2.imdecode(img, -1)
+            
+            import imageio
+            imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
+            DEBUG_COUNT += 1
+
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f'Exception occurred during image capture {exc}')
+        try:
+            RAW_IMAGES_QUEUE.put_nowait(entry)
+        except Full as exc:
+            print(f'RAW_IMAGES_QUEUE is full: {exc}')
+        time.sleep(sleep_between_capture)
+
 
 
 def _find_object_center(img: Image,
@@ -303,6 +440,41 @@ class _SpotInterface():
         self, object_names: Collection[str]
     ) -> Dict[str, Tuple[float, float, float]]:
         """Walk around and build object views."""
+
+        # TODO clean
+        num_object_detection_processes = 1
+        global OBJECT_DETECTION_BARRIER  # pylint: disable=global-statement
+        OBJECT_DETECTION_BARRIER = Barrier(num_object_detection_processes + 1)
+        object_detection_processes = self.start_object_detection_processes(num_object_detection_processes)
+
+        self.robot.start_time_sync(0.001)
+
+        # sleep to give the Tensorflow processes time to initialize
+        try:
+            OBJECT_DETECTION_BARRIER.wait()
+        except BrokenBarrierError as exc:
+            print(f'Error waiting for object detection processes to initialize: {exc}')
+            return False
+
+        image_client = self.image_client
+        source_list = CAMERA_NAMES
+        image_task = AsyncImage(image_client, source_list)
+        task_list = [image_task]
+        _async_tasks = AsyncTasks(task_list)
+        # This thread starts the async tasks for image and robot state retrieval
+        update_thread = Thread(target=_update_thread, args=[_async_tasks])
+        update_thread.daemon = True
+        update_thread.start()
+        # Wait for the first responses.
+        while any(task.proto is None for task in task_list):
+            time.sleep(0.1)
+        # Start image capture process
+        sleep_between_capture = 0.2
+        image_capture_thread = Process(target=capture_images,
+                                       args=(image_task, sleep_between_capture),
+                                       daemon=True)
+        image_capture_thread.start()
+
         waypoints = ["tool_room_table", "low_wall_rack"]
         obj_name_to_loc = self._scan_for_objects(waypoints, object_names)
         object_views: Dict[str, Tuple[float, float, float]] = {}
@@ -330,6 +502,93 @@ class _SpotInterface():
         assert str(state.localization.seed_tform_body) != ''
         return state
 
+    def start_object_detection_processes(self, num_processes):
+        processes = []
+        for _ in range(num_processes):
+            process = Process(
+                target=self.process_images, args=tuple(), daemon=True)
+            process.start()
+            processes.append(process)
+        return processes
+
+    def process_images(self):
+        num_processed_skips = 0
+
+        seen = set()
+        DEBUG_COUNT = 0
+
+        if OBJECT_DETECTION_BARRIER is None:
+            return
+
+        try:
+            OBJECT_DETECTION_BARRIER.wait()
+        except BrokenBarrierError as exc:
+            print(f'Error waiting for object detection processes to initialize: {exc}')
+            return False
+
+        while not SHUTDOWN_FLAG.value:
+            print("CHECK 1")
+            try:
+                entry = RAW_IMAGES_QUEUE.get_nowait()
+            except Empty:
+                print("CHECK 2")
+                time.sleep(0.1)
+                continue
+            for source, data in entry.items():
+                print("CHECK 3")
+                print("source:", source)
+                print("time:", data["time"])
+                image_response = data["image_response"]
+                start_time = time.time()
+
+                # Format image before detecting apriltags.
+                if image_response.shot.image.pixel_format == image_pb2.Image.\
+                    PIXEL_FORMAT_DEPTH_U16:
+                    dtype = np.uint16  # type: ignore
+                else:
+                    dtype = np.uint8  # type: ignore
+                img = np.fromstring(image_response.shot.image.data,
+                                    dtype=dtype)  # type: ignore
+                if image_response.shot.image.format == image_pb2.Image.FORMAT_RAW:
+                    img = img.reshape(image_response.shot.image.rows,
+                                    image_response.shot.image.cols)
+                else:
+                    img = cv2.imdecode(img, -1)
+
+                
+                # import imageio
+                # imageio.imwrite(f"debug_images/{DEBUG_COUNT}.png", img)
+                # DEBUG_COUNT += 1
+
+                obj_poses = self._get_apriltag_pose_from_image_response(img, image_response, source,
+                    fiducial_size = 76.2)
+
+                apriltag_id_to_obj_name = {
+                    v: k
+                    for k, v in obj_name_to_apriltag_id.items()
+                }
+                obj_name_to_pose = {
+                    apriltag_id_to_obj_name[t]: p
+                    for t, p in obj_poses.items()
+                }
+
+                processed_entry = {
+                    "source": source,
+                    "poses": obj_name_to_pose,
+                }
+
+                print("ADDING PROCESSED POSES TO QUEUE")
+                print(processed_entry)
+                print(f"processing time: {time.time() - start_time}")
+                seen.update(set(obj_name_to_pose))
+                print("SEEN:", seen)
+                
+            try:
+                PROCESSED_QUEUE.put_nowait(processed_entry)
+            except Full as exc:
+                print(f'PROCESSED_QUEUE is full: {exc}')
+        return True
+
     def get_apriltag_pose_from_camera(
             self,
             source_name: str = "hand_color_image",
@@ -347,13 +606,18 @@ class _SpotInterface():
         """
         img, image_response = self.get_single_camera_image(source_name)
 
+        return self._get_apriltag_pose_from_image_response(img, image_response[0], source_name,
+        fiducial_size)
+
+
+    def _get_apriltag_pose_from_image_response(self, img, image_response, source_name, fiducial_size):
         # Camera body transform.
         camera_tform_body = get_a_tform_b(
-            image_response[0].shot.transforms_snapshot,
-            image_response[0].shot.frame_name_image_sensor, BODY_FRAME_NAME)
+            image_response.shot.transforms_snapshot,
+            image_response.shot.frame_name_image_sensor, BODY_FRAME_NAME)
 
         # Camera intrinsics for the given source camera.
-        intrinsics = image_response[0].source.pinhole.intrinsics
+        intrinsics = image_response.source.pinhole.intrinsics
 
         # Rotate each image such that it is upright and make it gray.
         image_grey = cv2.cvtColor(self.rotate_image(img, source_name),
@@ -385,14 +649,16 @@ class _SpotInterface():
                     fiducial_rt_camera_frame[2])
 
             # Get graph_nav to body frame.
-            state = self.get_localized_state()
-            gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
-                state.localization.seed_tform_body)
+            # TODO fix
+            # state = self.get_localized_state()
+            # gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
+            #     state.localization.seed_tform_body)
 
-            # Apply transform to fiducial to body location
-            fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
-                body_tform_fiducial[0], body_tform_fiducial[1],
-                body_tform_fiducial[2])
+            # # Apply transform to fiducial to body location
+            # fiducial_rt_gn_origin = gn_origin_tform_body.transform_point(
+            #     body_tform_fiducial[0], body_tform_fiducial[1],
+            #     body_tform_fiducial[2])
+            fiducial_rt_gn_origin = (0.0, 0.0, 0.0)
 
             # This only works for small fiducials because of initial size.
             if detection.tag_id in obj_name_to_apriltag_id.values():
