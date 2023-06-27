@@ -22,7 +22,7 @@ from predicators import utils
 from predicators.approaches.online_nsrt_learning_approach import \
     OnlineNSRTLearningApproach
 from predicators.explorers import BaseExplorer, create_explorer
-from predicators.ml_models import MLPBinaryClassifier, MLPRegressor
+from predicators.ml_models import MLPBinaryClassifier, MLPRegressor, KNeighborsClassifier
 from predicators.settings import CFG
 from predicators.structs import NSRT, Array, GroundAtom, LowLevelTrajectory, \
     NSRTSampler, Object, ParameterizedOption, Predicate, Segment, State, \
@@ -144,7 +144,7 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
     def _learn_wrapped_samplers(self,
                                 online_learning_cycle: Optional[int]) -> None:
         """Update the NSRTs in place."""
-        if CFG.active_sampler_learning_model == "myopic_classifier":
+        if CFG.active_sampler_learning_model in ["myopic_classifier_mlp", "myopic_classifier_knn"]:
             learner: _WrappedSamplerLearner = _ClassifierWrappedSamplerLearner(
                 self._get_current_nsrts(), self._get_current_predicates(),
                 online_learning_cycle)
@@ -232,19 +232,23 @@ class _ClassifierWrappedSamplerLearner(_WrappedSamplerLearner):
         X_arr_classifier = np.array(X_classifier)
         # output is binary signal
         y_arr_classifier = np.array(y_classifier)
-        classifier = MLPBinaryClassifier(
-            seed=CFG.seed,
-            balance_data=CFG.mlp_classifier_balance_data,
-            max_train_iters=CFG.sampler_mlp_classifier_max_itr,
-            learning_rate=CFG.learning_rate,
-            weight_decay=CFG.weight_decay,
-            use_torch_gpu=CFG.use_torch_gpu,
-            train_print_every=CFG.pytorch_train_print_every,
-            n_iter_no_change=CFG.mlp_classifier_n_iter_no_change,
-            hid_sizes=CFG.mlp_classifier_hid_sizes,
-            n_reinitialize_tries=CFG.
-            sampler_mlp_classifier_n_reinitialize_tries,
-            weight_init="default")
+        if CFG.active_sampler_learning_model == "myopic_classifier_mlp":
+            classifier = MLPBinaryClassifier(
+                seed=CFG.seed,
+                balance_data=CFG.mlp_classifier_balance_data,
+                max_train_iters=CFG.sampler_mlp_classifier_max_itr,
+                learning_rate=CFG.learning_rate,
+                weight_decay=CFG.weight_decay,
+                use_torch_gpu=CFG.use_torch_gpu,
+                train_print_every=CFG.pytorch_train_print_every,
+                n_iter_no_change=CFG.mlp_classifier_n_iter_no_change,
+                hid_sizes=CFG.mlp_classifier_hid_sizes,
+                n_reinitialize_tries=CFG.
+                sampler_mlp_classifier_n_reinitialize_tries,
+                weight_init="default")
+        else:
+            assert CFG.active_sampler_learning_model == "myopic_classifier_knn"
+            classifier = KNeighborsClassifier(seed = CFG.seed)
         classifier.fit(X_arr_classifier, y_arr_classifier)
 
         # Save the sampler classifier for external analysis.
