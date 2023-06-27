@@ -123,7 +123,7 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
                         if o.name == "Place" and just_made_incorrect_pick:
                             continue
 
-                if CFG.active_sampler_learning_model == "myopic_classifier":
+                if CFG.active_sampler_learning_model in ["myopic_classifier_mlp", "myopic_classifier_knn"]:
                     label: Any = success
                 else:
                     assert CFG.active_sampler_learning_model == "fitted_q"
@@ -224,11 +224,34 @@ class _ClassifierWrappedSamplerLearner(_WrappedSamplerLearner):
             params = option.params
             # input is state features and option parameters
             X_classifier.append([np.array(1.0)])  # start with bias term
-            for obj in objects:
-                X_classifier[-1].extend(state[obj])
-            X_classifier[-1].extend(params)
-            assert not CFG.sampler_learning_use_goals
+            if CFG.env == "bumpy_cover":
+                if option.name == "Pick":
+                    # In this case, the x-data should be 
+                    # [block_bumpy, relative_pick_loc]
+                    assert len(objects) == 1
+                    block = objects[0]
+                    block_pos = state[block][3]
+                    block_bumpy = state[block][5]
+                    X_classifier[-1].extend([block_bumpy])
+                    assert len(params) == 1
+                    X_classifier[-1].extend(params - block_pos)
+                else:
+                    assert option.name == "Place"
+                    assert len(objects) == 2
+                    block, target = objects
+                    target_pos = state[target][3]
+                    grasp = state[block][4]
+                    target_width = state[target][2]
+                    X_classifier[-1].extend([grasp, target_width])
+                    assert len(params) == 1
+                    X_classifier[-1].extend(params - target_pos)
+            else:
+                for obj in objects:
+                    X_classifier[-1].extend(state[obj])
+                X_classifier[-1].extend(params)
+                assert not CFG.sampler_learning_use_goals
             y_classifier.append(label)
+
         X_arr_classifier = np.array(X_classifier)
         # output is binary signal
         y_arr_classifier = np.array(y_classifier)
@@ -418,8 +441,28 @@ def _vector_score_fn_to_score_fn(vector_fn: Callable[[Array], float],
                   param_lst: List[Array]) -> List[float]:
         x_lst: List[Any] = [1.0]  # start with bias term
         sub = dict(zip(nsrt.parameters, objects))
-        for var in nsrt.parameters:
-            x_lst.extend(state[sub[var]])
+        if CFG.env == "bumpy_cover":
+            if nsrt.option.name == "Pick":
+                    # In this case, the x-data should be 
+                    # [block_bumpy, relative_pick_loc]
+                    assert len(objects) == 1
+                    block = objects[0]
+                    block_pos = state[block][3]
+                    block_bumpy = state[block][5]
+                    x_lst.extend([block_bumpy])
+                    param_lst = param_lst - block_pos
+            else:
+                assert nsrt.option.name == "Place"
+                assert len(objects) == 2
+                block, target = objects
+                target_pos = state[target][3]
+                grasp = state[block][4]
+                target_width = state[target][2]
+                x_lst.extend([grasp, target_width])
+                param_lst = param_lst - target_pos
+        else:
+            for var in nsrt.parameters:
+                x_lst.extend(state[sub[var]])
         assert not CFG.sampler_learning_use_goals
         x = np.array(x_lst)
         scores = [vector_fn(np.r_[x, p]) for p in param_lst]
