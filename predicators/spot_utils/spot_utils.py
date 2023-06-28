@@ -106,6 +106,8 @@ CAMERA_NAMES = [
     "frontleft_fisheye_image", "frontright_fisheye_image", "back_fisheye_image"
 ]
 
+COUNT = 0
+
 
 def _find_object_center(img: Image,
                         obj_name: str) -> Optional[Tuple[int, int]]:
@@ -370,7 +372,19 @@ class _SpotInterface():
         Returns a dict mapping the integer of the tag id to an (x, y, z)
         position tuple in the map frame.
         """
-        img, image_response = self.get_single_camera_image(source_name)
+        # global COUNT
+
+        img, image_response = self.get_single_camera_image("hand_color_image")
+
+        # while True:
+        #     img, image_response = self.get_single_camera_image("hand_color_image")
+        #     count = COUNT
+        #     COUNT += 1
+        #     save_path = f"sampler_images/jun28/{source_name}_{count}.png"
+        #     import imageio
+        #     imageio.imsave(save_path,  cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        #     print(f"Wrote out to {save_path}")
+        #     input("Move!")
 
         # Camera body transform.
         camera_tform_body = get_a_tform_b(
@@ -379,6 +393,8 @@ class _SpotInterface():
 
         # Camera intrinsics for the given source camera.
         intrinsics = image_response[0].source.pinhole.intrinsics
+
+        import ipdb; ipdb.set_trace()
 
         # Convert the image to grayscale.
         image_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
