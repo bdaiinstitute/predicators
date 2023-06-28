@@ -1,8 +1,12 @@
 """An explorer for active sampler learning."""
 
+import os
+import re
+import glob
 from functools import lru_cache
 import logging
 from typing import Callable, Dict, List, Optional, Set
+import dill as pkl
 
 import numpy as np
 from gym.spaces import Box
@@ -55,6 +59,7 @@ class ActiveSamplerExplorer(BaseExplorer):
         self._nsrts = nsrts
         self._ground_op_hist = ground_op_hist
         self._last_executed_nsrt: Optional[_GroundNSRT] = None
+        self._last_executed_option: Optional[_Option] = None
 
     @classmethod
     def get_name(cls) -> str:
@@ -144,6 +149,7 @@ class ActiveSamplerExplorer(BaseExplorer):
         # Wrap the option policy to keep track of the executed NSRTs and if
         # they succeeded, to update the ground_op_hist.
         self._last_executed_nsrt = None
+        self._last_executed_option = None
 
         def _wrapped_option_policy(state: State) -> _Option:
             # Update ground_op_hist.
@@ -152,6 +158,7 @@ class ActiveSamplerExplorer(BaseExplorer):
             option = _option_policy(state)
             ground_nsrt = utils.option_to_ground_nsrt(option, self._nsrts)
             self._last_executed_nsrt = ground_nsrt
+            self._last_executed_option = option
             return option
 
         # Finalize policy.
@@ -195,12 +202,40 @@ class ActiveSamplerExplorer(BaseExplorer):
     def _update_ground_op_hist(self, state: State) -> None:
         """Should be called when an NSRT has just terminated."""
         nsrt = self._last_executed_nsrt
+        option = self._last_executed_option
         if nsrt is None:
             return
         atoms = utils.abstract(state, self._predicates)
         success = nsrt.add_effects.issubset(atoms)
         logging.info(f"[Explorer] Last NSRT: {nsrt.name}{nsrt.objects}")
         logging.info(f"[Explorer]   outcome: {success}")
+
+        # Code block for saving each datapoint.
+        save_path = utils.get_approach_save_path_str()
+        # Build up the x-data (i.e, input to the classifier).
+        objects = option.objects
+        params = option.params
+        X_classifier = []
+        X_classifier.append([np.array(1.0)])  # start with bias term
+        for obj in objects:
+            X_classifier[-1].extend(state[obj])
+        X_classifier[-1].extend(params)
+        # y_data is pretty simple.
+        y_classifier = [int(success)]
+        # Now, we need to get the file location and the max
+        # datapoint id saved at this location.
+        os.makedirs(CFG.data_dir, exist_ok=True)
+        regex = r"(\d+)"
+        filepath_template = f"{save_path}_{nsrt.name}({nsrt.objects})_{regex}*.data"
+        datapoint_id = 0
+        all_saved_files = sorted(glob.glob(filepath_template))
+        if len(all_saved_files) > 0:
+            regex_match = re.match(filepath_template, all_saved_files[-1])
+            assert regex_match
+            datapoint_id = int(regex_match.groups()[0])
+        with open(f"{save_path}_{nsrt.name}({nsrt.objects})_{datapoint_id}.data", "wb") as f:
+            pkl.dump([X_classifier, y_classifier], f)
+
         if not success:
             if nsrt.add_effects - atoms:
                 logging.info(f"[Explorer]   missing: {nsrt.add_effects - atoms}")
