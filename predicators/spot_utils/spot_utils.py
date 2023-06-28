@@ -259,27 +259,34 @@ class _SpotInterface():
     def get_single_camera_image(self, source_name: str) -> Tuple[Image, Any]:
         """Get a single source camera image and image response."""
         # Get image and camera transform from source_name.
-        img_req = build_image_request(
+        img_req_color = build_image_request(
             source_name,
             quality_percent=100,
             pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
-        image_response = self.image_client.get_image([img_req])
+        img_req_depth = build_image_request(
+            source_name+'_depth',
+            quality_percent=100,
+            pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
+        image_responses = self.image_client.get_image([img_req_color, img_req_depth])
 
-        # Format image before detecting apriltags.
-        if image_response[0].shot.image.pixel_format == image_pb2.Image.\
-            PIXEL_FORMAT_DEPTH_U16:
-            dtype = np.uint16  # type: ignore
-        else:
-            dtype = np.uint8  # type: ignore
-        img = np.fromstring(image_response[0].shot.image.data,
-                            dtype=dtype)  # type: ignore
-        if image_response[0].shot.image.format == image_pb2.Image.FORMAT_RAW:
-            img = img.reshape(image_response[0].shot.image.rows,
-                              image_response[0].shot.image.cols)
-        else:
-            img = cv2.imdecode(img, -1)
+        images = []
+        for image_response in image_responses:
+            # Format image before detecting apriltags.
+            if image_response[0].shot.image.pixel_format == image_pb2.Image.\
+                PIXEL_FORMAT_DEPTH_U16:
+                dtype = np.uint16  # type: ignore
+            else:
+                dtype = np.uint8  # type: ignore
+            img = np.fromstring(image_response[0].shot.image.data,
+                                dtype=dtype)  # type: ignore
+            if image_response[0].shot.image.format == image_pb2.Image.FORMAT_RAW:
+                img = img.reshape(image_response[0].shot.image.rows,
+                                image_response[0].shot.image.cols)
+            else:
+                img = cv2.imdecode(img, -1)
+            images.append(img)
 
-        return (img, image_response)
+        return (images, image_responses)
 
     def get_objects_in_view_by_camera(
             self) -> Dict[str, Dict[str, Tuple[float, float, float]]]:
@@ -376,15 +383,17 @@ class _SpotInterface():
 
         img, image_response = self.get_single_camera_image("hand_color_image")
 
-        # while True:
-        #     img, image_response = self.get_single_camera_image("hand_color_image")
-        #     count = COUNT
-        #     COUNT += 1
-        #     save_path = f"sampler_images/jun28/{source_name}_{count}.png"
-        #     import imageio
-        #     imageio.imsave(save_path,  cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        #     print(f"Wrote out to {save_path}")
-        #     input("Move!")
+        while True:
+            imgs, image_responses = self.get_single_camera_image("hand_color_image")
+            count = COUNT
+            COUNT += 1
+            save_path = f"sampler_images/jun28/{source_name}_{count}.png"
+            import imageio
+            imageio.imsave(save_path,  cv2.cvtColor(imgs[0], cv2.COLOR_BGR2RGB))
+            save_path = f"sampler_images/jun28/{source_name}_{count}_depth.png"
+            imageio.imsave(save_path,  cv2.cvtColor(imgs[1], cv2.COLOR_BGR2RGB))
+            print(f"Wrote out to {save_path}")
+            input("Move!")
 
         # Camera body transform.
         camera_tform_body = get_a_tform_b(
