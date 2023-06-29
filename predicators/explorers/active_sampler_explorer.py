@@ -211,7 +211,6 @@ class ActiveSamplerExplorer(BaseExplorer):
         logging.info(f"[Explorer]   outcome: {success}")
 
         # Code block for saving each datapoint.
-        save_path = utils.get_approach_save_path_str()
         # Build up the x-data (i.e, input to the classifier).
         objects = option.objects
         params = option.params
@@ -225,15 +224,17 @@ class ActiveSamplerExplorer(BaseExplorer):
         # Now, we need to get the file location and the max
         # datapoint id saved at this location.
         os.makedirs(CFG.data_dir, exist_ok=True)
-        regex = r"(\d+)"
-        filepath_template = f"{save_path}_{nsrt.name}({nsrt.objects})_{regex}*.data"
+        objects_tuple_str = str(tuple(nsrt.objects))
+        objects_tuple_str = objects_tuple_str.strip('()')
+        filepath_template = f"{CFG.data_dir}/{CFG.env}_{nsrt.name}({objects_tuple_str})_*.data"
         datapoint_id = 0
         all_saved_files = sorted(glob.glob(filepath_template))
         if len(all_saved_files) > 0:
-            regex_match = re.match(filepath_template, all_saved_files[-1])
+            regex = f"{CFG.data_dir}\/{CFG.env}_{nsrt.name}\({objects_tuple_str}\)_(\\d+).data"
+            regex_match = re.match(regex, all_saved_files[-1])
             assert regex_match
-            datapoint_id = int(regex_match.groups()[0])
-        with open(f"{save_path}_{nsrt.name}({nsrt.objects})_{datapoint_id}.data", "wb") as f:
+            datapoint_id = int(regex_match.groups()[0]) + 1
+        with open(f"{CFG.data_dir}/{CFG.env}_{nsrt.name}({objects_tuple_str})_{datapoint_id}.data", "wb") as f:
             pkl.dump([X_classifier, y_classifier], f)
 
         if not success:
