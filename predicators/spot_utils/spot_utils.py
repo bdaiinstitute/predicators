@@ -256,13 +256,17 @@ class _SpotInterface():
             camera_images[source_name] = img
         return camera_images
 
-    def get_single_camera_image(self, source_name: str) -> Tuple[Image, Any]:
+    def get_single_camera_image(self, source_name: str, depth: bool = False) -> Tuple[Image, Any]:
         """Get a single source camera image and image response."""
         # Get image and camera transform from source_name.
+        if depth:
+            pixel_format = image_pb2.Image.PIXEL_FORMAT_DEPTH_U16
+        else:
+            pixel_format = image_pb2.Image.PIXEL_FORMAT_RGB_U8
         img_req = build_image_request(
             source_name,
             quality_percent=100,
-            pixel_format=image_pb2.Image.PIXEL_FORMAT_RGB_U8)
+            pixel_format=pixel_format)
         image_response = self.image_client.get_image([img_req])
 
         # Format image before detecting apriltags.
@@ -372,19 +376,49 @@ class _SpotInterface():
         Returns a dict mapping the integer of the tag id to an (x, y, z)
         position tuple in the map frame.
         """
-        # global COUNT
+        global COUNT
 
-        img, image_response = self.get_single_camera_image("hand_color_image")
+        # img, image_response = self.get_single_camera_image("hand_color_image")
 
-        # while True:
-        #     img, image_response = self.get_single_camera_image("hand_color_image")
-        #     count = COUNT
-        #     COUNT += 1
-        #     save_path = f"sampler_images/jun28/{source_name}_{count}.png"
-        #     import imageio
-        #     imageio.imsave(save_path,  cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        #     print(f"Wrote out to {save_path}")
-        #     input("Move!")
+        # https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/get_depth_plus_visual_image/get_depth_plus_visual_image.py
+
+        import imageio
+
+        while True:
+            COUNT += 1
+ 
+            visual_rgb_img, _ = self.get_single_camera_image("hand_color_image")
+            visual_rgb = cv2.cvtColor(visual_rgb_img, cv2.COLOR_BGR2RGB)
+            save_path = f"sampler_images/jun29/rgb_{COUNT}.png"
+            imageio.imsave(save_path, visual_rgb)
+            print(f"Wrote out to {save_path}")
+
+            depth_img, _ = self.get_single_camera_image("hand_depth_in_hand_color_frame", depth=True)
+            cv_depth = np.squeeze(depth_img)
+            save_path = f"sampler_images/jun29/depth_{COUNT}.npy"
+            with open(save_path, 'wb') as f:
+                np.save(f, cv_depth)
+            print(f"Wrote out to {save_path}")
+
+            # Map depth ranges to color
+            # cv2.applyColorMap() only supports 8-bit; convert from 16-bit to 8-bit and do scaling
+            min_val = np.min(cv_depth)
+            max_val = np.max(cv_depth)
+            depth_range = max_val - min_val
+            print("depth_range:", depth_range)
+            depth8 = (255.0 / depth_range * (cv_depth - min_val)).astype('uint8')
+            depth8_rgb = cv2.cvtColor(depth8, cv2.COLOR_GRAY2RGB)
+            depth_color = cv2.applyColorMap(depth8_rgb, cv2.COLORMAP_JET)
+
+            # Add the two images together.
+            img = cv2.addWeighted(visual_rgb, 0.5, depth_color, 0.5, 0)
+            save_path = f"sampler_images/jun29/combined_{COUNT}.png"
+            imageio.imsave(save_path, img)
+            print(f"Wrote out to {save_path}")
+            
+            
+            
+            input("Move!")
 
         # Camera body transform.
         camera_tform_body = get_a_tform_b(
