@@ -228,12 +228,12 @@ class ActiveSamplerExplorer(BaseExplorer):
         objects_tuple_str = objects_tuple_str.strip('()')
         filepath_template = f"{CFG.data_dir}/{CFG.env}_{nsrt.name}({objects_tuple_str})_*.data"
         datapoint_id = 0
-        all_saved_files = sorted(glob.glob(filepath_template))
-        if len(all_saved_files) > 0:
+        all_saved_files = glob.glob(filepath_template)
+        if all_saved_files:
             regex = f"{CFG.data_dir}\/{CFG.env}_{nsrt.name}\({objects_tuple_str}\)_(\\d+).data"
-            regex_match = re.match(regex, all_saved_files[-1])
-            assert regex_match
-            datapoint_id = int(regex_match.groups()[0]) + 1
+            regex_matches = [re.match(regex, f) for f in all_saved_files]
+            datapoint_ids = [int(m.groups()[0]) for m in regex_matches]
+            datapoint_id = max(datapoint_ids) + 1
         with open(f"{CFG.data_dir}/{CFG.env}_{nsrt.name}({objects_tuple_str})_{datapoint_id}.data", "wb") as f:
             pkl.dump([X_classifier, y_classifier], f)
 
