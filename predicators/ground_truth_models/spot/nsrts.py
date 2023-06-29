@@ -98,12 +98,16 @@ def _place_sampler(spot_interface: _SpotInterface, state: State,
         dy = rng.uniform(-0.1, 0.05)  # positive is left
         dz = rng.uniform(-0.61, -0.59)
 
+        print("SAMPLED DX, DY, DZ:", dx, dy, dz)
+
         # Oracle values for slanted table.
         # dx = 0.2
         # dy = 0.05
         # dz = -0.6
 
-        return fiducial_pose + np.array([dx, dy, dz])
+        output = fiducial_pose + np.array([dx, dy, dz])
+        print("SAMPLE OUTPUT:", output)
+        return output
     return fiducial_pose + np.array([0.0, 0.0, 0.0])
 
 
