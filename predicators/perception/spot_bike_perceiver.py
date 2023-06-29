@@ -22,7 +22,7 @@ class SpotBikePerceiver(BasePerceiver):
     def __init__(self) -> None:
         super().__init__()
         self._known_object_poses: Dict[Object, Tuple[float, float, float]] = {}
-        self._known_objects_in_hand_view: Set[Object] = set()
+        self._known_objects_in_front_view: Set[Object] = set()
         self._robot: Optional[Object] = None
         self._nonpercept_atoms: Set[GroundAtom] = set()
         self._nonpercept_predicates: Set[Predicate] = set()
@@ -44,7 +44,7 @@ class SpotBikePerceiver(BasePerceiver):
         self._curr_env = get_or_create_env("spot_bike_env")
         assert isinstance(self._curr_env, SpotBikeEnv)
         self._known_object_poses = {}
-        self._known_objects_in_hand_view = set()
+        self._known_objects_in_front_view = set()
         self._robot = None
         self._nonpercept_atoms = set()
         self._nonpercept_predicates = set()
@@ -132,14 +132,25 @@ class SpotBikePerceiver(BasePerceiver):
         assert isinstance(observation, _SpotObservation)
         self._waiting_for_observation = False
         self._robot = observation.robot
-        self._known_object_poses.update(observation.objects_in_view)
-        self._known_objects_in_hand_view = observation.objects_in_hand_view
+        for _, objects_in_view in observation.objects_in_view_by_camera.items(
+        ):
+            self._known_object_poses.update(objects_in_view)
+        self._known_objects_in_front_view = set()
+        for camera_name in [
+                "hand_color_image", "frontleft_fisheye_image",
+                "frontright_fisheye_image"
+        ]:
+            if observation.objects_in_view_by_camera.get(
+                    camera_name) is not None:
+                self._known_objects_in_front_view |= set(
+                    observation.objects_in_view_by_camera[camera_name].keys())
         self._nonpercept_atoms = observation.nonpercept_atoms
         self._nonpercept_predicates = observation.nonpercept_predicates
         self._gripper_open_percentage = observation.gripper_open_percentage
         self._robot_pos = observation.robot_pos
-        for obj in observation.objects_in_view:
-            self._lost_objects.discard(obj)
+        for object_dict in observation.objects_in_view_by_camera.values():
+            for obj in object_dict.keys():
+                self._lost_objects.discard(obj)
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
@@ -163,7 +174,7 @@ class SpotBikePerceiver(BasePerceiver):
             }
             if obj.type.name == "tool":
                 # Detect if the object is in view currently.
-                if obj in self._known_objects_in_hand_view:
+                if obj in self._known_objects_in_front_view:
                     in_view_val = 1.0
                 else:
                     in_view_val = 0.0
