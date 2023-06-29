@@ -252,7 +252,7 @@ class ActiveSamplerExplorer(BaseExplorer):
         # Try less successful operators more often.
 
         # TODO remove
-        if "Place" in ground_op.name and "extra" in str(ground-op.objects):
+        if "Place" in ground_op.name and "extra" in str(ground_op.objects):
             score = float("inf")
         else:
             score = (1.0 - success_rate) + bonus
