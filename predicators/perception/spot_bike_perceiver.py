@@ -150,7 +150,7 @@ class SpotBikePerceiver(BasePerceiver):
         if observation.objects_in_view_by_camera.get(
                 "hand_color_image") is not None:
             self._known_objects_in_hand_view |= set(
-                observation.objects_in_view_by_camera[camera_name].keys())
+                observation.objects_in_view_by_camera["hand_color_image"].keys())
         self._nonpercept_atoms = observation.nonpercept_atoms
         self._nonpercept_predicates = observation.nonpercept_predicates
         self._gripper_open_percentage = observation.gripper_open_percentage
