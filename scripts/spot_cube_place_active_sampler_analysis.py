@@ -97,9 +97,9 @@ def _create_image(X: List[Array],
     # x is [1.0, spot, tool, surface, params]
     # spot: "gripper_open_percentage", "curr_held_item_id", "x", "y", "z"
     # tool: "x", "y", "z", "lost", "in_view"
-    # surface: "x", "y", "z"
+    # surface: "x", "y", "z", "in_view"
     # params: "dx", "dy", "dz"
-    assert np.array(X).shape[1] == 1 + 5 + 5 + 3 + 3
+    assert np.array(X).shape[1] == 1 + 5 + 5 + 4 + 3
 
     fig, ax = plt.subplots(1, 1)
 
