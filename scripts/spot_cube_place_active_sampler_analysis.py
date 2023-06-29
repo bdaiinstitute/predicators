@@ -110,11 +110,11 @@ def _create_image(X: List[Array], y: List[Array], classifier: Optional[BinaryCla
     fig, ax = plt.subplots(1, 1)
 
     x_min = 0
-    x_max = 4
-    y_min = -2
-    y_max = 2
+    x_max = 2
+    y_min = -1
+    y_max = 1
     density = 25
-    radius = 0.05
+    radius = 0.025
 
     if classifier is not None:
         candidates = [(x, y) for x in np.linspace(x_min, x_max, density) for y in np.linspace(y_min, y_max, density)]
