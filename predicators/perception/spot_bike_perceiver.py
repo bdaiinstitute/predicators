@@ -23,6 +23,7 @@ class SpotBikePerceiver(BasePerceiver):
         super().__init__()
         self._known_object_poses: Dict[Object, Tuple[float, float, float]] = {}
         self._known_objects_in_front_view: Set[Object] = set()
+        self._known_objects_in_hand_view: Set[Object] = set()
         self._robot: Optional[Object] = None
         self._nonpercept_atoms: Set[GroundAtom] = set()
         self._nonpercept_predicates: Set[Predicate] = set()
@@ -45,6 +46,7 @@ class SpotBikePerceiver(BasePerceiver):
         assert isinstance(self._curr_env, SpotBikeEnv)
         self._known_object_poses = {}
         self._known_objects_in_front_view = set()
+        self._known_objects_in_hand_view = set()
         self._robot = None
         self._nonpercept_atoms = set()
         self._nonpercept_predicates = set()
@@ -136,6 +138,7 @@ class SpotBikePerceiver(BasePerceiver):
         ):
             self._known_object_poses.update(objects_in_view)
         self._known_objects_in_front_view = set()
+        self._known_objects_in_hand_view = set()
         for camera_name in [
                 "hand_color_image", "frontleft_fisheye_image",
                 "frontright_fisheye_image"
@@ -144,6 +147,10 @@ class SpotBikePerceiver(BasePerceiver):
                     camera_name) is not None:
                 self._known_objects_in_front_view |= set(
                     observation.objects_in_view_by_camera[camera_name].keys())
+        if observation.objects_in_view_by_camera.get(
+                "hand_color_image") is not None:
+            self._known_objects_in_hand_view |= set(
+                observation.objects_in_view_by_camera[camera_name].keys())
         self._nonpercept_atoms = observation.nonpercept_atoms
         self._nonpercept_predicates = observation.nonpercept_predicates
         self._gripper_open_percentage = observation.gripper_open_percentage
@@ -172,9 +179,18 @@ class SpotBikePerceiver(BasePerceiver):
                 "y": y,
                 "z": z,
             }
-            if obj.type.name == "tool":
+            if obj.type.name in ["flat_surface", "bag"]:
                 # Detect if the object is in view currently.
                 if obj in self._known_objects_in_front_view:
+                    in_view_val = 1.0
+                else:
+                    in_view_val = 0.0
+                state_dict[obj]["in_view"] = in_view_val
+
+            if obj.type.name == "tool":
+                # Detect whether the robot can see the tool
+                # with its hand camera.
+                if obj in self._known_objects_in_hand_view:
                     in_view_val = 1.0
                 else:
                     in_view_val = 0.0

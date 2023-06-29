@@ -24,8 +24,8 @@ from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.envs.pddl_env import _action_to_ground_strips_op
 from predicators.settings import CFG
-from predicators.spot_utils.spot_utils import get_spot_interface, \
-    obj_name_to_apriltag_id
+from predicators.spot_utils.spot_utils import CAMERA_NAMES, \
+    get_spot_interface, obj_name_to_apriltag_id
 from predicators.structs import Action, Array, EnvironmentTask, GroundAtom, \
     Image, LiftedAtom, Object, Observation, Predicate, State, STRIPSOperator, \
     Type, Variable
@@ -321,8 +321,10 @@ class SpotEnv(BaseEnv):
 
         # Filter out unknown objects.
         known_object_names_to_objects = self._make_object_name_to_obj_dict()
-        objects_in_view_by_camera: Dict[str, Dict[Object, Tuple[float, float,
-                                                                float]]] = {}
+        objects_in_view_by_camera: Dict[str, Dict[Object, Tuple[
+            float, float,
+            float]]] = {camera_name: {}
+                        for camera_name in CAMERA_NAMES}
         for camera_name, object_name_dict in object_names_in_view_by_camera.items(
         ):
             for object_name, pos in object_name_dict.items():
@@ -536,8 +538,8 @@ class SpotBikeEnv(SpotEnv):
             "robot",
             ["gripper_open_percentage", "curr_held_item_id", "x", "y", "z"])
         self._tool_type = Type("tool", ["x", "y", "z", "lost", "in_view"])
-        self._surface_type = Type("flat_surface", ["x", "y", "z"])
-        self._bag_type = Type("bag", ["x", "y", "z"])
+        self._surface_type = Type("flat_surface", ["x", "y", "z", "in_view"])
+        self._bag_type = Type("bag", ["x", "y", "z", "in_view"])
         self._platform_type = Type("platform", ["x", "y", "z"])
         self._floor_type = Type("floor", ["x", "y", "z"])
 
