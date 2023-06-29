@@ -116,12 +116,13 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
                 return fiducial_pose + np.array([0.1, 0.0, -0.25])
             if "_table" in objs[2].name:
                 dx = rng.uniform(0.17, 0.19)
-                dy = rng.uniform(-0.1, 0.15)  # positive is left
+                dy = rng.uniform(-0.1, 0.05)  # positive is left
                 dz = rng.uniform(-0.38, -0.35)
+                print("SAMPLED:", dx, dy, dz)
 
                 # Oracle values for slanted table.
                 # dx = 0.18
-                # dy = 0.15
+                # dy = 0.05
                 # dz = -0.37
                 # import ipdb; ipdb.set_trace()
 
