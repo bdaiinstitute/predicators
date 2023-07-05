@@ -14,7 +14,8 @@ from matplotlib import colormaps
 from matplotlib.colors import Normalize
 
 from predicators import utils
-from predicators.ml_models import BinaryClassifier, MLPBinaryClassifier
+from predicators.ml_models import BinaryClassifier, BinaryClassifierEnsemble, \
+    MLPBinaryClassifier
 from predicators.settings import CFG
 from predicators.structs import Array, Image
 
@@ -58,7 +59,9 @@ def _analyze_saved_data() -> None:
     imageio.imsave(img_outfile, img)
     print(f"Wrote out to {img_outfile}")
     # Run sample efficiency analysis.
-    _run_sample_efficiency_analysis(X, y)
+    # _run_sample_efficiency_analysis(X, y)
+
+    _run_active_learning_analysis(X, y)
 
 
 def _analyze_online_learning_cycles() -> None:
@@ -290,6 +293,103 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
     outfile = "spot_place_sample_complexity.png"
     plt.savefig(outfile)
     print(f"Wrote out to {outfile}")
+
+
+def _run_active_learning_analysis(X: List[Array], y: List[Array]) -> None:
+
+    training_frac = 0.2
+    num_data = len(X)
+    num_train = int(num_data * training_frac)
+    num_valid = 10
+
+    idxs = list(range(num_data))
+    rng = np.random.default_rng(CFG.seed)
+    rng.shuffle(idxs)
+    train_idxs = idxs[:num_train]
+    valid_idxs = idxs[num_train:]
+    X_train = np.array([X[i] for i in train_idxs])
+    y_train = np.array([y[i] for i in train_idxs])
+    X_valid = [X[i] for i in valid_idxs]
+
+    model = BinaryClassifierEnsemble(
+        seed=CFG.seed,
+        ensemble_size=CFG.active_sampler_learning_num_ensemble_members,
+        member_cls=MLPBinaryClassifier,
+        balance_data=CFG.mlp_classifier_balance_data,
+        max_train_iters=CFG.sampler_mlp_classifier_max_itr,
+        learning_rate=CFG.learning_rate,
+        n_iter_no_change=CFG.mlp_classifier_n_iter_no_change,
+        hid_sizes=CFG.mlp_classifier_hid_sizes,
+        n_reinitialize_tries=CFG.sampler_mlp_classifier_n_reinitialize_tries,
+        weight_init=CFG.predicate_mlp_classifier_init,
+        weight_decay=CFG.weight_decay,
+        use_torch_gpu=CFG.use_torch_gpu,
+        train_print_every=CFG.pytorch_train_print_every)
+
+    seen_true_ys = [_vec_to_xy(x)[1] for x, y in zip(X_train, y_train) if y]
+    seen_false_ys = [
+        _vec_to_xy(x)[1] for x, y in zip(X_train, y_train) if not y
+    ]
+
+    model.fit(X_train, y_train)
+
+    for i in range(num_valid):
+        # Take off the parameters.
+        x = X_valid[i][:-3]
+
+        # TODO refactor
+        world_fiducial = math_helpers.Vec2(
+            x[12],  # state.get(surface, "x"),
+            x[13],  # state.get(surface, "y"),
+        )
+        world_to_robot = math_helpers.SE2Pose(
+            x[3],  # state.get(robot, "x"),
+            x[4],  # state.get(robot, "y"),
+            x[6],  # state.get(robot, "yaw"))
+        )
+        fiducial_in_robot_frame = world_to_robot.inverse() * world_fiducial
+        fiducial_pose = list(fiducial_in_robot_frame) + [
+            0.45
+        ]  # spot_interface.hand_z
+        dx = 0.2
+        dys = np.linspace(-0.2, 0.2, num=100)
+        dz = -0.6
+        candidate_parameters = [
+            np.add(fiducial_pose, (dx, dy, dz)) for dy in dys
+        ]
+
+        # Consider new parameters.
+        scores = []
+        for p in candidate_parameters:
+            c = np.concatenate([x, p])
+            ps = model.predict_member_probas(c)
+
+            entropy = utils.entropy(float(np.mean(ps)))
+            mean_entropy = float(np.mean([utils.entropy(p) for p in ps]))
+            score = entropy - mean_entropy
+
+            # score = utils.entropy(float(np.mean(ps)))
+            # print('candidate:', p)
+            # print('ps:', ps)
+            # print('score:', score)
+            
+            scores.append(score)
+
+        plt.figure()
+        plt.title(f"Active Learning Analysis {i}")
+        plt.xlabel("y sampled dimension")
+        plt.ylabel("Entropy")
+        plt.plot(dys, scores, color='blue')
+        plt.scatter(seen_true_ys, [-0.05 for _ in seen_true_ys],
+                    color='green',
+                    alpha=0.5)
+        plt.scatter(seen_false_ys, [-0.05 for _ in seen_false_ys],
+                    color='red',
+                    alpha=0.5)
+        plt.ylim(-0.1, 1.1)
+        outfile = f"spot_active_learning_analysis_{i}.png"
+        plt.savefig(outfile)
+        print(f"Wrote out to {outfile}")
 
 
 if __name__ == "__main__":
