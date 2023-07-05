@@ -57,8 +57,10 @@ def _analyze_saved_data() -> None:
     img_outfile = "videos/spot_cube_active_sampler_learning_saved_data.png"
     imageio.imsave(img_outfile, img)
     print(f"Wrote out to {img_outfile}")
-    # Run sample efficiency analysis.
+
     _run_sample_efficiency_analysis(X, y)
+
+    # _run_active_learning_analysis(X, y)
 
 
 def _analyze_online_learning_cycles() -> None:
@@ -209,6 +211,121 @@ class _ConstantModel(BinaryClassifier):
         return 1.0 if self.classify(x) else 0.0
 
 
+##### GP STUFF #######
+
+import torch
+import gpytorch
+# https://docs.gpytorch.ai/en/latest/examples/04_Variational_and_Approximate_GPs/PolyaGamma_Binary_Classification.html
+
+
+class PGLikelihood(gpytorch.likelihoods._OneDimensionalLikelihood):
+    # this method effectively computes the expected log likelihood
+    # contribution to Eqn (10) in Reference [1].
+    def expected_log_prob(self, target, input, *args, **kwargs):
+        mean, variance = input.mean, input.variance
+        # Compute the expectation E[f_i^2]
+        raw_second_moment = variance + mean.pow(2)
+
+        # Translate targets to be -1, 1
+        target = target.to(mean.dtype).mul(2.).sub(1.)
+
+        # We detach the following variable since we do not want
+        # to differentiate through the closed-form PG update.
+        c = raw_second_moment.detach().sqrt()
+        # Compute mean of PG auxiliary variable omega: 0.5 * Expectation[omega]
+        # See Eqn (11) and Appendix A2 and A3 in Reference [1] for details.
+        half_omega = 0.25 * torch.tanh(0.5 * c) / c
+
+        # Expected log likelihood
+        res = 0.5 * target * mean - half_omega * raw_second_moment
+        # Sum over data points in mini-batch
+        res = res.sum(dim=-1)
+
+        return res
+
+    # define the likelihood
+    def forward(self, function_samples):
+        return torch.distributions.Bernoulli(logits=function_samples)
+
+    # define the marginal likelihood using Gauss Hermite quadrature
+    def marginal(self, function_dist):
+        prob_lambda = lambda function_samples: self.forward(function_samples).probs
+        probs = self.quadrature(prob_lambda, function_dist)
+        return torch.distributions.Bernoulli(probs=probs)
+
+
+# define the actual GP model (kernels, inducing points, etc.)
+class GPModel(gpytorch.models.ApproximateGP):
+    def __init__(self, inducing_points):
+        variational_distribution = gpytorch.variational.NaturalVariationalDistribution(inducing_points.size(0))
+        variational_strategy = gpytorch.variational.VariationalStrategy(
+            self, inducing_points, variational_distribution, learn_inducing_locations=True
+        )
+        super(GPModel, self).__init__(variational_strategy)
+        self.mean_module = gpytorch.means.ZeroMean()
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+class _GPClassifier(BinaryClassifier):
+
+
+    def fit(self, X: Array, y: Array) -> None:
+        # we initialize our model with M = 30 inducing points
+        train_x = torch.tensor(X, dtype=torch.float32)
+        # NOTE: shift to 1, -1
+        train_y = 2 * torch.tensor(y, dtype=torch.float32) - 1
+        # M = 30
+        # WHAT ARE INDUCING POINTS??
+        # inducing_points = torch.linspace(-2., 2., M, dtype=train_x.dtype, device=train_x.device).unsqueeze(-1)
+        inducing_points = train_x  # THIS IS DEFINITELY WRONG
+        self._model = GPModel(inducing_points=inducing_points)
+        self._model.covar_module.base_kernel.initialize(lengthscale=0.2)
+        likelihood = PGLikelihood()
+
+        variational_ngd_optimizer = gpytorch.optim.NGD(self._model.variational_parameters(),
+                                                       num_data=train_y.size(0), lr=0.1)
+
+        hyperparameter_optimizer = torch.optim.Adam([
+            {'params': self._model.hyperparameters()},
+            {'params': likelihood.parameters()},
+        ], lr=0.01)
+
+        self._model.train()
+        likelihood.train()
+        mll = gpytorch.mlls.VariationalELBO(likelihood, self._model, num_data=train_y.size(0))
+
+        num_epochs = 100
+        for i in range(num_epochs):
+            ### Perform NGD step to optimize variational parameters
+            variational_ngd_optimizer.zero_grad()
+            hyperparameter_optimizer.zero_grad()
+
+            output = self._model(train_x)
+            loss = -mll(output, train_y)
+            # print("Loss:", loss.item())
+            loss.backward()
+            variational_ngd_optimizer.step()
+            hyperparameter_optimizer.step()
+
+
+    def classify(self, x: Array) -> bool:
+        tensor_x = torch.from_numpy(np.array(x, dtype=np.float32))
+        tensor_X = tensor_x.unsqueeze(dim=0)
+        tensor_Y = self._model(tensor_X)
+        mu = tensor_Y.loc
+        print(mu)
+        return mu.item() > 0
+
+    def predict_proba(self, x: Array) -> float:
+        # TODO
+        import ipdb; ipdb.set_trace()
+
+
 def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
 
     # Do k-fold cross validation.
@@ -223,23 +340,24 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
         # "always-true": lambda: _ConstantModel(CFG.seed, True),
         "always-false":
         lambda: _ConstantModel(CFG.seed, False),
-        "mlp":
-        lambda: MLPBinaryClassifier(
-            seed=CFG.seed,
-            balance_data=CFG.mlp_classifier_balance_data,
-            max_train_iters=CFG.sampler_mlp_classifier_max_itr,
-            learning_rate=CFG.learning_rate,
-            weight_decay=CFG.weight_decay,
-            use_torch_gpu=CFG.use_torch_gpu,
-            train_print_every=CFG.pytorch_train_print_every,
-            n_iter_no_change=CFG.mlp_classifier_n_iter_no_change,
-            hid_sizes=CFG.mlp_classifier_hid_sizes,
-            n_reinitialize_tries=CFG.
-            sampler_mlp_classifier_n_reinitialize_tries,
-            weight_init="default")
+        "gp": lambda: _GPClassifier(CFG.seed),
+        # "mlp":
+        # lambda: MLPBinaryClassifier(
+        #     seed=CFG.seed,
+        #     balance_data=CFG.mlp_classifier_balance_data,
+        #     max_train_iters=CFG.sampler_mlp_classifier_max_itr,
+        #     learning_rate=CFG.learning_rate,
+        #     weight_decay=CFG.weight_decay,
+        #     use_torch_gpu=CFG.use_torch_gpu,
+        #     train_print_every=CFG.pytorch_train_print_every,
+        #     n_iter_no_change=CFG.mlp_classifier_n_iter_no_change,
+        #     hid_sizes=CFG.mlp_classifier_hid_sizes,
+        #     n_reinitialize_tries=CFG.
+        #     sampler_mlp_classifier_n_reinitialize_tries,
+        #     weight_init="default")
     }
     training_data_results = {}
-    for training_frac in np.linspace(0.05, 1.0 - validation_frac, 5):
+    for training_frac in [0.9]: #np.linspace(0.05, 1.0 - validation_frac, 5):
         num_training_data = int(len(X) * training_frac)
         model_accuracies = {}
         for model_name, create_model in models.items():
@@ -290,6 +408,10 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
     outfile = "spot_place_sample_complexity.png"
     plt.savefig(outfile)
     print(f"Wrote out to {outfile}")
+
+
+def _run_active_learning_analysis(X: List[Array], y: List[Array]) -> None:
+    import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":

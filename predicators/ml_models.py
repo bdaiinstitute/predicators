@@ -19,6 +19,7 @@ from sklearn.neighbors import \
     KNeighborsClassifier as _SKLearnKNeighborsClassifier
 from sklearn.neighbors import \
     KNeighborsRegressor as _SKLearnKNeighborsRegressor
+from sklearn.gaussian_process import GaussianProcessClassifier as _SKLearnGaussianProcessClassifier
 from torch import Tensor, nn, optim
 from torch.distributions.categorical import Categorical
 
@@ -1066,6 +1067,13 @@ class KNeighborsClassifier(_ScikitLearnBinaryClassifier):
 
     def _initialize_model(self, **kwargs: Any) -> BaseEstimator:
         return _SKLearnKNeighborsClassifier(**kwargs)
+
+
+class GaussianProcessClassifier(_ScikitLearnBinaryClassifier):
+    """GPC from scikit-learn."""
+
+    def _initialize_model(self, **kwargs: Any) -> BaseEstimator:
+        return _SKLearnGaussianProcessClassifier(**kwargs)
 
 
 class BinaryClassifierEnsemble(BinaryClassifier):
