@@ -383,19 +383,21 @@ class _SpotInterface():
         # https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/get_depth_plus_visual_image/get_depth_plus_visual_image.py
 
         import imageio
+        import dill as pkl
+        from pathlib import Path
 
         while True:
             COUNT += 1
  
-            visual_rgb_img, _ = self.get_single_camera_image("hand_color_image")
+            visual_rgb_img, image_response = self.get_single_camera_image("hand_color_image")
             visual_rgb = cv2.cvtColor(visual_rgb_img, cv2.COLOR_BGR2RGB)
-            save_path = f"sampler_images/jun29/rgb_{COUNT}.png"
+            save_path = f"sampler_images/jul07/rgb_{COUNT}.png"
             imageio.imsave(save_path, visual_rgb)
             print(f"Wrote out to {save_path}")
 
             depth_img, _ = self.get_single_camera_image("hand_depth_in_hand_color_frame", depth=True)
             cv_depth = np.squeeze(depth_img)
-            save_path = f"sampler_images/jun29/depth_{COUNT}.npy"
+            save_path = f"sampler_images/jul07/depth_{COUNT}.npy"
             with open(save_path, 'wb') as f:
                 np.save(f, cv_depth)
             print(f"Wrote out to {save_path}")
@@ -412,21 +414,36 @@ class _SpotInterface():
 
             # Add the two images together.
             img = cv2.addWeighted(visual_rgb, 0.5, depth_color, 0.5, 0)
-            save_path = f"sampler_images/jun29/combined_{COUNT}.png"
+            save_path = f"sampler_images/jul07/combined_{COUNT}.png"
             imageio.imsave(save_path, img)
             print(f"Wrote out to {save_path}")
             
+            # Camera body transform.
+            camera_tform_body = get_a_tform_b(
+                image_response[0].shot.transforms_snapshot,
+                image_response[0].shot.frame_name_image_sensor, BODY_FRAME_NAME)
+
+            # Camera intrinsics for the given source camera.
+            intrinsics = image_response[0].source.pinhole.intrinsics
+            print(intrinsics)
             
+            # Get graph_nav to body frame.
+            state = self.get_localized_state()
+            gn_origin_tform_body = math_helpers.SE3Pose.from_obj(
+                state.localization.seed_tform_body)
             
+            print("Dumping robot transform!")
+            with open(Path(f"sampler_images/jul07/robot_transform{COUNT}"), 'wb') as f:
+                pkl.dump([camera_tform_body, gn_origin_tform_body], f)
+            
+            print("Camera in body Transform")
+            print(camera_tform_body)
+            print("Body in map Transform")
+            print(gn_origin_tform_body)
+
+
             input("Move!")
 
-        # Camera body transform.
-        camera_tform_body = get_a_tform_b(
-            image_response[0].shot.transforms_snapshot,
-            image_response[0].shot.frame_name_image_sensor, BODY_FRAME_NAME)
-
-        # Camera intrinsics for the given source camera.
-        intrinsics = image_response[0].source.pinhole.intrinsics
 
         import ipdb; ipdb.set_trace()
 
@@ -661,7 +678,7 @@ class _SpotInterface():
             waypoint = get_memorized_waypoint(waypoint_name)
             assert waypoint is not None
             waypoint_id, offset = waypoint
-            self.navigate_to(waypoint_id, offset)
+            # self.navigate_to(waypoint_id, offset)
             if set(objects_to_find).issubset(set(obj_poses)):
                 logging.info("All objects located!")
                 break
