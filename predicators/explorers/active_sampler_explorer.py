@@ -225,7 +225,11 @@ class ActiveSamplerExplorer(BaseExplorer):
             pkl.dump(data, f)
 
     def _get_practice_ground_nsrt(self) -> _GroundNSRT:
-        best_op = max(self._ground_op_hist, key=self._score_ground_op)
+        # best_op = max(self._ground_op_hist, key=self._score_ground_op)
+        best_op = None
+        for op in self._ground_op_hist:
+            if op.name == "PlaceToolNotHigh" and "extra_room_table" in str(op.objects):
+                best_op = op
         logging.info(f"[Explorer] Practicing {best_op.name}{best_op.objects}")
         nsrt = [n for n in self._nsrts if n.op == best_op.parent][0]
         return nsrt.ground(best_op.objects)

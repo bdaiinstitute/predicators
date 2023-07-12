@@ -322,8 +322,8 @@ class _SpotInterface():
         if CFG.spot_initialize_surfaces_to_default:
             object_views = {
                 "tool_room_table":
-                (6.939992779470081, -6.21562847222872, 0.030711182602548265),
-                "extra_room_table": (8.24384, -6.27615, -0.0035917),
+                (6.68082, -6.38832, 0.064017),
+                "extra_room_table": (8.2466, -6.22454, -0.0352829),
                 "low_wall_rack":
                 (10.049931203338616, -6.9443170697742, 0.27881268568327966),
                 "toolbag":
