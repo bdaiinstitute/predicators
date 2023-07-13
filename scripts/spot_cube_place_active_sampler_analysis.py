@@ -106,21 +106,21 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int]) -> Image:
 
 
 def _vec_to_xy(vec: Array) -> Tuple[float, float]:
-    # place_robot_xy = math_helpers.Vec2(*vec[-3:-1])
+    place_robot_xy = math_helpers.Vec2(*vec[-3:-1])
 
-    # world_fiducial = math_helpers.Vec2(
-    #     vec[12],  # state.get(surface, "x"),
-    #     vec[13],  # state.get(surface, "y"),
-    # )
-    # world_to_robot = math_helpers.SE2Pose(
-    #     vec[3],  # state.get(robot, "x"),
-    #     vec[4],  # state.get(robot, "y"),
-    #     vec[6],  # state.get(robot, "yaw"))
-    # )
-    # fiducial_in_robot_frame = world_to_robot.inverse() * world_fiducial
-    # x, y = place_robot_xy - fiducial_in_robot_frame    
-    # return (x, y)
-    return tuple(vec[-3:-1])
+    world_fiducial = math_helpers.Vec2(
+        vec[12],  # state.get(surface, "x"),
+        vec[13],  # state.get(surface, "y"),
+    )
+    world_to_robot = math_helpers.SE2Pose(
+        vec[3],  # state.get(robot, "x"),
+        vec[4],  # state.get(robot, "y"),
+        vec[6],  # state.get(robot, "yaw"))
+    )
+    fiducial_in_robot_frame = world_to_robot.inverse() * world_fiducial
+    x, y = place_robot_xy - fiducial_in_robot_frame    
+    return (x, y)
+    # return tuple(vec[-3:-1])
 
 
 def _create_image(X: List[Array],
