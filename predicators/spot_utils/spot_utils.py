@@ -156,17 +156,7 @@ def _find_object_center(img: Image,
 # pylint: disable=no-member
 class _SpotInterface():
     """Implementation of interface with low-level controllers and sensor data
-    grabbing for the Spot robot.
-
-    Perception/Sensor Data:
-    get_gripper_obs() -> Returns number corresponding to gripper open
-                           percentage.
-
-    Controllers:
-    navigateToController(objs, [float:dx, float:dy, float:dyaw])
-    graspController(objs, [(0:Any,1:Top,-1:Side)])
-    placeOntopController(objs, [float:distance])
-    """
+    grabbing for the Spot robot."""
 
     def __init__(self) -> None:
         self._hostname = CFG.spot_robot_ip
@@ -321,9 +311,8 @@ class _SpotInterface():
         object_views: Dict[str, Tuple[float, float, float]] = {}
         if CFG.spot_initialize_surfaces_to_default:
             object_views = {
-                "tool_room_table":
-                (6.939992779470081, -6.21562847222872, 0.030711182602548265),
-                "extra_room_table": (8.24384, -6.27615, -0.0035917),
+                "tool_room_table": (6.65213, -6.38793, 0.0520562),
+                "extra_room_table": (8.26135, -6.22798, -0.0344044),
                 "low_wall_rack":
                 (10.049931203338616, -6.9443170697742, 0.27881268568327966),
                 "toolbag":
@@ -510,7 +499,8 @@ class _SpotInterface():
                              params: Array) -> None:
         """Controller that navigates to specific pre-specified locations.
 
-        Params are [dx, dy, d-yaw (in radians)]
+        Params are [dx, dy, d-yaw (in radians)] from some harcoded
+        waypoint saved when the map was created.
         """
         # Always start by stowing the arm.
         self.stow_arm()
@@ -585,8 +575,8 @@ class _SpotInterface():
                              params: Array) -> None:
         """Wrapper method for placeOnTop controller.
 
-        Params is dx, dy, and dz corresponding to the location of the
-        arm from the robot when placing.
+        Params are dx, dy, and dz of the arm from the robot when
+        placing.
         """
         print("PlaceOntop", objs)
         angle = (np.cos(np.pi / 6), 0, np.sin(np.pi / 6), 0)
