@@ -495,56 +495,63 @@ class _SpotInterface():
         Args:
             class_name: name of object class
         """
-        # Only support using depth image to obatin location
-        image_request = [
-            build_image_request(source,
-                                pixel_format=None if
-                                ('hand' in source or 'depth' in source) else
-                                image_pb2.Image.PIXEL_FORMAT_RGB_U8)
-            for source in [source_rgb, source_depth]
-        ]
-        image_responses = self.image_client.get_image(image_request)
+        source_rgb = "frontright_fisheye_image" #"frontleft_fisheye_image"
+        source_depth = "frontright_depth_in_visual_frame" #"frontleft_depth_in_visual_frame"
+        while True:
+            # Only support using depth image to obatin location
+            image_request = [
+                build_image_request(source,
+                                    pixel_format=None if
+                                    ('hand' in source or 'depth' in source) else
+                                    image_pb2.Image.PIXEL_FORMAT_RGB_U8)
+                for source in [source_rgb, source_depth]
+            ]
+            image_responses = self.image_client.get_image(image_request)
 
-        image = {
-            'rgb': process_image_response(image_responses[0]),
-            'depth': process_image_response(image_responses[1]),
-        }
-        image_responses = {
-            'rgb': image_responses[0],
-            'depth': image_responses[1],
-        }
+            image = {
+                'rgb': process_image_response(image_responses[0]),
+                'depth': process_image_response(image_responses[1]),
+            }
+            image_responses = {
+                'rgb': image_responses[0],
+                'depth': image_responses[1],
+            }
 
-        res_locations = get_object_locations_with_sam(
-            classes=[class_name],
-            res_image=image,
-            res_image_responses=image_responses,
-            source_name=source_rgb,
-            plot=True)
+            res_locations = get_object_locations_with_sam(
+                classes=[class_name],
+                res_image=image,
+                res_image_responses=image_responses,
+                source_name=source_rgb,
+                plot=True)
 
-        # We only want the most likely sample (for now).
-        # NOTE: we make the hard assumption here that
-        # we will only see one instance of a particular object
-        # type. We can relax this later.
-        if len(res_locations) > 0:
-            assert len(res_locations) == 1
+            # We only want the most likely sample (for now).
+            # NOTE: we make the hard assumption here that
+            # we will only see one instance of a particular object
+            # type. We can relax this later.
+            if len(res_locations) > 0:
+                assert len(res_locations) == 1
 
-            # TODO transform into the correct reference frame - need to double check
-            # Camera body transform.
-            # camera_tform_body = get_a_tform_b(
-            #     res_response[0].shot.transforms_snapshot,
-            #     res_response[0].shot.frame_name_image_sensor, BODY_FRAME_NAME)
+                # TODO transform into the correct reference frame - need to double check
+                # Camera body transform.
+                # camera_tform_body = get_a_tform_b(
+                #     res_response[0].shot.transforms_snapshot,
+                #     res_response[0].shot.frame_name_image_sensor, BODY_FRAME_NAME)
 
-            # TODO hack
-            camera_tform_body = get_a_tform_b(
-                image_responses['depth'].shot.transforms_snapshot,
-                image_responses['depth'].shot.frame_name_image_sensor,
-                BODY_FRAME_NAME)
-            object_rt_gn_origin = self.convert_obj_location(
-                camera_tform_body, *res_locations[0])
+                # TODO hack
+                camera_tform_body = get_a_tform_b(
+                    image_responses['depth'].shot.transforms_snapshot,
+                    image_responses['depth'].shot.frame_name_image_sensor,
+                    BODY_FRAME_NAME)
+                object_rt_gn_origin = self.convert_obj_location(
+                    camera_tform_body, *res_locations[0])
+                
+                print(object_rt_gn_origin)
 
-            # Use the input class name as the identifier for object(s) and
-            # their positions
-            return {class_name: object_rt_gn_origin}
+                input('Move to a different position!')
+
+                # # Use the input class name as the identifier for object(s) and
+                # # their positions
+                # return {class_name: object_rt_gn_origin}
 
         return {}
 
