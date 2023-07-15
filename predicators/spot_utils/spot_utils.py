@@ -495,8 +495,8 @@ class _SpotInterface():
         Args:
             class_name: name of object class
         """
-        source_rgb = "frontright_fisheye_image" #"frontleft_fisheye_image"
-        source_depth = "frontright_depth_in_visual_frame" #"frontleft_depth_in_visual_frame"
+        source_rgb = "frontleft_fisheye_image" #"frontleft_fisheye_image"
+        source_depth = "frontleft_depth_in_visual_frame"
         while True:
             # Only support using depth image to obatin location
             image_request = [

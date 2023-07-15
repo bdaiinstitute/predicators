@@ -362,8 +362,8 @@ def get_object_locations_with_sam(
         plot: bool = False  # TODO for now
 ) -> List[Tuple[float, float, float]]:
     """TODO: Docstring"""
-    rotated_rgb = ndimage.rotate(res_image['rgb'], ROTATION_ANGLE[source_name])
-    rotated_depth = ndimage.rotate(res_image['depth'], ROTATION_ANGLE[source_name])
+    rotated_rgb = ndimage.rotate(res_image['rgb'], ROTATION_ANGLE[source_name], reshape=False)
+    rotated_depth = ndimage.rotate(res_image['depth'], ROTATION_ANGLE[source_name], reshape=False)
 
     # Plot the image as a debugging tool.
     if plot:
@@ -399,29 +399,68 @@ def get_object_locations_with_sam(
         # snippet below!
         # FIXME debug
         # Get the inverse rotation angle
-        inverse_rotation_angle = -ROTATION_ANGLE[source_name]
+        rotation_angle = np.radians(ROTATION_ANGLE[source_name])
         # Create a transformation matrix for the inverse rotation
         transform_matrix = np.array(
-            [[np.cos(inverse_rotation_angle), -np.sin(inverse_rotation_angle)],
-             [np.sin(inverse_rotation_angle), np.cos(inverse_rotation_angle)]])
+            [[np.cos(rotation_angle), -np.sin(rotation_angle)],
+             [np.sin(rotation_angle), np.cos(rotation_angle)]])
         # Subtract the center of the image from the pixel location to translate the rotation to the origin
+        center = np.array([rotated_rgb.shape[1] / 2., rotated_rgb.shape[0] / 2.])
         # center = np.array([rotated_rgb.shape[0] / 2., rotated_rgb.shape[1] / 2.])
-        # TODO x - 0 and y - 1?
-        center = np.array([rotated_rgb.shape[0] / 2., rotated_rgb.shape[1] / 2.])
         pixel_centered = np.array([x_c, y_c]) - center
+        # pixel_centered[1] = -pixel_centered[1]
         # Apply the rotation
-        rotated_pixel_centered = np.dot(transform_matrix, pixel_centered)
+        rotated_pixel_centered = np.matmul(transform_matrix, pixel_centered)
+        # rotated_pixel_centered[1] = -rotated_pixel_centered[1]
         # Add the center of the image back to the pixel location to translate the rotation back from the origin
         rotated_pixel = rotated_pixel_centered + center
         # Now rotated_pixel is the location of the pixel after the inverse rotation
         x_c_rotated = rotated_pixel[0]
         y_c_rotated = rotated_pixel[1]
 
+        # ninety_deg_transorm_matrix = np.array([[np.cos(), 1], [-1, 0]])
+        # ninety_pixel = np.matmul(ninety_deg_transorm_matrix, pixel_centered)
+        # ninety_pixel += center
+
+        # TODO
+        # # Get the inverse rotation angle
+        # rotation_angle = ROTATION_ANGLE[source_name]
+        # # Create a transformation matrix for the inverse rotation
+        # transform_matrix = np.array(
+        #     [[np.cos(rotation_angle), np.sin(rotation_angle)],
+        #      [-np.sin(rotation_angle), np.cos(rotation_angle)]])
+
+        # # Subtract the center of the image from the pixel location to translate the rotation to the origin
+        # # center = np.array([rotated_rgb.shape[1] / 2., rotated_rgb.shape[0] / 2.])
+        # center = np.array([rotated_rgb.shape[0] / 2., rotated_rgb.shape[1] / 2.])
+        # pixel_centered = np.array([y_c, x_c]) - center
+        # # pixel_centered[1] = -pixel_centered[1]
+        # # Apply the rotation
+        # rotated_pixel_centered = np.matmul(transform_matrix, pixel_centered)
+        # # rotated_pixel_centered[1] = -rotated_pixel_centered[1]
+        # # Add the center of the image back to the pixel location to translate the rotation back from the origin
+        # rotated_pixel = rotated_pixel_centered + center
+        # # Now rotated_pixel is the location of the pixel after the inverse rotation
+        # x_c_rotated = rotated_pixel[1]
+        # y_c_rotated = rotated_pixel[0]
+
         # Plot center and segmentation mask
         # TODO masks are for rotated RGB image, so we use the centroid xy computed from it
+        inverse_rotation_angle = -ROTATION_ANGLE[source_name]
         if plot:
-            plt.imshow(res_segment['masks'][i][0])
-            plt.scatter(x=x_c, y=y_c, marker='*', color='red', zorder=3)
+            plt.imshow(res_image['rgb'])
+            plt.imshow(ndimage.rotate(res_segment['masks'][i][0], inverse_rotation_angle, reshape=False),
+                       alpha=0.5, cmap='Reds')            
+            plt.scatter(x=x_c_rotated, y=y_c_rotated, marker='*', color='red', zorder=3)
+            plt.scatter(x=center[0], y=center[1], marker='.', color='blue', zorder=3)
+            # plt.scatter(x=center[1], y=center[0], marker='.', color='blue', zorder=3)
+            plt.scatter(x=x_c, y=y_c, marker='*', color='green', zorder=3)
+            # plt.scatter(x=ninety_pixel[0], y=ninety_pixel[1], marker='.', color='cyan', zorder=3)
+            print(f"Rotated point: {x_c_rotated}, {y_c_rotated}")
+            print(f"Center point: {center}")
+            print(f"Original point: {x_c}, {y_c}")         
+
+
             plt.show()
 
         # Get XYZ of the point at center of bounding box and median depth value
