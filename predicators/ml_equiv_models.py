@@ -20,6 +20,8 @@ class EquivMLPWrapper:
 
         # TODO hardcode G-representations for input and output
         # FIXME we will later need to input what can be "rotated" to the model
+        stand_repr = self.group.irrep(1) if
+
         self.in_repr = self.g_space.type(
             *[self.group.irrep(1), self.group.trivial_representation]
             + [self.group.trivial_representation] * 3
@@ -41,45 +43,54 @@ class EquivMLPWrapper:
             h_num=self.hid_num
         )
 
+    def _setup_group(self, g_name):
+
+
+        assert any([
+            # 2D discrete subgroups
+            self.g_name.startswith("c"), self.g_name.startswith("d"),
+            # 3D discrete subgroups
+            self.g_name in ['ico', 'octa', 'full_ico', 'full_octa']
+        ])
+
+        # 2D discrete subgroups
+        if g_name.startswith("c") or self.g_name.startswith("d"):
+            self.dimensionality = 2
+            self.rot_num = int(self.g_name[1:])
+            self.enable_reflection = "d" in self.g_name  # for dihedral group
+            self.group_size = (
+                self.rot_num if not self.enable_reflection else (self.rot_num * 2)
+            )
+
+            if not self.enable_reflection:
+                self.group = escnn.group.cyclic_group(N=self.rot_num)
+            else:
+                self.group = escnn.group.dihedral_group(N=self.rot_num)
+
+        # 3D discrete subgroups
+        else:
+            self.dimensionality = 3
+            self.enable_reflection = self.g_name.startswith('full')
+
+            name2group = {
+                'ico': escnn.group.ico_group(),
+                'full_ico': escnn.group.full_ico_group(),
+                'octa': escnn.group.octa_group(),
+                'full_octa': escnn.group.full_octa_group(),
+            }
+            self.group = name2group[self.g_name]
+
+        # Create 0D point base space, only for MLP
+        self.g_space = escnn.gspaces.no_base_space(self.group)
+
+        print("> Group:", self.group)
+        print("> Group space:", self.g_space)
+
     def forward(self, x):
         x_wrap = self.in_repr(x)
         x_out = self.mlp(x_wrap)
         x_unwrap = x_out.tensor
         return x_unwrap
-
-
-def get_group(g_name):
-    # 2D discrete subgroups
-    if g_name.startswith("c") or g_name.startswith("d"):
-        # dimensionality = 2
-        rot_num = int(g_name[1:])
-        enable_reflection = "d" in g_name  # for dihedral group
-        group_size = (
-            rot_num if not enable_reflection else (rot_num * 2)
-        )
-
-        if not enable_reflection:
-            group = escnn.group.cyclic_group(N=rot_num)
-        else:
-            group = escnn.group.dihedral_group(N=rot_num)
-
-    # 3D discrete subgroups
-    elif g_name in ["ico", "full_ico", "octa", "full_octa"]:
-        dimensionality = 3
-        enable_reflection = g_name.startswith('full')
-
-        name2group = {
-            'ico': escnn.group.ico_group(),
-            'full_ico': escnn.group.full_ico_group(),
-            'octa': escnn.group.octa_group(),
-            'full_octa': escnn.group.full_octa_group(),
-        }
-        group = name2group[g_name]
-
-    else:
-        raise ValueError
-
-    return group
 
 
 def get_latent_num(cfg, g_space, h_dim, h_repr=None, multiply_repr_size=False):
@@ -180,3 +191,7 @@ def sym_mlp(g_space, in_field, out_field, h_num, act_fn=esnn.ELU):
 #         .tensor.squeeze(0)
 #         .shape
 #     )
+
+
+if __name__ == '__main__':
+    equiv_mlp = EquivMLPWrapper(g_name='d4', hid_num=10)
