@@ -79,13 +79,15 @@ def _add_pose_to_graph(pose, graph, distance_thresh):
             graph.add_edge(pose, other_pose, weight=distance)
 
 
-def _go_to_pose_in_graph(target, graph, gym_env, render=False):
+def _go_to_pose_in_graph(target, graph, gym_env, render=False, steps_per_waypoint=10):
     init_pose = _get_pose_from_env(gym_env)
     path = nx.shortest_path(graph, init_pose, target, weight="weight")
     for pose in path:
-        main_act = pose.joints
-        act = np.concatenate([main_act, gym_env.sim.data.qpos[7:9]])
-        gym_env.step(act)
+        act = np.concatenate([pose.joints, gym_env.sim.data.qpos[7:9]])
+        for _ in range(steps_per_waypoint):
+            gym_env.step(act)
+        reached_pose = _get_pose_from_env(gym_env)
+        print("Single step error:", reached_pose.distance(pose))
         if render:
             gym_env.render()
     final_pose = _get_pose_from_env(gym_env)
@@ -103,31 +105,40 @@ def _main() -> None:
     })
     env = KitchenEnv()
     gym_env = env._gym_env
+    gym_env.reset()
+    init_pose = _get_pose_from_env(env._gym_env)
 
     joint_lower_lim = gym_env.robot.robot_pos_bound[: 7, 0]
     joint_upper_lim = gym_env.robot.robot_pos_bound[: 7, 1]
     
     # Sample random trajectories in 7 DOF space.
     noise_scale = 0.1
-    max_steps_per_traj = 500
-    num_trajs = 10
+    num_rollout_steps = 10
+    num_expansions = 10
     noise = OrnsteinUhlenbeckActionNoise(np.zeros(7), sigma=noise_scale)
 
-    distance_thresh = 0.1
+    distance_thresh = 0.05
     graph = nx.Graph()
     all_poses = []
+    _add_pose_to_graph(init_pose, graph, distance_thresh)
+    all_poses.append(init_pose)
 
-    for trial in range(num_trajs):
-        print(f"Starting trajectory {trial}")
+    for trial in range(num_expansions):
+        print(f"Starting expansion {trial}")
         _reset_gym_env(gym_env)
         noise.reset()
-        for _ in range(max_steps_per_traj):
+        # Select a node to expand based on distance from the init.
+        node = max(all_poses, key=lambda p: init_pose.distance(p))
+        _go_to_pose_in_graph(node, graph, gym_env, render=True)
+        # Run rollouts.
+        for _ in range(num_rollout_steps):
             delta_act = noise()
-            current_pos = gym_env.sim.data.qpos[:7]
-            main_act = np.clip(current_pos + delta_act, joint_lower_lim, joint_upper_lim)
+            current_pose = _get_pose_from_env(gym_env)
+            main_act = np.clip(current_pose.joints + delta_act, joint_lower_lim, joint_upper_lim)
             act = np.concatenate([main_act, gym_env.sim.data.qpos[7:9]])
             gym_env.step(act)
             pose = _get_pose_from_env(gym_env)
+            # print("Distance between consecutive poses:", current_pose.distance(pose))
             _add_pose_to_graph(pose, graph, distance_thresh)
             all_poses.append(pose)
 
