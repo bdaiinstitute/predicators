@@ -44,7 +44,7 @@ https://github.com/Learning-and-Intelligent-Systems/mujoco_kitchen"
                     "use_raw_action_wrappers": False,
                     "unflatten_images": False,
                 },
-                "control_mode": "end_effector",
+                "control_mode": "torque",
             })
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
@@ -125,8 +125,7 @@ https://github.com/Learning-and-Intelligent-Systems/mujoco_kitchen"
 
     @property
     def action_space(self) -> Box:
-        # end-effector control mode: 3 for xyz, 3 for rpy, 1 for gripper
-        assert self._gym_env.action_space.shape == (7, )
+        assert self._gym_env.action_space.shape == (9, )
         return self._gym_env.action_space
 
     def reset(self, train_or_test: str, task_idx: int) -> Observation:

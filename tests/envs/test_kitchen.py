@@ -54,7 +54,7 @@ def test_kitchen():
     gripper_type, object_type = env.types
     assert gripper_type.name == "gripper"
     assert object_type.name == "obj"
-    assert env.action_space.shape == (7, )
+    assert env.action_space.shape == (9, )
     nsrts = get_gt_nsrts(env.get_name(), env.predicates, options)
     assert len(nsrts) == 3
     env_train_tasks = env.get_train_tasks()
@@ -82,6 +82,25 @@ def test_kitchen():
         env.simulate(obs, env.action_space.sample())
     assert "Simulate not implemented for gym envs." in str(e)
 
+    # Test action space.
+    obs = env.reset("test", 0)
+
+    # Move rotate gripper.
+    import imageio
+    imgs = []
+    act_arr = np.zeros(9)
+    # act_arr[3] = 1.0
+    act = Action(act_arr)
+    imgs.append(env.render()[0])
+    for _ in range(500):
+        obs = env.step(act)
+        # state = env.state_info_to_state(obs["state_info"])
+        # print(state.pretty_str())
+        imgs.append(env.render()[0])
+
+    imageio.mimwrite("kitchen_noop.mp4", imgs, fps=5)
+    import ipdb
+    ipdb.set_trace()
 
     # Test NSRTs.
     MoveTo, PushObjOnObjForward, PushObjTurnOnRight = sorted(nsrts)
