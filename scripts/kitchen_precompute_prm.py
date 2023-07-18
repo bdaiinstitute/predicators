@@ -4,6 +4,7 @@ import numpy as np
 
 from predicators.envs.kitchen import KitchenEnv
 from predicators import utils
+from predicators.settings import CFG
 
 
 def _main() -> None:
@@ -17,14 +18,25 @@ def _main() -> None:
     env.reset("train", 0)
     gym_env = env._gym_env
 
+    joint_lower_lim = gym_env.robot.robot_pos_bound[: 7, 0]
+    joint_upper_lim = gym_env.robot.robot_pos_bound[: 7, 1]
+    
     joint_state, _ = gym_env.get_env_state()
     joint_state[23:26] = -100  # kettle, way off screen
     gym_env.sim.set_state(joint_state)
     gym_env.sim.forward()
 
-    gym_env.step(np.zeros(9))
-    gym_env.render()
-    import time; time.sleep(5)
+    # Sample random trajectories in 7 DOF space.
+    rng = np.random.default_rng(CFG.seed)
+    max_delta = 0.1
+    max_steps_per_traj = 1000
+    for _ in range(max_steps_per_traj):
+        delta_act = rng.uniform(-max_delta, max_delta, size=7)
+        current_pos = gym_env.sim.data.qpos[:7]
+        main_act = np.clip(current_pos + delta_act, joint_lower_lim, joint_upper_lim)
+        act = np.concatenate([main_act, gym_env.sim.data.qpos[7:9]])
+        gym_env.step(act)
+        gym_env.render()
 
 
 if __name__ == "__main__":
