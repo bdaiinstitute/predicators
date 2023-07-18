@@ -58,11 +58,12 @@ class OrnsteinUhlenbeckActionNoise:
 
 def _reset_gym_env(gym_env):
     # Set up initial state with kettle out of the way.
+    gym_env.seed(CFG.seed)
     gym_env.reset()
-    joint_state, _ = gym_env.get_env_state()
-    joint_state[23:26] = -100  # kettle, way off screen
-    gym_env.sim.set_state(joint_state)
-    gym_env.sim.forward()
+    # joint_state, _ = gym_env.get_env_state()
+    # joint_state[23:26] = -100  # kettle, way off screen
+    # gym_env.sim.set_state(joint_state)
+    # gym_env.sim.forward()
 
 
 def _get_pose_from_env(gym_env):
@@ -79,7 +80,7 @@ def _add_pose_to_graph(pose, graph, distance_thresh):
             graph.add_edge(pose, other_pose, weight=distance)
 
 
-def _go_to_pose_in_graph(target, graph, gym_env, render=False, steps_per_waypoint=10):
+def _go_to_pose_in_graph(target, graph, gym_env, render=False, steps_per_waypoint=5):
     init_pose = _get_pose_from_env(gym_env)
     path = nx.shortest_path(graph, init_pose, target, weight="weight")
     for pose in path:
@@ -87,11 +88,11 @@ def _go_to_pose_in_graph(target, graph, gym_env, render=False, steps_per_waypoin
         for _ in range(steps_per_waypoint):
             gym_env.step(act)
         reached_pose = _get_pose_from_env(gym_env)
-        print("Single step error:", reached_pose.distance(pose))
+        # print("Single step error:", reached_pose.distance(pose))
         if render:
             gym_env.render()
     final_pose = _get_pose_from_env(gym_env)
-    dist = init_pose.distance(final_pose)
+    dist = target.distance(final_pose)
     if dist > 0.1:
         print(f"WARNING: failed to get to target pose. Distance: {dist}")
     
@@ -113,11 +114,12 @@ def _main() -> None:
     
     # Sample random trajectories in 7 DOF space.
     noise_scale = 0.1
-    num_rollout_steps = 10
+    num_rollout_steps = 500
     num_expansions = 10
-    noise = OrnsteinUhlenbeckActionNoise(np.zeros(7), sigma=noise_scale)
+    noise = OrnsteinUhlenbeckActionNoise(np.zeros(7), sigma=noise_scale, seed=CFG.seed)
+    rng = np.random.default_rng(CFG.seed)
 
-    distance_thresh = 0.05
+    distance_thresh = 0.25
     graph = nx.Graph()
     all_poses = []
     _add_pose_to_graph(init_pose, graph, distance_thresh)
@@ -127,9 +129,9 @@ def _main() -> None:
         print(f"Starting expansion {trial}")
         _reset_gym_env(gym_env)
         noise.reset()
-        # Select a node to expand based on distance from the init.
-        node = max(all_poses, key=lambda p: init_pose.distance(p))
-        _go_to_pose_in_graph(node, graph, gym_env, render=True)
+        # Select a node to expand.
+        node = all_poses[rng.choice(len(all_poses))]
+        _go_to_pose_in_graph(node, graph, gym_env, render=False)
         # Run rollouts.
         for _ in range(num_rollout_steps):
             delta_act = noise()
