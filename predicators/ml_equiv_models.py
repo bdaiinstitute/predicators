@@ -15,19 +15,19 @@ class EquivMLPWrapper:
     def __init__(self, g_name, hid_num, input_def=None, output_def=None):
         super().__init__()
 
-        self.group = get_group(g_name=g_name)
+        self._setup_group(g_name=g_name)
         self.g_space = gspaces.no_base_space(self.group)
 
         # TODO hardcode G-representations for input and output
         # FIXME we will later need to input what can be "rotated" to the model
-        stand_repr = self.group.irrep(1) if
+        standard_repr = self.group.irrep(1, 1) if self.enable_reflection else self.group.irrep(1)
 
         self.in_repr = self.g_space.type(
-            *[self.group.irrep(1), self.group.trivial_representation]
+            *[standard_repr, self.group.trivial_representation]
             + [self.group.trivial_representation] * 3
         )
         self.out_repr = self.g_space.type(
-            *[self.group.irrep(1), self.group.trivial_representation]
+            *[standard_repr, self.group.trivial_representation]
         )
 
         self.hid_dim = get_latent_num(
@@ -44,7 +44,6 @@ class EquivMLPWrapper:
         )
 
     def _setup_group(self, g_name):
-
 
         assert any([
             # 2D discrete subgroups
