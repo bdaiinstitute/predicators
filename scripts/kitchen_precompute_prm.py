@@ -119,8 +119,10 @@ def _main() -> None:
     _reset_gym_env(gym_env)
     init_pose = _get_pose_from_env(gym_env)
     _add_pose_to_graph(init_pose, graph, distance_thresh)
-    target_xyz = all_poses[-1].xyz  # arbitary
-    target = min(all_poses, key=lambda p: np.linalg.norm(p.xyz - target_xyz))
+    reachable_nodes = set(nx.shortest_path(graph, init_pose))
+
+    target_xyz = np.array([5.0, 0.0, 2.0])
+    target = min(reachable_nodes, key=lambda p: np.linalg.norm(p.xyz - target_xyz))
     print("init:", init_pose)
     print("target_xyz:", target_xyz)
     print("target:", target)
@@ -135,6 +137,14 @@ def _main() -> None:
     
     final_pose = _get_pose_from_env(gym_env)
     print("Distance to target xyz:", np.linalg.norm(final_pose.xyz - target_xyz))
+
+    # TODO NEXT
+    # visualize important target locations in the environment, make sure they
+    # are reachable.
+    # incorporate collisions
+    # incorporate orientation of end effector
+    # sparsify graph
+    # improve exploration
 
     # xs, ys, zs = np.transpose(visited_ee)
     # fig = plt.figure()
