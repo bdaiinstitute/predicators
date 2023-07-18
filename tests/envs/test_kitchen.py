@@ -54,7 +54,7 @@ def test_kitchen():
     gripper_type, object_type = env.types
     assert gripper_type.name == "gripper"
     assert object_type.name == "obj"
-    assert env.action_space.shape == (29, )
+    assert env.action_space.shape == (7, )
     nsrts = get_gt_nsrts(env.get_name(), env.predicates, options)
     assert len(nsrts) == 3
     env_train_tasks = env.get_train_tasks()
@@ -82,6 +82,7 @@ def test_kitchen():
         env.simulate(obs, env.action_space.sample())
     assert "Simulate not implemented for gym envs." in str(e)
 
+
     # Test NSRTs.
     MoveTo, PushObjOnObjForward, PushObjTurnOnRight = sorted(nsrts)
     assert MoveTo.name == "MoveTo"
@@ -92,6 +93,31 @@ def test_kitchen():
     init_state = env.state_info_to_state(obs["state_info"])
     rng = np.random.default_rng(123)
 
+    # For reference.
+    """
+    ######################## STATE #######################
+    type: gripper            x         y        z
+    ---------------  ---------  --------  -------
+    gripper          -0.431879  0.118886  2.02457
+
+    type: obj            x         y        z        angle
+    -----------  ---------  --------  -------  -----------
+    burner1      -0.3       0.3       0.629    0
+    burner2      -0.3       0.8       0.629    0
+    burner3       0.204     0.8       0.629    0
+    burner4       0.206     0.3       0.629    0
+    hinge1       -0.682831  0.580057  2.6      0
+    hinge2       -0.526226  0.582535  2.6      0
+    kettle       -0.272806  0.348292  1.77842  0
+    knob1        -0.133     0.6399    2.22643  0
+    knob2        -0.256     0.6399    2.22643  3.12877e-05
+    knob3        -0.133     0.6399    2.34043  6.28065e-05
+    knob4        -0.256     0.6399    2.34043  0
+    light        -0.368465  0.615715  2.28     0
+    microhandle  -0.641919  0.492627  1.792    0
+    slide        -0.108466  0.607     2.6      0
+    ######################################################
+    """
     obj_name_to_obj = {o.name: o for o in init_state}
     gripper = obj_name_to_obj["gripper"]
     knob3 = obj_name_to_obj["knob3"]
