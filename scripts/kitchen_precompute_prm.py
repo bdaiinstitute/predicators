@@ -60,10 +60,10 @@ def _reset_gym_env(gym_env):
     # Set up initial state with kettle out of the way.
     gym_env.seed(CFG.seed)
     gym_env.reset()
-    # joint_state, _ = gym_env.get_env_state()
-    # joint_state[23:26] = -100  # kettle, way off screen
-    # gym_env.sim.set_state(joint_state)
-    # gym_env.sim.forward()
+    joint_state, _ = gym_env.get_env_state()
+    joint_state[23:26] = -100  # kettle, way off screen
+    gym_env.sim.set_state(joint_state)
+    gym_env.sim.forward()
 
 
 def _get_pose_from_env(gym_env):
@@ -87,7 +87,7 @@ def _go_to_pose_in_graph(target, graph, gym_env, render=False, steps_per_waypoin
         act = np.concatenate([pose.joints, gym_env.sim.data.qpos[7:9]])
         for _ in range(steps_per_waypoint):
             gym_env.step(act)
-        reached_pose = _get_pose_from_env(gym_env)
+        # reached_pose = _get_pose_from_env(gym_env)
         # print("Single step error:", reached_pose.distance(pose))
         if render:
             gym_env.render()
@@ -115,7 +115,7 @@ def _main() -> None:
     # Sample random trajectories in 7 DOF space.
     noise_scale = 0.1
     num_rollout_steps = 500
-    num_expansions = 10
+    num_expansions = 25
     noise = OrnsteinUhlenbeckActionNoise(np.zeros(7), sigma=noise_scale, seed=CFG.seed)
     rng = np.random.default_rng(CFG.seed)
 
@@ -158,12 +158,14 @@ def _main() -> None:
         init_pose = _get_pose_from_env(env._gym_env)
         x, y, z = state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z")
         target_xyz = np.array([x, y, z])
+        print("target_xyz:", target_xyz)
         graph_copy = graph.copy()
 
         _add_pose_to_graph(init_pose, graph_copy, distance_thresh)
         reachable_nodes = set(nx.shortest_path(graph_copy, init_pose))
 
         target = min(reachable_nodes, key=lambda p: np.linalg.norm(p.xyz - target_xyz))
+        print("Target:", target)
         print("Closest node in graph distance:", np.linalg.norm(target.xyz - target_xyz))
 
         _go_to_pose_in_graph(target, graph_copy, gym_env, render=True)
