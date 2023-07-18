@@ -77,7 +77,23 @@ def _add_pose_to_graph(pose, graph, distance_thresh):
         distance = pose.distance(other_pose)
         if distance < distance_thresh:
             graph.add_edge(pose, other_pose, weight=distance)
+
+
+def _go_to_pose_in_graph(target, graph, gym_env, render=False):
+    init_pose = _get_pose_from_env(gym_env)
+    path = nx.shortest_path(graph, init_pose, target, weight="weight")
+    for pose in path:
+        main_act = pose.joints
+        act = np.concatenate([main_act, gym_env.sim.data.qpos[7:9]])
+        gym_env.step(act)
+        if render:
+            gym_env.render()
+    final_pose = _get_pose_from_env(gym_env)
+    dist = init_pose.distance(final_pose)
+    if dist > 0.1:
+        print(f"WARNING: failed to get to target pose. Distance: {dist}")
     
+
 
 def _main() -> None:
     utils.reset_config({
@@ -114,7 +130,6 @@ def _main() -> None:
             pose = _get_pose_from_env(gym_env)
             _add_pose_to_graph(pose, graph, distance_thresh)
             all_poses.append(pose)
-            # TODO quit if something changes...
 
     obs = env.reset("train", 0)
     state = env.state_info_to_state(obs["state_info"])
@@ -138,14 +153,7 @@ def _main() -> None:
         target = min(reachable_nodes, key=lambda p: np.linalg.norm(p.xyz - target_xyz))
         print("Closest node in graph distance:", np.linalg.norm(target.xyz - target_xyz))
 
-        path = nx.shortest_path(graph_copy, init_pose, target, weight="weight")
-
-        for pose in path:
-            main_act = pose.joints
-            act = np.concatenate([main_act, gym_env.sim.data.qpos[7:9]])
-            gym_env.step(act)
-            gym_env.render()
-    
+        _go_to_pose_in_graph(target, graph_copy, gym_env, render=True)
         final_pose = _get_pose_from_env(gym_env)
         dist = np.linalg.norm(final_pose.xyz - target_xyz)
         print("Distance to target xyz:", dist)
