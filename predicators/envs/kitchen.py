@@ -44,7 +44,7 @@ https://github.com/Learning-and-Intelligent-Systems/mujoco_kitchen"
                     "use_raw_action_wrappers": False,
                     "unflatten_images": False,
                 },
-                "control_mode": "torque",
+                "control_mode": "joint_position",
             })
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:

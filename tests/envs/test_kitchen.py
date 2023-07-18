@@ -88,7 +88,9 @@ def test_kitchen():
     # Move rotate gripper.
     import imageio
     imgs = []
-    act_arr = np.zeros(9)
+    # act_arr = np.zeros(9)
+    act_arr = env._gym_env.init_qpos[:9]
+    print("act_arr:", act_arr)
     # act_arr[3] = 1.0
     act = Action(act_arr)
     imgs.append(env.render()[0])
