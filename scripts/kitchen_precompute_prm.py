@@ -119,8 +119,10 @@ def _main() -> None:
     _reset_gym_env(gym_env)
     init_pose = _get_pose_from_env(gym_env)
     _add_pose_to_graph(init_pose, graph, distance_thresh)
-    target = all_poses[-1]  # arbitary
+    target_xyz = all_poses[-1].xyz  # arbitary
+    target = min(all_poses, key=lambda p: np.linalg.norm(p.xyz - target_xyz))
     print("init:", init_pose)
+    print("target_xyz:", target_xyz)
     print("target:", target)
 
     path = nx.shortest_path(graph, init_pose, target, weight="weight")
@@ -132,7 +134,7 @@ def _main() -> None:
         gym_env.render()
     
     final_pose = _get_pose_from_env(gym_env)
-    print("Distance to target:", target.distance(final_pose))
+    print("Distance to target xyz:", np.linalg.norm(final_pose.xyz - target_xyz))
 
     # xs, ys, zs = np.transpose(visited_ee)
     # fig = plt.figure()
