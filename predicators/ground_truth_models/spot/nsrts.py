@@ -140,8 +140,12 @@ class _SpotInterfaceSampler:
     def __getnewargs__(self) -> Tuple:
         return (self._name, )
 
-    def __getstate__(self) -> Dict:
-        return {"name": self._name}
+    def __reduce__(self):
+        return (_SpotInterfaceSampler, (self._name,))
+
+    # Try getting state and just returning False and see what happens
+    # def __getstate__(self) -> Dict:
+    #     return {"name": self._name}
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
