@@ -1074,7 +1074,7 @@ class InvariantMLPBinaryClassifier(PyTorchBinaryClassifier):
                  n_iter_no_change: int,
                  hid_sizes: List[int],
                  n_reinitialize_tries: int,
-                 weight_init: str,
+                 weight_init: str = False,
                  weight_decay: float = 0,
                  use_torch_gpu: bool = False,
                  train_print_every: int = 1000) -> None:
@@ -1101,6 +1101,26 @@ class InvariantMLPBinaryClassifier(PyTorchBinaryClassifier):
             g_name='d4',
             hid_dim=self._hid_sizes[0],
         )
+
+    def _create_optimizer(self) -> optim.Optimizer:
+        """Create an optimizer after the model is initialized."""
+        # TODO test override
+        return optim.Adam(self._equiv_mlp.parameters(),
+                          lr=self._learning_rate,
+                          weight_decay=self._weight_decay)
+
+    def _weight_reset(self, m: torch.nn.Module, weight_init: str) -> None:
+        import escnn.nn as esnn
+
+        if isinstance(m, esnn.Linear):
+            if weight_init == "default":
+                # TODO use escnn Linear layer init call
+                esnn.init.generalized_he_init(m.weights.data, m.basisexpansion)
+            elif weight_init == "normal":
+                raise NotImplementedError
+            else:
+                raise NotImplementedError(
+                    f"{weight_init} weight initialization unknown")
 
     def _create_loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
         return nn.BCELoss()
@@ -1232,6 +1252,7 @@ def _train_pytorch_model(model: nn.Module,
         max_iters = max_train_iters(dataset_size)
     assert isinstance(max_iters, int)
     for tensor_X, tensor_Y in batch_generator:
+        # FIXME output shape of model is not correct
         Y_hat = model(tensor_X)
         loss = loss_fn(Y_hat, tensor_Y)
         if loss.item() < best_loss:

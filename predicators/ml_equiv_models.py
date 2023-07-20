@@ -7,7 +7,7 @@ from escnn import nn as esnn
 from escnn import gspaces
 
 
-class EquivMLPWrapper:
+class EquivMLPWrapper(nn.Module):
     """
     The goal of this wrapper is to provide an interface that is identical to normal MLP for easier use
     """
@@ -33,7 +33,7 @@ class EquivMLPWrapper:
 
         self.in_repr = self.g_space.type(
             # a constant,
-            *[self.group.trivial_representation] +
+            *[self.group.trivial_representation]
             # 2 numbers
             + [self.group.trivial_representation] * 2
             # spot xyz: xy rotatable by SO2 + z invariant
@@ -123,6 +123,9 @@ class EquivMLPWrapper:
         x_wrap = self.in_repr(x)
         x_out = self.mlp(x_wrap)
         x_unwrap = x_out.tensor
+
+        # FIXME
+        x_unwrap = x_unwrap.squeeze()
         return x_unwrap
 
 
@@ -226,3 +229,4 @@ def sym_mlp(g_space, in_field, out_field, h_num, act_fn=esnn.ELU):
 
 if __name__ == '__main__':
     equiv_mlp = EquivMLPWrapper(g_name='d4', hid_dim=10)
+    print(equiv_mlp(torch.zeros(7, 18)).shape)

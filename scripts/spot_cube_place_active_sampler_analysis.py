@@ -53,10 +53,10 @@ def _analyze_saved_data() -> None:
     idxs = [i for (i, _) in sorted(enumerate(times), key=lambda i: i[1])]
     X = [X[i] for i in idxs]
     y = [y[i] for i in idxs]
-    img = _create_image(X, y)
-    img_outfile = "videos/spot_cube_active_sampler_learning_saved_data.png"
-    imageio.imsave(img_outfile, img)
-    print(f"Wrote out to {img_outfile}")
+    # img = _create_image(X, y)
+    # img_outfile = "videos/spot_cube_active_sampler_learning_saved_data.png"
+    # imageio.imsave(img_outfile, img)
+    # print(f"Wrote out to {img_outfile}")
     # Run sample efficiency analysis.
     _run_sample_efficiency_analysis(X, y)
 
@@ -259,6 +259,11 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
                 y_train = np.array([y[i] for i in train_idxs])
                 X_valid = [X[i] for i in valid_idxs]
                 y_valid = [y[i] for i in valid_idxs]
+
+                # TODO only use 2D feature
+                # X_train = _vec_to_xy(X_train)
+                # X_valid = _vec_to_xy(X_valid)
+
                 # Train.
                 model = create_model()
                 model.fit(X_train, y_train)
