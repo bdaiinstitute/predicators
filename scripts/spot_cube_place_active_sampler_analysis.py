@@ -217,14 +217,17 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
     num_valid = int(num_data * validation_frac)
     num_trials = 10
 
+    from predicators.ml_models import InvariantMLPBinaryClassifier
+
     models: Dict[str, Callable[[], BinaryClassifier]] = {
         "oracle":
         lambda: _OracleModel(seed=CFG.seed),
         # "always-true": lambda: _ConstantModel(CFG.seed, True),
         "always-false":
         lambda: _ConstantModel(CFG.seed, False),
-        "mlp":
-        lambda: MLPBinaryClassifier(
+        "mlp":  # TODO change the classifier here
+        # lambda: MLPBinaryClassifier(
+        lambda: InvariantMLPBinaryClassifier(
             seed=CFG.seed,
             balance_data=CFG.mlp_classifier_balance_data,
             max_train_iters=CFG.sampler_mlp_classifier_max_itr,
