@@ -1061,6 +1061,56 @@ class MLPBinaryClassifier(PyTorchBinaryClassifier):
         return torch.sigmoid(tensor_X.squeeze(dim=-1))
 
 
+class InvariantMLPBinaryClassifier(PyTorchBinaryClassifier):
+    """InvariantMLPBinaryClassifier definition.
+    Using escnn to run the task
+    """
+
+    def __init__(self,
+                 seed: int,
+                 balance_data: bool,
+                 max_train_iters: MaxTrainIters,
+                 learning_rate: float,
+                 n_iter_no_change: int,
+                 hid_sizes: List[int],
+                 n_reinitialize_tries: int,
+                 weight_init: str,
+                 weight_decay: float = 0,
+                 use_torch_gpu: bool = False,
+                 train_print_every: int = 1000) -> None:
+        super().__init__(seed,
+                         balance_data,
+                         max_train_iters,
+                         learning_rate,
+                         n_iter_no_change,
+                         n_reinitialize_tries,
+                         weight_init,
+                         weight_decay=weight_decay,
+                         use_torch_gpu=use_torch_gpu,
+                         train_print_every=train_print_every)
+        self._hid_sizes = hid_sizes
+        # Set in fit().
+        self._equiv_mlp = None
+
+    def _initialize_net(self) -> None:
+        # TODO import equivariant version
+        from .ml_equiv_models import EquivMLPWrapper
+        # FIXME the definition of input and output needs to be specified (if they are xyz geometric locations)
+        # TODO now hardcoded in the wrapper
+        self._equiv_mlp = EquivMLPWrapper(
+            g_name='d4',
+            hid_dim=self._hid_sizes[0],
+        )
+
+    def _create_loss_fn(self) -> Callable[[Tensor, Tensor], Tensor]:
+        return nn.BCELoss()
+
+    def forward(self, tensor_X: Tensor) -> Tensor:
+        assert not self._do_single_class_prediction
+        tensor_out_unwrapped = self._equiv_mlp(tensor_X)
+        return torch.sigmoid(tensor_X.squeeze(dim=-1))
+
+
 class KNeighborsClassifier(_ScikitLearnBinaryClassifier):
     """K nearest neighbors from scikit-learn."""
 
