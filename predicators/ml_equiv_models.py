@@ -12,9 +12,10 @@ class EquivMLPWrapper:
     The goal of this wrapper is to provide an interface that is identical to normal MLP for easier use
     """
 
-    def __init__(self, g_name, hid_num, input_def=None, output_def=None):
+    def __init__(self, g_name, hid_dim, input_def=None, output_def=None):
         super().__init__()
 
+        self.g_name = g_name
         self._setup_group(g_name=g_name)
         self.g_space = gspaces.no_base_space(self.group)
 
@@ -22,18 +23,51 @@ class EquivMLPWrapper:
         # FIXME we will later need to input what can be "rotated" to the model
         standard_repr = self.group.irrep(1, 1) if self.enable_reflection else self.group.irrep(1)
 
+        # TODO hardcode the values for here - keep the one you want
+        # TODO hardcode version 1 - 18D input
+        # x is [1.0, spot, tool, surface, params]
+        # spot: gripper_open_percentage, curr_held_item_id, x, y, z, yaw
+        # tool: x, y, z, lost, in_view
+        # surface: x, y, z
+        # params: dx, dy, dz
+
         self.in_repr = self.g_space.type(
-            *[standard_repr, self.group.trivial_representation]
-            + [self.group.trivial_representation] * 3
-        )
-        self.out_repr = self.g_space.type(
-            *[standard_repr, self.group.trivial_representation]
+            # a constant,
+            *[self.group.trivial_representation] +
+            # 2 numbers
+            + [self.group.trivial_representation] * 2
+            # spot xyz: xy rotatable by SO2 + z invariant
+            + [standard_repr, self.group.trivial_representation]
+            # yaw
+            + [self.group.trivial_representation] * 1
+            # tool xyz: xy rotatable by SO2 + z invariant
+            + [standard_repr, self.group.trivial_representation]
+            # tool features:
+            + [self.group.trivial_representation] * 2
+            # surface xyz: xy rotatable by SO2 + z invariant
+            + [standard_repr, self.group.trivial_representation]
+            # params xyz: xy rotatable by SO2 + z invariant
+            + [standard_repr, self.group.trivial_representation]
         )
 
-        self.hid_dim = get_latent_num(
+        # TODO hardcode version 2 - 2D input
+        # self.in_repr = self.g_space.type(
+        #     # xyz: xy rotatable by SO2, no z
+        #     *[standard_repr]
+        # )
+
+        # output: classifier, so only trivial repr
+        self.out_repr = self.g_space.type(
+            *[self.group.trivial_representation]
+        )
+
+        # TODO use easier version
+        latent_dim_factor = 'linear'
+        self.hid_num = get_latent_num(
+            latent_dim_factor=latent_dim_factor,
             g_space=self.g_space,
-            h_dim=hid_num,
-            h_repr=self.group.regular_representation
+            h_dim=hid_dim,
+            h_repr='regular'
         )
 
         self.mlp = sym_mlp(
@@ -92,27 +126,25 @@ class EquivMLPWrapper:
         return x_unwrap
 
 
-def get_latent_num(cfg, g_space, h_dim, h_repr=None, multiply_repr_size=False):
-    if h_repr is None:
-        h_repr = cfg.latent_repr
+def get_latent_num(latent_dim_factor, g_space, h_dim, h_repr=None, multiply_repr_size=False):
 
     if h_repr == 'regular':
 
-        if cfg.latent_dim_factor == 'linear':
+        if latent_dim_factor == 'linear':
             # This keeps the same latent size, but equivariant methods have less learnable parameters
             h_dim = h_dim // g_space.regular_repr.size
 
-        elif cfg.latent_dim_factor == 'sqrt':
+        elif latent_dim_factor == 'sqrt':
             # This option uses sqrt(size) to keep same # of free parameters; fixed: divided then round
             h_dim = int(h_dim / np.sqrt(g_space.regular_repr.size)) + 1
 
-        elif cfg.latent_dim_factor == 'sqrt-1.2x':
+        elif latent_dim_factor == 'sqrt-1.2x':
             h_dim = int(1.2 * h_dim / np.sqrt(g_space.regular_repr.size))
 
-        elif cfg.latent_dim_factor == 'sqrt-1.5x':
+        elif latent_dim_factor == 'sqrt-1.5x':
             h_dim = int(1.5 * h_dim / np.sqrt(g_space.regular_repr.size))
 
-        elif cfg.latent_dim_factor == 'const':
+        elif latent_dim_factor == 'const':
             h_dim = h_dim
 
         else:
@@ -193,4 +225,4 @@ def sym_mlp(g_space, in_field, out_field, h_num, act_fn=esnn.ELU):
 
 
 if __name__ == '__main__':
-    equiv_mlp = EquivMLPWrapper(g_name='d4', hid_num=10)
+    equiv_mlp = EquivMLPWrapper(g_name='d4', hid_dim=10)
