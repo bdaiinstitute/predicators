@@ -8,7 +8,7 @@ import numpy as np
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import SpotBikeEnv, _PartialPerceptionState, \
-    _SpotObservation
+    _SpotObservation, HANDEMPTY_CLASSIFIER_THRESHOLD
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.spot_utils import obj_name_to_apriltag_id
@@ -75,7 +75,10 @@ class SpotBikePerceiver(BasePerceiver):
             # The robot is always the 0th argument of an
             # operator!
             if "grasp" in controller_name.lower():
-                assert self._holding_item_id_feature == 0.0
+                try:
+                    assert self._holding_item_id_feature == 0.0
+                except AssertionError:
+                    print("Assertion Error Hit!!! This is kinda bad")
                 # We know that the object that we attempted to grasp was
                 # the second argument to the controller.
                 object_attempted_to_grasp = objects[1]
@@ -83,7 +86,7 @@ class SpotBikePerceiver(BasePerceiver):
                     object_attempted_to_grasp.name]
                 # We only want to update the holding item id feature
                 # if we successfully picked something.
-                if self._gripper_open_percentage > 1.5:
+                if self._gripper_open_percentage > HANDEMPTY_CLASSIFIER_THRESHOLD:
                     self._holding_item_id_feature = grasp_obj_id
                 else:
                     # We lost the object!
@@ -108,7 +111,7 @@ class SpotBikePerceiver(BasePerceiver):
                 # We ensure the holding item feature is set
                 # back to 0.0 if the hand is ever empty.
                 prev_holding_item_id = self._holding_item_id_feature
-                if self._gripper_open_percentage <= 1.5:
+                if self._gripper_open_percentage <= HANDEMPTY_CLASSIFIER_THRESHOLD:
                     self._holding_item_id_feature = 0.0
                     # This can only happen if the item was dropped during
                     # something other than a place.

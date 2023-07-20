@@ -527,7 +527,7 @@ class SpotEnv(BaseEnv):
 #                                Bike Repair Env                              #
 ###############################################################################
 
-
+HANDEMPTY_CLASSIFIER_THRESHOLD = 2.5
 class SpotBikeEnv(SpotEnv):
     """An environment containing bike-repair related tasks for a real Spot
     robot to execute."""
@@ -535,6 +535,7 @@ class SpotBikeEnv(SpotEnv):
     _ontop_threshold: ClassVar[float] = 0.55
     _reachable_threshold: ClassVar[float] = 1.7
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
+    _handempty_classifier_threhsold: ClassVar[float] = HANDEMPTY_CLASSIFIER_THRESHOLD
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -893,11 +894,11 @@ class SpotBikeEnv(SpotEnv):
             self._notHandEmpty, self._InViewTool, self._OnFloor
         }
 
-    @staticmethod
-    def _handempty_classifier(state: State, objects: Sequence[Object]) -> bool:
+    @classmethod
+    def _handempty_classifier(cls, state: State, objects: Sequence[Object]) -> bool:
         spot = objects[0]
         gripper_open_percentage = state.get(spot, "gripper_open_percentage")
-        return gripper_open_percentage <= 2.5
+        return gripper_open_percentage <= cls._handempty_classifier_threhsold
 
     @classmethod
     def _nothandempty_classifier(cls, state: State,
