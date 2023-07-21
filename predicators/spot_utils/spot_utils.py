@@ -311,8 +311,8 @@ class _SpotInterface():
         object_views: Dict[str, Tuple[float, float, float]] = {}
         if CFG.spot_initialize_surfaces_to_default:
             object_views = {
-                "tool_room_table": (6.64749, -6.35822, 0.0565385),
-                "extra_room_table": (8.20495, -6.22568, -0.0157123),
+                "tool_room_table": (6.61488, -6.32533, 0.0606615),
+                "extra_room_table": (8.2483, -6.19589, -0.0113673),
                 "low_wall_rack":
                 (10.049931203338616, -6.9443170697742, 0.27881268568327966),
                 "toolbag":
@@ -550,9 +550,9 @@ class _SpotInterface():
     def graspController(self, objs: Sequence[Object], params: Array) -> None:
         """Wrapper method for grasp controller.
 
-        Params are 4 dimensional corresponding to a top-down grasp (1),
-        side grasp (-1) or any (0), and dx, dy, dz of post grasp
-        position.
+        Params are 4 dimensional dx, dy, dz of post grasp
+        position, amd then an int corresponding to a top-down grasp (1),
+        side grasp (-1) or any (0), and
         """
         print("Grasp", objs)
         assert len(params) == 4

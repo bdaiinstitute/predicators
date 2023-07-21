@@ -83,10 +83,10 @@ PLOT_GROUPS = {
     #         lambda v: "bumpy_cover-knn_manual_features" in v)),
     # ],
     "Spot Two Tables": [
-        ("Random NSRTs", "black", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "spot_bike_env-two_tables-random_nsrts" in v)),
-        ("Acive Explore", "green", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "spot_bike_env-two_tables-active_explorer" in v)),
+        # ("Random NSRTs", "black", lambda df: df["EXPERIMENT_ID"].apply(
+        #     lambda v: "spot_bike_env-two_tables-random_nsrts" in v)),
+        ("Active Explore", "green", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_bike_env-two_tables-active_explorer-train_only" in v)),
     ]
 }
 

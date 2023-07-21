@@ -73,7 +73,7 @@ def _grasp_sampler(spot_interface: _SpotInterface, state: State,
     if objs[2].name == "low_wall_rack":  # pragma: no cover
         return np.array([0.0, 0.0, 0.1, 0.0])
     if "table" in objs[2].name:
-        return np.array([1.0, 0.0, 0.0, 0.0])
+        return np.array([0.0, 0.0, 0.0, 1.0])
     return np.array([0.0, 0.0, 0.0, 0.0])
 
 
