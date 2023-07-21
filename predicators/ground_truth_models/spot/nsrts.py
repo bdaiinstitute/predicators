@@ -72,6 +72,8 @@ def _grasp_sampler(spot_interface: _SpotInterface, state: State,
         return np.array([0.0, 0.0, 0.0, -1.0])
     if objs[2].name == "low_wall_rack":  # pragma: no cover
         return np.array([0.0, 0.0, 0.1, 0.0])
+    if "table" in objs[2].name:
+        return np.array([1.0, 0.0, 0.0, 0.0])
     return np.array([0.0, 0.0, 0.0, 0.0])
 
 
@@ -100,7 +102,7 @@ def _place_sampler(spot_interface: _SpotInterface, state: State,
     if "_table" in surface.name:
 
         dx = 0.2
-        dy = rng.uniform(-0.20, 0.33)  # positive is left
+        dy = rng.uniform(-0.17, 0.33)  # positive is left
         dz = -0.6
 
         # Oracle values for slanted table.
@@ -142,10 +144,6 @@ class _SpotInterfaceSampler:
 
     def __reduce__(self):
         return (_SpotInterfaceSampler, (self._name,))
-
-    # Try getting state and just returning False and see what happens
-    # def __getstate__(self) -> Dict:
-    #     return {"name": self._name}
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
