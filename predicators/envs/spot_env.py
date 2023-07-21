@@ -527,12 +527,12 @@ class SpotEnv(BaseEnv):
 #                                Bike Repair Env                              #
 ###############################################################################
 
-HANDEMPTY_CLASSIFIER_THRESHOLD = 2.5
+HANDEMPTY_CLASSIFIER_THRESHOLD = 3.5
 class SpotBikeEnv(SpotEnv):
     """An environment containing bike-repair related tasks for a real Spot
     robot to execute."""
 
-    _ontop_threshold: ClassVar[float] = 0.55
+    _ontop_threshold: ClassVar[float] = 0.70
     _reachable_threshold: ClassVar[float] = 1.7
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
     _handempty_classifier_threhsold: ClassVar[float] = HANDEMPTY_CLASSIFIER_THRESHOLD
