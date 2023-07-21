@@ -86,7 +86,7 @@ PLOT_GROUPS = {
         # ("Random NSRTs", "black", lambda df: df["EXPERIMENT_ID"].apply(
         #     lambda v: "spot_bike_env-two_tables-random_nsrts" in v)),
         ("Active Explore", "green", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "spot_bike_env-two_tables-active_explorer-train_only" in v)),
+            lambda v: "spot_bike_env-two_tables-active_explorer" in v)),
     ]
 }
 
