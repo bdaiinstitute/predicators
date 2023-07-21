@@ -1127,7 +1127,8 @@ class InvariantMLPBinaryClassifier(PyTorchBinaryClassifier):
 
     def forward(self, tensor_X: Tensor) -> Tensor:
         assert not self._do_single_class_prediction
-        tensor_out_unwrapped = self._equiv_mlp(tensor_X)
+        # Feed into the equivariant MLP - it's well wrapped that the output is still a PyTorch tensor to use
+        tensor_X = self._equiv_mlp(tensor_X)
         return torch.sigmoid(tensor_X.squeeze(dim=-1))
 
 
@@ -1252,7 +1253,6 @@ def _train_pytorch_model(model: nn.Module,
         max_iters = max_train_iters(dataset_size)
     assert isinstance(max_iters, int)
     for tensor_X, tensor_Y in batch_generator:
-        # FIXME output shape of model is not correct
         Y_hat = model(tensor_X)
         loss = loss_fn(Y_hat, tensor_Y)
         if loss.item() < best_loss:
