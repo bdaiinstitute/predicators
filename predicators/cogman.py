@@ -67,7 +67,10 @@ class CogMan:
             self._exec_monitor.reset(task)
             self._exec_monitor.update_approach_info(
                 self._approach.get_execution_monitoring_info())
-            assert not self._exec_monitor.step(state)
+            try:
+                assert not self._exec_monitor.step(state)
+            except AssertionError:
+                import ipdb; ipdb.set_trace()
         assert self._current_policy is not None
         act = self._current_policy(state)
         self._perceiver.update_perceiver_with_action(act)

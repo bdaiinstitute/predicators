@@ -69,7 +69,7 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
     def _create_explorer(self) -> BaseExplorer:
         # Geometrically increase the length of exploration.
         b = CFG.active_sampler_learning_explore_length_base
-        max_steps = min([b * (1 + self._online_learning_cycle), 40]) #b**(1 + self._online_learning_cycle)
+        max_steps = b * (1 + self._online_learning_cycle) #b**(1 + self._online_learning_cycle)
         preds = self._get_current_predicates()
         explorer = create_explorer(
             CFG.explorer,

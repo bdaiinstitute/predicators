@@ -178,6 +178,7 @@ def _run_pipeline(env: BaseEnv,
         else:
             teacher = None
         already_loaded_approach = False
+        first_testing_skipped = False
         # The online learning loop.
         for i in range(CFG.num_online_learning_cycles):
             if i < CFG.skip_until_cycle:
@@ -193,12 +194,6 @@ def _run_pipeline(env: BaseEnv,
                 logging.info("Did not receive any interaction requests, "
                              "terminating")
                 break  # agent doesn't want to learn anything more; terminate
-            interaction_results, query_cost = _generate_interaction_results(
-                cogman, env, teacher, interaction_requests, i)
-            num_online_transitions += sum(
-                len(result.actions) for result in interaction_results)
-            total_query_cost += query_cost
-            logging.info(f"Query cost incurred this cycle: {query_cost}")
             # We want to load iff:
             # - CFG.restart_learning is False
             # - CFG.restart_learning is True, but we haven't yet loaded the
@@ -209,10 +204,22 @@ def _run_pipeline(env: BaseEnv,
                 already_loaded_approach = True
                 learning_time += 0.0  # ignore loading time
             else:
+                interaction_results, query_cost = _generate_interaction_results(
+                cogman, env, teacher, interaction_requests, i)
+                num_online_transitions += sum(
+                    len(result.actions) for result in interaction_results)
+                total_query_cost += query_cost
+                logging.info(f"Query cost incurred this cycle: {query_cost}")
                 learning_start = time.perf_counter()
                 logging.info("Learning from interaction results...")
                 cogman.learn_from_interaction_results(interaction_results)
                 learning_time += time.perf_counter() - learning_start
+
+            if CFG.skip_first_testing and not first_testing_skipped:
+                assert CFG.load_approach and CFG.restart_learning
+                first_testing_skipped = True
+                continue
+
             # Evaluate approach after every online learning cycle.
             results = _run_testing(env, cogman)
             results["num_offline_transitions"] = num_offline_transitions

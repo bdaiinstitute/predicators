@@ -100,7 +100,7 @@ def _place_sampler(spot_interface: _SpotInterface, state: State,
     if "_table" in surface.name:
 
         dx = 0.2
-        dy = rng.uniform(-0.2, 0.2)  # positive is left
+        dy = rng.uniform(-0.20, 0.33)  # positive is left
         dz = -0.6
 
         # Oracle values for slanted table.
