@@ -221,9 +221,15 @@ class SpotEnv(BaseEnv):
         if "MoveTo" in operator.name:
             return "navigate"
         if "Grasp" in operator.name:
+            # If we're grasping from atop a platform
+            # then we want to modify the skill execution.
+            if "FromHigh" in operator.name:
+                return "grasp_from_platform"
             return "grasp"
         if "Place" in operator.name:
             return "placeOnTop"
+        if "Drag" in operator.name:
+            return "drag"
         # Forthcoming controllers.
         return "noop"
 
@@ -313,24 +319,50 @@ class SpotEnv(BaseEnv):
         may vary per environment.
         """
         # Get the camera images.
-        images = self._spot_interface.get_camera_images()
+        rgb_img_dict, rgb_img_response_dict, \
+            depth_img_dict, depth_img_response_dict = \
+                    self._spot_interface.get_camera_images()
 
         # Detect objects using AprilTags (which we need for surfaces anyways).
         object_names_in_view_by_camera = {}
         object_names_in_view_by_camera_apriltag = \
             self._spot_interface.get_objects_in_view_by_camera\
-                (from_apriltag=True)
+                (from_apriltag=True, rgb_image_dict=rgb_img_dict,
+                 rgb_image_response_dict=rgb_img_response_dict,
+                 depth_image_dict=depth_img_dict,
+                 depth_image_response_dict=depth_img_response_dict)
         object_names_in_view_by_camera.update(
             object_names_in_view_by_camera_apriltag)
         # Additionally, if we're using SAM, then update using that.
         if CFG.spot_grasp_use_sam:
             object_names_in_view_by_camera_sam = self._spot_interface.\
-                get_objects_in_view_by_camera(from_apriltag=False)
+                get_objects_in_view_by_camera(from_apriltag=False,
+                                            rgb_image_dict=rgb_img_dict,
+                                            rgb_image_response_dict=\
+                                                rgb_img_response_dict,
+                                            depth_image_dict=depth_img_dict,
+                                            depth_image_response_dict=\
+                                                depth_img_response_dict)
             # Combine these together to get all objects in view.
             for k, v in object_names_in_view_by_camera.items():
                 v.update(object_names_in_view_by_camera_sam[k])
 
         object_names_in_view: Dict[str, Tuple[float, float, float]] = {}
+        # IMPORTANT NOTE: when using DETIC-SAM for vision, we generally
+        # only associate an object with the camera source that detected
+        # that object with the highest score. However, we also
+        # keep around all objects seen by the hand camera, even if
+        # other cameras have higher scores for the same object.
+        # Thus, if an object appears to be associated with more than
+        # one camera, it can only be because it was seen by the hand
+        # camera, and also by another camera, but the other camera
+        # had a higher-scoring detection. "hand_color_image" is the
+        # first element of CAMERA_NAMES, so we will overwrite
+        # the pose of an object if we detect it from another camera
+        # other than the hand, which is exactly what we want.
+        # "hand_color_image" being the first element of the CAMERA_NAMES
+        # list is vital for this behavior; things could start to
+        # silently go wrong here if that's changed.
         for source_camera in CAMERA_NAMES:
             object_names_in_view.update(
                 object_names_in_view_by_camera[source_camera])
@@ -366,8 +398,9 @@ class SpotEnv(BaseEnv):
         # Prepare the non-percepts.
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in ground_atoms)
-        obs = _SpotObservation(images, objects_in_view, objects_in_hand_view,
-                               robot, gripper_open_percentage, robot_pos,
+        obs = _SpotObservation(rgb_img_dict, objects_in_view,
+                               objects_in_hand_view, robot,
+                               gripper_open_percentage, robot_pos,
                                ground_atoms, nonpercept_preds)
 
         return obs
@@ -424,13 +457,13 @@ class SpotEnv(BaseEnv):
         }
         robot_type = next(t for t in self.types if t.name == "robot")
         robot = Object("spot", robot_type)
-        images = self._spot_interface.get_camera_images()
+        rgb_images, _, _, _ = self._spot_interface.get_camera_images()
         gripper_open_percentage = self._spot_interface.get_gripper_obs()
         robot_pos = self._spot_interface.get_robot_pose()
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
-        obs = _SpotObservation(images, objects_in_view, set(), robot,
+        obs = _SpotObservation(rgb_images, objects_in_view, set(), robot,
                                gripper_open_percentage, robot_pos,
                                nonpercept_atoms, nonpercept_preds)
         goal = self._generate_task_goal()
@@ -539,6 +572,8 @@ class SpotEnv(BaseEnv):
 #                                Bike Repair Env                              #
 ###############################################################################
 
+HANDEMPTY_GRIPPER_THRESHOLD = 2.5
+
 
 class SpotBikeEnv(SpotEnv):
     """An environment containing bike-repair related tasks for a real Spot
@@ -546,7 +581,14 @@ class SpotBikeEnv(SpotEnv):
 
     _ontop_threshold: ClassVar[float] = 0.55
     _reachable_threshold: ClassVar[float] = 1.7
+    _bucket_center_offset_x: ClassVar[float] = 0.0
+    _bucket_center_offset_y: ClassVar[float] = -0.15
+    _inbag_threshold: ClassVar[float] = 0.25
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
+    _handempty_gripper_threshold: ClassVar[float] = HANDEMPTY_GRIPPER_THRESHOLD
+    _robot_on_platform_threshold: ClassVar[float] = 0.18
+    _surface_too_high_threshold: ClassVar[float] = 0.7
+    _ontop_max_height_threshold: ClassVar[float] = 0.25
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -559,7 +601,8 @@ class SpotBikeEnv(SpotEnv):
         self._tool_type = Type("tool", ["x", "y", "z", "lost", "in_view"])
         self._surface_type = Type("flat_surface", ["x", "y", "z"])
         self._bag_type = Type("bag", ["x", "y", "z"])
-        self._platform_type = Type("platform", ["x", "y", "z"])
+        self._platform_type = Type("platform",
+                                   ["x", "y", "z", "lost", "in_view"])
         self._floor_type = Type("floor", ["x", "y", "z"])
 
         # Predicates
@@ -570,12 +613,8 @@ class SpotBikeEnv(SpotEnv):
         self._OnFloor = Predicate("OnFloor",
                                   [self._tool_type, self._floor_type],
                                   self._onfloor_classifier)
-        self._temp_InBag = Predicate("InBag",
-                                     [self._tool_type, self._bag_type],
-                                     lambda s, o: False)
-        self._InBag = Predicate(
-            "InBag", [self._tool_type, self._bag_type],
-            _create_dummy_predicate_classifier(self._temp_InBag))
+        self._InBag = Predicate("InBag", [self._tool_type, self._bag_type],
+                                self._inbag_classifier)
         self._HandEmpty = Predicate("HandEmpty", [self._robot_type],
                                     self._handempty_classifier)
         self._notHandEmpty = Predicate("Not-HandEmpty", [self._robot_type],
@@ -599,6 +638,9 @@ class SpotBikeEnv(SpotEnv):
         self._InViewTool = Predicate("InViewTool",
                                      [self._robot_type, self._tool_type],
                                      self._tool_in_view_classifier)
+        self._InViewPlatform = Predicate(
+            "InViewPlatform", [self._robot_type, self._platform_type],
+            self._platform_in_view_classifier)
         self._ReachableBag = Predicate("ReachableBag",
                                        [self._robot_type, self._bag_type],
                                        self._reachable_classifier)
@@ -614,28 +656,51 @@ class SpotBikeEnv(SpotEnv):
         self._SurfaceNotTooHigh = Predicate(
             "SurfaceNotTooHigh", [self._robot_type, self._surface_type],
             self._surface_not_too_high_classifier)
-        self._temp_PlatformNear = Predicate(
-            "PlatformNear", [self._platform_type, self._surface_type],
-            lambda s, o: False)
         self._PlatformNear = Predicate(
             "PlatformNear", [self._platform_type, self._surface_type],
-            _create_dummy_predicate_classifier(self._temp_PlatformNear))
+            self._platform_is_near)
+        self._RobotStandingOnPlatform = Predicate(
+            "RobotOnPlatform", [self._robot_type, self._platform_type],
+            self._robot_on_platform_classifier)
 
         # STRIPS Operators (needed for option creation)
-        # MoveToToolOnSurface
+        # MoveToToolOnSurfaceNotHigh
         spot = Variable("?robot", self._robot_type)
         tool = Variable("?tool", self._tool_type)
         surface = Variable("?surface", self._surface_type)
-        preconditions = {LiftedAtom(self._On, [tool, surface])}
+        preconditions = {
+            LiftedAtom(self._On, [tool, surface]),
+            LiftedAtom(self._SurfaceNotTooHigh, [spot, surface])
+        }
         add_effs = {LiftedAtom(self._InViewTool, [spot, tool])}
         ignore_effs = {
             self._ReachableBag, self._ReachableSurface,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
         }
-        self._MoveToToolOnSurfaceOp = STRIPSOperator("MoveToToolOnSurface",
-                                                     [spot, tool, surface],
-                                                     preconditions, add_effs,
-                                                     set(), ignore_effs)
+        self._MoveToToolOnSurfaceNotHighOp = STRIPSOperator(
+            "MoveToToolOnSurfaceNotHigh", [spot, tool, surface], preconditions,
+            add_effs, set(), ignore_effs)
+        # MoveToToolOnSurfaceTooHigh
+        spot = Variable("?robot", self._robot_type)
+        tool = Variable("?tool", self._tool_type)
+        surface = Variable("?surface", self._surface_type)
+        platform = Variable("?platform", self._platform_type)
+        preconditions = {
+            LiftedAtom(self._On, [tool, surface]),
+            LiftedAtom(self._PlatformNear, [platform, surface]),
+            LiftedAtom(self._SurfaceTooHigh, [spot, surface])
+        }
+        add_effs = {
+            LiftedAtom(self._InViewTool, [spot, tool]),
+            LiftedAtom(self._RobotStandingOnPlatform, [spot, platform])
+        }
+        ignore_effs = {
+            self._ReachableBag, self._ReachableSurface,
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
+        }
+        self._MoveToToolOnSurfaceTooHighOp = STRIPSOperator(
+            "MoveToToolOnSurfaceTooHigh", [spot, tool, surface, platform],
+            preconditions, add_effs, set(), ignore_effs)
         # MoveToToolOnFloor
         spot = Variable("?robot", self._robot_type)
         tool = Variable("?tool", self._tool_type)
@@ -644,30 +709,54 @@ class SpotBikeEnv(SpotEnv):
         add_effs = {LiftedAtom(self._InViewTool, [spot, tool])}
         ignore_effs = {
             self._ReachableBag, self._ReachableSurface,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
         }
         self._MoveToToolOnFloorOp = STRIPSOperator("MoveToToolOnFloor",
                                                    [spot, tool, floor],
                                                    preconditions, add_effs,
                                                    set(), ignore_effs)
-        # MoveToSurface
+        # MoveToSurfaceNotHigh
         spot = Variable("?robot", self._robot_type)
         surface = Variable("?surface", self._surface_type)
+        preconditions = {LiftedAtom(self._SurfaceNotTooHigh, [spot, surface])}
         add_effs = {LiftedAtom(self._ReachableSurface, [spot, surface])}
         ignore_effs = {
             self._ReachableBag, self._ReachableSurface,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
         }
-        self._MoveToSurfaceOp = STRIPSOperator("MoveToSurface",
-                                               [spot, surface], set(),
-                                               add_effs, set(), ignore_effs)
+        self._MoveToSurfaceNotHighOp = STRIPSOperator("MoveToSurfaceNotHigh",
+                                                      [spot, surface],
+                                                      preconditions, add_effs,
+                                                      set(), ignore_effs)
+        # MoveToSurfaceTooHigh
+        spot = Variable("?robot", self._robot_type)
+        surface = Variable("?surface", self._surface_type)
+        platform = Variable("?platform", self._platform_type)
+        preconditions = {
+            LiftedAtom(self._PlatformNear, [platform, surface]),
+            LiftedAtom(self._SurfaceTooHigh, [spot, surface])
+        }
+        add_effs = {
+            LiftedAtom(self._ReachableSurface, [spot, surface]),
+            LiftedAtom(self._RobotStandingOnPlatform, [spot, platform])
+        }
+        ignore_effs = {
+            self._ReachableBag, self._ReachableSurface,
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
+        }
+        self._MoveToSurfaceTooHighOp = STRIPSOperator(
+            "MoveToSurfaceTooHigh", [spot, surface, platform], preconditions,
+            add_effs, set(), ignore_effs)
         # MoveToPlatform
         spot = Variable("?robot", self._robot_type)
         platform = Variable("?platform", self._platform_type)
-        add_effs = {LiftedAtom(self._ReachablePlatform, [spot, platform])}
+        add_effs = {
+            LiftedAtom(self._ReachablePlatform, [spot, platform]),
+            LiftedAtom(self._InViewPlatform, [spot, platform])
+        }
         ignore_effs = {
             self._ReachableBag, self._ReachableSurface,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
         }
         self._MoveToPlatformOp = STRIPSOperator("MoveToPlatform",
                                                 [spot, platform], set(),
@@ -678,7 +767,7 @@ class SpotBikeEnv(SpotEnv):
         add_effs = {LiftedAtom(self._ReachableBag, [spot, bag])}
         ignore_effs = {
             self._ReachableBag, self._ReachableSurface,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform
         }
         self._MoveToBagOp = STRIPSOperator("MoveToBag", [spot, bag], set(),
                                            add_effs, set(), ignore_effs)
@@ -733,6 +822,7 @@ class SpotBikeEnv(SpotEnv):
         preconds = {
             LiftedAtom(self._ReachablePlatform, [spot, platform]),
             LiftedAtom(self._HandEmpty, [spot]),
+            LiftedAtom(self._InViewPlatform, [spot, platform])
         }
         add_effs = {
             LiftedAtom(self._HoldingPlatformLeash, [spot, platform]),
@@ -741,6 +831,7 @@ class SpotBikeEnv(SpotEnv):
         del_effs = {
             LiftedAtom(self._HandEmpty, [spot]),
             LiftedAtom(self._ReachablePlatform, [spot, platform]),
+            LiftedAtom(self._InViewPlatform, [spot, platform])
         }
         self._GraspPlatformLeashOp = STRIPSOperator("GraspPlatformLeash",
                                                     [spot, platform], preconds,
@@ -775,7 +866,8 @@ class SpotBikeEnv(SpotEnv):
             LiftedAtom(self._HandEmpty, [spot]),
             LiftedAtom(self._SurfaceTooHigh, [spot, surface]),
             LiftedAtom(self._PlatformNear, [platform, surface]),
-            LiftedAtom(self._InViewTool, [spot, tool])
+            LiftedAtom(self._InViewTool, [spot, tool]),
+            LiftedAtom(self._RobotStandingOnPlatform, [spot, platform])
         }
         add_effs = {
             LiftedAtom(self._HoldingTool, [spot, tool]),
@@ -787,7 +879,7 @@ class SpotBikeEnv(SpotEnv):
             LiftedAtom(self._InViewTool, [spot, tool])
         }
         self._GraspToolFromHighOp = STRIPSOperator(
-            "GraspToolFromHigh", [spot, tool, platform, surface], preconds,
+            "GraspToolFromHigh", [spot, tool, surface, platform], preconds,
             add_effs, del_effs, set())
         # GraspBag
         spot = Variable("?robot", self._robot_type)
@@ -872,8 +964,10 @@ class SpotBikeEnv(SpotEnv):
                                               add_effs, del_effs, set())
 
         self._strips_operators = {
-            self._MoveToToolOnSurfaceOp,
-            self._MoveToSurfaceOp,
+            self._MoveToToolOnSurfaceNotHighOp,
+            self._MoveToToolOnSurfaceTooHighOp,
+            self._MoveToSurfaceNotHighOp,
+            self._MoveToSurfaceTooHighOp,
             self._MoveToPlatformOp,
             self._MoveToBagOp,
             self._GraspToolFromNotHighOp,
@@ -902,14 +996,16 @@ class SpotBikeEnv(SpotEnv):
             self._HoldingBag, self._HoldingPlatformLeash, self._ReachableBag,
             self._ReachablePlatform, self._ReachableSurface,
             self._SurfaceTooHigh, self._SurfaceNotTooHigh, self._PlatformNear,
-            self._notHandEmpty, self._InViewTool, self._OnFloor
+            self._notHandEmpty, self._InViewTool, self._InViewPlatform,
+            self._OnFloor, self._RobotStandingOnPlatform
         }
 
-    @staticmethod
-    def _handempty_classifier(state: State, objects: Sequence[Object]) -> bool:
+    @classmethod
+    def _handempty_classifier(cls, state: State,
+                              objects: Sequence[Object]) -> bool:
         spot = objects[0]
         gripper_open_percentage = state.get(spot, "gripper_open_percentage")
-        return gripper_open_percentage <= 2.5
+        return gripper_open_percentage <= cls._handempty_gripper_threshold
 
     @classmethod
     def _nothandempty_classifier(cls, state: State,
@@ -950,13 +1046,25 @@ class SpotBikeEnv(SpotEnv):
             (obj_on_pose[0] - obj_surface_pose[0])**2) <= cls._ontop_threshold
         is_y_same = np.sqrt(
             (obj_on_pose[1] - obj_surface_pose[1])**2) <= cls._ontop_threshold
-        is_above_z = (obj_on_pose[2] - obj_surface_pose[2]) > 0.0
+        is_above_z = 0.0 < (obj_on_pose[2] - obj_surface_pose[2]
+                            ) < cls._ontop_max_height_threshold
         return is_x_same and is_y_same and is_above_z
 
     @staticmethod
     def _onfloor_classifier(state: State, objects: Sequence[Object]) -> bool:
         obj_on, _ = objects
         return state.get(obj_on, "z") < 0.0
+
+    @classmethod
+    def _inbag_classifier(cls, state: State,
+                          objects: Sequence[Object]) -> bool:
+        obj, bag = objects
+        obj_x = state.get(obj, "x")
+        obj_y = state.get(obj, "y")
+        bag_x = state.get(bag, "x") + cls._bucket_center_offset_x
+        bag_y = state.get(bag, "y") + cls._bucket_center_offset_y
+        dist = np.sqrt((obj_x - bag_x)**2 + (obj_y - bag_y)**2)
+        return dist <= cls._inbag_threshold
 
     @classmethod
     def _reachable_classifier(cls, state: State,
@@ -982,16 +1090,18 @@ class SpotBikeEnv(SpotEnv):
         forward_unit = [np.cos(spot_pose[3]), np.sin(spot_pose[3])]
         spot_to_obj = np.subtract(obj_pose[:2], spot_pose[:2])
         spot_to_obj_unit = spot_to_obj / np.linalg.norm(spot_to_obj)
-        yaw_is_near = np.dot(forward_unit,
-                             spot_to_obj_unit) > cls._reachable_yaw_threshold
+        angle_between_robot_and_obj = np.arccos(
+            np.dot(forward_unit, spot_to_obj_unit))
+        is_yaw_near = abs(
+            angle_between_robot_and_obj) < cls._reachable_yaw_threshold
 
-        return is_xy_near and yaw_is_near
+        return is_xy_near and is_yaw_near
 
-    @staticmethod
-    def _surface_too_high_classifier(state: State,
+    @classmethod
+    def _surface_too_high_classifier(cls, state: State,
                                      objects: Sequence[Object]) -> bool:
         _, surface = objects
-        return state.get(surface, "z") > 1.0
+        return state.get(surface, "z") > cls._surface_too_high_threshold
 
     @classmethod
     def _surface_not_too_high_classifier(cls, state: State,
@@ -1004,6 +1114,28 @@ class SpotBikeEnv(SpotEnv):
         _, tool = objects
         return state.get(tool, "in_view") > 0.5
 
+    @staticmethod
+    def _platform_in_view_classifier(state: State,
+                                     objects: Sequence[Object]) -> bool:
+        _, platform = objects
+        return state.get(platform, "in_view") > 0.5
+
+    @staticmethod
+    def _platform_is_near(state: State, objects: Sequence[Object]) -> bool:
+        platform, surface = objects
+        px = state.get(platform, "x")
+        py = state.get(platform, "y")
+        sx = state.get(surface, "x")
+        sy = state.get(surface, "y")
+        return abs(px - sx) < 1.25 and abs(py - sy) < 0.85
+
+    @classmethod
+    def _robot_on_platform_classifier(cls, state: State,
+                                      objects: Sequence[Object]) -> bool:
+        robot, _ = objects
+        rz = state.get(robot, "z")
+        return rz > cls._robot_on_platform_threshold
+
     @classmethod
     def get_name(cls) -> str:
         return "spot_bike_env"
@@ -1014,7 +1146,8 @@ class SpotBikeEnv(SpotEnv):
         return {
             self._HandEmpty, self._notHandEmpty, self._HoldingTool, self._On,
             self._SurfaceTooHigh, self._SurfaceNotTooHigh, self._ReachableBag,
-            self._ReachablePlatform, self._InViewTool
+            self._ReachablePlatform, self._InViewTool, self._InViewPlatform,
+            self._RobotStandingOnPlatform, self._InBag, self._OnFloor
         }
 
     def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
@@ -1025,16 +1158,23 @@ class SpotBikeEnv(SpotEnv):
             cube = self._obj_name_to_obj("cube")
             extra_table = self._obj_name_to_obj("extra_room_table")
             return {GroundAtom(self._On, [cube, extra_table])}
+        if CFG.spot_platform_only:
+            platform = self._obj_name_to_obj("platform")
+            high_wall_rack = self._obj_name_to_obj("high_wall_rack")
+            hammer = self._obj_name_to_obj("hammer")
+            bucket = self._obj_name_to_obj("bucket")
+            return {
+                GroundAtom(self._PlatformNear, [platform, high_wall_rack]),
+                GroundAtom(self._InBag, [hammer, bucket])
+            }
         hammer = self._obj_name_to_obj("hammer")
-        hex_key = self._obj_name_to_obj("hex_key")
+        measuring_tape = self._obj_name_to_obj("measuring_tape")
         brush = self._obj_name_to_obj("brush")
-        hex_screwdriver = self._obj_name_to_obj("hex_screwdriver")
-        bag = self._obj_name_to_obj("toolbag")
+        bag = self._obj_name_to_obj("bucket")
         return {
             GroundAtom(self._InBag, [hammer, bag]),
             GroundAtom(self._InBag, [brush, bag]),
-            GroundAtom(self._InBag, [hex_key, bag]),
-            GroundAtom(self._InBag, [hex_screwdriver, bag]),
+            GroundAtom(self._InBag, [measuring_tape, bag]),
         }
 
     @functools.lru_cache(maxsize=None)
@@ -1043,20 +1183,26 @@ class SpotBikeEnv(SpotEnv):
         if CFG.spot_cube_only:
             cube = Object("cube", self._tool_type)
             objects.append(cube)
+        if CFG.spot_platform_only:
+            platform = Object("platform", self._platform_type)
+            hammer = Object("hammer", self._tool_type)
+            objects.extend([platform, hammer])
         else:
             hammer = Object("hammer", self._tool_type)
-            hex_key = Object("hex_key", self._tool_type)
-            hex_screwdriver = Object("hex_screwdriver", self._tool_type)
+            measuring_tape = Object("measuring_tape", self._tool_type)
             brush = Object("brush", self._tool_type)
-            objects.extend([hammer, hex_key, hex_screwdriver, brush])
+            platform = Object("platform", self._platform_type)
+            objects.extend([hammer, measuring_tape, brush, platform])
         spot = Object("spot", self._robot_type)
         tool_room_table = Object("tool_room_table", self._surface_type)
         extra_room_table = Object("extra_room_table", self._surface_type)
         low_wall_rack = Object("low_wall_rack", self._surface_type)
-        bag = Object("toolbag", self._bag_type)
+        high_wall_rack = Object("high_wall_rack", self._surface_type)
+        bag = Object("bucket", self._bag_type)
         floor = Object("floor", self._floor_type)
         objects.extend([
-            spot, tool_room_table, low_wall_rack, bag, extra_room_table, floor
+            spot, tool_room_table, low_wall_rack, high_wall_rack, bag,
+            extra_room_table, floor
         ])
         return {o.name: o for o in objects}
 
