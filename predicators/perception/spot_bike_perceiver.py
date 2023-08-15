@@ -226,4 +226,7 @@ class SpotBikePerceiver(BasePerceiver):
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state)
+
+        # TODO break point here for getting state
+
         return state
