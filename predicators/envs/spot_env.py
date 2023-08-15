@@ -327,7 +327,7 @@ class SpotEnv(BaseEnv):
         object_names_in_view_by_camera = {}
         object_names_in_view_by_camera_apriltag = \
             self._spot_interface.get_objects_in_view_by_camera\
-                (from_apriltag=True, rgb_image_dict=rgb_img_dict,
+                (mode="apriltag", rgb_image_dict=rgb_img_dict,
                  rgb_image_response_dict=rgb_img_response_dict,
                  depth_image_dict=depth_img_dict,
                  depth_image_response_dict=depth_img_response_dict)
@@ -336,7 +336,7 @@ class SpotEnv(BaseEnv):
         # Additionally, if we're using SAM, then update using that.
         if CFG.spot_grasp_use_sam:
             object_names_in_view_by_camera_sam = self._spot_interface.\
-                get_objects_in_view_by_camera(from_apriltag=False,
+                get_objects_in_view_by_camera(mode="detic_sam",
                                             rgb_image_dict=rgb_img_dict,
                                             rgb_image_response_dict=\
                                                 rgb_img_response_dict,
@@ -1127,7 +1127,7 @@ class SpotBikeEnv(SpotEnv):
         py = state.get(platform, "y")
         sx = state.get(surface, "x")
         sy = state.get(surface, "y")
-        return abs(px - sx) < 1.25 and abs(py - sy) < 0.85
+        return abs(px - sx) < 0.8 and abs(py - sy) < 0.4
 
     @classmethod
     def _robot_on_platform_classifier(cls, state: State,
@@ -1159,13 +1159,12 @@ class SpotBikeEnv(SpotEnv):
             extra_table = self._obj_name_to_obj("extra_room_table")
             return {GroundAtom(self._On, [cube, extra_table])}
         if CFG.spot_platform_only:
+            spot = self._obj_name_to_obj("spot")
             platform = self._obj_name_to_obj("platform")
             high_wall_rack = self._obj_name_to_obj("high_wall_rack")
-            hammer = self._obj_name_to_obj("hammer")
-            bucket = self._obj_name_to_obj("bucket")
             return {
                 GroundAtom(self._PlatformNear, [platform, high_wall_rack]),
-                GroundAtom(self._InBag, [hammer, bucket])
+                GroundAtom(self._RobotStandingOnPlatform, [spot, platform]),
             }
         hammer = self._obj_name_to_obj("hammer")
         measuring_tape = self._obj_name_to_obj("measuring_tape")
