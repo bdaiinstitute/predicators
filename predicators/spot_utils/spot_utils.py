@@ -1105,24 +1105,22 @@ class _SpotInterface():
             for result in results:
                 if result.tag_id == obj_name_to_apriltag_id[obj.name]:
                     g_image_click = result.center
-
-        elif CFG.spot_grasp_use_cv2:
+        elif CFG.spot_grasp_use_sam:
             if obj.name in CV2_OBJ_LIST:
                 g_image_click = _find_object_center(rgb_img, obj.name)
+            else:
+                results = get_pixel_locations_with_detic_sam(
+                    obj_class=obj_name_to_vision_prompt[obj.name],
+                    rgb_image_dict={self._grasp_image_source: rgb_img},
+                    plot=CFG.spot_visualize_vision_model_outputs)
 
-        elif CFG.spot_grasp_use_sam:
-            results = get_pixel_locations_with_detic_sam(
-                obj_class=obj_name_to_vision_prompt[obj.name],
-                rgb_image_dict={self._grasp_image_source: rgb_img},
-                plot=CFG.spot_visualize_vision_model_outputs)
-
-            if len(results) > 0:
-                # We only want the most likely sample (for now).
-                # NOTE: we make the hard assumption here that
-                # we will only see one instance of a particular object
-                # type. We can relax this later.
-                assert len(results) == 1
-                g_image_click = (int(results[0][0]), int(results[0][1]))
+                if len(results) > 0:
+                    # We only want the most likely sample (for now).
+                    # NOTE: we make the hard assumption here that
+                    # we will only see one instance of a particular object
+                    # type. We can relax this later.
+                    assert len(results) == 1
+                    g_image_click = (int(results[0][0]), int(results[0][1]))
 
         if g_image_click is None:
             # Show the image to the user and wait for them to click on a pixel
