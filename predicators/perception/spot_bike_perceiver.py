@@ -118,7 +118,7 @@ class SpotBikePerceiver(BasePerceiver):
                     if surface not in self._container_to_contained_objects:
                         self._container_to_contained_objects[surface] = set()
                     self._container_to_contained_objects[surface].add(obj)
-            else:
+            elif "navigate" in controller_name.lower():
                 # We ensure the holding item feature is set
                 # back to 0.0 if the hand is ever empty.
                 prev_holding_item_id = self._holding_item_id_feature

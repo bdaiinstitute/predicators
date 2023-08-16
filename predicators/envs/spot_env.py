@@ -1127,7 +1127,7 @@ class SpotBikeEnv(SpotEnv):
         py = state.get(platform, "y")
         sx = state.get(surface, "x")
         sy = state.get(surface, "y")
-        return abs(px - sx) < 0.8 and abs(py - sy) < 0.4
+        return abs(px - sx) < 1.25 and abs(py - sy) < 0.85
 
     @classmethod
     def _robot_on_platform_classifier(cls, state: State,

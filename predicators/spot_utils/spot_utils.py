@@ -849,9 +849,25 @@ class _SpotInterface():
         """Drag Controller."""
         print("Drag", objs)
         assert len(params) == 3  # [x, y, order] vector for direction and order
-        self.drag_arm_control(params)
-        time.sleep(0.5)
+        world_to_hand = self.drag_arm_control(params)
         self.stow_arm()
+        # TODO Here movement to check platform near
+        backstep_dx = -0.9
+        final_pose = [world_to_hand.x + backstep_dx, world_to_hand.y]
+        x, y, _, yaw = self.get_robot_pose()
+        robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+        world_to_desired_pose = math_helpers.Vec2(
+            final_pose[0], final_pose[1])
+        robot_to_desired_pose = robot_to_world * \
+            world_to_desired_pose
+        import ipdb; ipdb.set_trace()
+        self.relative_move(
+            dx=robot_to_desired_pose[0],
+            dy=robot_to_desired_pose[1],
+            dyaw=0.0)
+
+
+        
 
     def _scan_for_objects(
         self, waypoints: Sequence[str], objects_to_find: Collection[str]
@@ -1523,6 +1539,8 @@ class _SpotInterface():
 
         def drag_horizontally() -> None:
             # Move Body Horizontally in the world.
+            x, y, _, yaw = self.get_robot_pose()
+            robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
             robot_state = self.robot_state_client.get_robot_state()
             robot_T_hand = get_a_tform_b(
                 robot_state.kinematic_state.transforms_snapshot,
@@ -1548,6 +1566,8 @@ class _SpotInterface():
 
         def drag_vertically() -> None:
             # Move Body Vertically in the world.
+            x, y, _, yaw = self.get_robot_pose()
+            robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
             robot_state = self.robot_state_client.get_robot_state()
             robot_T_hand = get_a_tform_b(
                 robot_state.kinematic_state.transforms_snapshot,
@@ -1587,6 +1607,16 @@ class _SpotInterface():
         self.robot_command_client.robot_command(gripper_command)
         self.robot.logger.debug('Opening Gripper.')
         time.sleep(1)
+
+        robot_state = self.robot_state_client.get_robot_state()
+        robot_T_hand = get_a_tform_b(
+            robot_state.kinematic_state.transforms_snapshot,
+            GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
+        robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+        world_to_hand = robot_to_world.inverse() * \
+            robot_T_hand
+
+        return world_to_hand
 
 
 @functools.lru_cache(maxsize=None)

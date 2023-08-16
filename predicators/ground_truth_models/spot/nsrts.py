@@ -139,7 +139,9 @@ def _drag_sampler(spot_interface: _SpotInterface, state: State,
         state.get(surface, "x"),
         state.get(surface, "y"),
     )
-    dx, dy = -0.5, -0.1
+    # y increases from right wall to left wall
+    # x increases from door to back wall
+    dx, dy = -0.45, -0.15
 
     return np.array([world_fiducial[0] + dx, world_fiducial[1] + dy, 0])
 
