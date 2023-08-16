@@ -851,23 +851,27 @@ class _SpotInterface():
         assert len(params) == 3  # [x, y, order] vector for direction and order
         world_to_hand = self.drag_arm_control(params)
         self.stow_arm()
-        # TODO Here movement to check platform near
-        backstep_dx = -0.9
+        # Move back to check if platform_is_near
+        backstep_dx = -1.5
         final_pose = [world_to_hand.x + backstep_dx, world_to_hand.y]
         x, y, _, yaw = self.get_robot_pose()
         robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
-        world_to_desired_pose = math_helpers.Vec2(
-            final_pose[0], final_pose[1])
+        world_to_desired_pose = math_helpers.Vec2(final_pose[0], final_pose[1])
         robot_to_desired_pose = robot_to_world * \
             world_to_desired_pose
-        import ipdb; ipdb.set_trace()
-        self.relative_move(
-            dx=robot_to_desired_pose[0],
-            dy=robot_to_desired_pose[1],
-            dyaw=0.0)
+        robot_to_hand = robot_to_world * \
+            world_to_hand
 
-
-        
+        spot_xy = np.array([robot_to_desired_pose.x, robot_to_desired_pose.y])
+        obj_xy = np.array([robot_to_hand.x, robot_to_hand.y])
+        distance = np.linalg.norm(obj_xy - spot_xy)
+        obj_unit_vector = (obj_xy - spot_xy) / distance
+        # Find the angle change needed to look at object
+        angle = np.arccos(
+            np.clip(np.dot(np.array([1.0, 0.0]), obj_unit_vector), -1.0, 1.0))
+        self.relative_move(dx=robot_to_desired_pose[0],
+                           dy=robot_to_desired_pose[1],
+                           dyaw=angle)
 
     def _scan_for_objects(
         self, waypoints: Sequence[str], objects_to_find: Collection[str]
@@ -1505,7 +1509,7 @@ class _SpotInterface():
         self.robot_command_client.robot_command(command)
         self.robot.logger.info('Locking Arm.')
 
-    def drag_arm_control(self, params: Array) -> None:
+    def drag_arm_control(self, params: Array) -> math_helpers.Vec2:
         """Simple drag controller by locking arm position in body frame.
 
         then moving to a location given by params.
@@ -1608,13 +1612,15 @@ class _SpotInterface():
         self.robot.logger.debug('Opening Gripper.')
         time.sleep(1)
 
+        x, y, _, yaw = self.get_robot_pose()
         robot_state = self.robot_state_client.get_robot_state()
         robot_T_hand = get_a_tform_b(
             robot_state.kinematic_state.transforms_snapshot,
             GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
+        robot_to_hand = math_helpers.Vec2(robot_T_hand.x, robot_T_hand.y)
         robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
         world_to_hand = robot_to_world.inverse() * \
-            robot_T_hand
+            robot_to_hand
 
         return world_to_hand
 
