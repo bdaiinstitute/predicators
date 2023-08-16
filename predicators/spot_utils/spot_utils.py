@@ -126,7 +126,7 @@ OBJECT_GRASP_OFFSET = {
 
 COMMAND_TIMEOUT = 20.0
 
-CV2_OBJ_LIST = ["hammer", "brush", "platform"]
+CV2_OBJ_LIST = ["platform"]
 
 
 def _find_object_center(img: Image,
@@ -410,7 +410,6 @@ class _SpotInterface():
                 "bucket":
                 (7.043112552148553, -8.198686802340527, -0.18750694527153725),
                 "platform": (8.63513, -7.87694, -0.0751688)
-                # 9.26621  -7.04359  -0.0861569
             }
         waypoints = ["tool_room_table", "low_wall_rack"]
         objects_to_find = object_names - set(object_views.keys())
