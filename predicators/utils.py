@@ -294,27 +294,57 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
 
     else:
         assert CFG.active_sampler_learning_feature_selection == "oracle"
-        assert CFG.env == "bumpy_cover"
-        if param_option.name == "Pick":
-            # In this case, the x-data should be
-            # [block_bumpy, relative_pick_loc]
-            assert len(objects) == 1
-            block = objects[0]
-            block_pos = state[block][3]
-            block_bumpy = state[block][5]
-            sampler_input_lst.append(block_bumpy)
-            assert len(params) == 1
-            sampler_input_lst.append(params[0] - block_pos)
+        assert CFG.env in ["bumpy_cover", "spot_bike_env"]
+        if CFG.env == "bumpy_cover":
+            if param_option.name == "Pick":
+                # In this case, the x-data should be
+                # [block_bumpy, relative_pick_loc]
+                assert len(objects) == 1
+                block = objects[0]
+                block_pos = state[block][3]
+                block_bumpy = state[block][5]
+                sampler_input_lst.append(block_bumpy)
+                assert len(params) == 1
+                sampler_input_lst.append(params[0] - block_pos)
+            else:
+                assert param_option.name == "Place"
+                assert len(objects) == 2
+                block, target = objects
+                target_pos = state[target][3]
+                grasp = state[block][4]
+                target_width = state[target][2]
+                sampler_input_lst.extend([grasp, target_width])
+                assert len(params) == 1
+                sampler_input_lst.append(params[0] - target_pos)
         else:
-            assert param_option.name == "Place"
-            assert len(objects) == 2
-            block, target = objects
-            target_pos = state[target][3]
-            grasp = state[block][4]
-            target_width = state[target][2]
-            sampler_input_lst.extend([grasp, target_width])
-            assert len(params) == 1
-            sampler_input_lst.append(params[0] - target_pos)
+            # We only have oracle sampler input creation for the
+            # spot cube only setting.
+            assert CFG.spot_cube_only
+            # For the place option, do learning on the smaller dim
+            # feature space that's correctly transformed.
+            if param_option.name == "PlaceToolNotHigh" and "cube" in str(
+                    objects):
+                surface_obj = objects[-1]
+                robot = objects[0]
+                world_fiducial = math_helpers.Vec2(
+                    state.get(surface_obj, "x"),
+                    state.get(surface_obj, "y"),
+                )
+                world_to_robot = math_helpers.SE2Pose(state.get(robot, "x"),
+                                                      state.get(robot, "y"),
+                                                      state.get(robot, "yaw"))
+                fiducial_in_robot_frame = world_to_robot.inverse(
+                ) * world_fiducial
+                vec_params = math_helpers.Vec2(*params[:2])
+                table_relative_params = vec_params - fiducial_in_robot_frame
+                sampler_input_lst.extend(
+                    [table_relative_params.x, table_relative_params.y])
+            else:
+                # For move and pick options, just do the standard thing for
+                # now
+                for obj in objects:
+                    sampler_input_lst.extend(state[obj])
+                sampler_input_lst.extend(params)
 
     return np.array(sampler_input_lst)
 
