@@ -1053,7 +1053,7 @@ class SpotBikeEnv(SpotEnv):
     @staticmethod
     def _onfloor_classifier(state: State, objects: Sequence[Object]) -> bool:
         obj_on, _ = objects
-        return state.get(obj_on, "z") < 0.0
+        return state.get(obj_on, "z") < -0.05
 
     @classmethod
     def _inbag_classifier(cls, state: State,
@@ -1183,7 +1183,7 @@ class SpotBikeEnv(SpotEnv):
         if CFG.spot_cube_only:
             cube = Object("cube", self._tool_type)
             objects.append(cube)
-        if CFG.spot_platform_only:
+        elif CFG.spot_platform_only:
             platform = Object("platform", self._platform_type)
             hammer = Object("hammer", self._tool_type)
             objects.extend([platform, hammer])
@@ -1197,11 +1197,11 @@ class SpotBikeEnv(SpotEnv):
         tool_room_table = Object("tool_room_table", self._surface_type)
         extra_room_table = Object("extra_room_table", self._surface_type)
         low_wall_rack = Object("low_wall_rack", self._surface_type)
-        high_wall_rack = Object("high_wall_rack", self._surface_type)
-        bag = Object("bucket", self._bag_type)
+        # high_wall_rack = Object("high_wall_rack", self._surface_type)
+        # bag = Object("bucket", self._bag_type)
         floor = Object("floor", self._floor_type)
         objects.extend([
-            spot, tool_room_table, low_wall_rack, high_wall_rack, bag,
+            spot, tool_room_table, low_wall_rack,
             extra_room_table, floor
         ])
         return {o.name: o for o in objects}

@@ -379,15 +379,15 @@ class _SpotInterface():
         object_views: Dict[str, Tuple[float, float, float]] = {}
         if CFG.spot_initialize_surfaces_to_default:
             object_views = {
-                "tool_room_table": (6.63041, -6.35143, 0.179613),
-                "extra_room_table": (8.27387, -6.23233, -0.0678132),
+                "tool_room_table": (6.6285825383414085, -6.407999401439239, 0.1888255849805633),
+                "extra_room_table": (8.22374634119061, -6.253831053891054, 0.0018335542348401068),
                 "low_wall_rack":
                 (10.049931203338616, -6.9443170697742, 0.27881268568327966),
-                "high_wall_rack":
-                (10.049931203338616, -6.9443170697742, 0.757881268568327966),
-                "bucket":
-                (7.043112552148553, -8.198686802340527, -0.18750694527153725),
-                "platform": (8.79312, -7.8821, -0.100635)
+                # "high_wall_rack":
+                # (10.049931203338616, -6.9443170697742, 0.757881268568327966),
+                # "bucket":
+                # (7.043112552148553, -8.198686802340527, -0.18750694527153725),
+                # "platform": (8.79312, -7.8821, -0.100635)
             }
         waypoints = ["tool_room_table", "low_wall_rack"]
         objects_to_find = object_names - set(object_views.keys())
