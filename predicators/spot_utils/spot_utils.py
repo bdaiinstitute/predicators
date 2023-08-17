@@ -757,11 +757,14 @@ class _SpotInterface():
                            relative_to_default_pose=False,
                            angle=angle)
         # Look down to see if the object landed where we hoped.
-        self.hand_movement(params,
-                           keep_hand_pose=False,
-                           relative_to_default_pose=False,
-                           open_gripper=False,
-                           angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
+        if objs[2].type.name == "bag":
+            self.hand_movement(params,
+                            keep_hand_pose=False,
+                            relative_to_default_pose=False,
+                            open_gripper=False,
+                            angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
+        else:
+            self.stow_arm()
         # Longer sleep necessary to prevent blurry images.
         time.sleep(2.0)
 

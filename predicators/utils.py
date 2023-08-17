@@ -60,6 +60,8 @@ from predicators.structs import NSRT, Action, Array, DummyOption, \
 from predicators.third_party.fast_downward_translator.translate import \
     main as downward_translate
 
+from bosdyn.client import math_helpers
+
 if TYPE_CHECKING:
     from predicators.envs import BaseEnv
 
