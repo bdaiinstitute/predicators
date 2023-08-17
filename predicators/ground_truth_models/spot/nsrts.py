@@ -82,8 +82,10 @@ def _grasp_sampler(spot_interface: _SpotInterface, state: State,
         return np.array([0.0, 0.0, 0.0, -1.0])
     if objs[1].type.name == "platform":  # pragma: no cover
         return np.array([0.0, 0.0, 0.0, 1.0])
-    if "wall_rack" in objs[2].name:  # pragma: no cover
+    if "low_wall_rack" in objs[2].name:  # pragma: no cover
         return np.array([0.0, 0.0, 0.1, 0.0])
+    if "high_wall_rack" in objs[2].name:  # pragma: no cover
+        return np.array([0.0, 0.0, 0.1, -1.0])
     return np.array([0.0, 0.0, 0.0, 0.0])
 
 

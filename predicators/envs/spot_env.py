@@ -587,8 +587,8 @@ class SpotBikeEnv(SpotEnv):
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
     _handempty_gripper_threshold: ClassVar[float] = HANDEMPTY_GRIPPER_THRESHOLD
     _robot_on_platform_threshold: ClassVar[float] = 0.135
-    _surface_too_high_threshold: ClassVar[float] = 0.6
-    _ontop_max_height_threshold: ClassVar[float] = 0.6
+    _surface_too_high_threshold: ClassVar[float] = 0.55
+    _ontop_max_height_threshold: ClassVar[float] = 0.7
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -1046,7 +1046,7 @@ class SpotBikeEnv(SpotEnv):
             (obj_on_pose[0] - obj_surface_pose[0])**2) <= cls._ontop_threshold
         is_y_same = np.sqrt(
             (obj_on_pose[1] - obj_surface_pose[1])**2) <= cls._ontop_threshold
-        is_above_z = 0.0 < (obj_on_pose[2] - obj_surface_pose[2]
+        is_above_z = 0.0 < (obj_on_pose[2] - (obj_surface_pose[2] - 0.01)
                             ) < cls._ontop_max_height_threshold
         return is_x_same and is_y_same and is_above_z
 
