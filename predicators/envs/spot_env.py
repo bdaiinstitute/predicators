@@ -586,9 +586,9 @@ class SpotBikeEnv(SpotEnv):
     _inbag_threshold: ClassVar[float] = 0.25
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
     _handempty_gripper_threshold: ClassVar[float] = HANDEMPTY_GRIPPER_THRESHOLD
-    _robot_on_platform_threshold: ClassVar[float] = 0.18
-    _surface_too_high_threshold: ClassVar[float] = 0.7
-    _ontop_max_height_threshold: ClassVar[float] = 0.25
+    _robot_on_platform_threshold: ClassVar[float] = 0.135
+    _surface_too_high_threshold: ClassVar[float] = 0.6
+    _ontop_max_height_threshold: ClassVar[float] = 0.6
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -1127,7 +1127,7 @@ class SpotBikeEnv(SpotEnv):
         py = state.get(platform, "y")
         sx = state.get(surface, "x")
         sy = state.get(surface, "y")
-        return abs(px - sx) < 1.25 and abs(py - sy) < 0.85
+        return abs(px - sx) < 1.35 and abs(py - sy) < 0.4
 
     @classmethod
     def _robot_on_platform_classifier(cls, state: State,
@@ -1162,9 +1162,10 @@ class SpotBikeEnv(SpotEnv):
             spot = self._obj_name_to_obj("spot")
             platform = self._obj_name_to_obj("platform")
             high_wall_rack = self._obj_name_to_obj("high_wall_rack")
+            hammer = self._obj_name_to_obj("hammer")
+            bag = self._obj_name_to_obj("bucket")
             return {
-                GroundAtom(self._PlatformNear, [platform, high_wall_rack]),
-                GroundAtom(self._RobotStandingOnPlatform, [spot, platform]),
+                GroundAtom(self._InBag, [hammer, bag]),
             }
         hammer = self._obj_name_to_obj("hammer")
         measuring_tape = self._obj_name_to_obj("measuring_tape")

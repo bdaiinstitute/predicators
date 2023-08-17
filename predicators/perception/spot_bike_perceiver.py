@@ -141,6 +141,9 @@ class SpotBikePerceiver(BasePerceiver):
                         # We lost the object!
                         logging.info("[Perceiver] Object was lost!")
                         self._lost_objects.add(obj)
+            elif "drag" in controller_name.lower():
+                self._holding_item_id_feature = 0.0
+
 
         return self._create_state()
 
