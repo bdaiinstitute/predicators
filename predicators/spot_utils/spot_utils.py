@@ -95,12 +95,12 @@ obj_name_to_apriltag_id = {
     "toolbag": 414
 }
 obj_name_to_vision_prompt = {
-    "hammer": "hammer",
+    "hammer": "red hammer tool",
     "brush": "brush",
-    "measuring_tape": "measuring tape",
+    "measuring_tape": "small yellow measuring tape",
     "bucket": "bucket",
     "drill": "drill",
-    "toolbag": "toolbag"
+    "toolbag": "bag for tools"
 }
 vision_prompt_to_obj_name = {
     value: key
@@ -902,7 +902,7 @@ class _SpotInterface():
                     # We only want to do this in situations where (1) we won't
                     # collide with an obstacle, and (2) we are likely to
                     # actually see something.
-                    self.hand_movement(np.array([0.0, 0.0, 0.1]),
+                    self.hand_movement(np.array([0.0, 0.0, 0.25]),
                                        keep_hand_pose=False,
                                        angle=(np.cos(0), 0, np.sin(0), 0),
                                        open_gripper=False)
@@ -1272,7 +1272,7 @@ class _SpotInterface():
         angle: Tuple[float, float, float,
                      float] = (np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0)
     ) -> None:
-        """Move arm to infront of robot an open gripper."""
+        """Move arm to in front of robot and open gripper."""
         # Move the arm to a spot in front of the robot, and open the gripper.
         assert self.robot.is_powered_on(), "Robot power on failed."
         assert basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING
