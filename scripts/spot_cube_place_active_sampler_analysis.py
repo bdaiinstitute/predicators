@@ -29,6 +29,9 @@ def _main() -> None:
                         handlers=handlers)
     logging.getLogger('matplotlib.font_manager').setLevel(logging.ERROR)
     _analyze_saved_data()
+
+    # DEBUG
+    print('use_torch_gpu:', args['use_torch_gpu'])
     # _analyze_online_learning_cycles()
 
 
@@ -106,6 +109,7 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int]) -> Image:
 
 
 def _vec_to_xy(vec: Array) -> Tuple[float, float]:
+    # FIXME some error? - if use, the next line got error
     place_robot_xy = math_helpers.Vec2(*vec[-3:-1])
 
     world_fiducial = math_helpers.Vec2(
@@ -261,8 +265,8 @@ def _run_sample_efficiency_analysis(X: List[Array], y: List[Array]) -> None:
                 y_valid = [y[i] for i in valid_idxs]
 
                 # TODO only use 2D feature
-                # X_train = _vec_to_xy(X_train)
-                # X_valid = _vec_to_xy(X_valid)
+                X_train = _vec_to_xy(X_train)
+                X_valid = _vec_to_xy(X_valid)
 
                 # Train.
                 model = create_model()
