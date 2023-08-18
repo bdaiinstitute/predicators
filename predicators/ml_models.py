@@ -1098,7 +1098,9 @@ class InvariantMLPBinaryClassifier(PyTorchBinaryClassifier):
         # FIXME the definition of input and output needs to be specified (if they are xyz geometric locations)
         # TODO now hardcoded in the wrapper
         self._equiv_mlp = EquivMLPWrapper(
-            g_name='d4',
+            # g_name='d4',
+            g_name='d8',
+            # g_name='c8',
             hid_dim=self._hid_sizes[0],
         )
 

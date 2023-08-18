@@ -62,7 +62,9 @@ class EquivMLPWrapper(nn.Module):
         )
 
         # TODO use easier version
-        latent_dim_factor = 'linear'
+        # latent_dim_factor = 'linear'
+        # latent_dim_factor = 'sqrt'
+        latent_dim_factor = 'const'
         self.hid_num = get_latent_num(
             latent_dim_factor=latent_dim_factor,
             g_space=self.g_space,
