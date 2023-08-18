@@ -99,8 +99,8 @@ obj_name_to_vision_prompt = {
     "brush": "brush",
     "measuring_tape": "small yellow measuring tape",
     "bucket": "bucket",
-    "drill": "drill",
-    "toolbag": "bag for tools"
+    "drill": "blue drill",
+    "toolbag": "carrybag"
 }
 vision_prompt_to_obj_name = {
     value: key
@@ -751,6 +751,11 @@ class _SpotInterface():
 
         params = np.add(params, offset)
 
+        if objs[1].name == "toolbag":
+            # import ipdb; ipdb.set_trace()
+            # TODO
+            pass
+
         if len(objs) == 3 and objs[2].name == "floor":
             self.navigate_to_position(params)
         else:
@@ -840,12 +845,12 @@ class _SpotInterface():
                            keep_hand_pose=False,
                            relative_to_default_pose=False,
                            angle=angle)
-        # Look down to see if the object landed where we hoped.
-        self.hand_movement(params,
-                           keep_hand_pose=False,
-                           relative_to_default_pose=False,
-                           open_gripper=False,
-                           angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
+        # # Look down to see if the object landed where we hoped.
+        # self.hand_movement(params,
+        #                    keep_hand_pose=False,
+        #                    relative_to_default_pose=False,
+        #                    open_gripper=False,
+        #                    angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
         # Longer sleep necessary to prevent blurry images.
         time.sleep(2.0)
 
