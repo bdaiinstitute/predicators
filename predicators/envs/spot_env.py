@@ -1046,8 +1046,9 @@ class SpotBikeEnv(SpotEnv):
             (obj_on_pose[0] - obj_surface_pose[0])**2) <= cls._ontop_threshold
         is_y_same = np.sqrt(
             (obj_on_pose[1] - obj_surface_pose[1])**2) <= cls._ontop_threshold
-        is_above_z = 0.0 < (obj_on_pose[2] - (obj_surface_pose[2] - 0.01)
-                            ) < cls._ontop_max_height_threshold
+        is_above_z = 0.0 < (
+            obj_on_pose[2] -
+            (obj_surface_pose[2] - 0.01)) < cls._ontop_max_height_threshold
         return is_x_same and is_y_same and is_above_z
 
     @staticmethod
@@ -1159,13 +1160,13 @@ class SpotBikeEnv(SpotEnv):
             extra_table = self._obj_name_to_obj("extra_room_table")
             return {GroundAtom(self._On, [cube, extra_table])}
         if CFG.spot_platform_only:
-            spot = self._obj_name_to_obj("spot")
             platform = self._obj_name_to_obj("platform")
             high_wall_rack = self._obj_name_to_obj("high_wall_rack")
             hammer = self._obj_name_to_obj("hammer")
-            bag = self._obj_name_to_obj("bucket")
+            bucket = self._obj_name_to_obj("bucket")
             return {
-                GroundAtom(self._InBag, [hammer, bag]),
+                GroundAtom(self._PlatformNear, [platform, high_wall_rack]),
+                GroundAtom(self._InBag, [hammer, bucket])
             }
         hammer = self._obj_name_to_obj("hammer")
         measuring_tape = self._obj_name_to_obj("measuring_tape")

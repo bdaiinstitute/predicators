@@ -144,7 +144,6 @@ class SpotBikePerceiver(BasePerceiver):
             elif "drag" in controller_name.lower():
                 self._holding_item_id_feature = 0.0
 
-
         return self._create_state()
 
     def _update_state_from_observation(self, observation: Observation) -> None:
