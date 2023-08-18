@@ -1163,18 +1163,21 @@ class SpotBikeEnv(SpotEnv):
             platform = self._obj_name_to_obj("platform")
             high_wall_rack = self._obj_name_to_obj("high_wall_rack")
             hammer = self._obj_name_to_obj("hammer")
-            bag = self._obj_name_to_obj("bucket")
+            bucket = self._obj_name_to_obj("bucket")
             return {
-                GroundAtom(self._InBag, [hammer, bag]),
+                GroundAtom(self._InBag, [hammer, bucket]),
             }
         hammer = self._obj_name_to_obj("hammer")
+        drill = self._obj_name_to_obj("drill")
         measuring_tape = self._obj_name_to_obj("measuring_tape")
         brush = self._obj_name_to_obj("brush")
-        bag = self._obj_name_to_obj("bucket")
+        bucket = self._obj_name_to_obj("bucket")
+        toolbag = self._obj_name_to_obj("toolbag")
         return {
-            GroundAtom(self._InBag, [hammer, bag]),
-            GroundAtom(self._InBag, [brush, bag]),
-            GroundAtom(self._InBag, [measuring_tape, bag]),
+            GroundAtom(self._InBag, [hammer, bucket]),
+            GroundAtom(self._InBag, [brush, toolbag]),
+            GroundAtom(self._InBag, [measuring_tape, bucket]),
+            GroundAtom(self._InBag, [drill, toolbag]),
         }
 
     @functools.lru_cache(maxsize=None)
@@ -1189,20 +1192,22 @@ class SpotBikeEnv(SpotEnv):
             objects.extend([platform, hammer])
         else:
             hammer = Object("hammer", self._tool_type)
+            drill = Object("drill", self._tool_type)
             measuring_tape = Object("measuring_tape", self._tool_type)
             brush = Object("brush", self._tool_type)
             platform = Object("platform", self._platform_type)
-            objects.extend([hammer, measuring_tape, brush, platform])
+            objects.extend([hammer, measuring_tape, brush, platform, drill])
         spot = Object("spot", self._robot_type)
         tool_room_table = Object("tool_room_table", self._surface_type)
         extra_room_table = Object("extra_room_table", self._surface_type)
         low_wall_rack = Object("low_wall_rack", self._surface_type)
         high_wall_rack = Object("high_wall_rack", self._surface_type)
-        bag = Object("bucket", self._bag_type)
+        bucket = Object("bucket", self._bag_type)
+        toolbag = Object("toolbag", self._bag_type)
         floor = Object("floor", self._floor_type)
         objects.extend([
-            spot, tool_room_table, low_wall_rack, high_wall_rack, bag,
-            extra_room_table, floor
+            spot, tool_room_table, low_wall_rack, high_wall_rack, bucket,
+            extra_room_table, floor, toolbag
         ])
         return {o.name: o for o in objects}
 

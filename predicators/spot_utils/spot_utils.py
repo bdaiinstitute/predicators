@@ -91,12 +91,16 @@ obj_name_to_apriltag_id = {
     "cube": 410,
     "platform": 411,
     "high_wall_rack": 412,
+    "drill": 413,
+    "toolbag": 414
 }
 obj_name_to_vision_prompt = {
     "hammer": "hammer",
     "brush": "brush",
     "measuring_tape": "measuring tape",
     "bucket": "bucket",
+    "drill": "drill",
+    "toolbag": "toolbag"
 }
 vision_prompt_to_obj_name = {
     value: key
