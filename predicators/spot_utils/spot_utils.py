@@ -70,6 +70,7 @@ def get_memorized_waypoint(obj_name: str) -> Optional[Tuple[str, Array]]:
         "low_wall_rack": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
         "high_wall_rack": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
         "extra_room_table": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
+        "work_room_table": "ranked-oxen-G0kq38CpHN7H7R.0FCm7DA=="
     }
     offsets = {"extra_room_table": np.array([0.0, -0.3, np.pi / 2])}
     if obj_name not in graph_nav_loc_to_id:
@@ -92,7 +93,10 @@ obj_name_to_apriltag_id = {
     "platform": 411,
     "high_wall_rack": 412,
     "drill": 413,
-    "toolbag": 414
+    "toolbag": 415,
+    "work_room_table": 414,
+    "soda_can": 416,
+    "umbrella": 417,
 }
 obj_name_to_vision_prompt = {
     "hammer": "red hammer tool",
@@ -100,7 +104,9 @@ obj_name_to_vision_prompt = {
     "measuring_tape": "small yellow measuring tape",
     "bucket": "bucket",
     "drill": "blue drill",
-    "toolbag": "carrybag"
+    "toolbag": "carrybag",
+    "soda_can": "soda can",
+    "umbrella": "umbrella"
 }
 vision_prompt_to_obj_name = {
     value: key

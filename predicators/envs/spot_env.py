@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Set, \
-    Tuple
+    Tuple, Collection
 
 import matplotlib
 import numpy as np
@@ -28,7 +28,7 @@ from predicators.spot_utils.spot_utils import CAMERA_NAMES, \
     get_spot_interface, obj_name_to_apriltag_id
 from predicators.structs import Action, Array, EnvironmentTask, GroundAtom, \
     Image, LiftedAtom, Object, Observation, Predicate, State, STRIPSOperator, \
-    Type, Variable
+    Type, Variable, Task
 
 ###############################################################################
 #                                Base Class                                   #
@@ -527,8 +527,66 @@ class SpotEnv(BaseEnv):
             action: Optional[Action] = None,
             caption: Optional[str] = None) -> matplotlib.figure.Figure:
         raise NotImplementedError("This env does not use Matplotlib")
+    
+    def _get_language_goal_prompt_prefix(self,
+                                         object_names: Collection[str]) -> str:
+        # pylint:disable=line-too-long
+        available_predicates = ", ".join(
+            [p.name for p in sorted(self.goal_predicates)])
+        available_objects = ", ".join(sorted(object_names))
+        # # We could extract the object names, but this is simpler.
+        # assert {"spot", "counter", "snack_table",
+        #         "soda_can"}.issubset(object_names)
+        prompt = f"""# The available predicates are: {available_predicates}
+# The available objects are: {available_objects}
+# Use the available predicates and objects to convert natural language goals into PDDL JSON goals.
+# (eg. {{"On": [["apple", "snack_table"]]}})
+"""
+        return prompt
 
-    def _load_task_from_json(self, json_file: Path) -> EnvironmentTask:
+    def _parse_init_preds_from_json(
+            self, spec: Dict[str, List[List[str]]],
+            id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
+        """Helper for parsing init preds from JSON task specifications."""
+        pred_names = {p.name for p in self.predicates}
+        assert set(spec.keys()).issubset(pred_names)
+        pred_to_args = {p: spec.get(p.name, []) for p in self.predicates}
+        init_preds: Set[GroundAtom] = set()
+        for pred, args in pred_to_args.items():
+            for id_args in args:
+                obj_args = [id_to_obj[a] for a in id_args]
+                init_atom = GroundAtom(pred, obj_args)
+                init_preds.add(init_atom)
+        return init_preds
+
+    def _load_task_from_json(self, json_file: Path) -> Task:
+        """Create a task from a JSON file.
+
+        By default, we assume JSON files are in the following format:
+
+        {
+            "objects": {
+                <object name>: <type name>
+            }
+            "init": {
+                <object name>: {
+                    <feature name>: <value>
+                }
+            }
+            "goal": {
+                <predicate name> : [
+                    [<object name>]
+                ]
+            }
+        }
+
+        Instead of "goal", "language_goal" can also be used.
+
+        Environments can override this method to handle different formats.
+        """
+        with open(json_file, "r", encoding="utf-8") as f:
+            json_dict = json.load(f)
+        ########
         # Use the BaseEnv default code for loading from JSON, which will
         # create a State as an observation. We'll then convert that State
         # into a _SpotObservation instead.
@@ -565,6 +623,26 @@ class SpotEnv(BaseEnv):
         )
         # The goal can remain the same.
         goal = base_env_task.goal
+        task = EnvironmentTask(init_obs, goal)
+        ########
+        object_name_to_object: Dict[str, Object] = {}
+        json_dict["init"] = init_obs
+        for obj in init:
+            object_name_to_object[obj.name] = obj
+        # TODO make flag
+        print(f"\n{object_name_to_object}\n")
+        json_dict['language_goal'] = input("\n[ChatGPT-Spot] What do you need from me?\n\n>> ")
+        print(json_dict)
+        ########
+
+        # Parse goal.
+        if "goal" in json_dict:
+            goal = self._parse_goal_from_json(json_dict["goal"],
+                                              object_name_to_object)
+        else:
+            assert "language_goal" in json_dict
+            goal = self._parse_language_goal_from_json(
+                json_dict["language_goal"], object_name_to_object)
         return EnvironmentTask(init_obs, goal)
 
 
@@ -1200,6 +1278,9 @@ class SpotBikeEnv(SpotEnv):
         spot = Object("spot", self._robot_type)
         tool_room_table = Object("tool_room_table", self._surface_type)
         extra_room_table = Object("extra_room_table", self._surface_type)
+        work_room_table = Object("work_room_table", self._surface_type)
+        soda_can = Object("soda_can", self._tool_type)
+        umbrella = Object("umbrella", self._tool_type)
         low_wall_rack = Object("low_wall_rack", self._surface_type)
         high_wall_rack = Object("high_wall_rack", self._surface_type)
         bucket = Object("bucket", self._bag_type)
@@ -1207,7 +1288,8 @@ class SpotBikeEnv(SpotEnv):
         floor = Object("floor", self._floor_type)
         objects.extend([
             spot, tool_room_table, low_wall_rack, high_wall_rack, bucket,
-            extra_room_table, floor, toolbag
+            extra_room_table, floor, toolbag, work_room_table, soda_can,
+            umbrella
         ])
         return {o.name: o for o in objects}
 
@@ -1216,6 +1298,11 @@ class SpotBikeEnv(SpotEnv):
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
+        goal_preds = set()
+        for pred in self.predicates:
+            if "Reachable" not in pred.name:
+                goal_preds.add(pred)
+
         return self.predicates
 
     def _actively_construct_initial_object_views(
