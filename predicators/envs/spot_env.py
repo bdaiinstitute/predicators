@@ -532,7 +532,7 @@ class SpotEnv(BaseEnv):
                                          object_names: Collection[str]) -> str:
         # pylint:disable=line-too-long
         available_predicates = ", ".join(
-            [p.name for p in sorted(self.goal_predicates)])
+            [p.name for p in sorted(self.goal_predicates) if "Reachable" not in p.name and "Holding" not in p.name ])
         available_objects = ", ".join(sorted(object_names))
         # # We could extract the object names, but this is simpler.
         # assert {"spot", "counter", "snack_table",
@@ -584,9 +584,6 @@ class SpotEnv(BaseEnv):
 
         Environments can override this method to handle different formats.
         """
-        with open(json_file, "r", encoding="utf-8") as f:
-            json_dict = json.load(f)
-        ########
         # Use the BaseEnv default code for loading from JSON, which will
         # create a State as an observation. We'll then convert that State
         # into a _SpotObservation instead.
@@ -623,28 +620,7 @@ class SpotEnv(BaseEnv):
         )
         # The goal can remain the same.
         goal = base_env_task.goal
-        task = EnvironmentTask(init_obs, goal)
-        ########
-        object_name_to_object: Dict[str, Object] = {}
-        json_dict["init"] = init_obs
-        for obj in init:
-            object_name_to_object[obj.name] = obj
-        # TODO make flag
-        print(f"\n{object_name_to_object}\n")
-        json_dict['language_goal'] = input("\n[ChatGPT-Spot] What do you need from me?\n\n>> ")
-        print(json_dict)
-        ########
-
-        # Parse goal.
-        if "goal" in json_dict:
-            goal = self._parse_goal_from_json(json_dict["goal"],
-                                              object_name_to_object)
-        else:
-            assert "language_goal" in json_dict
-            goal = self._parse_language_goal_from_json(
-                json_dict["language_goal"], object_name_to_object)
         return EnvironmentTask(init_obs, goal)
-
 
 ###############################################################################
 #                                Bike Repair Env                              #

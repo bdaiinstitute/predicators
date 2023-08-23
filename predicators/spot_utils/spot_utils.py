@@ -106,7 +106,7 @@ obj_name_to_vision_prompt = {
     "drill": "blue drill",
     "toolbag": "carrybag",
     "soda_can": "soda can",
-    "umbrella": "umbrella"
+    "umbrella": "black umbrella handle"
 }
 vision_prompt_to_obj_name = {
     value: key
