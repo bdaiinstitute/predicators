@@ -26,9 +26,9 @@ def _move_sampler(spot_interface: _SpotInterface, state: State,
     assert len(objs) in [2, 3, 4]
     dyaw = 0.0
     # For MoveToObjOnFloor
-    if objs[1].name == "toolbag" or objs[1].name == "platform" or (len(objs) == 3
+    if objs[1].name in ["toolbag", "extra_room_table_left"] or objs[1].name == "platform" or (len(objs) == 3
                                       and objs[-1].name != "platform"):
-        if objs[1].name == "toolbag" or objs[1].name == "platform" or objs[2].name == "floor":
+        if objs[1].name in ["toolbag", "extra_room_table_left"] or objs[1].name == "platform" or objs[2].name == "floor":
             # Sample dyaw so that there is some hope of seeing objects from
             # different angles.
             dyaw = rng.uniform(-np.pi / 8, np.pi / 8)
