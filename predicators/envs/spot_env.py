@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Set, \
-    Tuple
+    Tuple, Collection
 
 import matplotlib
 import numpy as np
@@ -28,7 +28,7 @@ from predicators.spot_utils.spot_utils import CAMERA_NAMES, \
     get_spot_interface, obj_name_to_apriltag_id
 from predicators.structs import Action, Array, EnvironmentTask, GroundAtom, \
     Image, LiftedAtom, Object, Observation, Predicate, State, STRIPSOperator, \
-    Type, Variable
+    Type, Variable, Task
 
 ###############################################################################
 #                                Base Class                                   #
@@ -327,16 +327,17 @@ class SpotEnv(BaseEnv):
         object_names_in_view_by_camera = {}
         object_names_in_view_by_camera_apriltag = \
             self._spot_interface.get_objects_in_view_by_camera\
-                (from_apriltag=True, rgb_image_dict=rgb_img_dict,
+                (mode="apriltag", rgb_image_dict=rgb_img_dict,
                  rgb_image_response_dict=rgb_img_response_dict,
                  depth_image_dict=depth_img_dict,
                  depth_image_response_dict=depth_img_response_dict)
         object_names_in_view_by_camera.update(
             object_names_in_view_by_camera_apriltag)
+        # TODO add logistics on adding object locations here
         # Additionally, if we're using SAM, then update using that.
         if CFG.spot_grasp_use_sam:
             object_names_in_view_by_camera_sam = self._spot_interface.\
-                get_objects_in_view_by_camera(from_apriltag=False,
+                get_objects_in_view_by_camera(mode="detic_sam",
                                             rgb_image_dict=rgb_img_dict,
                                             rgb_image_response_dict=\
                                                 rgb_img_response_dict,
@@ -527,8 +528,63 @@ class SpotEnv(BaseEnv):
             action: Optional[Action] = None,
             caption: Optional[str] = None) -> matplotlib.figure.Figure:
         raise NotImplementedError("This env does not use Matplotlib")
+    
+    def _get_language_goal_prompt_prefix(self,
+                                         object_names: Collection[str]) -> str:
+        # pylint:disable=line-too-long
+        available_predicates = ", ".join(
+            [p.name for p in sorted(self.goal_predicates) if "Reachable" not in p.name and "Holding" not in p.name ])
+        available_objects = ", ".join(sorted(object_names))
+        # # We could extract the object names, but this is simpler.
+        # assert {"spot", "counter", "snack_table",
+        #         "soda_can"}.issubset(object_names)
+        prompt = f"""# The available predicates are: {available_predicates}
+# The available objects are: {available_objects}
+# Use the available predicates and objects to convert natural language goals into PDDL JSON goals.
+# (eg. {{"On": [["apple", "snack_table"]]}})
+"""
+        return prompt
 
-    def _load_task_from_json(self, json_file: Path) -> EnvironmentTask:
+    def _parse_init_preds_from_json(
+            self, spec: Dict[str, List[List[str]]],
+            id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
+        """Helper for parsing init preds from JSON task specifications."""
+        pred_names = {p.name for p in self.predicates}
+        assert set(spec.keys()).issubset(pred_names)
+        pred_to_args = {p: spec.get(p.name, []) for p in self.predicates}
+        init_preds: Set[GroundAtom] = set()
+        for pred, args in pred_to_args.items():
+            for id_args in args:
+                obj_args = [id_to_obj[a] for a in id_args]
+                init_atom = GroundAtom(pred, obj_args)
+                init_preds.add(init_atom)
+        return init_preds
+
+    def _load_task_from_json(self, json_file: Path) -> Task:
+        """Create a task from a JSON file.
+
+        By default, we assume JSON files are in the following format:
+
+        {
+            "objects": {
+                <object name>: <type name>
+            }
+            "init": {
+                <object name>: {
+                    <feature name>: <value>
+                }
+            }
+            "goal": {
+                <predicate name> : [
+                    [<object name>]
+                ]
+            }
+        }
+
+        Instead of "goal", "language_goal" can also be used.
+
+        Environments can override this method to handle different formats.
+        """
         # Use the BaseEnv default code for loading from JSON, which will
         # create a State as an observation. We'll then convert that State
         # into a _SpotObservation instead.
@@ -567,7 +623,6 @@ class SpotEnv(BaseEnv):
         goal = base_env_task.goal
         return EnvironmentTask(init_obs, goal)
 
-
 ###############################################################################
 #                                Bike Repair Env                              #
 ###############################################################################
@@ -586,9 +641,9 @@ class SpotBikeEnv(SpotEnv):
     _inbag_threshold: ClassVar[float] = 0.25
     _reachable_yaw_threshold: ClassVar[float] = 0.95  # higher better
     _handempty_gripper_threshold: ClassVar[float] = HANDEMPTY_GRIPPER_THRESHOLD
-    _robot_on_platform_threshold: ClassVar[float] = 0.18
-    _surface_too_high_threshold: ClassVar[float] = 0.7
-    _ontop_max_height_threshold: ClassVar[float] = 0.25
+    _robot_on_platform_threshold: ClassVar[float] = 0.135
+    _surface_too_high_threshold: ClassVar[float] = 0.55
+    _ontop_max_height_threshold: ClassVar[float] = 0.7
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -1046,7 +1101,7 @@ class SpotBikeEnv(SpotEnv):
             (obj_on_pose[0] - obj_surface_pose[0])**2) <= cls._ontop_threshold
         is_y_same = np.sqrt(
             (obj_on_pose[1] - obj_surface_pose[1])**2) <= cls._ontop_threshold
-        is_above_z = 0.0 < (obj_on_pose[2] - obj_surface_pose[2]
+        is_above_z = -0.05 < (obj_on_pose[2] - (obj_surface_pose[2] - 0.01)
                             ) < cls._ontop_max_height_threshold
         return is_x_same and is_y_same and is_above_z
 
@@ -1127,7 +1182,7 @@ class SpotBikeEnv(SpotEnv):
         py = state.get(platform, "y")
         sx = state.get(surface, "x")
         sy = state.get(surface, "y")
-        return abs(px - sx) < 1.25 and abs(py - sy) < 0.85
+        return abs(px - sx) < 1.35 and abs(py - sy) < 0.4
 
     @classmethod
     def _robot_on_platform_classifier(cls, state: State,
@@ -1154,31 +1209,44 @@ class SpotBikeEnv(SpotEnv):
         return set()
 
     def _generate_task_goal(self) -> Set[GroundAtom]:
-        if CFG.spot_cube_only:
-            cube = self._obj_name_to_obj("cube")
-            extra_table = self._obj_name_to_obj("extra_room_table")
-            return {GroundAtom(self._On, [cube, extra_table])}
-        if CFG.spot_platform_only:
-            platform = self._obj_name_to_obj("platform")
-            high_wall_rack = self._obj_name_to_obj("high_wall_rack")
-            hammer = self._obj_name_to_obj("hammer")
-            bucket = self._obj_name_to_obj("bucket")
-            return {
-                GroundAtom(self._PlatformNear, [platform, high_wall_rack]),
-                GroundAtom(self._InBag, [hammer, bucket])
-            }
-        hammer = self._obj_name_to_obj("hammer")
-        measuring_tape = self._obj_name_to_obj("measuring_tape")
-        brush = self._obj_name_to_obj("brush")
-        bag = self._obj_name_to_obj("bucket")
+        # TODO define task goal here
+        spot = self._obj_name_to_obj("spot")
+        extra_table_left = self._obj_name_to_obj("extra_room_table_left")
+        # TODO may need to put goal also here; but keep empty for now
         return {
-            GroundAtom(self._InBag, [hammer, bag]),
-            GroundAtom(self._InBag, [brush, bag]),
-            GroundAtom(self._InBag, [measuring_tape, bag]),
+            # GroundAtom(self._ReachableSurface, [spot, extra_table_left])
         }
+
+        # if CFG.spot_cube_only:
+        #     cube = self._obj_name_to_obj("cube")
+        #     extra_table = self._obj_name_to_obj("extra_room_table")
+        #     return {GroundAtom(self._On, [cube, extra_table])}
+        # if CFG.spot_platform_only:
+        #     spot = self._obj_name_to_obj("spot")
+        #     platform = self._obj_name_to_obj("platform")
+        #     high_wall_rack = self._obj_name_to_obj("high_wall_rack")
+        #     hammer = self._obj_name_to_obj("hammer")
+        #     bucket = self._obj_name_to_obj("bucket")
+        #     return {
+        #         GroundAtom(self._InBag, [hammer, bucket]),
+        #     }
+        # hammer = self._obj_name_to_obj("hammer")
+        # drill = self._obj_name_to_obj("drill")
+        # measuring_tape = self._obj_name_to_obj("measuring_tape")
+        # brush = self._obj_name_to_obj("brush")
+        # bucket = self._obj_name_to_obj("bucket")
+        # toolbag = self._obj_name_to_obj("toolbag")
+        # # TODO for new goals, need to add here - all possible objects in goal
+        # return {
+        #     GroundAtom(self._InBag, [hammer, bucket]),
+        #     GroundAtom(self._InBag, [brush, toolbag]),
+        #     GroundAtom(self._InBag, [measuring_tape, bucket]),
+        #     GroundAtom(self._InBag, [drill, toolbag]),
+        # }
 
     @functools.lru_cache(maxsize=None)
     def _make_object_name_to_obj_dict(self) -> Dict[str, Object]:
+        # TODO also predefine all relevant objects - all possible objects in state
         objects: List[Object] = []
         if CFG.spot_cube_only:
             cube = Object("cube", self._tool_type)
@@ -1189,20 +1257,30 @@ class SpotBikeEnv(SpotEnv):
             objects.extend([platform, hammer])
         else:
             hammer = Object("hammer", self._tool_type)
+            drill = Object("drill", self._tool_type)
             measuring_tape = Object("measuring_tape", self._tool_type)
             brush = Object("brush", self._tool_type)
             platform = Object("platform", self._platform_type)
-            objects.extend([hammer, measuring_tape, brush, platform])
+            objects.extend([hammer, measuring_tape, brush, platform, drill])
         spot = Object("spot", self._robot_type)
         tool_room_table = Object("tool_room_table", self._surface_type)
         extra_room_table = Object("extra_room_table", self._surface_type)
+        work_room_table = Object("work_room_table", self._surface_type)
+        soda_can = Object("soda_can", self._tool_type)
+        umbrella = Object("umbrella", self._tool_type)
         low_wall_rack = Object("low_wall_rack", self._surface_type)
         high_wall_rack = Object("high_wall_rack", self._surface_type)
-        bag = Object("bucket", self._bag_type)
+        bucket = Object("bucket", self._bag_type)
+        toolbag = Object("toolbag", self._bag_type)
         floor = Object("floor", self._floor_type)
+
+        # TODO hack new objects - keep same type
+        extra_room_table_left = Object("extra_room_table_left", self._bag_type)
+
         objects.extend([
-            spot, tool_room_table, low_wall_rack, high_wall_rack, bag,
-            extra_room_table, floor
+            spot, tool_room_table, low_wall_rack, high_wall_rack, bucket,
+            extra_room_table, floor, toolbag, work_room_table, soda_can,
+            umbrella, extra_room_table_left
         ])
         return {o.name: o for o in objects}
 
@@ -1211,6 +1289,11 @@ class SpotBikeEnv(SpotEnv):
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
+        goal_preds = set()
+        for pred in self.predicates:
+            if "Reachable" not in pred.name:
+                goal_preds.add(pred)
+
         return self.predicates
 
     def _actively_construct_initial_object_views(

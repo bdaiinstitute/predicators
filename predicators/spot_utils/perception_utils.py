@@ -29,7 +29,7 @@ from predicators.structs import Image
 
 # NOTE: uncomment this line if trying to visualize stuff locally
 # and matplotlib isn't displaying.
-# matplotlib.use('TkAgg')
+matplotlib.use('TkAgg')
 
 ROTATION_ANGLE = {
     'hand_color_image': 0,
@@ -574,16 +574,19 @@ def _save_spot_perception_output(img: Image,
     iio.imsave(outfile, img)
 
 
+def _save_pose_perception():
+    """Save the pose and RGB-D images for building semantic maps"""
+    pass
+
+
 def _run_offline_analysis() -> None:
     # Convenient script for identifying which classes might be best for a
     # group of images that all have the same object. The images should still
     # be manually inspected (in the debug dir).
-    class_candidates = ["hammer", "hammer tool", "mallet"]
+    class_candidates = ["black umbrella handle"]
     # pylint:disable=line-too-long
     files = [
-        "20230804-135530_detic_sam_hand_color_image_object_locs_inputs.png",
-        "20230804-135448_detic_sam_hand_color_image_object_locs_inputs.png",
-        "20230804-135310_detic_sam_right_fisheye_image_object_locs_inputs.png",
+        "20230818-182413_detic_sam_hand_color_image_object_locs_inputs.png"
     ]
     root_dir = Path(__file__).parent / "../.."
     utils.reset_config({

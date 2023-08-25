@@ -40,7 +40,7 @@ from predicators.spot_utils.helpers.graph_nav_command_line import \
     GraphNavInterface
 from predicators.spot_utils.perception_utils import CAMERA_NAMES, \
     RGB_TO_DEPTH_CAMERAS, get_object_locations_with_detic_sam, \
-    get_pixel_locations_with_detic_sam
+    get_pixel_locations_with_detic_sam, get_xyz_from_depth
 from predicators.structs import Array, Image, Object
 
 ARM_6DOF_NAMES = [
@@ -70,6 +70,7 @@ def get_memorized_waypoint(obj_name: str) -> Optional[Tuple[str, Array]]:
         "low_wall_rack": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
         "high_wall_rack": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
         "extra_room_table": "alight-coyote-Nvl0i02Mk7Ds8ax0sj0Hsw==",
+        "work_room_table": "ranked-oxen-G0kq38CpHN7H7R.0FCm7DA=="
     }
     offsets = {"extra_room_table": np.array([0.0, -0.3, np.pi / 2])}
     if obj_name not in graph_nav_loc_to_id:
@@ -91,13 +92,21 @@ obj_name_to_apriltag_id = {
     "cube": 410,
     "platform": 411,
     "high_wall_rack": 412,
+    "drill": 413,
+    "toolbag": 415,
+    "work_room_table": 414,
+    "soda_can": 416,
+    "umbrella": 417,
 }
 obj_name_to_vision_prompt = {
-    "hammer": "hammer",
+    "hammer": "red hammer tool",
     "brush": "brush",
-    "measuring_tape": "measuring tape",
-    "platform": "red t-shaped dolly handle",
+    "measuring_tape": "small yellow measuring tape",
     "bucket": "bucket",
+    "drill": "blue drill",
+    "toolbag": "carrybag",
+    "soda_can": "soda can",
+    "umbrella": "black umbrella handle"
 }
 vision_prompt_to_obj_name = {
     value: key
@@ -108,21 +117,26 @@ OBJECT_CROPS = {
     # min_x, max_x, min_y, max_y
     "hammer": (160, 450, 160, 350),
     "brush": (100, 400, 350, 480),
+    "platform": (0, 640, 0, 480)
 }
 
 OBJECT_COLOR_BOUNDS = {
-    # (min B, min G, min R), (max B, max G, max R)
+    # (min R, min G, min B), (max R, max G, max B)
     "hammer": ((0, 0, 50), (40, 40, 200)),
     "brush": ((0, 100, 200), (80, 255, 255)),
+    "platform": ((0, 130, 130), (130, 255, 255))
 }
 
 OBJECT_GRASP_OFFSET = {
     # dx, dy
     "hammer": (0, 0),
     "brush": (0, 0),
+    "platform": (0, 7),
 }
 
 COMMAND_TIMEOUT = 20.0
+
+CV2_OBJ_LIST = ["platform"]
 
 
 def _find_object_center(img: Image,
@@ -156,6 +170,10 @@ def _find_object_center(img: Image,
     max_label, _ = max(
         ((i, stats[i, cv2.CC_STAT_AREA]) for i in range(1, nb_components)),
         key=lambda x: x[1])
+
+    # Fail component too small.
+    if stats[max_label][4] < 1000:
+        return None
 
     cropped_x, cropped_y = map(int, centroids[max_label])
 
@@ -317,21 +335,23 @@ class _SpotInterface():
         return (img, image_response[0])
 
     def get_objects_in_view_by_camera(
-        self, from_apriltag: bool, rgb_image_dict: Dict[str, Image],
+        self, mode: str, rgb_image_dict: Dict[str, Image],
         depth_image_dict: Dict[str, Image],
         rgb_image_response_dict: Dict[str, bosdyn.api.image_pb2.ImageResponse],
         depth_image_response_dict: Dict[str,
                                         bosdyn.api.image_pb2.ImageResponse]
     ) -> Dict[str, Dict[str, Tuple[float, float, float]]]:
         """Get objects currently in view for each camera."""
+        assert mode in ("apriltag", "cv2", "detic_sam")
         tag_to_pose: Dict[str, Dict[int, Tuple[float, float, float]]] = {
             source_name: {}
             for source_name in CAMERA_NAMES
         }
-        if from_apriltag:
+        viewable_obj_poses: Dict[int, Tuple[float, float, float]] = {}
+        if mode == "apriltag":
             tag_to_pose = self.get_apriltag_poses_from_imgs(
                 rgb_image_dict, rgb_image_response_dict)
-        else:
+        elif mode == "detic_sam":
             # First, get a dictionary mapping vision prompts
             # to the corresponding location of that object in the
             # scene by camera
@@ -344,11 +364,25 @@ class _SpotInterface():
             # Next, convert the keys of this dictionary to be april
             # tag id's instead.
             for source_name, obj_pose_dict in detic_sam_pose_results.items():
-                viewable_obj_poses: Dict[int, Tuple[float, float, float]] = {}
                 for k, v in obj_pose_dict.items():
                     viewable_obj_poses[obj_name_to_apriltag_id[
                         vision_prompt_to_obj_name[k]]] = v
                 tag_to_pose[source_name].update(viewable_obj_poses)
+        elif mode == "cv2":
+            cv2_results = self.get_cv2_pose_from_imgs(
+                object_names=CV2_OBJ_LIST,
+                rgb_image_dict=rgb_image_dict,
+                depth_image_dict=depth_image_dict,
+                rgb_image_response_dict=rgb_image_response_dict,
+                depth_image_response_dict=depth_image_response_dict)
+            # Next, convert the keys of this dictionary to be april
+            # tag id's instead.
+            for source_name, obj_pose_dict in cv2_results.items():
+                for k, v in obj_pose_dict.items():
+                    viewable_obj_poses[obj_name_to_apriltag_id[k]] = v
+                tag_to_pose[source_name].update(viewable_obj_poses)
+        else:
+            raise NotImplementedError
 
         apriltag_id_to_obj_name = {
             v: k
@@ -381,13 +415,11 @@ class _SpotInterface():
             object_views = {
                 "tool_room_table": (6.63041, -6.35143, 0.179613),
                 "extra_room_table": (8.27387, -6.23233, -0.0678132),
-                "low_wall_rack":
-                (10.049931203338616, -6.9443170697742, 0.27881268568327966),
-                "high_wall_rack":
-                (10.049931203338616, -6.9443170697742, 0.757881268568327966),
+                "low_wall_rack": (9.81101, -7.00988, 0.122701),
+                "high_wall_rack": (9.81101, -7.00988, 0.757881268568327966),
                 "bucket":
                 (7.043112552148553, -8.198686802340527, -0.18750694527153725),
-                "platform": (8.79312, -7.8821, -0.100635)
+                "platform": (8.63513, -7.87694, -0.0751688)
             }
         waypoints = ["tool_room_table", "low_wall_rack"]
         objects_to_find = object_names - set(object_views.keys())
@@ -497,6 +529,64 @@ class _SpotInterface():
 
         return tag_to_pose
 
+    def get_cv2_pose_from_imgs(
+        self,
+        object_names: List[str],
+        rgb_image_dict: Dict[str, Image],
+        depth_image_dict: Dict[str, Image],
+        rgb_image_response_dict: Dict[str, bosdyn.api.image_pb2.ImageResponse],
+        depth_image_response_dict: Dict[str,
+                                        bosdyn.api.image_pb2.ImageResponse],
+    ) -> Dict[str, Dict[str, Tuple[float, float, float]]]:
+        """Get object location in 3D (no orientation) estimated using cv2."""
+        res_location_dict: Dict[str, Dict[str, Tuple[float, float, float]]] = \
+            {source_name: {} for source_name in CAMERA_NAMES}
+
+        for name in object_names:
+            for source_name in CAMERA_NAMES:
+                assert source_name in rgb_image_dict
+                assert source_name in rgb_image_response_dict
+                rgb_image = rgb_image_dict[source_name]
+                depth_image = depth_image_dict[source_name]
+
+                camera_xy = _find_object_center(rgb_image, name)
+
+                if camera_xy is None:
+                    continue
+
+                depth_median = depth_image[camera_xy[1]][camera_xy[0]][0]
+
+                x0, y0, z0 = get_xyz_from_depth(
+                    depth_image_response_dict[source_name],
+                    depth_value=depth_median,
+                    point_x=camera_xy[0],
+                    point_y=camera_xy[1])
+
+                res_location_dict[source_name][name] = (x0, y0, z0)
+
+        transformed_location_dict: Dict[str, Dict[str, Tuple[
+            float, float,
+            float]]] = {source_name: {}
+                        for source_name in CAMERA_NAMES}
+        for source_name in CAMERA_NAMES:
+            assert source_name in res_location_dict
+            for name in object_names:
+                if name in res_location_dict[source_name]:
+                    camera_tform_body = get_a_tform_b(
+                        rgb_image_response_dict[source_name].shot.
+                        transforms_snapshot,
+                        rgb_image_response_dict[source_name].shot.
+                        frame_name_image_sensor, BODY_FRAME_NAME)
+                    x, y, z = res_location_dict[source_name][name]
+                    object_rt_gn_origin = self.convert_obj_location(
+                        camera_tform_body, x, y, z)
+                    transformed_location_dict[source_name][
+                        name] = object_rt_gn_origin
+
+        # Use the input class name as the identifier for object(s) and
+        # their positions.
+        return transformed_location_dict
+
     def get_deticsam_pose_from_imgs(
         self,
         classes: List[str],
@@ -568,7 +658,7 @@ class _SpotInterface():
             "grasp": Box(-1.0, 2.0, (4, )),
             "grasp_from_platform": Box(-1.0, 2.0, (4, )),
             "placeOnTop": Box(-5.0, 5.0, (3, )),
-            "drag": Box(-12.0, 12.0, (2, )),
+            "drag": Box(-12.0, 12.0, (3, )),
             "noop": Box(0, 1, (0, ))
         }
 
@@ -667,6 +757,11 @@ class _SpotInterface():
 
         params = np.add(params, offset)
 
+        if objs[1].name == "toolbag":
+            # import ipdb; ipdb.set_trace()
+            # TODO
+            pass
+
         if len(objs) == 3 and objs[2].name == "floor":
             self.navigate_to_position(params)
         else:
@@ -756,22 +851,42 @@ class _SpotInterface():
                            keep_hand_pose=False,
                            relative_to_default_pose=False,
                            angle=angle)
-        # Look down to see if the object landed where we hoped.
-        self.hand_movement(params,
-                           keep_hand_pose=False,
-                           relative_to_default_pose=False,
-                           open_gripper=False,
-                           angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
+        # # Look down to see if the object landed where we hoped.
+        # self.hand_movement(params,
+        #                    keep_hand_pose=False,
+        #                    relative_to_default_pose=False,
+        #                    open_gripper=False,
+        #                    angle=(np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0))
         # Longer sleep necessary to prevent blurry images.
         time.sleep(2.0)
 
     def dragController(self, objs: Sequence[Object], params: Array) -> None:
         """Drag Controller."""
         print("Drag", objs)
-        assert len(params) == 2  # [x, y] vector for direction
-        self.drag_arm_control(params)
-        time.sleep(0.5)
+        assert len(params) == 3  # [x, y, order] vector for direction and order
+        world_to_hand = self.drag_arm_control(params)
         self.stow_arm()
+        # Move back to check if platform_is_near
+        backstep_dx = -1.5
+        final_pose = [world_to_hand.x + backstep_dx, world_to_hand.y]
+        x, y, _, yaw = self.get_robot_pose()
+        robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+        world_to_desired_pose = math_helpers.Vec2(final_pose[0], final_pose[1])
+        robot_to_desired_pose = robot_to_world * \
+            world_to_desired_pose
+        robot_to_hand = robot_to_world * \
+            world_to_hand
+
+        spot_xy = np.array([robot_to_desired_pose.x, robot_to_desired_pose.y])
+        obj_xy = np.array([robot_to_hand.x, robot_to_hand.y])
+        distance = np.linalg.norm(obj_xy - spot_xy)
+        obj_unit_vector = (obj_xy - spot_xy) / distance
+        # Find the angle change needed to look at object
+        angle = np.arccos(
+            np.clip(np.dot(np.array([1.0, 0.0]), obj_unit_vector), -1.0, 1.0))
+        self.relative_move(dx=robot_to_desired_pose[0],
+                           dy=robot_to_desired_pose[1],
+                           dyaw=angle)
 
     def _scan_for_objects(
         self, waypoints: Sequence[str], objects_to_find: Collection[str]
@@ -798,7 +913,7 @@ class _SpotInterface():
                     # We only want to do this in situations where (1) we won't
                     # collide with an obstacle, and (2) we are likely to
                     # actually see something.
-                    self.hand_movement(np.array([0.0, 0.0, 0.1]),
+                    self.hand_movement(np.array([0.0, 0.0, 0.25]),
                                        keep_hand_pose=False,
                                        angle=(np.cos(0), 0, np.sin(0), 0),
                                        open_gripper=False)
@@ -811,7 +926,7 @@ class _SpotInterface():
                 # using SAM potentially.
                 objects_in_view_by_camera = {}
                 objects_in_view_by_camera_apriltag = \
-                    self.get_objects_in_view_by_camera(from_apriltag=True,
+                    self.get_objects_in_view_by_camera(mode="apriltag",
                                                 rgb_image_dict=rgb_img_dict,
                                                 rgb_image_response_dict=\
                                                     rgb_img_response_dict,
@@ -823,7 +938,7 @@ class _SpotInterface():
                     objects_in_view_by_camera_apriltag)
                 if CFG.spot_grasp_use_sam:
                     objects_in_view_by_camera_sam = \
-                        self.get_objects_in_view_by_camera(from_apriltag=False,
+                        self.get_objects_in_view_by_camera(mode="detic_sam",
                                                     rgb_image_dict=rgb_img_dict,
                                                     rgb_image_response_dict=\
                                                         rgb_img_response_dict,
@@ -1006,7 +1121,7 @@ class _SpotInterface():
         self.robot.logger.debug(
             f'Getting an image from: {self._grasp_image_source}')
         rgb_img, rgb_img_response = self.get_single_camera_image(
-            self._grasp_image_source)
+            self._grasp_image_source, to_rgb=True)
 
         # pylint: disable=global-variable-not-assigned, global-statement
         global g_image_click, g_image_display
@@ -1024,24 +1139,22 @@ class _SpotInterface():
             for result in results:
                 if result.tag_id == obj_name_to_apriltag_id[obj.name]:
                     g_image_click = result.center
-
-        elif CFG.spot_grasp_use_cv2:
-            if obj.name in ["hammer", "brush"]:
-                g_image_click = _find_object_center(rgb_img, obj.name)
-
         elif CFG.spot_grasp_use_sam:
-            results = get_pixel_locations_with_detic_sam(
-                obj_class=obj_name_to_vision_prompt[obj.name],
-                rgb_image_dict={self._grasp_image_source: rgb_img},
-                plot=CFG.spot_visualize_vision_model_outputs)
+            if obj.name in CV2_OBJ_LIST:
+                g_image_click = _find_object_center(rgb_img, obj.name)
+            else:
+                results = get_pixel_locations_with_detic_sam(
+                    obj_class=obj_name_to_vision_prompt[obj.name],
+                    rgb_image_dict={self._grasp_image_source: rgb_img},
+                    plot=CFG.spot_visualize_vision_model_outputs)
 
-            if len(results) > 0:
-                # We only want the most likely sample (for now).
-                # NOTE: we make the hard assumption here that
-                # we will only see one instance of a particular object
-                # type. We can relax this later.
-                assert len(results) == 1
-                g_image_click = (int(results[0][0]), int(results[0][1]))
+                if len(results) > 0:
+                    # We only want the most likely sample (for now).
+                    # NOTE: we make the hard assumption here that
+                    # we will only see one instance of a particular object
+                    # type. We can relax this later.
+                    assert len(results) == 1
+                    g_image_click = (int(results[0][0]), int(results[0][1]))
 
         if g_image_click is None:
             # Show the image to the user and wait for them to click on a pixel
@@ -1170,7 +1283,7 @@ class _SpotInterface():
         angle: Tuple[float, float, float,
                      float] = (np.cos(np.pi / 4), 0, np.sin(np.pi / 4), 0)
     ) -> None:
-        """Move arm to infront of robot an open gripper."""
+        """Move arm to in front of robot and open gripper."""
         # Move the arm to a spot in front of the robot, and open the gripper.
         assert self.robot.is_powered_on(), "Robot power on failed."
         assert basic_command_pb2.StandCommand.Feedback.STATUS_IS_STANDING
@@ -1411,7 +1524,7 @@ class _SpotInterface():
         self.robot_command_client.robot_command(command)
         self.robot.logger.info('Locking Arm.')
 
-    def drag_arm_control(self, params: Array) -> None:
+    def drag_arm_control(self, params: Array) -> math_helpers.Vec2:
         """Simple drag controller by locking arm position in body frame.
 
         then moving to a location given by params.
@@ -1423,7 +1536,7 @@ class _SpotInterface():
         # This may require some modification as we start dragging to different
         # locations.
 
-        assert len(params) == 2
+        assert len(params) == 3
         x, y, _, yaw = self.get_robot_pose()
         robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
         world_to_desiredplatform = math_helpers.Vec2(
@@ -1443,44 +1556,67 @@ class _SpotInterface():
                            relative_to_default_pose=False,
                            open_gripper=False)
 
-        # Move Body Horizontally in the world.
-        robot_state = self.robot_state_client.get_robot_state()
-        robot_T_hand = get_a_tform_b(
-            robot_state.kinematic_state.transforms_snapshot,
-            GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
-        state = self.get_localized_state()
-        gn_origin_T_robot = math_helpers.SE3Pose.from_obj(
-            state.localization.seed_tform_body)
-        gn_origin_T_hand = gn_origin_T_robot * robot_T_hand
-        # IMPORTANT: we want to keep the x pose of the platform the same,
-        # and we can get this by computing the location of the
-        # hand in the world frame.
-        world_to_desiredplatform_y_with_robot_x = math_helpers.Vec2(
-            gn_origin_T_hand.x, world_to_desiredplatform[1])
-        robot_to_desiredplatform_y_with_robot_x = robot_to_world * \
-            world_to_desiredplatform_y_with_robot_x
-        self.lock_arm()
-        self.relative_move(
-            dx=robot_to_desiredplatform_y_with_robot_x[0] - body_T_hand.x,
-            dy=robot_to_desiredplatform_y_with_robot_x[1] - body_T_hand.y,
-            dyaw=0.0,
-            max_xytheta_vel=(0.25, 0.25, 0.5),
-            min_xytheta_vel=(-0.25, -0.25, -0.5))
+        def drag_horizontally() -> None:
+            # Move Body Horizontally in the world.
+            x, y, _, yaw = self.get_robot_pose()
+            robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+            robot_state = self.robot_state_client.get_robot_state()
+            robot_T_hand = get_a_tform_b(
+                robot_state.kinematic_state.transforms_snapshot,
+                GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
+            state = self.get_localized_state()
+            gn_origin_T_robot = math_helpers.SE3Pose.from_obj(
+                state.localization.seed_tform_body)
+            gn_origin_T_hand = gn_origin_T_robot * robot_T_hand
+            # IMPORTANT: we want to keep the x pose of the platform the same,
+            # and we can get this by computing the location of the
+            # hand in the world frame.
+            world_to_desiredplatform_y_with_robot_x = math_helpers.Vec2(
+                gn_origin_T_hand.x, world_to_desiredplatform[1])
+            robot_to_desiredplatform_y_with_robot_x = robot_to_world * \
+                world_to_desiredplatform_y_with_robot_x
+            self.lock_arm()
+            self.relative_move(
+                dx=robot_to_desiredplatform_y_with_robot_x[0] - body_T_hand.x,
+                dy=robot_to_desiredplatform_y_with_robot_x[1] - body_T_hand.y,
+                dyaw=0.0,
+                max_xytheta_vel=(0.25, 0.25, 0.5),
+                min_xytheta_vel=(-0.25, -0.25, -0.5))
 
-        # Move Body remaining
-        robot_state = self.robot_state_client.get_robot_state()
-        body_T_hand = get_a_tform_b(
-            robot_state.kinematic_state.transforms_snapshot,
-            GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
-        x, y, _, yaw = self.get_robot_pose()
-        robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
-        robot_to_desiredplatform = robot_to_world * world_to_desiredplatform
-        self.lock_arm()
-        self.relative_move(dx=robot_to_desiredplatform[0] - body_T_hand.x,
-                           dy=robot_to_desiredplatform[1] - body_T_hand.y,
-                           dyaw=0.0,
-                           max_xytheta_vel=(0.25, 0.25, 0.5),
-                           min_xytheta_vel=(-0.25, -0.25, -0.5))
+        def drag_vertically() -> None:
+            # Move Body Vertically in the world.
+            x, y, _, yaw = self.get_robot_pose()
+            robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+            robot_state = self.robot_state_client.get_robot_state()
+            robot_T_hand = get_a_tform_b(
+                robot_state.kinematic_state.transforms_snapshot,
+                GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
+            state = self.get_localized_state()
+            gn_origin_T_robot = math_helpers.SE3Pose.from_obj(
+                state.localization.seed_tform_body)
+            gn_origin_T_hand = gn_origin_T_robot * robot_T_hand
+            # IMPORTANT: we want to keep the y pose of the platform the same,
+            # and we can get this by computing the location of the
+            # hand in the world frame.
+            world_to_desiredplatform_x_with_robot_y = math_helpers.Vec2(
+                world_to_desiredplatform[0], gn_origin_T_hand.y)
+            robot_to_desiredplatform_x_with_robot_y = robot_to_world * \
+                world_to_desiredplatform_x_with_robot_y
+            self.lock_arm()
+            self.relative_move(
+                dx=robot_to_desiredplatform_x_with_robot_y[0] - body_T_hand.x,
+                dy=robot_to_desiredplatform_x_with_robot_y[1] - body_T_hand.y,
+                dyaw=0.0,
+                max_xytheta_vel=(0.25, 0.25, 0.5),
+                min_xytheta_vel=(-0.25, -0.25, -0.5))
+
+        order = params[2]
+        if order == 0:
+            drag_horizontally()
+            drag_vertically()
+        else:
+            drag_vertically()
+            drag_horizontally()
 
         # Open Gripper
         gripper_command = RobotCommandBuilder.\
@@ -1490,6 +1626,18 @@ class _SpotInterface():
         self.robot_command_client.robot_command(gripper_command)
         self.robot.logger.debug('Opening Gripper.')
         time.sleep(1)
+
+        x, y, _, yaw = self.get_robot_pose()
+        robot_state = self.robot_state_client.get_robot_state()
+        robot_T_hand = get_a_tform_b(
+            robot_state.kinematic_state.transforms_snapshot,
+            GRAV_ALIGNED_BODY_FRAME_NAME, "hand")
+        robot_to_hand = math_helpers.Vec2(robot_T_hand.x, robot_T_hand.y)
+        robot_to_world = math_helpers.SE2Pose(x, y, yaw).inverse()
+        world_to_hand = robot_to_world.inverse() * \
+            robot_to_hand
+
+        return world_to_hand
 
 
 @functools.lru_cache(maxsize=None)

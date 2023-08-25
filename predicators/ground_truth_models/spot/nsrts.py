@@ -24,13 +24,11 @@ def _move_sampler(spot_interface: _SpotInterface, state: State,
     del goal
     # Parameters are relative dx, dy, dyaw (to the object you're moving to)
     assert len(objs) in [2, 3, 4]
-    if objs[1].type.name == "bag":  # pragma: no cover
-        return np.array([0.5, 0.0, 0.0])
     dyaw = 0.0
     # For MoveToObjOnFloor
-    if objs[1].name == "platform" or (len(objs) == 3
+    if objs[1].name == "toolbag" or objs[1].name == "platform" or (len(objs) == 3
                                       and objs[-1].name != "platform"):
-        if objs[1].name == "platform" or objs[2].name == "floor":
+        if objs[1].name == "toolbag" or objs[1].name == "platform" or objs[2].name == "floor":
             # Sample dyaw so that there is some hope of seeing objects from
             # different angles.
             dyaw = rng.uniform(-np.pi / 8, np.pi / 8)
@@ -82,8 +80,10 @@ def _grasp_sampler(spot_interface: _SpotInterface, state: State,
         return np.array([0.0, 0.0, 0.0, -1.0])
     if objs[1].type.name == "platform":  # pragma: no cover
         return np.array([0.0, 0.0, 0.0, 1.0])
-    if "wall_rack" in objs[2].name:  # pragma: no cover
+    if "low_wall_rack" in objs[2].name:  # pragma: no cover
         return np.array([0.0, 0.0, 0.1, 0.0])
+    if "high_wall_rack" in objs[2].name:  # pragma: no cover
+        return np.array([0.0, 0.0, 0.1, -1.0])
     return np.array([0.0, 0.0, 0.0, 0.0])
 
 
@@ -139,9 +139,11 @@ def _drag_sampler(spot_interface: _SpotInterface, state: State,
         state.get(surface, "x"),
         state.get(surface, "y"),
     )
-    dx, dy = -0.80, 0.05
+    # y increases from right wall to left wall
+    # x increases from door to back wall
+    dx, dy = -0.6, 0.15
 
-    return np.array([world_fiducial[0] + dx, world_fiducial[1] + dy])
+    return np.array([world_fiducial[0] + dx, world_fiducial[1] + dy, 0])
 
 
 _NAME_TO_SPOT_INTERFACE_SAMPLER = {

@@ -313,6 +313,7 @@ class BaseEnv(abc.ABC):
         # to handle various errors and perhaps query the LLM for multiple
         # responses until we find one that can be parsed.
         goal_spec = json.loads(response)
+        print(response)
         return self._parse_goal_from_json(goal_spec, id_to_obj)
 
     def _parse_goal_from_input_to_json(
