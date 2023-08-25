@@ -14,6 +14,7 @@ from predicators.settings import CFG
 from predicators.spot_utils.spot_utils import obj_name_to_apriltag_id
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GroundAtom, Object, Observation, Predicate, State, Task
+from predicators.perception.vl_map_wrapper import FakeVLMapWrapper
 
 
 class SpotBikePerceiver(BasePerceiver):
@@ -21,6 +22,7 @@ class SpotBikePerceiver(BasePerceiver):
 
     def __init__(self) -> None:
         super().__init__()
+        self._vlmap_wrapper = FakeVLMapWrapper()  # DEBUG hack here
         self._known_object_poses: Dict[Object, Tuple[float, float, float]] = {}
         self._known_objects_in_hand_view: Set[Object] = set()
         self._robot: Optional[Object] = None
@@ -189,6 +191,10 @@ class SpotBikePerceiver(BasePerceiver):
                 "yaw": self._robot_pos[3],
             },
         }
+        # TODO get object centric states
+        # TODO can start with some existing object
+        # TODO inject
+
         for obj, (x, y, z) in self._known_object_poses.items():
             state_dict[obj] = {
                 "x": x,
@@ -208,6 +214,17 @@ class SpotBikePerceiver(BasePerceiver):
                 else:
                     lost_val = 0.0
                 state_dict[obj]["lost"] = lost_val
+
+        # TODO inject object positions
+        for obj in self._known_object_poses.keys():
+            if obj.name in self._vlmap_wrapper.fake_dict:
+                x, y, z = self._vlmap_wrapper.fake_dict[obj.name]
+                state_dict[obj] = {
+                    "x": x,
+                    "y": y,
+                    "z": z,
+                }
+
         # Construct a regular state before adding atoms.
         percept_state = utils.create_state_from_dict(state_dict)
         logging.info("Percept state:")

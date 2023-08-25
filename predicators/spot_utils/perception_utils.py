@@ -574,6 +574,11 @@ def _save_spot_perception_output(img: Image,
     iio.imsave(outfile, img)
 
 
+def _save_pose_perception():
+    """Save the pose and RGB-D images for building semantic maps"""
+    pass
+
+
 def _run_offline_analysis() -> None:
     # Convenient script for identifying which classes might be best for a
     # group of images that all have the same object. The images should still

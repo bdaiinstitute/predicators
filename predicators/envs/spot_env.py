@@ -333,6 +333,7 @@ class SpotEnv(BaseEnv):
                  depth_image_response_dict=depth_img_response_dict)
         object_names_in_view_by_camera.update(
             object_names_in_view_by_camera_apriltag)
+        # TODO add logistics on adding object locations here
         # Additionally, if we're using SAM, then update using that.
         if CFG.spot_grasp_use_sam:
             object_names_in_view_by_camera_sam = self._spot_interface.\
@@ -1208,34 +1209,44 @@ class SpotBikeEnv(SpotEnv):
         return set()
 
     def _generate_task_goal(self) -> Set[GroundAtom]:
-        if CFG.spot_cube_only:
-            cube = self._obj_name_to_obj("cube")
-            extra_table = self._obj_name_to_obj("extra_room_table")
-            return {GroundAtom(self._On, [cube, extra_table])}
-        if CFG.spot_platform_only:
-            spot = self._obj_name_to_obj("spot")
-            platform = self._obj_name_to_obj("platform")
-            high_wall_rack = self._obj_name_to_obj("high_wall_rack")
-            hammer = self._obj_name_to_obj("hammer")
-            bucket = self._obj_name_to_obj("bucket")
-            return {
-                GroundAtom(self._InBag, [hammer, bucket]),
-            }
-        hammer = self._obj_name_to_obj("hammer")
-        drill = self._obj_name_to_obj("drill")
-        measuring_tape = self._obj_name_to_obj("measuring_tape")
-        brush = self._obj_name_to_obj("brush")
-        bucket = self._obj_name_to_obj("bucket")
-        toolbag = self._obj_name_to_obj("toolbag")
+        # TODO define task goal here
+        spot = self._obj_name_to_obj("spot")
+        extra_table_left = self._obj_name_to_obj("extra_room_table_left")
+        # TODO may need to put goal also here; but keep empty for now
         return {
-            GroundAtom(self._InBag, [hammer, bucket]),
-            GroundAtom(self._InBag, [brush, toolbag]),
-            GroundAtom(self._InBag, [measuring_tape, bucket]),
-            GroundAtom(self._InBag, [drill, toolbag]),
+            # GroundAtom(self._ReachableSurface, [spot, extra_table_left])
         }
+
+        # if CFG.spot_cube_only:
+        #     cube = self._obj_name_to_obj("cube")
+        #     extra_table = self._obj_name_to_obj("extra_room_table")
+        #     return {GroundAtom(self._On, [cube, extra_table])}
+        # if CFG.spot_platform_only:
+        #     spot = self._obj_name_to_obj("spot")
+        #     platform = self._obj_name_to_obj("platform")
+        #     high_wall_rack = self._obj_name_to_obj("high_wall_rack")
+        #     hammer = self._obj_name_to_obj("hammer")
+        #     bucket = self._obj_name_to_obj("bucket")
+        #     return {
+        #         GroundAtom(self._InBag, [hammer, bucket]),
+        #     }
+        # hammer = self._obj_name_to_obj("hammer")
+        # drill = self._obj_name_to_obj("drill")
+        # measuring_tape = self._obj_name_to_obj("measuring_tape")
+        # brush = self._obj_name_to_obj("brush")
+        # bucket = self._obj_name_to_obj("bucket")
+        # toolbag = self._obj_name_to_obj("toolbag")
+        # # TODO for new goals, need to add here - all possible objects in goal
+        # return {
+        #     GroundAtom(self._InBag, [hammer, bucket]),
+        #     GroundAtom(self._InBag, [brush, toolbag]),
+        #     GroundAtom(self._InBag, [measuring_tape, bucket]),
+        #     GroundAtom(self._InBag, [drill, toolbag]),
+        # }
 
     @functools.lru_cache(maxsize=None)
     def _make_object_name_to_obj_dict(self) -> Dict[str, Object]:
+        # TODO also predefine all relevant objects - all possible objects in state
         objects: List[Object] = []
         if CFG.spot_cube_only:
             cube = Object("cube", self._tool_type)
@@ -1262,10 +1273,14 @@ class SpotBikeEnv(SpotEnv):
         bucket = Object("bucket", self._bag_type)
         toolbag = Object("toolbag", self._bag_type)
         floor = Object("floor", self._floor_type)
+
+        # TODO hack new objects - keep same type
+        extra_room_table_left = Object("extra_room_table_left", self._bag_type)
+
         objects.extend([
             spot, tool_room_table, low_wall_rack, high_wall_rack, bucket,
             extra_room_table, floor, toolbag, work_room_table, soda_can,
-            umbrella
+            umbrella, extra_room_table_left
         ])
         return {o.name: o for o in objects}
 
