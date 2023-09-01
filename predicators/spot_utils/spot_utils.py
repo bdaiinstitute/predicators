@@ -106,7 +106,12 @@ obj_name_to_vision_prompt = {
     "drill": "blue drill",
     "toolbag": "carrybag",
     "soda_can": "soda can",
-    "umbrella": "black umbrella handle"
+    # "umbrella": "black umbrella handle"
+    # FIXME hack this to be other object
+    # "umbrella": "wrench"
+    # "umbrella": "scissor"
+    # "umbrella": "screwdriver"  # FIXME doesn't work?
+    "umbrella": "yellow tape"
 }
 vision_prompt_to_obj_name = {
     value: key

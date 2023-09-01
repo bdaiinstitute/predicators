@@ -1209,13 +1209,14 @@ class SpotBikeEnv(SpotEnv):
         return set()
 
     def _generate_task_goal(self) -> Set[GroundAtom]:
-        # TODO define task goal here
-        spot = self._obj_name_to_obj("spot")
-        extra_table_left = self._obj_name_to_obj("extra_room_table_left")
-        # TODO may need to put goal also here; but keep empty for now
-        return {
-            # GroundAtom(self._ReachableSurface, [spot, extra_table_left])
-        }
+        # # TODO define task goal here
+        # spot = self._obj_name_to_obj("spot")
+        # extra_table_left = self._obj_name_to_obj("extra_room_table_left")
+        # # TODO may need to put goal also here; but keep empty for now
+        # return {
+        #     # GroundAtom(self._ReachableSurface, [spot, extra_table_left])
+        # }
+        return set()
 
         # if CFG.spot_cube_only:
         #     cube = self._obj_name_to_obj("cube")
