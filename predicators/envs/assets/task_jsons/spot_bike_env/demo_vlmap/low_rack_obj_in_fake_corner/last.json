@@ -1,0 +1,97 @@
+{
+    "objects": {
+        "tool_room_table": "flat_surface",
+        "extra_room_table": "flat_surface",
+        "low_wall_rack": "flat_surface",
+        "high_wall_rack": "flat_surface",
+        "bucket": "bag",
+        "platform": "platform",
+        "floor": "floor",
+        "hammer": "tool",
+        "spot": "robot",
+        "extra_room_table_left": "bag",
+        "brush": "tool",
+        "umbrella": "tool"
+    },
+    "init": {
+        "tool_room_table": {
+            "x": 6.63041,
+            "y": -6.35143,
+            "z": 0.179613
+        },
+        "extra_room_table": {
+            "x": 8.27387,
+            "y": -6.23233,
+            "z": -0.0678132
+        },
+        "extra_room_table_left": {
+            "x": 6.63041,
+            "y": -6.35143,
+            "z": 0.179613
+        },
+        "low_wall_rack": {
+            "x": 10.049931203338616,
+            "y": -6.9443170697742,
+            "z": 0.27881268568327966
+        },
+        "high_wall_rack": {
+            "x": 10.049931203338616,
+            "y": -6.9443170697742,
+            "z": 0.7578812685683279
+        },
+        "bucket": {
+            "x": 7.043112552148553,
+            "y": -8.198686802340527,
+            "z": -0.18750694527153725
+        },
+        "platform": {
+            "x": 8.79312,
+            "y": -7.8821,
+            "z": -0.100635,
+            "lost": 0.0,
+            "in_view": 1.0
+        },
+        "floor": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": -1.0
+        },
+        "hammer": {
+            "x": 9.767198813801544,
+            "y": -7.032570056485618,
+            "z": 0.5539838064466492,
+            "lost": 0.0,
+            "in_view": 1.0
+        },
+        "spot": {
+            "gripper_open_percentage": 0.4456520080566406,
+            "curr_held_item_id": 0,
+            "x": 6.7058562186811645,
+            "y": -7.369474475270126,
+            "z": 0.13771875358859098,
+            "yaw": 1.533047610889348
+        },
+        "brush": {
+            "x": 6.434172550103909,
+            "y": -6.106715248379663,
+            "z": 0.189010690666345,
+            "lost": 0.0,
+            "in_view": 1.0
+        },
+        "umbrella": {
+            "x": 9.75439324480222,
+            "y": -7.160612462503434,
+            "z": 0.5556237073192688,
+            "lost": 0.0,
+            "in_view": 1.0
+        }
+    },
+    "goal": {
+        "InBag": [
+            [
+                "umbrella",
+                "extra_room_table_left"
+            ]
+        ]
+    }
+}
