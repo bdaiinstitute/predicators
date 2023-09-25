@@ -34,6 +34,7 @@ from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, ObjectDetectionID, \
     RGBDImageWithContext, SegmentedBoundingBox
 from predicators.utils import rotate_point_in_image
+from predicators.structs import Array
 
 
 def detect_objects(

@@ -8,6 +8,7 @@ from bosdyn.client.frame_helpers import BODY_FRAME_NAME, get_a_tform_b
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
+from bosdyn.client import math_helpers
 
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
@@ -51,9 +52,12 @@ def capture_images(
 
     # Get the world->robot transform so we can store world->camera transforms
     # in the RGBDWithContexts.
-    if relocalize:
-        localizer.localize()
-    world_tform_body = localizer.get_last_robot_pose()
+    # if relocalize:
+    #     localizer.localize()
+    if localizer is not None:
+        world_tform_body = localizer.get_last_robot_pose()
+    else:
+        world_tform_body = math_helpers.SE3Pose(0.0, 0.0, 0.0, math_helpers.Quat(0.0, 0.0, 0.0, 1.0))
     body_tform_world = world_tform_body.inverse()
 
     # Package all the requests together.
