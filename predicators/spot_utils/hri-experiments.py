@@ -133,7 +133,7 @@ def test_find_move_pick_place(
     # stow_arm(robot)
 
 
-def _get_training_data(artifacts: Dict[str, Any]) -> Tuple[Array, Array, List[Tuple[str, Array, Tuple[int, int]]]]:
+def _get_training_datapoint(artifacts: Dict[str, Any]) -> Tuple[Array, Array, List[Tuple[str, Array, Tuple[int, int]]]]:
     """Output both the original rgb image and an image with all the bounding
     boxes outlined in green."""
     # At the moment, only language detection artifacts are visualized.
@@ -183,7 +183,7 @@ def _get_training_data(artifacts: Dict[str, Any]) -> Tuple[Array, Array, List[Tu
 
 
 
-def test_all_find_move_pick_place() -> None:
+def generate_single_datapoint() -> None:
     """Multiple tests for find, move, pick, place."""
 
     # Parse flags.
@@ -206,25 +206,36 @@ def test_all_find_move_pick_place() -> None:
                                      must_acquire=True,
                                      return_at_exit=True)
     assert path.exists()
-    detections_outfile = Path(".") / "object_detection_artifacts.png"
-    no_detections_outfile = Path(".") / "no_detection_artifacts.png"
     localizer = None
     # localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 
     # Run test with apples and oranges.
     apple = LanguageObjectDetectionID("apple")
     orange = LanguageObjectDetectionID("orange")
+    water_bottle = LanguageObjectDetectionID("water bottle")
 
     # Capture an image from the hand camera.
     hand_camera = "hand_color_image"
     rgbds = capture_images(robot, localizer, [hand_camera])
 
     # Run detection to get a pixel for grasping.
-    obj_detection_dict, artifacts = detect_objects([apple, orange], rgbds)
-    training_tuple = _get_training_data(artifacts)
+    detections_outfile = Path(".") / "object_detection_artifacts.png"
+    no_detections_outfile = Path(".") / "no_detection_artifacts.png"
+    _, artifacts = detect_objects([apple, orange, water_bottle], rgbds)
+    _visualize_all_artifacts(artifacts, detections_outfile, no_detections_outfile)
+    training_tuple = _get_training_datapoint(artifacts)
     data_file_path = Path(".") / "sample_data.pkl"
     with open(data_file_path, "wb") as f:
-        pkl.dump(f)
+        pkl.dump(training_tuple, f)
+
+
+# TODO: write function that does a pick given a pixel location in an image!
+def grasp_at_pixel(pixel_loc: Tuple[int, int]):
+    pass
 
 if __name__ == "__main__":
-    test_all_find_move_pick_place()
+    generate_single_datapoint()
+    # data_file_path = Path(".") / "sample_data.pkl"
+    # with open(data_file_path, "rb") as f:
+    #     data = pkl.load(f)
+    #     import ipdb; ipdb.set_trace()
