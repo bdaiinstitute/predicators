@@ -39,6 +39,9 @@ import matplotlib
 matplotlib.use('agg')
 from matplotlib import pyplot as plt
 
+CORNER_PLACE_POSE = math_helpers.SE3Pose(1.943, 0.361, 0.038, math_helpers.Quat(0.7434, -0.0031, 0.0019, 0.6688))
+TABLE_PRE_PICK_POSE = math_helpers.SE3Pose(0.569, 0.122, 0.048, math_helpers.Quat(0.7127, -0.0054, 0.0034, 0.7015))
+PLACE_LOC = math_helpers.Vec3(1.919, 1.123, 0.23)
 
 def move_pick_place(
     robot: Robot,
@@ -61,81 +64,69 @@ def move_pick_place(
     intelligence for choosing these offsets is external to the skills
     (e.g., they might be sampled).
     """
+    stow_arm(robot)
+    open_gripper(robot)
     go_home(robot, localizer)
     localizer.localize()
 
-    # Find objects.
-    object_ids = [manipuland_id]
-    if init_surface_id is not None:
-        object_ids.append(init_surface_id)
-    object_ids.append(target_surface_id)
-    detections, _ = find_objects(robot, localizer, object_ids)
+    # # Find objects.
+    # object_ids = [manipuland_id]
+    # if init_surface_id is not None:
+    #     object_ids.append(init_surface_id)
+    # object_ids.append(target_surface_id)
+    # detections, _ = find_objects(robot, localizer, object_ids)
 
     # Get current robot pose.
     robot_pose = localizer.get_last_robot_pose()
-    if init_surface_id is not None:
-        # Navigate to the first surface.
-        rel_pose = get_relative_se2_from_se3(robot_pose,
-                                             detections[init_surface_id],
-                                             pre_pick_surface_nav_distance,
-                                             pre_pick_nav_angle)
-        navigate_to_relative_pose(robot, rel_pose)
-        localizer.localize()
-    else:
-        # In this case, we assume the object is on the floor.
-        rel_pose = get_relative_se2_from_se3(robot_pose,
-                                             detections[manipuland_id],
-                                             pre_pick_floor_nav_distance,
-                                             pre_pick_nav_angle)
-        navigate_to_relative_pose(robot, rel_pose)
-        localizer.localize()
-
-    # Look down at the surface.
-    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
-    open_gripper(robot)
-
-    # Capture an image from the hand camera.
-    hand_camera = "hand_color_image"
-    rgbds = capture_images(robot, localizer, [hand_camera])
-
-    # Run detection to get a pixel for grasping.
-    obj_detection_dict, artifacts = detect_objects([manipuland_id], rgbds)
-    # _visualize_all_artifacts(artifacts)
-
-    # NOTE: we currently get the oracle pixel, but we will replace this call
-    # soon with Andi's NN.
-    pixel = get_object_center_pixel_from_artifacts(artifacts, manipuland_id,
-                                                   hand_camera)
-
-    # Pick at the pixel with a top-down grasp.
-    grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+    # if init_surface_id is not None:
+    # Navigate to the first surface.
+    rel_pose = get_relative_se2_from_se3(robot_pose,
+                                            TABLE_PRE_PICK_POSE,
+                                            0.0,
+                                            pre_pick_nav_angle)
+    navigate_to_relative_pose(robot, rel_pose)
     localizer.localize()
 
-    # Stow the arm.
-    stow_arm(robot)
+    # # Look down at the surface.
+    # move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+    
+    # # Capture an image from the hand camera.
+    # hand_camera = "hand_color_image"
+    # rgbds = capture_images(robot, localizer, [hand_camera])
+
+    # # Run detection to get a pixel for grasping.
+    # obj_detection_dict, artifacts = detect_objects([manipuland_id], rgbds)
+    # # _visualize_all_artifacts(artifacts)
+
+    # # NOTE: we currently get the oracle pixel, but we will replace this call
+    # # soon with Andi's NN.
+    # pixel = get_object_center_pixel_from_artifacts(artifacts, manipuland_id,
+    #                                                hand_camera)
+
+    # # Pick at the pixel with a top-down grasp.
+    # grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+    # localizer.localize()
+
+    # # Stow the arm.
+    # stow_arm(robot)
 
     # Navigate to the other surface.
     robot_pose = localizer.get_last_robot_pose()
     rel_pose = get_relative_se2_from_se3(robot_pose,
-                                         detections[target_surface_id],
-                                         pre_place_nav_distance,
+                                         CORNER_PLACE_POSE,
+                                         0.0,
                                          pre_place_nav_angle)
     navigate_to_relative_pose(robot, rel_pose)
     localizer.localize()
 
     # Place on the surface.
-    robot_pose = localizer.get_last_robot_pose()
-    surface_rel_pose = robot_pose.inverse() * detections[target_surface_id]
-    place_rel_pos = math_helpers.Vec3(x=surface_rel_pose.x,
-                                      y=surface_rel_pose.y,
-                                      z=surface_rel_pose.z + place_offset_z)
+    place_rel_pos = math_helpers.Vec3(x=0.90,
+                                      y=0.00,
+                                      z=0.10)
     place_at_relative_position(robot, place_rel_pos)
 
-    # Finish by stowing arm again.
-    stow_arm(robot)
 
-
-def _get_training_datapoint(artifacts: Dict[str, Any]) -> Tuple[Array, Array, List[Tuple[str, Array, Tuple[int, int]]]]:
+def _get_training_datapoint(artifacts: Dict[str, Any]) -> Dict[str, Array]: #Tuple[Array, Array, List[Tuple[str, Array, Array]]]:
     """Output both the original rgb image and an image with all the bounding
     boxes outlined in green."""
     # At the moment, only language detection artifacts are visualized.
@@ -152,36 +143,54 @@ def _get_training_datapoint(artifacts: Dict[str, Any]) -> Tuple[Array, Array, Li
             flat_detections.append((rgbd, obj_id, seg_bb))
 
     if flat_detections:
-        # First, put all the bounding boxes together.
-        bboxes = []
-        for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
-            bboxes.append(seg_bb.bounding_box)
+        # # First, put all the bounding boxes together.
+        # bboxes = []
+        # for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
+        #     bboxes.append(seg_bb.bounding_box)
 
         # Bounding box.
+        out_dict = {}
         rgb_np_arr = rgbd.rgb
-        ax.imshow(rgbd.rgb)
-        for box in bboxes:
-            x0, y0 = box[0], box[1]
-            w, h = box[2] - box[0], box[3] - box[1]
-            ax.add_patch(
-                plt.Rectangle((x0, y0),
-                            w,
-                            h,
-                            edgecolor='green',
-                            facecolor=(0, 0, 0, 0),
-                            lw=1))
-        fig.canvas.draw()
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        bbox_np_arr = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        out_dict["obs"] = rgb_np_arr
 
-        lang_mask_center_list = []
-        for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
-            lang = obj_id.language_id
-            mask = seg_bb.mask
-            center = get_object_center_pixel_from_artifacts(artifacts, obj_id, "hand_color_image")
-            lang_mask_center_list.append((lang, mask, center))
+        # ax.imshow(rgbd.rgb)
+        # for box in bboxes:
+        #     x0, y0 = box[0], box[1]
+        #     w, h = box[2] - box[0], box[3] - box[1]
+        #     ax.add_patch(
+        #         plt.Rectangle((x0, y0),
+        #                     w,
+        #                     h,
+        #                     edgecolor='green',
+        #                     facecolor=(0, 0, 0, 0),
+        #                     lw=1))
+        # fig.canvas.draw()
+        # data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        # bbox_np_arr = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
-    return (rgb_np_arr, bbox_np_arr, lang_mask_center_list)
+        assert len(flat_detections) == 1
+        # for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
+        #     lang = obj_id.language_id
+        #     mask = seg_bb.mask
+        #     center = get_object_center_pixel_from_artifacts(artifacts, obj_id, "hand_color_image")
+        #     action_sequence = np.zeros((3,3))
+
+        #     lang_mask_center_list.append((lang, mask, center))
+
+        (rgbd, obj_id, seg_bb) = flat_detections[0]
+        mask = seg_bb.mask
+        out_dict["masked_obs"] = mask
+        center = get_object_center_pixel_from_artifacts(artifacts, obj_id, "hand_color_image")
+        action_arr = np.zeros((3, 3))
+        action_arr[0, 0] = 0
+        action_arr[0, 1:] = np.array(center)
+        action_arr[1, 0] = 1
+        action_arr[1, 1] = 0
+        action_arr[2, 0] = 2
+        out_dict["acts"] = action_arr
+
+    # return (rgb_np_arr, bbox_np_arr, lang_mask_center_list)
+    return out_dict
 
 
 
@@ -197,7 +206,7 @@ def generate_single_datapoint(robot, localizer, object_detection_ids) -> None:
     _, artifacts = detect_objects(object_detection_ids, rgbds)
     _visualize_all_artifacts(artifacts, detections_outfile, no_detections_outfile)
     training_tuple = _get_training_datapoint(artifacts)
-    data_file_path = Path(".") / "sample_data.pkl"
+    data_file_path = Path(".") / f"{object_detection_ids[0].language_id}.pkl"
     with open(data_file_path, "wb") as f:
         pkl.dump(training_tuple, f)
     
@@ -207,9 +216,9 @@ if __name__ == "__main__":
     # in manipulating.
     # apple = LanguageObjectDetectionID("apple")
     orange = LanguageObjectDetectionID("orange")
-    # sunscreen = LanguageObjectDetectionID("spray bottle")
+    sunscreen = LanguageObjectDetectionID("sunscreen lotion")
     # shoes = LanguageObjectDetectionID("shoes")
-    water_bottle = LanguageObjectDetectionID("water bottle")
+    water_bottle = LanguageObjectDetectionID("water")
     brush = LanguageObjectDetectionID("brush")
     drill = LanguageObjectDetectionID("drill")
 
@@ -232,17 +241,22 @@ if __name__ == "__main__":
                                      must_acquire=True,
                                      return_at_exit=True)
     assert path.exists()
-    localizer = None
-    # localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+    # localizer = None
+    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 
-    generate_single_datapoint(robot, localizer, [orange, water_bottle, brush, drill])
+    # Useful to get robot's current position.
+    # localizer.localize()
+    # print(localizer.get_last_robot_pose())
 
-    # # Call a simple pick-place-move sequence for the orange.
-    # init_surface = AprilTagObjectDetectionID(
-    #     408, math_helpers.SE3Pose(-0.25, 0.0, 0.0, math_helpers.Quat()))
-    # target_surface = AprilTagObjectDetectionID(
-    #     409, math_helpers.SE3Pose(0.25, 0.0, 0.0, math_helpers.Quat()))
-    # move_pick_place(robot, localizer, water_bottle, init_surface, target_surface)
+    # generate_single_datapoint(robot, localizer, [orange, water_bottle, brush, drill])
+    # generate_single_datapoint(robot, localizer, [drill])
+
+    # Call a simple pick-place-move sequence for the orange.
+    init_surface = AprilTagObjectDetectionID(
+        408, math_helpers.SE3Pose(-0.25, 0.0, 0.0, math_helpers.Quat()))
+    target_surface = AprilTagObjectDetectionID(
+        409, math_helpers.SE3Pose(0.25, 0.0, 0.0, math_helpers.Quat()))
+    move_pick_place(robot, localizer, water_bottle, init_surface, target_surface)
 
     # data_file_path = Path(".") / "sample_data.pkl"
     # with open(data_file_path, "rb") as f:
