@@ -205,9 +205,13 @@ def generate_single_datapoint(robot, localizer, object_detection_ids) -> None:
 if __name__ == "__main__":
     # Create detection id's for the different objects we're interested
     # in manipulating.
-    apple = LanguageObjectDetectionID("apple")
+    # apple = LanguageObjectDetectionID("apple")
     orange = LanguageObjectDetectionID("orange")
+    # sunscreen = LanguageObjectDetectionID("spray bottle")
+    # shoes = LanguageObjectDetectionID("shoes")
     water_bottle = LanguageObjectDetectionID("water bottle")
+    brush = LanguageObjectDetectionID("brush")
+    drill = LanguageObjectDetectionID("drill")
 
     # Parse flags.
     args = utils.parse_args(env_required=False,
@@ -228,17 +232,17 @@ if __name__ == "__main__":
                                      must_acquire=True,
                                      return_at_exit=True)
     assert path.exists()
-    # localizer = None
-    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+    localizer = None
+    # localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 
-    # generate_single_datapoint(robot, localizer, [apple, orange, water_bottle])
+    generate_single_datapoint(robot, localizer, [orange, water_bottle, brush, drill])
 
-    # Call a simple pick-place-move sequence for the orange.
-    init_surface = AprilTagObjectDetectionID(
-        408, math_helpers.SE3Pose(-0.25, 0.0, 0.0, math_helpers.Quat()))
-    target_surface = AprilTagObjectDetectionID(
-        409, math_helpers.SE3Pose(0.25, 0.0, 0.0, math_helpers.Quat()))
-    move_pick_place(robot, localizer, orange, init_surface, target_surface)
+    # # Call a simple pick-place-move sequence for the orange.
+    # init_surface = AprilTagObjectDetectionID(
+    #     408, math_helpers.SE3Pose(-0.25, 0.0, 0.0, math_helpers.Quat()))
+    # target_surface = AprilTagObjectDetectionID(
+    #     409, math_helpers.SE3Pose(0.25, 0.0, 0.0, math_helpers.Quat()))
+    # move_pick_place(robot, localizer, water_bottle, init_surface, target_surface)
 
     # data_file_path = Path(".") / "sample_data.pkl"
     # with open(data_file_path, "rb") as f:
