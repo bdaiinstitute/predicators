@@ -810,11 +810,9 @@ CLEAN_ROOM_TOOLS = [
     "yellow brush",
     "turquoise drill",
     "orange sneaker",
-    "green tissue box",
     "orange soda can",
     "blue water bottle",
     "blue slipper",
-    "black umbrella",
     "blue water bottle",
     "vitamin bottle",
 ]
