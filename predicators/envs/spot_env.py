@@ -20,7 +20,8 @@ from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    AprilTagObjectDetectionID, LanguageObjectDetectionID, ObjectDetectionID, detect_objects
+    AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
+    LanguageObjectDetectionID, ObjectDetectionID, detect_objects
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -266,7 +267,7 @@ class SpotEnv(BaseEnv):
         """
         # Make sure the robot pose is up to date.
         self._localizer.localize()
-        # Get the universe of all object detectoins.
+        # Get the universe of all object detections.
         all_object_detection_ids = set(self._detection_id_to_obj)
         # Get the camera images.
         rgbds = capture_images(self._robot, self._localizer)
@@ -805,6 +806,22 @@ class SpotCubeEnv(SpotEnv):
 #                               Clean Room Env                                #
 ###############################################################################
 
+CLEAN_ROOM_TOOLS = [
+    "yellow brush",
+    "turquoise drill",
+    "orange sneaker",
+    "green tissue box",
+    "orange soda can",
+    "blue water bottle",
+    "blue slipper",
+    "black umbrella",
+    "blue water bottle",
+]
+
+
+def tool_name_to_object_name(tool_name: str) -> str:
+    return tool_name.replace(" ", "-")
+
 
 class SpotCleanRoomEnv(SpotEnv):
     """An environment where the robot needs to clean a room."""
@@ -857,13 +874,24 @@ class SpotCleanRoomEnv(SpotEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
 
-        # TODO add other objects
-        drill = Object("drill", _tool_type)
-        drill_detection = LanguageObjectDetectionID("drill")
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
-        return {
-            drill_detection: drill,
-        }
+        storage = Object("storage", _surface_type)
+        storage_detection = KnownStaticObjectDetectionID(
+            "storage",
+            pose=math_helpers.SE3Pose(x=0.4,
+                                      y=-3.0,
+                                      z=0.0,
+                                      rot=math_helpers.Quat()))
+
+        detection_id_to_obj[storage_detection] = storage
+
+        for tool_name in CLEAN_ROOM_TOOLS:
+            tool_obj = Object(tool_name_to_object_name(tool_name), _tool_type)
+            tool_detection = LanguageObjectDetectionID(tool_name)
+            detection_id_to_obj[tool_detection] = tool_obj
+
+        return detection_id_to_obj
 
     def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
         return set()

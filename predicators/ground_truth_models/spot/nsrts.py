@@ -70,7 +70,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
-        return {"spot_cube_env"}
+        return {"spot_cube_env", "spot_clean_room_env"}
 
     @staticmethod
     def get_nsrts(env_name: str, types: Dict[str, Type],
