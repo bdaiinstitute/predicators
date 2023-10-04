@@ -20,7 +20,7 @@ from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    AprilTagObjectDetectionID, ObjectDetectionID, detect_objects
+    AprilTagObjectDetectionID, LanguageObjectDetectionID, ObjectDetectionID, detect_objects
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -799,3 +799,74 @@ class SpotCubeEnv(SpotEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the cube on the sticky table"
+
+
+###############################################################################
+#                               Clean Room Env                                #
+###############################################################################
+
+
+class SpotCleanRoomEnv(SpotEnv):
+    """An environment where the robot needs to clean a room."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToToolOnSurface",
+            "MoveToToolOnFloor",
+            "MoveToSurface",
+            "GraspToolFromSurface",
+            "GraspToolFromFloor",
+            "PlaceToolOnSurface",
+            "PlaceToolOnFloor",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_clean_room_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return {
+            _robot_type,
+            _tool_type,
+            _surface_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {
+            _On, _HandEmpty, _HoldingTool, _ReachableSurface, _notHandEmpty,
+            _InViewTool, _OnFloor
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return {
+            _HandEmpty, _notHandEmpty, _HoldingTool, _On, _InViewTool, _OnFloor
+        }
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        # TODO add other objects
+        drill = Object("drill", _tool_type)
+        drill_detection = LanguageObjectDetectionID("drill")
+
+        return {
+            drill_detection: drill,
+        }
+
+    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
+        return set()
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean the room"
