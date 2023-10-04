@@ -816,6 +816,7 @@ CLEAN_ROOM_TOOLS = [
     "blue slipper",
     "black umbrella",
     "blue water bottle",
+    "vitamin bottle",
 ]
 
 
