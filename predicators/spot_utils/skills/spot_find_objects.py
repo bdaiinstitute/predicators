@@ -64,6 +64,7 @@ def _find_objects_with_choreographed_moves(
         squeeze=False,
         figsize=(display_fig_scale * num_display_rows,
                  display_fig_scale * num_display_cols))
+
     plt.ion()
     plt.show()
     plt.pause(0.1)

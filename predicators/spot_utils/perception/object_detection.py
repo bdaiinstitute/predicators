@@ -428,7 +428,6 @@ def _visualize_all_artifacts(artifacts: Dict[str,
     # original depth, bounding box, mask. Each row is one detection, so if
     # there are multiple detections in a single image, then there will be
     # duplicate first cols.
-    
     if flat_detections:
         _, axes = plt.subplots(len(flat_detections), 5, squeeze=False)
         plt.suptitle("Detections")
@@ -450,7 +449,7 @@ def _visualize_all_artifacts(artifacts: Dict[str,
                 plt.Rectangle((x0, y0),
                               w,
                               h,
-                              edgecolor="green",
+                              edgecolor='green',
                               facecolor=(0, 0, 0, 0),
                               lw=1))
 
