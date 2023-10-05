@@ -16,3 +16,7 @@ april-tag-offsets:
     x: 0.25
     y: -0.1
     z: 0.05
+clean-room-storage:
+  x: 3.0
+  y: 0.1
+  z: 0.0

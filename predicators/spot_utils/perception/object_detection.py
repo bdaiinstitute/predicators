@@ -34,7 +34,8 @@ from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext, \
     SegmentedBoundingBox
-from predicators.spot_utils.utils import get_april_tag_transform
+from predicators.spot_utils.utils import get_april_tag_transform, \
+    get_graph_nav_dir
 from predicators.utils import rotate_point_in_image
 
 # Hack to avoid double image capturing when we want to (1) get object states
@@ -128,8 +129,7 @@ def detect_objects_from_april_tags(
     detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
     artifacts: Dict = {}
 
-    metadata_dir = Path(__file__).parent.parent / "graph_nav_maps" \
-        / CFG.spot_graph_nav_map
+    metadata_dir = get_graph_nav_dir()
 
     # For every detection, find pose in world frame.
     for apriltag_detection in apriltag_detections:
@@ -428,8 +428,13 @@ def _visualize_all_artifacts(artifacts: Dict[str,
     # original depth, bounding box, mask. Each row is one detection, so if
     # there are multiple detections in a single image, then there will be
     # duplicate first cols.
+    fig_scale = 5
     if flat_detections:
-        _, axes = plt.subplots(len(flat_detections), 5, squeeze=False)
+        _, axes = plt.subplots(len(flat_detections),
+                               5,
+                               squeeze=False,
+                               figsize=(len(flat_detections) * fig_scale,
+                                        5 * fig_scale))
         plt.suptitle("Detections")
         for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
             ax_row = axes[i]
@@ -480,7 +485,9 @@ def _visualize_all_artifacts(artifacts: Dict[str,
     if cameras_without_detections:
         _, axes = plt.subplots(len(cameras_without_detections),
                                3,
-                               squeeze=False)
+                               squeeze=False,
+                               figsize=(len(cameras_without_detections) *
+                                        fig_scale, 3 * fig_scale))
         plt.suptitle("Cameras without Detections")
         for i, camera in enumerate(cameras_without_detections):
             rgbd = rgbds[camera]
@@ -603,8 +610,7 @@ if __name__ == "__main__":
 
         # Get constants.
         hostname = CFG.spot_robot_ip
-        upload_dir = Path(__file__).parent.parent / "graph_nav_maps"
-        path = upload_dir / CFG.spot_graph_nav_map
+        path = get_graph_nav_dir()
 
         # First, capture images.
         sdk = create_standard_sdk('SpotCameraTestClient')

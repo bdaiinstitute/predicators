@@ -31,8 +31,8 @@ from predicators.spot_utils.skills.spot_navigation import go_home, \
     navigate_to_absolute_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import get_robot_gripper_open_percentage, \
-    verify_estop
+from predicators.spot_utils.utils import get_graph_nav_dir, \
+    get_robot_gripper_open_percentage, load_graph_nav_metadata, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -119,8 +119,7 @@ def get_robot() -> Tuple[Robot, SpotLocalizer, LeaseClient]:
     """Create the robot only once."""
     setup_logging(False)
     hostname = CFG.spot_robot_ip
-    upload_dir = Path(__file__).parent.parent / "spot_utils" / "graph_nav_maps"
-    path = upload_dir / CFG.spot_graph_nav_map
+    path = get_graph_nav_dir()
     sdk = create_standard_sdk("PredicatorsClient-")
     robot = sdk.create_robot(hostname)
     authenticate(robot)
@@ -805,7 +804,7 @@ class SpotCubeEnv(SpotEnv):
 
 CLEAN_ROOM_TOOLS = [
     "yellow brush",
-    "turquoise drill",
+    "drill",
     "orange sneaker",
     "orange soda can",
     "blue water bottle",
@@ -872,15 +871,27 @@ class SpotCleanRoomEnv(SpotEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
+        # Look up the position of the static storage area for this map.
+        metadata = load_graph_nav_metadata()
+        storage_area_dict = metadata["clean-room-storage"]
+        x = storage_area_dict["x"]
+        y = storage_area_dict["y"]
+        z = storage_area_dict["z"]
+
         storage = Object("storage", _surface_type)
         storage_detection = KnownStaticObjectDetectionID(
             "storage",
-            pose=math_helpers.SE3Pose(x=0.4,
-                                      y=-3.0,
-                                      z=0.0,
-                                      rot=math_helpers.Quat()))
+            pose=math_helpers.SE3Pose(x=x, y=y, z=z, rot=math_helpers.Quat()))
 
         detection_id_to_obj[storage_detection] = storage
+
+        tool_room_table = Object("tool_room_table", _surface_type)
+        tool_room_table_detection = AprilTagObjectDetectionID(408)
+        detection_id_to_obj[tool_room_table_detection] = tool_room_table
+
+        extra_room_table = Object("extra_room_table", _surface_type)
+        extra_room_table_detection = AprilTagObjectDetectionID(409)
+        detection_id_to_obj[extra_room_table_detection] = extra_room_table
 
         for tool_name in CLEAN_ROOM_TOOLS:
             tool_obj = Object(tool_name_to_object_name(tool_name), _tool_type)

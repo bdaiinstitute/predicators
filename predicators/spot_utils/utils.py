@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Collection, Optional, Tuple
+from typing import Collection, Dict, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -25,14 +25,24 @@ DEFAULT_HAND_LOOK_FLOOR_POSE = math_helpers.SE3Pose(
     x=0.80, y=0.0, z=0.25, rot=math_helpers.Quat.from_pitch(np.pi / 3))
 
 
-def get_spot_home_pose() -> math_helpers.SE2Pose:
-    """Load the home pose for the robot."""
+def get_graph_nav_dir() -> Path:
+    """Get the path to the graph nav directory."""
     upload_dir = Path(__file__).parent / "graph_nav_maps"
-    graph_nav_dir = upload_dir / CFG.spot_graph_nav_map
-    config_filepath = graph_nav_dir / "metadata.yaml"
+    return upload_dir / CFG.spot_graph_nav_map
+
+
+def load_graph_nav_metadata() -> Dict:
+    """Load from the YAML config."""
+    config_filepath = get_graph_nav_dir() / "metadata.yaml"
     with open(config_filepath, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    home_pose_dict = config["spot-home-pose"]
+    return config
+
+
+def get_spot_home_pose() -> math_helpers.SE2Pose:
+    """Load the home pose for the robot."""
+    metadata = load_graph_nav_metadata()
+    home_pose_dict = metadata["spot-home-pose"]
     x = home_pose_dict["x"]
     y = home_pose_dict["y"]
     angle = home_pose_dict["angle"]
@@ -45,10 +55,8 @@ def get_april_tag_transform(april_tag: int,
 
     Returns identity if no config is found.
     """
-    config_filepath = graph_nav_dir / "metadata.yaml"
-    with open(config_filepath, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    transform_dict = config["april-tag-offsets"]
+    metadata = load_graph_nav_metadata()
+    transform_dict = metadata["april-tag-offsets"]
     try:
         april_tag_transform_dict = transform_dict[f"tag-{april_tag}"]
     except KeyError:

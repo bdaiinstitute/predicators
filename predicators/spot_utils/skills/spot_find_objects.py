@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 from predicators import utils
 from predicators.spot_utils.perception.object_detection import \
-    detect_objects, display_camera_detections
+    _visualize_all_artifacts, detect_objects, display_camera_detections
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -71,6 +71,9 @@ def _find_objects_with_choreographed_moves(
     display_camera_detections(artifacts, display_axes)
     fig.canvas.draw()
     plt.pause(0.1)
+    plt.savefig("spot_find_objects_0.png")
+    _visualize_all_artifacts(artifacts, "spot_all_detections_0.png",
+                             "spot_no_detections_0.png")
 
     for i, relative_pose in enumerate(relative_base_moves):
         remaining_object_ids = set(object_ids) - set(all_detections)
@@ -99,6 +102,9 @@ def _find_objects_with_choreographed_moves(
         display_camera_detections(artifacts, display_axes)
         fig.canvas.draw()
         plt.pause(0.1)
+        plt.savefig(f"spot_find_objects_{i+1}.png")
+        _visualize_all_artifacts(artifacts, f"spot_all_detections_{i+1}.png",
+                                 f"spot_no_detections_{i+1}.png")
 
     # Stop the display.
     plt.close()
@@ -200,7 +206,7 @@ if __name__ == "__main__":
     from predicators.settings import CFG
     from predicators.spot_utils.perception.object_detection import \
         AprilTagObjectDetectionID
-    from predicators.spot_utils.utils import verify_estop
+    from predicators.spot_utils.utils import get_graph_nav_dir, verify_estop
 
     def _run_manual_test() -> None:
         # Put inside a function to avoid variable scoping issues.
@@ -211,9 +217,7 @@ if __name__ == "__main__":
 
         # Get constants.
         hostname = CFG.spot_robot_ip
-        upload_dir = Path(__file__).parent.parent / "graph_nav_maps"
-        path = upload_dir / CFG.spot_graph_nav_map
-
+        path = get_graph_nav_dir()
         sdk = create_standard_sdk('FindObjectsTestClient')
         robot = sdk.create_robot(hostname)
         authenticate(robot)
