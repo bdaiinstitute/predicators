@@ -1247,6 +1247,13 @@ def run_task_plan_once(
     else:
         raise ValueError("Unrecognized sesame_task_planner: "
                          f"{CFG.sesame_task_planner}")
+    
+    print("TASK PLAN:")
+    for nsrt in plan:
+        print(nsrt.name, nsrt.objects)
+
+    if "MoveToSurface" in str(plan[0]):
+        import ipdb; ipdb.set_trace()
 
     return plan, atoms_seq, metrics
 

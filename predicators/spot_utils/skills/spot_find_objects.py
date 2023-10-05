@@ -30,6 +30,7 @@ def _find_objects_with_choreographed_moves(
     relative_base_moves: List[math_helpers.SE2Pose],
     relative_hand_moves: Optional[List[math_helpers.SE3Pose]] = None,
     open_and_close_gripper: bool = True,
+    use_gui: bool = False,
 ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
     """Helper for object search with hard-coded relative moves."""
 
@@ -54,26 +55,24 @@ def _find_objects_with_choreographed_moves(
     all_artifacts.update(artifacts)
 
     # Display the detections on screen so that we can follow along.
-    num_cameras = len(rgbds)
-    num_display_rows = int(np.ceil(np.sqrt(num_cameras)))
-    num_display_cols = int(np.ceil(num_cameras / num_display_rows))
-    display_fig_scale = 10
-    fig, display_axes = plt.subplots(
-        num_display_rows,
-        num_display_cols,
-        squeeze=False,
-        figsize=(display_fig_scale * num_display_rows,
-                 display_fig_scale * num_display_cols))
+    if use_gui:
+        num_cameras = len(rgbds)
+        num_display_rows = int(np.ceil(np.sqrt(num_cameras)))
+        num_display_cols = int(np.ceil(num_cameras / num_display_rows))
+        display_fig_scale = 10
+        fig, display_axes = plt.subplots(
+            num_display_rows,
+            num_display_cols,
+            squeeze=False,
+            figsize=(display_fig_scale * num_display_rows,
+                    display_fig_scale * num_display_cols))
 
-    plt.ion()
-    plt.show()
-    plt.pause(0.1)
-    display_camera_detections(artifacts, display_axes)
-    fig.canvas.draw()
-    plt.pause(0.1)
-    plt.savefig("spot_find_objects_0.png")
-    _visualize_all_artifacts(artifacts, "spot_all_detections_0.png",
-                             "spot_no_detections_0.png")
+        plt.ion()
+        plt.show()
+        plt.pause(0.1)
+        display_camera_detections(artifacts, display_axes)
+        fig.canvas.draw()
+        plt.pause(0.1)
 
     for i, relative_pose in enumerate(relative_base_moves):
         remaining_object_ids = set(object_ids) - set(all_detections)
@@ -99,12 +98,10 @@ def _find_objects_with_choreographed_moves(
         all_artifacts.update(artifacts)
 
         # Update the GUI.
-        display_camera_detections(artifacts, display_axes)
-        fig.canvas.draw()
-        plt.pause(0.1)
-        plt.savefig(f"spot_find_objects_{i+1}.png")
-        _visualize_all_artifacts(artifacts, f"spot_all_detections_{i+1}.png",
-                                 f"spot_no_detections_{i+1}.png")
+        if use_gui:
+            display_camera_detections(artifacts, display_axes)
+            fig.canvas.draw()
+            plt.pause(0.1)
 
     # Stop the display.
     plt.close()
@@ -144,7 +141,7 @@ def init_search_for_objects(
     relative_pose = math_helpers.SE2Pose(0, 0, spin_amount)
     base_moves = [relative_pose] * num_spins
     return _find_objects_with_choreographed_moves(robot, localizer, object_ids,
-                                                  base_moves)
+                                                  base_moves, use_gui=True)
 
 
 def find_objects(

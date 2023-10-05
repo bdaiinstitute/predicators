@@ -428,7 +428,7 @@ def _visualize_all_artifacts(artifacts: Dict[str,
     # original depth, bounding box, mask. Each row is one detection, so if
     # there are multiple detections in a single image, then there will be
     # duplicate first cols.
-    fig_scale = 5
+    fig_scale = 3
     if flat_detections:
         _, axes = plt.subplots(len(flat_detections),
                                5,

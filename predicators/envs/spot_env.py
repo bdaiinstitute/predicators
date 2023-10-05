@@ -5,6 +5,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
     Tuple
 
@@ -21,7 +22,7 @@ from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
-    LanguageObjectDetectionID, ObjectDetectionID, detect_objects
+    LanguageObjectDetectionID, ObjectDetectionID, detect_objects, _visualize_all_artifacts
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -270,14 +271,33 @@ class SpotEnv(BaseEnv):
         all_object_detection_ids = set(self._detection_id_to_obj)
         # Get the camera images.
         rgbds = capture_images(self._robot, self._localizer)
-        all_detections, _ = detect_objects(all_object_detection_ids, rgbds)
+        all_detections, all_artifacts = detect_objects(all_object_detection_ids, rgbds)
+
+        root_dir = Path(__file__).parent.parent.parent
+        outdir = root_dir / CFG.spot_perception_outdir
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        detections_outfile = outdir / f"detections_{time_str}.png"
+        no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+
+        _visualize_all_artifacts(all_artifacts,
+                                 detections_outfile,
+                                 no_detections_outfile)        
+
         # Separately, get detections for the hand in particular.
         hand_rgbd = {
             k: v
             for (k, v) in rgbds.items() if k == "hand_color_image"
         }
-        hand_detections, _ = detect_objects(all_object_detection_ids,
+        hand_detections, hand_artifacts = detect_objects(all_object_detection_ids,
                                             hand_rgbd)
+  
+        hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
+        hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
+
+        _visualize_all_artifacts(hand_artifacts,
+                                 hand_detections_outfile,
+                                 hand_no_detections_outfile)        
+  
         # Now construct a dict of all objects in view, as well as a set
         # of objects that the hand can see.
         objects_in_view = {
@@ -808,7 +828,6 @@ CLEAN_ROOM_TOOLS = [
     "orange sneaker",
     "orange soda can",
     "blue water bottle",
-    "blue slipper",
     "blue water bottle",
     "vitamin bottle",
 ]
