@@ -8,8 +8,9 @@ from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
-from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, SpotCubeEnv, \
-    _PartialPerceptionState, _SpotObservation, tool_in_view_classifier
+from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
+    SpotCubeEnv, _PartialPerceptionState, _SpotObservation, \
+    tool_in_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
@@ -231,7 +232,6 @@ class SpotPerceiver(BasePerceiver):
         assert goal_description == "put the cube on the sticky table"
         assert isinstance(self._curr_env, SpotCubeEnv)
         cube = Object("cube", type_name_to_type["tool"])
-        target = Object("extra_room_table",
-                        type_name_to_type["flat_surface"])
+        target = Object("extra_room_table", type_name_to_type["flat_surface"])
         On = pred_name_to_pred["On"]
         return {GroundAtom(On, [cube, target])}

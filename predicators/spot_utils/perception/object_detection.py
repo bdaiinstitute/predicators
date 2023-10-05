@@ -410,8 +410,8 @@ def get_object_center_pixel_from_artifacts(
 
 
 def visualize_all_artifacts(artifacts: Dict[str,
-                                             Any], detections_outfile: Path,
-                             no_detections_outfile: Path) -> None:
+                                            Any], detections_outfile: Path,
+                            no_detections_outfile: Path) -> None:
     """Analyze the artifacts."""
     # At the moment, only language detection artifacts are visualized.
     rgbds = artifacts["language"]["rgbds"]
@@ -649,6 +649,6 @@ if __name__ == "__main__":
         detections_outfile = Path(".") / "object_detection_artifacts.png"
         no_detections_outfile = Path(".") / "no_detection_artifacts.png"
         visualize_all_artifacts(artifacts, detections_outfile,
-                                 no_detections_outfile)
+                                no_detections_outfile)
 
     _run_manual_test()

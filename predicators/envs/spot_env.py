@@ -21,8 +21,8 @@ from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    AprilTagObjectDetectionID, ObjectDetectionID, visualize_all_artifacts, \
-    detect_objects
+    AprilTagObjectDetectionID, ObjectDetectionID, detect_objects, \
+    visualize_all_artifacts
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -281,7 +281,7 @@ class SpotEnv(BaseEnv):
         no_detections_outfile = outdir / f"no_detections_{time_str}.png"
 
         visualize_all_artifacts(all_artifacts, detections_outfile,
-                                 no_detections_outfile)
+                                no_detections_outfile)
 
         # Separately, get detections for the hand in particular.
         hand_rgbd = {
@@ -295,7 +295,7 @@ class SpotEnv(BaseEnv):
         hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
 
         visualize_all_artifacts(hand_artifacts, hand_detections_outfile,
-                                 hand_no_detections_outfile)
+                                hand_no_detections_outfile)
 
         # Now construct a dict of all objects in view, as well as a set
         # of objects that the hand can see.
