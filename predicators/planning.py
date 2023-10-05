@@ -1252,9 +1252,6 @@ def run_task_plan_once(
     for nsrt in plan:
         print(nsrt.name, nsrt.objects)
 
-    if "MoveToSurface" in str(plan[0]):
-        import ipdb; ipdb.set_trace()
-
     return plan, atoms_seq, metrics
 
 
