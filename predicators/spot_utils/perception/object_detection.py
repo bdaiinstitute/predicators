@@ -182,7 +182,7 @@ def detect_objects_from_language(
     The second return value is a dictionary of "artifacts", which
     include the raw vision-language detection results. These are
     primarily useful for debugging / analysis. See
-    _visualize_all_artifacts().
+    visualize_all_artifacts().
     """
 
     object_id_to_img_detections = _query_detic_sam(object_ids, rgbds)
@@ -409,7 +409,7 @@ def get_object_center_pixel_from_artifacts(
     return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
 
-def _visualize_all_artifacts(artifacts: Dict[str,
+def visualize_all_artifacts(artifacts: Dict[str,
                                              Any], detections_outfile: Path,
                              no_detections_outfile: Path) -> None:
     """Analyze the artifacts."""
@@ -648,7 +648,7 @@ if __name__ == "__main__":
         # Visualize the artifacts.
         detections_outfile = Path(".") / "object_detection_artifacts.png"
         no_detections_outfile = Path(".") / "no_detection_artifacts.png"
-        _visualize_all_artifacts(artifacts, detections_outfile,
+        visualize_all_artifacts(artifacts, detections_outfile,
                                  no_detections_outfile)
 
     _run_manual_test()

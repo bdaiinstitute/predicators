@@ -21,8 +21,7 @@ from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
-    LanguageObjectDetectionID, ObjectDetectionID, _visualize_all_artifacts, \
+    AprilTagObjectDetectionID, ObjectDetectionID, visualize_all_artifacts, \
     detect_objects
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
@@ -281,7 +280,7 @@ class SpotEnv(BaseEnv):
         detections_outfile = outdir / f"detections_{time_str}.png"
         no_detections_outfile = outdir / f"no_detections_{time_str}.png"
 
-        _visualize_all_artifacts(all_artifacts, detections_outfile,
+        visualize_all_artifacts(all_artifacts, detections_outfile,
                                  no_detections_outfile)
 
         # Separately, get detections for the hand in particular.
@@ -295,7 +294,7 @@ class SpotEnv(BaseEnv):
         hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
         hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
 
-        _visualize_all_artifacts(hand_artifacts, hand_detections_outfile,
+        visualize_all_artifacts(hand_artifacts, hand_detections_outfile,
                                  hand_no_detections_outfile)
 
         # Now construct a dict of all objects in view, as well as a set
@@ -816,111 +815,3 @@ class SpotCubeEnv(SpotEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the cube on the sticky table"
-
-
-###############################################################################
-#                               Clean Room Env                                #
-###############################################################################
-
-CLEAN_ROOM_TOOLS = [
-    "yellow brush",
-    "drill",
-    "orange sneaker",
-    "orange soda can",
-    "blue water bottle",
-    "blue water bottle",
-    "vitamin bottle",
-]
-
-
-def tool_name_to_object_name(tool_name: str) -> str:
-    return tool_name.replace(" ", "-")
-
-
-class SpotCleanRoomEnv(SpotEnv):
-    """An environment where the robot needs to clean a room."""
-
-    def __init__(self, use_gui: bool = True) -> None:
-        super().__init__(use_gui)
-
-        op_to_name = {o.name: o for o in _create_operators()}
-        op_names_to_keep = {
-            "MoveToToolOnSurface",
-            "MoveToToolOnFloor",
-            "MoveToSurface",
-            "GraspToolFromSurface",
-            "GraspToolFromFloor",
-            "PlaceToolOnSurface",
-            "PlaceToolOnFloor",
-        }
-        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
-
-    @classmethod
-    def get_name(cls) -> str:
-        return "spot_clean_room_env"
-
-    @property
-    def types(self) -> Set[Type]:
-        return {
-            _robot_type,
-            _tool_type,
-            _surface_type,
-        }
-
-    @property
-    def predicates(self) -> Set[Predicate]:
-        return {
-            _On, _HandEmpty, _HoldingTool, _ReachableSurface, _notHandEmpty,
-            _InViewTool, _OnFloor
-        }
-
-    @property
-    def percept_predicates(self) -> Set[Predicate]:
-        """The predicates that are NOT stored in the simulator state."""
-        return {
-            _HandEmpty, _notHandEmpty, _HoldingTool, _On, _InViewTool, _OnFloor
-        }
-
-    @property
-    def goal_predicates(self) -> Set[Predicate]:
-        return self.predicates
-
-    @property
-    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
-
-        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-
-        # Look up the position of the static storage area for this map.
-        metadata = load_graph_nav_metadata()
-        storage_area_dict = metadata["clean-room-storage"]
-        x = storage_area_dict["x"]
-        y = storage_area_dict["y"]
-        z = storage_area_dict["z"]
-
-        storage = Object("storage", _surface_type)
-        storage_detection = KnownStaticObjectDetectionID(
-            "storage",
-            pose=math_helpers.SE3Pose(x=x, y=y, z=z, rot=math_helpers.Quat()))
-
-        detection_id_to_obj[storage_detection] = storage
-
-        tool_room_table = Object("tool_room_table", _surface_type)
-        tool_room_table_detection = AprilTagObjectDetectionID(408)
-        detection_id_to_obj[tool_room_table_detection] = tool_room_table
-
-        extra_room_table = Object("extra_room_table", _surface_type)
-        extra_room_table_detection = AprilTagObjectDetectionID(409)
-        detection_id_to_obj[extra_room_table_detection] = extra_room_table
-
-        for tool_name in CLEAN_ROOM_TOOLS:
-            tool_obj = Object(tool_name_to_object_name(tool_name), _tool_type)
-            tool_detection = LanguageObjectDetectionID(tool_name)
-            detection_id_to_obj[tool_detection] = tool_obj
-
-        return detection_id_to_obj
-
-    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
-        return set()
-
-    def _generate_goal_description(self) -> GoalDescription:
-        return "clean the room"

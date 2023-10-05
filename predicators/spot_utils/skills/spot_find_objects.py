@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 from predicators import utils
 from predicators.spot_utils.perception.object_detection import \
-    _visualize_all_artifacts, detect_objects, display_camera_detections
+    visualize_all_artifacts, detect_objects, display_camera_detections
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images

@@ -1248,10 +1248,6 @@ def run_task_plan_once(
         raise ValueError("Unrecognized sesame_task_planner: "
                          f"{CFG.sesame_task_planner}")
 
-    print("TASK PLAN:")
-    for nsrt in plan:
-        print(nsrt.name, nsrt.objects)
-
     return plan, atoms_seq, metrics
 
 

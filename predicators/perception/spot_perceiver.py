@@ -8,10 +8,8 @@ from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
-from predicators.envs.spot_env import CLEAN_ROOM_TOOLS, \
-    HANDEMPTY_GRIPPER_THRESHOLD, SpotCleanRoomEnv, SpotCubeEnv, \
-    _PartialPerceptionState, _SpotObservation, tool_in_view_classifier, \
-    tool_name_to_object_name
+from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, SpotCubeEnv, \
+    _PartialPerceptionState, _SpotObservation, tool_in_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
@@ -230,19 +228,10 @@ class SpotPerceiver(BasePerceiver):
         # not yet set. Hopefully one day other cleanups will enable cleaning.
         type_name_to_type = {t.name: t for t in self._curr_env.types}
         pred_name_to_pred = {p.name: p for p in self._curr_env.predicates}
-        if goal_description == "put the cube on the sticky table":
-            assert isinstance(self._curr_env, SpotCubeEnv)
-            cube = Object("cube", type_name_to_type["tool"])
-            target = Object("extra_room_table",
-                            type_name_to_type["flat_surface"])
-            On = pred_name_to_pred["On"]
-            return {GroundAtom(On, [cube, target])}
-        assert goal_description == "clean the room"
-        assert isinstance(self._curr_env, SpotCleanRoomEnv)
-        tools = {
-            Object(tool_name_to_object_name(o), type_name_to_type["tool"])
-            for o in CLEAN_ROOM_TOOLS
-        }
-        storage = Object("storage", type_name_to_type["flat_surface"])
+        assert goal_description == "put the cube on the sticky table"
+        assert isinstance(self._curr_env, SpotCubeEnv)
+        cube = Object("cube", type_name_to_type["tool"])
+        target = Object("extra_room_table",
+                        type_name_to_type["flat_surface"])
         On = pred_name_to_pred["On"]
-        return {GroundAtom(On, [tool, storage]) for tool in tools}
+        return {GroundAtom(On, [cube, target])}
