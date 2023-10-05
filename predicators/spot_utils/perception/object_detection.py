@@ -428,13 +428,13 @@ def _visualize_all_artifacts(artifacts: Dict[str,
     # original depth, bounding box, mask. Each row is one detection, so if
     # there are multiple detections in a single image, then there will be
     # duplicate first cols.
-    fig_scale = 3
+    fig_scale = 2
     if flat_detections:
         _, axes = plt.subplots(len(flat_detections),
                                5,
                                squeeze=False,
-                               figsize=(len(flat_detections) * fig_scale,
-                                        5 * fig_scale))
+                               figsize=(5 * fig_scale,
+                                        len(flat_detections) * fig_scale))
         plt.suptitle("Detections")
         for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
             ax_row = axes[i]
@@ -486,8 +486,9 @@ def _visualize_all_artifacts(artifacts: Dict[str,
         _, axes = plt.subplots(len(cameras_without_detections),
                                3,
                                squeeze=False,
-                               figsize=(len(cameras_without_detections) *
-                                        fig_scale, 3 * fig_scale))
+                               figsize=(3 * fig_scale,
+                                        len(cameras_without_detections) *
+                                        fig_scale))
         plt.suptitle("Cameras without Detections")
         for i, camera in enumerate(cameras_without_detections):
             rgbd = rgbds[camera]
