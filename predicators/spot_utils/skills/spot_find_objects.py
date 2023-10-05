@@ -64,7 +64,6 @@ def _find_objects_with_choreographed_moves(
         squeeze=False,
         figsize=(display_fig_scale * num_display_rows,
                  display_fig_scale * num_display_cols))
-    
     plt.ion()
     plt.show()
     plt.pause(0.1)
@@ -229,15 +228,11 @@ if __name__ == "__main__":
 
         object_ids = [
             # Table.
-            AprilTagObjectDetectionID(
-                408, math_helpers.SE3Pose(0.0, 0.12, 0.0,
-                                          math_helpers.Quat())),
+            AprilTagObjectDetectionID(408),
             # Table.
-            AprilTagObjectDetectionID(
-                409, math_helpers.SE3Pose(0.0, 0.5, 0.0, math_helpers.Quat())),
+            AprilTagObjectDetectionID(409),
             # Cube.
-            AprilTagObjectDetectionID(
-                410, math_helpers.SE3Pose(0.0, 0.0, 0.0, math_helpers.Quat())),
+            AprilTagObjectDetectionID(410),
         ]
 
         # Test running the initial search for objects.

@@ -34,6 +34,7 @@ from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext, \
     SegmentedBoundingBox
+from predicators.spot_utils.utils import get_april_tag_transform
 from predicators.utils import rotate_point_in_image
 
 # Hack to avoid double image capturing when we want to (1) get object states
@@ -127,6 +128,9 @@ def detect_objects_from_april_tags(
     detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
     artifacts: Dict = {}
 
+    metadata_dir = Path(__file__).parent.parent / "graph_nav_maps" \
+        / CFG.spot_graph_nav_map
+
     # For every detection, find pose in world frame.
     for apriltag_detection in apriltag_detections:
         # Only include requested tags.
@@ -148,16 +152,20 @@ def detect_objects_from_april_tags(
         assert np.isclose(tw, 1.0)
 
         # Detection is in meters, we want mm.
-        camera_frame_pose = math_helpers.SE3Pose(
+        camera_tform_tag = math_helpers.SE3Pose(
             x=float(tx) / 1000.0,
             y=float(ty) / 1000.0,
             z=float(tz) / 1000.0,
             rot=math_helpers.Quat(),
         )
 
+        # Look up transform.
+        world_object_tform_tag = get_april_tag_transform(
+            obj_id.april_tag_number, metadata_dir)
+
         # Apply transforms.
-        world_frame_pose = rgbd.world_tform_camera * camera_frame_pose
-        world_frame_pose = obj_id.offset_transform * world_frame_pose
+        world_frame_pose = rgbd.world_tform_camera * camera_tform_tag
+        world_frame_pose = world_object_tform_tag * world_frame_pose
 
         # Save in detections.
         detections[obj_id] = world_frame_pose
@@ -541,7 +549,7 @@ def display_camera_detections(artifacts: Dict[str, Any],
             # Rotate.
             image_rot = rgbd.image_rot
             h, w = rgbd.rgb.shape[:2]
-            box =_rotate_bounding_box(box, image_rot, h, w)
+            box = _rotate_bounding_box(box, image_rot, h, w)
             x0, y0 = box[0], box[1]
             w, h = box[2] - box[0], box[3] - box[1]
             ax.add_patch(
@@ -552,13 +560,14 @@ def display_camera_detections(artifacts: Dict[str, Any],
                               facecolor=(0, 0, 0, 0),
                               lw=1))
             # Label with the detection and score.
-            ax.text(-250,  # off to the left side
-                    50 + 60 * i,
-                    f'{obj_id.language_id}: {seg_bb.score:.2f}',
-                    color='white',
-                    fontsize=12,
-                    fontweight='bold',
-                    bbox=dict(facecolor=color, edgecolor=color, alpha=0.5))
+            ax.text(
+                -250,  # off to the left side
+                50 + 60 * i,
+                f'{obj_id.language_id}: {seg_bb.score:.2f}',
+                color='white',
+                fontsize=12,
+                fontweight='bold',
+                bbox=dict(facecolor=color, edgecolor=color, alpha=0.5))
 
 
 if __name__ == "__main__":
@@ -584,11 +593,6 @@ if __name__ == "__main__":
         "right_fisheye_image"
     ]
     TEST_APRIL_TAG_ID = 408
-    # Assume the table is oriented such the tag is in the front with respect
-    # to the world frame. In the 4th floor room, this is facing such that the
-    # outside hall is on the left of the tag.
-    TEST_APRIL_TAG_TRANSFORM = math_helpers.SE3Pose(0.0, 0.5, 0.0,
-                                                    math_helpers.Quat())
     TEST_LANGUAGE_DESCRIPTIONS = ["brush", "drill"]
 
     def _run_manual_test() -> None:
@@ -622,7 +626,7 @@ if __name__ == "__main__":
 
         # Detect the april tag and brush.
         april_tag_id: ObjectDetectionID = AprilTagObjectDetectionID(
-            TEST_APRIL_TAG_ID, TEST_APRIL_TAG_TRANSFORM)
+            TEST_APRIL_TAG_ID)
         language_ids: List[ObjectDetectionID] = [
             LanguageObjectDetectionID(d) for d in TEST_LANGUAGE_DESCRIPTIONS
         ]
