@@ -15,7 +15,7 @@ def dump_container(robot: Robot,
                    place_z: float,
                    place_angle: float = np.pi / 3,
                    dump_x: float = 0.8,
-                   dump_y: float = -0.4,
+                   dump_y: float = 0.4,
                    dump_z: float = 0.5,
                    place_y: float = 0.0) -> None:
     """Turn over and dump out a container.
@@ -36,9 +36,9 @@ def dump_container(robot: Robot,
     move_hand_to_relative_pose(robot, hand_dump_pose)
     # Wait a few seconds for the object(s) to be dumped.
     time.sleep(2.0)
-    # Place the container back down.
-    body_to_position = math_helpers.Vec3(x=dump_x, y=place_y, z=place_z)
-    place_at_relative_position(robot, body_to_position, place_angle)
+    # # Place the container back down.
+    # body_to_position = math_helpers.Vec3(x=dump_x, y=place_y, z=place_z)
+    # place_at_relative_position(robot, body_to_position, place_angle)
 
 
 if __name__ == "__main__":
