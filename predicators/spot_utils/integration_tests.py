@@ -431,7 +431,8 @@ def test_repeated_brush_bucket_dump_pick_place(
 
 def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
         bucket_grasp_dr: int = 50,
-        chair_grasp_dr: int = 0,
+        chair_grasp_dr: int = 50,
+        chair_grasp_dc: int = 50,
         place_offset_z: float = 0.5,
         pre_place_nav_distance: float = 0.5) -> None:
     """In this test, a chair and table should be set up in front of the robot's
@@ -469,13 +470,22 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
 
     # Use vision-language model to detect objects.
     bucket = LanguageObjectDetectionID("large red bucket")
+    box = LanguageObjectDetectionID("small cardboard box")
     paper_bowl = LanguageObjectDetectionID("paper bowl")
     soda_can = LanguageObjectDetectionID("soda can")
     chair = LanguageObjectDetectionID("chair")
-    all_object_ids = [bucket, paper_bowl, soda_can, chair]
+    all_object_ids = [
+        bucket, box, soda_can, chair, paper_bowl
+    ]
 
     go_home(robot, localizer)
     localizer.localize()
+
+    # # temp
+    # side_rot = math_helpers.Quat.from_pitch(np.pi / 2) * math_helpers.Quat.from_yaw(np.pi / 2)
+    # temp_pose = math_helpers.SE3Pose(x=0.8, y=0.0, z=0.25, rot=side_rot)
+    # move_hand_to_relative_pose(robot, temp_pose)
+    # import sys; sys.exit(0)
 
     # Find objects.
     move_hand_to_relative_pose(robot, object_search_hand_pose)
@@ -555,63 +565,65 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     go_home(robot, localizer)
     localizer.localize()
 
-    # Find objects.
-    move_hand_to_relative_pose(robot, object_search_hand_pose)
-    detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    # Find bucket.
+    bucket_detections, _ = init_search_for_objects(robot, localizer, [bucket])
+    detections.update(bucket_detections)
     stow_arm(robot)
     localizer.localize()
 
-    # Navigate to look at the paper bowl.
-    robot_pose = localizer.get_last_robot_pose()
-    rel_pose = get_relative_se2_from_se3(robot_pose, detections[paper_bowl],
-                                            pre_pick_nav_distance,
-                                            pre_pick_nav_angle)
-    navigate_to_relative_pose(robot, rel_pose)
-    localizer.localize()
+    for reachable_obj in [reachable_obj, box]:
 
-    # Look at the paper bowl.
-    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
-    localizer.localize()
+        # Navigate to look at the paper bowl.
+        robot_pose = localizer.get_last_robot_pose()
+        rel_pose = get_relative_se2_from_se3(robot_pose, detections[reachable_obj],
+                                                pre_pick_nav_distance,
+                                                pre_pick_nav_angle)
+        navigate_to_relative_pose(robot, rel_pose)
+        localizer.localize()
 
-    # Capture an image.
-    rgbds = capture_images(robot, localizer, [hand_camera])
-    rgbd = rgbds[hand_camera]
+        # Look at the paper bowl.
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+        localizer.localize()
 
-    # Run detection to get a pixel for grasping.
-    _, artifacts = detect_objects([paper_bowl], rgbds)
-    pixel = get_object_center_pixel_from_artifacts(artifacts, paper_bowl,
-                                                   hand_camera)
+        # Capture an image.
+        rgbds = capture_images(robot, localizer, [hand_camera])
+        rgbd = rgbds[hand_camera]
 
-    # Pick at the pixel with a top-down grasp.
-    top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
-    grasp_at_pixel(robot, rgbds[hand_camera], pixel, grasp_rot=top_down_rot)
-    localizer.localize()
+        # Run detection to get a pixel for grasping.
+        _, artifacts = detect_objects([reachable_obj], rgbds)
+        pixel = get_object_center_pixel_from_artifacts(artifacts, reachable_obj,
+                                                    hand_camera)
 
-    # Place in the bucket.
-    # TODO un-hardcode values.
-    robot_pose = localizer.get_last_robot_pose()
-    bucket_rel_pose = robot_pose.inverse() * detections[bucket]
-    place_rel_pos = math_helpers.Vec3(x=bucket_rel_pose.x + 0.2,
-                                      y=bucket_rel_pose.y - 0.4,
-                                      z=bucket_rel_pose.z + place_offset_z)
-    place_at_relative_position(robot, place_rel_pos)
-    
-    # Stow.
-    stow_arm(robot)
+        # Pick at the pixel with a top-down grasp.
+        top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+        grasp_at_pixel(robot, rgbds[hand_camera], pixel, grasp_rot=top_down_rot)
+        localizer.localize()
 
-    # Stop tracking the paper bowl.
-    all_object_ids.remove(paper_bowl)
+        # Place in the bucket.
+        # TODO un-hardcode values.
+        robot_pose = localizer.get_last_robot_pose()
+        bucket_rel_pose = robot_pose.inverse() * detections[bucket]
+        place_rel_pos = math_helpers.Vec3(x=bucket_rel_pose.x + 0.2,
+                                        y=bucket_rel_pose.y - 0.4,
+                                        z=bucket_rel_pose.z + place_offset_z)
+        place_at_relative_position(robot, place_rel_pos)
+        
+        # Stow.
+        stow_arm(robot)
+
+        # Stop tracking the paper bowl.
+        all_object_ids.remove(reachable_obj)
 
     # Go home.
     localizer.localize()
     go_home(robot, localizer)
     localizer.localize()
 
-    # Find objects.
-    move_hand_to_relative_pose(robot, object_search_hand_pose)
-    detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
-    stow_arm(robot)
-    localizer.localize()
+    # # Find objects.
+    # move_hand_to_relative_pose(robot, object_search_hand_pose)
+    # detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    # stow_arm(robot)
+    # localizer.localize()
 
     # Navigate to look at the chair.
     # TODO un-hardcode values
@@ -631,10 +643,11 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
 
     r, c = get_object_center_pixel_from_artifacts(artifacts, chair,
                                                     hand_camera)
-    pixel = (r + chair_grasp_dr, c)
+    pixel = (r + chair_grasp_dr, c + chair_grasp_dc)
 
-    # Grasp at the pixel with a top-down grasp.
-    grasp_at_pixel(robot, rgbd, pixel)
+    # Grasp at the pixel with a side grasp.
+    side_rot = math_helpers.Quat.from_pitch(np.pi / 2) * math_helpers.Quat.from_yaw(np.pi / 2)
+    grasp_at_pixel(robot, rgbd, pixel, grasp_rot=side_rot)
 
     # Drag the chair back.
     # TODO un-hardcode values
@@ -652,10 +665,10 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     localizer.localize()
 
     # Find objects.
-    move_hand_to_relative_pose(robot, object_search_hand_pose)
-    detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
-    stow_arm(robot)
-    localizer.localize()
+    # move_hand_to_relative_pose(robot, object_search_hand_pose)
+    # detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    # stow_arm(robot)
+    # localizer.localize()
 
     # Get the soda can.
 
