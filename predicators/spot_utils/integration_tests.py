@@ -464,6 +464,8 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     home_pose = get_spot_home_pose()
     pre_pick_nav_angle = home_pose.angle - np.pi
     hand_camera = "hand_color_image"
+    object_search_hand_pose = math_helpers.SE3Pose(
+    x=0.80, y=0.0, z=0.75, rot=math_helpers.Quat.from_pitch(np.pi / 4))
 
     # Use vision-language model to detect objects.
     bucket = LanguageObjectDetectionID("large red bucket")
@@ -476,7 +478,9 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     localizer.localize()
 
     # Find objects.
+    move_hand_to_relative_pose(robot, object_search_hand_pose)
     detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    stow_arm(robot)
     localizer.localize()
 
     # Navigate to look at the bucket.
@@ -552,7 +556,9 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     localizer.localize()
 
     # Find objects.
+    move_hand_to_relative_pose(robot, object_search_hand_pose)
     detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    stow_arm(robot)
     localizer.localize()
 
     # Navigate to look at the paper bowl.
@@ -589,6 +595,9 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
                                       y=bucket_rel_pose.y - 0.4,
                                       z=bucket_rel_pose.z + place_offset_z)
     place_at_relative_position(robot, place_rel_pos)
+    
+    # Stow.
+    stow_arm(robot)
 
     # Stop tracking the paper bowl.
     all_object_ids.remove(paper_bowl)
@@ -599,7 +608,9 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     localizer.localize()
 
     # Find objects.
+    move_hand_to_relative_pose(robot, object_search_hand_pose)
     detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    stow_arm(robot)
     localizer.localize()
 
     # Navigate to look at the chair.
@@ -641,7 +652,9 @@ def test_clean_room_with_chair_drag(pre_pick_nav_distance: float = 1.25,
     localizer.localize()
 
     # Find objects.
+    move_hand_to_relative_pose(robot, object_search_hand_pose)
     detections, _ = init_search_for_objects(robot, localizer, all_object_ids)
+    stow_arm(robot)
     localizer.localize()
 
     # Get the soda can.
