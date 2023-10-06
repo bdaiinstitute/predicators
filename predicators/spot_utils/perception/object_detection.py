@@ -129,8 +129,6 @@ def detect_objects_from_april_tags(
     detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
     artifacts: Dict = {}
 
-    metadata_dir = get_graph_nav_dir()
-
     # For every detection, find pose in world frame.
     for apriltag_detection in apriltag_detections:
         # Only include requested tags.
@@ -161,7 +159,7 @@ def detect_objects_from_april_tags(
 
         # Look up transform.
         world_object_tform_tag = get_april_tag_transform(
-            obj_id.april_tag_number, metadata_dir)
+            obj_id.april_tag_number)
 
         # Apply transforms.
         world_frame_pose = rgbd.world_tform_camera * camera_tform_tag

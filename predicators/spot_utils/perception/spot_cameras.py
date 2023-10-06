@@ -159,8 +159,6 @@ if __name__ == "__main__":
     # Run this file alone to test manually.
     # Make sure to pass in --spot_robot_ip.
 
-    from pathlib import Path
-
     # pylint: disable=ungrouped-imports
     import imageio.v2 as iio
     from bosdyn.client import create_standard_sdk

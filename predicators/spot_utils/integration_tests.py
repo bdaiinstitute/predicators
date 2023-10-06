@@ -2,7 +2,6 @@
 
 Run with --spot_robot_ip and any other flags.
 """
-from pathlib import Path
 from typing import Optional
 
 import matplotlib.pyplot as plt

@@ -48,8 +48,6 @@ if __name__ == "__main__":
     # NOTE: this test assumes that the robot is facing the bucket.
 
     # pylint: disable=ungrouped-imports
-    from pathlib import Path
-
     from bosdyn.client import create_standard_sdk
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
     from bosdyn.client.util import authenticate

@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 from predicators import utils
 from predicators.spot_utils.perception.object_detection import \
-    detect_objects, display_camera_detections, visualize_all_artifacts
+    detect_objects, display_camera_detections
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -197,8 +197,6 @@ if __name__ == "__main__":
     # This test assumes that the 408, 409, and 410 april tags can be found.
 
     # pylint: disable=ungrouped-imports
-    from pathlib import Path
-
     from bosdyn.client import create_standard_sdk
     from bosdyn.client.lease import LeaseKeepAlive
     from bosdyn.client.util import authenticate

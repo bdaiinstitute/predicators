@@ -98,8 +98,6 @@ if __name__ == "__main__":
     # Make sure to pass in --spot_robot_ip.
 
     # pylint: disable=ungrouped-imports
-    from pathlib import Path
-
     import numpy as np
     from bosdyn.client import create_standard_sdk
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive

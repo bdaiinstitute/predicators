@@ -49,8 +49,7 @@ def get_spot_home_pose() -> math_helpers.SE2Pose:
     return math_helpers.SE2Pose(x, y, angle)
 
 
-def get_april_tag_transform(april_tag: int,
-                            graph_nav_dir: Path) -> math_helpers.SE3Pose:
+def get_april_tag_transform(april_tag: int) -> math_helpers.SE3Pose:
     """Load the world frame transform for an april tag.
 
     Returns identity if no config is found.

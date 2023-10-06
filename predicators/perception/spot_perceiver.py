@@ -9,7 +9,7 @@ from bosdyn.client import math_helpers
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
-    SpotCubeEnv, _PartialPerceptionState, _SpotObservation, \
+    SpotCubeEnv, SpotEnv, _PartialPerceptionState, _SpotObservation, \
     tool_in_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
@@ -48,6 +48,7 @@ class SpotPerceiver(BasePerceiver):
     def reset(self, env_task: EnvironmentTask) -> Task:
         self._waiting_for_observation = True
         self._curr_env = get_or_create_env(CFG.env)
+        assert isinstance(self._curr_env, SpotEnv)
         self._known_object_poses = {}
         self._known_objects_in_hand_view = set()
         self._robot = None
@@ -227,6 +228,7 @@ class SpotPerceiver(BasePerceiver):
         del state  # not used
         # Unfortunate hack to deal with the fact that the state is actually
         # not yet set. Hopefully one day other cleanups will enable cleaning.
+        assert self._curr_env is not None
         type_name_to_type = {t.name: t for t in self._curr_env.types}
         pred_name_to_pred = {p.name: p for p in self._curr_env.predicates}
         assert goal_description == "put the cube on the sticky table"

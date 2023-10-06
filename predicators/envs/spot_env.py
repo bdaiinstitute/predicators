@@ -33,7 +33,7 @@ from predicators.spot_utils.skills.spot_navigation import go_home, \
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import get_graph_nav_dir, \
-    get_robot_gripper_open_percentage, load_graph_nav_metadata, verify_estop
+    get_robot_gripper_open_percentage, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -292,10 +292,10 @@ class SpotEnv(BaseEnv):
             all_object_detection_ids, hand_rgbd)
 
         hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
-        hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
+        hand_no_detect_outfile = outdir / f"hand_no_detections_{time_str}.png"
 
         visualize_all_artifacts(hand_artifacts, hand_detections_outfile,
-                                hand_no_detections_outfile)
+                                hand_no_detect_outfile)
 
         # Now construct a dict of all objects in view, as well as a set
         # of objects that the hand can see.
