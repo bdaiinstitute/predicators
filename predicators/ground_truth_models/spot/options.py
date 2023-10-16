@@ -60,7 +60,7 @@ def _grasp_at_pixel_and_stow(robot: Robot, img: RGBDImageWithContext,
     # Grasp.
     grasp_at_pixel(robot, img, pixel, grasp_rot=grasp_rot)
     # Stow.
-    # stow_arm(robot)
+    stow_arm(robot)
 
 
 def _place_at_relative_position_and_stow(
@@ -158,8 +158,13 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     # Grasp from the top-down.
     top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
 
-    return utils.create_spot_env_action(name, objects,
-                                        _grasp_at_pixel_and_stow,
+    # TODO... figure out something reasonable!
+    if target_obj.name == "chair":
+        fn: Callable = grasp_at_pixel
+    else:
+        fn = _grasp_at_pixel_and_stow
+
+    return utils.create_spot_env_action(name, objects, fn,
                                         (robot, img, pixel, top_down_rot))
 
 
