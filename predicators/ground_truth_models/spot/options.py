@@ -30,7 +30,6 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, get_relative_se2_from_se3
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
-from predicators.spot_utils.spot_localization import SpotLocalizer
 
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
@@ -90,14 +89,19 @@ def _drop_at_relative_position_and_look(
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
 
 
-def _navigate_to_relative_pose_and_open_stow(
+def _drag_and_release(
         robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     # First navigate to the pose.
     navigate_to_relative_pose(robot, rel_pose)
     # Open the gripper.
     open_gripper(robot)
+    # Move the gripper up a little bit.
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
     # Stow the arm.
     stow_arm(robot)
+    # Move backward to avoid hitting the chair subsequently.
+    # TODO remove magic numbers
+    navigate_to_relative_pose(robot, math_helpers.SE2Pose(0.0, -0.5, 0.0))
 
 
 ###############################################################################
@@ -126,8 +130,9 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
 
     rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                          yaw)
+    target_height = state.get(target_obj, "height")
     gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
-                                    target_pose.z)
+                                    target_pose.z + target_height / 2)
 
     if not do_gaze:
         fn: Callable = navigate_to_relative_pose
@@ -288,7 +293,7 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
     move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
 
     return utils.create_spot_env_action(
-        name, objects, _navigate_to_relative_pose_and_open_stow,
+        name, objects, _drag_and_release,
         (robot, move_rel_pos))
 
 
