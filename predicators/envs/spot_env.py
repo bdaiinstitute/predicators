@@ -1191,7 +1191,6 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _base_object_type,
             _movable_object_type,
             _immovable_object_type,
-            _container_type,
         }
 
     @property
