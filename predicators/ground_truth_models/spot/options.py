@@ -81,6 +81,16 @@ def _drop_at_relative_position_and_look(
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
 
 
+def _navigate_to_relative_pose_and_open_stow(
+        robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
+    # First navigate to the pose.
+    navigate_to_relative_pose(robot, rel_pose)
+    # Open the gripper.
+    open_gripper(robot)
+    # Stow the arm.
+    stow_arm(robot)
+
+
 ###############################################################################
 #                    Helper parameterized option policies                     #
 ###############################################################################
@@ -264,6 +274,21 @@ def _drop_object_inside_policy(state: State, memory: Dict,
                                         (robot, place_rel_pos))
 
 
+def _drag_to_unblock_object_policy(state: State, memory: Dict,
+                                   objects: Sequence[Object],
+                                   params: Array) -> Action:
+    del state, memory  # not used
+
+    name = "DragToUnblockObject"
+    robot, _, _ = get_robot()
+    dx, dy = params
+    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=0.0)
+
+    return utils.create_spot_env_action(
+        name, objects, _navigate_to_relative_pose_and_open_stow,
+        (robot, move_rel_pos))
+
+
 ###############################################################################
 #                       Parameterized option factory                          #
 ###############################################################################
@@ -274,6 +299,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectFromTop": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
+    "DragToUnblockObject": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
 }
 
 _OPERATOR_NAME_TO_POLICY = {
@@ -282,6 +308,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
+    "DragToUnblockObject": _drag_to_unblock_object_policy,
 }
 
 

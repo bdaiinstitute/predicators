@@ -847,6 +847,25 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
+    # DragToUnblockObject
+    robot = Variable("?robot", _robot_type)
+    blocked = Variable("?blocked", _base_object_type)
+    blocker = Variable("?blocker", _movable_object_type)
+    parameters = [robot, blocked, blocker]
+    preconds = {
+        LiftedAtom(_Blocking, [blocker, blocked]),
+        LiftedAtom(_Holding, [robot, blocker]),
+    }
+    add_effs = {
+        LiftedAtom(_NotBlocked, [blocked]),
+    }
+    del_effs = {
+        LiftedAtom(_Blocking, [blocker, blocked]),
+        LiftedAtom(_Holding, [robot, blocker]),
+    }
+    yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+
 
 ###############################################################################
 #                                Cube Table Env                               #
@@ -1153,6 +1172,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             "MoveToReachObject",
             "MoveToViewObject",
             "PickObjectFromTop",
+            "DragToUnblockObject",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
