@@ -1243,6 +1243,10 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         chair_detection = LanguageObjectDetectionID("chair")
         detection_id_to_obj[chair_detection] = chair
 
+        bucket = Object("bucket", _container_type)
+        bucket_detection = LanguageObjectDetectionID("bucket")
+        detection_id_to_obj[bucket_detection] = bucket
+        
         known_immovables = load_spot_metadata()["known-immovable-objects"]
         for obj_name, obj_pos in known_immovables.items():
             obj = Object(obj_name, _immovable_object_type)
@@ -1259,7 +1263,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "pick up the soda can"
+        return "put the soda in the bucket"
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
