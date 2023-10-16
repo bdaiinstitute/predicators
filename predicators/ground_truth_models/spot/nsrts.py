@@ -71,9 +71,9 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
 def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
                                     rng: np.random.Generator,
                                     objs: Sequence[Object]) -> Array:
-    # Parameters are relative dx, dy to move while holding.
+    # Parameters are relative dx, dy, dyaw to move while holding.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([-1.0, 0.05])
+    return np.array([-1.0, 0.5, np.pi / 3])
 
 
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):

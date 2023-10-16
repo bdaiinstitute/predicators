@@ -20,29 +20,39 @@ from predicators.spot_utils.perception.spot_cameras import \
     get_last_captured_images
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
-    move_hand_to_relative_pose, open_gripper
+    move_hand_to_relative_pose, open_gripper, gaze_at_relative_pose
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
-    DEFAULT_HAND_LOOK_FLOOR_POSE, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, \
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, \
     get_relative_se2_from_se3
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
+from predicators.spot_utils.spot_localization import SpotLocalizer
 
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
 ###############################################################################
 
 
-def _navigate_to_relative_pose_and_move_hand(
+def _navigate_to_relative_pose_and_gaze(
         robot: Robot, rel_pose: math_helpers.SE2Pose,
-        hand_pose: math_helpers.SE3Pose) -> None:
+        localizer: SpotLocalizer,
+        gaze_target: math_helpers.Vec3) -> None:
     # First navigate to the pose.
     navigate_to_relative_pose(robot, rel_pose)
-    # Then look down.
-    move_hand_to_relative_pose(robot, hand_pose)
+    # Get the relative gaze target based on the new robot pose.
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    rel_gaze_target = math_helpers.Vec3(
+        gaze_target[0] - robot_pose.x,
+        gaze_target[1] - robot_pose.y,
+        gaze_target[2] - robot_pose.z,
+    )
+    # Then gaze.
+    gaze_at_relative_pose(robot, rel_gaze_target)
 
 
 def _grasp_at_pixel_and_stow(robot: Robot, img: RGBDImageWithContext,
@@ -51,7 +61,7 @@ def _grasp_at_pixel_and_stow(robot: Robot, img: RGBDImageWithContext,
     # Grasp.
     grasp_at_pixel(robot, img, pixel, grasp_rot=grasp_rot)
     # Stow.
-    stow_arm(robot)
+    # stow_arm(robot)
 
 
 def _place_at_relative_position_and_stow(
@@ -99,13 +109,13 @@ def _navigate_to_relative_pose_and_open_stow(
 def _move_to_target_policy(name: str, distance_param_idx: int,
                            yaw_param_idx: int, robot_obj_idx: int,
                            target_obj_idx: int,
-                           hand_pose: Optional[math_helpers.SE3Pose],
+                           do_gaze: bool,
                            state: State, memory: Dict,
                            objects: Sequence[Object], params: Array) -> Action:
 
     del memory  # not used
 
-    robot, _, _ = get_robot()
+    robot, localizer, _ = get_robot()
 
     distance = params[distance_param_idx]
     yaw = params[yaw_param_idx]
@@ -118,13 +128,16 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
 
     rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                          yaw)
+    gaze_target = math_helpers.Vec3(target_pose.x,
+                                    target_pose.y,
+                                    target_pose.z)
 
-    if hand_pose is None:
+    if not do_gaze:
         fn: Callable = navigate_to_relative_pose
         fn_args: Tuple = (robot, rel_pose)
     else:
-        fn = _navigate_to_relative_pose_and_move_hand
-        fn_args = (robot, rel_pose, hand_pose)
+        fn = _navigate_to_relative_pose_and_gaze
+        fn_args = (robot, rel_pose, localizer, gaze_target)
 
     return utils.create_spot_env_action(name, objects, fn, fn_args)
 
@@ -166,21 +179,9 @@ def _move_to_view_object_policy(state: State, memory: Dict,
     yaw_param_idx = 1
     robot_obj_idx = 0
     target_obj_idx = 1
-
-    # Determine hand pose based on whether the object is on the floor or not.
-    # In the future, we might want to generalize this to compute the angle
-    # between the target object and the robot hand, rather than doing this
-    # case-based logic.
-    target_obj = objects[target_obj_idx]
-    if state.get(target_obj, "z") < 0.0:
-        # Object is on the floor.
-        hand_pose = DEFAULT_HAND_LOOK_FLOOR_POSE
-    else:
-        # Object is on the table.
-        hand_pose = DEFAULT_HAND_LOOK_DOWN_POSE
-
+    do_gaze = True
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
-                                  robot_obj_idx, target_obj_idx, hand_pose,
+                                  robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
 
 
@@ -192,9 +193,9 @@ def _move_to_reach_object_policy(state: State, memory: Dict,
     yaw_param_idx = 1
     robot_obj_idx = 0
     target_obj_idx = 1
-    hand_pose = None
+    do_gaze = False
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
-                                  robot_obj_idx, target_obj_idx, hand_pose,
+                                  robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
 
 
@@ -281,8 +282,8 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
 
     name = "DragToUnblockObject"
     robot, _, _ = get_robot()
-    dx, dy = params
-    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=0.0)
+    dx, dy, dyaw = params
+    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
 
     return utils.create_spot_env_action(
         name, objects, _navigate_to_relative_pose_and_open_stow,
@@ -299,7 +300,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectFromTop": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
-    "DragToUnblockObject": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
+    "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
 }
 
 _OPERATOR_NAME_TO_POLICY = {

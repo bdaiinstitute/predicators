@@ -423,6 +423,10 @@ class SpotRearrangementEnv(BaseEnv):
         with open(outpath, "w", encoding="utf-8") as f:
             json.dump(json_dict, f, indent=4)
         logging.info(f"Dumped task to {outfile}. Rename it to save it.")
+
+        # TODO remove
+        self._build_observation(set())
+
         return task
 
     def render_state_plt(
