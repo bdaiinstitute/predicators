@@ -858,6 +858,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     add_effs = {
         LiftedAtom(_NotBlocked, [blocked]),
+        LiftedAtom(_HandEmpty, [robot]),
     }
     del_effs = {
         LiftedAtom(_Blocking, [blocker, blocked]),
@@ -896,6 +897,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
     def types(self) -> Set[Type]:
         return {
             _robot_type,
+            _base_object_type,
             _movable_object_type,
             _immovable_object_type,
         }
@@ -993,6 +995,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
     def types(self) -> Set[Type]:
         return {
             _robot_type,
+            _base_object_type,
             _movable_object_type,
             _immovable_object_type,
         }
@@ -1087,6 +1090,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
     def types(self) -> Set[Type]:
         return {
             _robot_type,
+            _base_object_type,
             _movable_object_type,
             _immovable_object_type,
             _container_type,
@@ -1184,6 +1188,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
     def types(self) -> Set[Type]:
         return {
             _robot_type,
+            _base_object_type,
             _movable_object_type,
             _immovable_object_type,
             _container_type,
@@ -1227,7 +1232,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         soda_can_detection = LanguageObjectDetectionID("soda can")
         detection_id_to_obj[soda_can_detection] = soda_can
 
-        chair = Object("chair", _container_type)
+        chair = Object("chair", _movable_object_type)
         chair_detection = LanguageObjectDetectionID("chair")
         detection_id_to_obj[chair_detection] = chair
 
