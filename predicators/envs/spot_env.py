@@ -712,6 +712,14 @@ def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
 
 
 def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
+    """This is not a very good classifier for blocking because it only looks at
+    the relationship between the objects and the robot's home pose.
+
+    It's possible that objects will appear blocked under this
+    classifier, but could actually be accessed from another angle. Doing
+    this in a better way is hard, but hopefully something we can do in
+    the future.
+    """
     blocker_obj, blocked_obj = objects
 
     if blocker_obj == blocked_obj:

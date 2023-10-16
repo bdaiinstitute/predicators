@@ -34,12 +34,12 @@ def gaze_at_relative_pose(
     gaze_target: math_helpers.Vec3,
     duration: float = 2.0,
 ) -> None:
-    """TODO document"""
+    """Gaze at a point relative to the robot's body frame."""
     robot_command_client = robot.ensure_client(
         RobotCommandClient.default_service_name)
     # Build the arm command.
-    cmd = RobotCommandBuilder.arm_gaze_command(gaze_target[0], gaze_target[1], gaze_target[2],
-                                               BODY_FRAME_NAME)
+    cmd = RobotCommandBuilder.arm_gaze_command(gaze_target[0], gaze_target[1],
+                                               gaze_target[2], BODY_FRAME_NAME)
     # Send the request.
     cmd_id = robot_command_client.robot_command(cmd)
     # Wait until the arm arrives at the goal.

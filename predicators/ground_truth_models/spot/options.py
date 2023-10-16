@@ -20,14 +20,14 @@ from predicators.spot_utils.perception.spot_cameras import \
     get_last_captured_images
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
-    move_hand_to_relative_pose, open_gripper, gaze_at_relative_pose
+    gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
+from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
-    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, \
-    get_relative_se2_from_se3
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, get_relative_se2_from_se3
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
 from predicators.spot_utils.spot_localization import SpotLocalizer
@@ -38,8 +38,7 @@ from predicators.spot_utils.spot_localization import SpotLocalizer
 
 
 def _navigate_to_relative_pose_and_gaze(
-        robot: Robot, rel_pose: math_helpers.SE2Pose,
-        localizer: SpotLocalizer,
+        robot: Robot, rel_pose: math_helpers.SE2Pose, localizer: SpotLocalizer,
         gaze_target: math_helpers.Vec3) -> None:
     # First navigate to the pose.
     navigate_to_relative_pose(robot, rel_pose)
@@ -108,10 +107,9 @@ def _navigate_to_relative_pose_and_open_stow(
 
 def _move_to_target_policy(name: str, distance_param_idx: int,
                            yaw_param_idx: int, robot_obj_idx: int,
-                           target_obj_idx: int,
-                           do_gaze: bool,
-                           state: State, memory: Dict,
-                           objects: Sequence[Object], params: Array) -> Action:
+                           target_obj_idx: int, do_gaze: bool, state: State,
+                           memory: Dict, objects: Sequence[Object],
+                           params: Array) -> Action:
 
     del memory  # not used
 
@@ -128,8 +126,7 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
 
     rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                          yaw)
-    gaze_target = math_helpers.Vec3(target_pose.x,
-                                    target_pose.y,
+    gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
                                     target_pose.z)
 
     if not do_gaze:
