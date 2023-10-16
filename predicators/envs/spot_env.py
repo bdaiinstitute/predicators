@@ -1184,6 +1184,8 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             "MoveToReachObject",
             "MoveToViewObject",
             "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
             "DragToUnblockObject",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -1199,6 +1201,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _base_object_type,
             _movable_object_type,
             _immovable_object_type,
+            _container_type,
         }
 
     @property
@@ -1209,6 +1212,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _Holding,
             _Reachable,
             _InView,
+            _Inside,
             _Blocking,
             _NotBlocked,
         }
@@ -1222,6 +1226,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _On,
             _Reachable,
             _InView,
+            _Inside,
             _Blocking,
             _NotBlocked,
         }
