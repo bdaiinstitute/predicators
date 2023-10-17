@@ -12,6 +12,7 @@ from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
     _object_to_top_down_geom, get_detection_id_for_object, get_robot
 from predicators.ground_truth_models import GroundTruthOptionFactory
+from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     get_last_detected_objects, get_object_center_pixel_from_artifacts
 from predicators.spot_utils.perception.perception_structs import \
@@ -89,8 +90,7 @@ def _drop_at_relative_position_and_look(
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
 
 
-def _drag_and_release(
-        robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
+def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     # First navigate to the pose.
     navigate_to_relative_pose(robot, rel_pose)
     # Open the gripper.
@@ -100,7 +100,6 @@ def _drag_and_release(
     # Stow the arm.
     stow_arm(robot)
     # Move backward to avoid hitting the chair subsequently.
-    # TODO remove magic numbers
     navigate_to_relative_pose(robot, math_helpers.SE2Pose(0.0, -0.5, 0.0))
 
 
@@ -163,8 +162,10 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     # Grasp from the top-down.
     top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
 
-    # TODO... figure out something reasonable!
-    if target_obj.name == "chair":
+    # If the target object is reasonably large, don't try to stow!
+    target_obj_volume = state.get(target_obj, "height") * \
+        state.get(target_obj, "length") * state.get(target_obj, "width")
+    if target_obj_volume > CFG.spot_grasp_stow_volume_threshold:
         fn: Callable = grasp_at_pixel
     else:
         fn = _grasp_at_pixel_and_stow
@@ -292,9 +293,8 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
     dx, dy, dyaw = params
     move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
 
-    return utils.create_spot_env_action(
-        name, objects, _drag_and_release,
-        (robot, move_rel_pos))
+    return utils.create_spot_env_action(name, objects, _drag_and_release,
+                                        (robot, move_rel_pos))
 
 
 ###############################################################################

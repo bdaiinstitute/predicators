@@ -1251,7 +1251,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         bucket = Object("bucket", _container_type)
         bucket_detection = LanguageObjectDetectionID("bucket")
         detection_id_to_obj[bucket_detection] = bucket
-        
+
         known_immovables = load_spot_metadata()["known-immovable-objects"]
         for obj_name, obj_pos in known_immovables.items():
             obj = Object(obj_name, _immovable_object_type)
