@@ -145,7 +145,7 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
 
 def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
                   objects: Sequence[Object], params: Array) -> Action:
-    del state, memory, params  # not used
+    del memory, params  # not used
 
     robot, _, _ = get_robot()
 
