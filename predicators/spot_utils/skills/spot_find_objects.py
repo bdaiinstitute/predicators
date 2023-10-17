@@ -114,8 +114,7 @@ def init_search_for_objects(
         localizer,
         object_ids,
         base_moves,
-        relative_hand_moves=relative_hand_moves,
-        use_gui=True)
+        relative_hand_moves=relative_hand_moves)
 
 
 def find_objects(
