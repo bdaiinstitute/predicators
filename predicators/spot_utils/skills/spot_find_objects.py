@@ -6,11 +6,9 @@ import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.lease import LeaseClient
 from bosdyn.client.sdk import Robot
-from matplotlib import pyplot as plt
 
 from predicators import utils
-from predicators.spot_utils.perception.object_detection import \
-    detect_objects, display_camera_detections
+from predicators.spot_utils.perception.object_detection import detect_objects
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
