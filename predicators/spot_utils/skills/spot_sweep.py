@@ -1,4 +1,4 @@
-"""Interface for spot dumping skill."""
+"""Interface for spot sweeping skill."""
 
 import numpy as np
 from bosdyn.client import math_helpers
