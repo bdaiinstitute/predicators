@@ -1,24 +1,28 @@
 """Interface for spot dumping skill."""
 
-import time
-
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
-from predicators.spot_utils.skills.spot_place import place_at_relative_position
 
 
-def sweep(robot: Robot,
-          sweep_target: math_helpers.Vec3,
-          sweep_start_distance: float,
-          sweep_yaw: float,
-          sweep_magnitude: float) -> None:
-    """TODO document
-    """
-    import ipdb; ipdb.set_trace()
+def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose,
+          sweep_yaw: float, sweep_distance: float) -> None:
+    """Sweep in the xy plane, starting at the start pose and then moving in the
+    yaw direction for the given distance."""
+    # First, move the hand to the start pose.
+    move_hand_to_relative_pose(robot, sweep_start_pose)
+    # Calculate the end pose.
+    relative_hand_move = math_helpers.SE3Pose(
+        x=sweep_distance * np.cos(sweep_yaw),
+        y=sweep_distance * np.sin(sweep_yaw),
+        z=0,
+        rot=math_helpers.Quat())
+    sweep_end_pose = relative_hand_move * sweep_start_pose
+    # Move the hand to the end pose.
+    move_hand_to_relative_pose(robot, sweep_end_pose)
 
 
 if __name__ == "__main__":
@@ -40,12 +44,16 @@ if __name__ == "__main__":
     from predicators.settings import CFG
     from predicators.spot_utils.perception.perception_structs import \
         LanguageObjectDetectionID
+    from predicators.spot_utils.skills.spot_find_objects import \
+        init_search_for_objects
+    from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
+        open_gripper
+    from predicators.spot_utils.skills.spot_navigation import go_home, \
+        navigate_to_relative_pose
+    from predicators.spot_utils.skills.spot_stow_arm import stow_arm
     from predicators.spot_utils.spot_localization import SpotLocalizer
-    from predicators.spot_utils.utils import get_graph_nav_dir, verify_estop
-    from predicators.spot_utils.skills.spot_navigation import go_home
-    from predicators.spot_utils.skills.spot_find_objects import init_search_for_objects
-    from predicators.spot_utils.skills.spot_hand_move import open_gripper, close_gripper
-
+    from predicators.spot_utils.utils import get_graph_nav_dir, \
+        get_relative_se2_from_se3, get_spot_home_pose, verify_estop
 
     def _run_manual_test() -> None:
         # Put inside a function to avoid variable scoping issues.
@@ -69,21 +77,72 @@ if __name__ == "__main__":
                                          return_at_exit=True)
         robot.time_sync.wait_for_sync()
         localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+        localizer.localize()
 
         # Go home.
         go_home(robot, localizer)
+        localizer.localize()
 
         # Find the soda can.
         soda_detection_id = LanguageObjectDetectionID("soda can")
-        detections, _ = init_search_for_objects(robot, localizer, {soda_detection_id})
+        detections, _ = init_search_for_objects(robot, localizer,
+                                                {soda_detection_id})
         soda_pose = detections[soda_detection_id]
+
+        # Move the hand to the side so that the brush can face forward.
+        hand_side_pose = math_helpers.SE3Pose(x=0.80,
+                                              y=0.0,
+                                              z=0.25,
+                                              rot=math_helpers.Quat.from_yaw(
+                                                  -np.pi / 2))
+        move_hand_to_relative_pose(robot, hand_side_pose)
 
         # Ask for the brush.
         open_gripper(robot)
         input("Put the brush in the robot's gripper, then press enter")
         close_gripper(robot)
 
-        # Sweep.
-        
+        # Move to in front of the soda can.
+        stow_arm(robot)
+        pre_sweep_nav_distance = 1.0
+        home_pose = get_spot_home_pose()
+        pre_sweep_nav_angle = home_pose.angle - np.pi
+        localizer.localize()
+        robot_pose = localizer.get_last_robot_pose()
+        rel_pose = get_relative_se2_from_se3(robot_pose, soda_pose,
+                                             pre_sweep_nav_distance,
+                                             pre_sweep_nav_angle)
+        navigate_to_relative_pose(robot, rel_pose)
+        localizer.localize()
+
+        # Calculate sweep parameters.
+        # Get angle between robot and soda can.
+        robot_pose = localizer.get_last_robot_pose()
+        robot_soda_yaw = np.arctan2(soda_pose.y - robot_pose.y,
+                                    soda_pose.x - robot_pose.x)
+        # Start sweeping 90 degrees clockwise.
+        sweep_start_yaw = robot_soda_yaw + np.pi / 2
+        # Get the sweep start x / y.
+        sweep_start_dist = 0.25
+        start_dx = sweep_start_dist * np.cos(sweep_start_yaw)
+        start_dy = sweep_start_dist * np.sin(sweep_start_yaw)
+        start_dz = 0.0
+        start_x = soda_pose.x - robot_pose.x + start_dx
+        start_y = soda_pose.y - robot_pose.y + start_dy
+        start_z = soda_pose.z - robot_pose.z + start_dz
+        sweep_start_pose = math_helpers.SE3Pose(x=start_x,
+                                                y=start_y,
+                                                z=start_z,
+                                                rot=math_helpers.Quat.from_yaw(
+                                                    -np.pi / 2))
+        # Calculate the yaw and distance for the sweep.
+        sweep_yaw = sweep_start_yaw + np.pi
+        sweep_distance = 2 * sweep_start_dist
+
+        # Execute the sweep.
+        sweep(robot, sweep_start_pose, sweep_yaw, sweep_distance)
+
+        # Stow to finish.
+        stow_arm(robot)
 
     _run_manual_test()
