@@ -95,7 +95,7 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     # collision detection.
     home_pose = get_spot_home_pose()
 
-    return np.array([-0.5, -0.5, home_pose.angle])
+    return np.array([-1.0, -0.5, home_pose.angle])
 
 
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
