@@ -327,6 +327,7 @@ class SpotPerceiver(BasePerceiver):
             Holding = pred_name_to_pred["Holding"]
             return {GroundAtom(Holding, [robot, can])}
         if goal_description == "put the soda in the bucket and hold the brush":
+            robot = Object("robot", _robot_type)
             can = Object("soda_can", _movable_object_type)
             bucket = Object("bucket", _container_type)
             brush = Object("brush", _movable_object_type)
