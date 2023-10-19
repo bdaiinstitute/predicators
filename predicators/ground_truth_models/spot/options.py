@@ -23,7 +23,7 @@ from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_navigation import \
-    navigate_to_relative_pose
+    navigate_to_absolute_pose, navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
@@ -102,6 +102,15 @@ def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     stow_arm(robot)
     # Move backward to avoid hitting the chair subsequently.
     navigate_to_relative_pose(robot, math_helpers.SE2Pose(0.0, -0.5, 0.0))
+
+
+def _move_to_absolute_pose_and_drop_stow(
+        robot: Robot, localizer: SpotLocalizer,
+        absolute_pose: math_helpers.SE2Pose) -> None:
+    # Move to the absolute pose.
+    navigate_to_absolute_pose(robot, localizer, absolute_pose)
+    # Drop and stow.
+    _drop_and_stow(robot)
 
 
 ###############################################################################
@@ -303,13 +312,13 @@ def _sweep_into_container_policy(state: State, memory: Dict,
                                  params: Array) -> Action:
     del memory  # not used
 
-    angle_offset, sweep_magnitude = params
-
     name = "SweepIntoContainer"
     robot_obj_idx = 0
     target_obj_idx = 2
 
     robot, _, _ = get_robot()
+
+    angle_offset, sweep_magnitude = params
 
     # Get angle between robot and target.
     robot_obj = objects[robot_obj_idx]
@@ -344,6 +353,28 @@ def _sweep_into_container_policy(state: State, memory: Dict,
         (robot, sweep_start_pose, sweep_yaw, sweep_distance))
 
 
+def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
+                                           objects: Sequence[Object],
+                                           params: Array) -> Action:
+    del memory  # not used
+
+    name = "PrepareContainerForSweeping"
+    target_obj_idx = 2
+
+    robot, localizer, _ = get_robot()
+
+    dx, dy = params
+
+    target_obj = objects[target_obj_idx]
+    target_pose = utils.get_se3_pose_from_state(state, target_obj)
+    translate = math_helpers.SE3Pose(x=dx, y=dy, z=0, rot=math_helpers.Quat())
+    absolute_move_pose = translate * target_pose
+
+    return utils.create_spot_env_action(name, objects,
+                                        _move_to_absolute_pose_and_drop_stow,
+                                        (robot, localizer, absolute_move_pose))
+
+
 ###############################################################################
 #                       Parameterized option factory                          #
 ###############################################################################
@@ -356,6 +387,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # angle offset, mag
+    "PrepareContainerForSweeping": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
 }
 
 _OPERATOR_NAME_TO_POLICY = {
@@ -366,6 +398,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropObjectInside": _drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
     "SweepIntoContainer": _sweep_into_container_policy,
+    "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
 }
 
 

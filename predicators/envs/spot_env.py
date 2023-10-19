@@ -934,6 +934,25 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("SweepIntoContainer", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
+    # PrepareContainerForSweeping
+    robot = Variable("?robot", _robot_type)
+    target = Variable("?target", _movable_object_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, target, container]
+    preconds = {
+        LiftedAtom(_Holding, [robot, container]),
+    }
+    add_effs = {
+        LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+        LiftedAtom(_HandEmpty, [robot]),
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, container]),
+    }
+    ignore_effs = {_Reachable, _InView}
+    yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+
 
 ###############################################################################
 #                                Cube Table Env                               #
@@ -1361,7 +1380,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "MoveToViewObject",
             "PickObjectFromTop",
             "SweepIntoContainer",
-            # TODO add PrepareContainerForSweeping
+            "PrepareContainerForSweeping"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 

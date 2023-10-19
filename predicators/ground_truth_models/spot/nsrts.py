@@ -84,6 +84,14 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
     return np.array([0.0, 0.5])
 
 
+def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
+                              rng: np.random.Generator,
+                              objs: Sequence[Object]) -> Array:
+    # Parameters are dx, dy w.r.t. the target object to place the container.
+    del state, goal, objs, rng  # randomization coming soon
+    return np.array([-0.5, -0.5])
+
+
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     """Ground-truth NSRTs for the Spot Env."""
 
@@ -115,6 +123,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DropObjectInside": _drop_object_inside_sampler,
             "DragToUnblockObject": _drag_to_unblock_object_sampler,
             "SweepIntoContainer": _sweep_into_container_sampler,
+            "PrepareContainerForSweeping": _prepare_sweeping_sampler,
         }
 
         for strips_op in env.strips_operators:
