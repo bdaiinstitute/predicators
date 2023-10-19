@@ -87,9 +87,15 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
 def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
                               rng: np.random.Generator,
                               objs: Sequence[Object]) -> Array:
-    # Parameters are dx, dy w.r.t. the target object to place the container.
+    # Parameters are dx, dy, yaw w.r.t. the target object.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([-0.5, -0.5])
+
+    # Currently assume that the robot is facing the surface in its home pose.
+    # Soon, we will change this to actually sample angles of approach and do
+    # collision detection.
+    home_pose = get_spot_home_pose()
+
+    return np.array([-0.5, -0.5, home_pose.angle])
 
 
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):

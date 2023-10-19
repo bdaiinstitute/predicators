@@ -938,7 +938,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     robot = Variable("?robot", _robot_type)
     target = Variable("?target", _movable_object_type)
     container = Variable("?container", _container_type)
-    parameters = [robot, target, container]
+    parameters = [robot, container, target]
     preconds = {
         LiftedAtom(_Holding, [robot, container]),
     }
@@ -1380,7 +1380,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "MoveToViewObject",
             "PickObjectFromTop",
             "SweepIntoContainer",
-            "PrepareContainerForSweeping"
+            "PrepareContainerForSweeping",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 

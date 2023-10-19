@@ -104,13 +104,18 @@ def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     navigate_to_relative_pose(robot, math_helpers.SE2Pose(0.0, -0.5, 0.0))
 
 
-def _move_to_absolute_pose_and_drop_stow(
+def _move_to_absolute_pose_and_place_stow(
         robot: Robot, localizer: SpotLocalizer,
         absolute_pose: math_helpers.SE2Pose) -> None:
     # Move to the absolute pose.
     navigate_to_absolute_pose(robot, localizer, absolute_pose)
-    # Drop and stow.
-    _drop_and_stow(robot)
+    # Place in front.
+    place_rel_pose = math_helpers.SE3Pose(x=0.80,
+                                          y=0.0,
+                                          z=0.0,
+                                          rot=math_helpers.Quat.from_pitch(
+                                              np.pi / 2))
+    _place_at_relative_position_and_stow(robot, place_rel_pose)
 
 
 ###############################################################################
@@ -363,15 +368,15 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
 
     robot, localizer, _ = get_robot()
 
-    dx, dy = params
+    dx, dy, dyaw = params
 
     target_obj = objects[target_obj_idx]
     target_pose = utils.get_se3_pose_from_state(state, target_obj)
-    translate = math_helpers.SE3Pose(x=dx, y=dy, z=0, rot=math_helpers.Quat())
-    absolute_move_pose = translate * target_pose
+    absolute_move_pose = math_helpers.SE2Pose(target_pose.x + dx,
+                                              target_pose.y + dy, dyaw)
 
     return utils.create_spot_env_action(name, objects,
-                                        _move_to_absolute_pose_and_drop_stow,
+                                        _move_to_absolute_pose_and_place_stow,
                                         (robot, localizer, absolute_move_pose))
 
 
@@ -387,7 +392,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # angle offset, mag
-    "PrepareContainerForSweeping": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
+    "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
 }
 
 _OPERATOR_NAME_TO_POLICY = {
