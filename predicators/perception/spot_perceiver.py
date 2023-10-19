@@ -326,4 +326,14 @@ class SpotPerceiver(BasePerceiver):
             can = Object("soda_can", _movable_object_type)
             Holding = pred_name_to_pred["Holding"]
             return {GroundAtom(Holding, [robot, can])}
+        if goal_description == "put the soda in the bucket and hold the brush":
+            can = Object("soda_can", _movable_object_type)
+            bucket = Object("bucket", _container_type)
+            brush = Object("brush", _movable_object_type)
+            Inside = pred_name_to_pred["Inside"]
+            Holding = pred_name_to_pred["Holding"]
+            return {
+                GroundAtom(Inside, [can, bucket]),
+                GroundAtom(Holding, [robot, brush])
+            }
         raise NotImplementedError("Unrecognized goal description")

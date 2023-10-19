@@ -23,6 +23,8 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose,
     sweep_end_pose = relative_hand_move * sweep_start_pose
     # Move the hand to the end pose.
     move_hand_to_relative_pose(robot, sweep_end_pose)
+    # Stow arm to finish.
+    stow_arm(robot)
 
 
 if __name__ == "__main__":
@@ -141,8 +143,5 @@ if __name__ == "__main__":
 
         # Execute the sweep.
         sweep(robot, sweep_start_pose, sweep_yaw, sweep_distance)
-
-        # Stow to finish.
-        stow_arm(robot)
 
     _run_manual_test()

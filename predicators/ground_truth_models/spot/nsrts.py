@@ -76,14 +76,25 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
     return np.array([-1.0, 0.5, np.pi / 3])
 
 
+def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
+                                  rng: np.random.Generator,
+                                  objs: Sequence[Object]) -> Array:
+    # Parameters are angle offset and sweep magnitude.
+    del state, goal, objs, rng  # randomization coming soon
+    return np.array([0.0, 0.5])
+
+
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     """Ground-truth NSRTs for the Spot Env."""
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
-            "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
-            "spot_soda_chair_env"
+            "spot_cube_env",
+            "spot_soda_table_env",
+            "spot_soda_bucket_env",
+            "spot_soda_chair_env",
+            "spot_soda_sweep_env",
         }
 
     @staticmethod
@@ -103,6 +114,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PlaceObjectOnTop": _place_object_on_top_sampler,
             "DropObjectInside": _drop_object_inside_sampler,
             "DragToUnblockObject": _drag_to_unblock_object_sampler,
+            "SweepIntoContainer": _sweep_into_container_sampler,
         }
 
         for strips_op in env.strips_operators:

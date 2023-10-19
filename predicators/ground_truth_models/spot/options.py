@@ -26,6 +26,7 @@ from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
+from predicators.spot_utils.skills.spot_sweep import sweep
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, get_relative_se2_from_se3
@@ -297,6 +298,52 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
                                         (robot, move_rel_pos))
 
 
+def _sweep_into_container_policy(state: State, memory: Dict,
+                                 objects: Sequence[Object],
+                                 params: Array) -> Action:
+    del memory  # not used
+
+    angle_offset, sweep_magnitude = params
+
+    name = "SweepIntoContainer"
+    robot_obj_idx = 0
+    target_obj_idx = 2
+
+    robot, _, _ = get_robot()
+
+    # Get angle between robot and target.
+    robot_obj = objects[robot_obj_idx]
+    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+
+    target_obj = objects[target_obj_idx]
+    target_pose = utils.get_se3_pose_from_state(state, target_obj)
+    robot_target_yaw = np.arctan2(target_pose.y - robot_pose.y,
+                                  target_pose.x - robot_pose.x)
+    # Start sweeping 90 degrees clockwise, plus offset.
+    sweep_start_yaw = robot_target_yaw + np.pi / 2 + angle_offset
+    # Get the sweep start x / y.
+    sweep_start_dist = sweep_magnitude / 2
+    start_dx = sweep_start_dist * np.cos(sweep_start_yaw)
+    start_dy = sweep_start_dist * np.sin(sweep_start_yaw)
+    start_dz = 0.0
+    start_x = target_pose.x - robot_pose.x + start_dx
+    start_y = target_pose.y - robot_pose.y + start_dy
+    start_z = target_pose.z - robot_pose.z + start_dz
+    sweep_start_pose = math_helpers.SE3Pose(x=start_x,
+                                            y=start_y,
+                                            z=start_z,
+                                            rot=math_helpers.Quat.from_yaw(
+                                                -np.pi / 2))
+    # Calculate the yaw and distance for the sweep.
+    sweep_yaw = sweep_start_yaw + np.pi
+    sweep_distance = 2 * sweep_start_dist
+
+    # Execute the sweep.
+    return utils.create_spot_env_action(
+        name, objects, sweep,
+        (robot, sweep_start_pose, sweep_yaw, sweep_distance))
+
+
 ###############################################################################
 #                       Parameterized option factory                          #
 ###############################################################################
@@ -308,6 +355,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
+    "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # angle offset, mag
 }
 
 _OPERATOR_NAME_TO_POLICY = {
@@ -317,6 +365,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
+    "SweepIntoContainer": _sweep_into_container_policy,
 }
 
 
@@ -351,7 +400,7 @@ class SpotCubeEnvGroundTruthOptionFactory(GroundTruthOptionFactory):
     def get_env_names(cls) -> Set[str]:
         return {
             "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
-            "spot_soda_chair_env"
+            "spot_soda_chair_env", "spot_soda_sweep_env"
         }
 
     @classmethod

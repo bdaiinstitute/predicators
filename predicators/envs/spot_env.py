@@ -532,6 +532,7 @@ _ONTOP_SURFACE_BUFFER = 0.1
 _INSIDE_SURFACE_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 1.7
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
+_CONTAINER_SWEEP_XY_BUFFER = 1.5
 
 
 ## Types
@@ -753,6 +754,27 @@ def _not_blocked_classifier(state: State, objects: Sequence[Object]) -> bool:
     return True
 
 
+def _container_ready_for_sweeping_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    container, target = objects
+
+    # Container is adjacent in xy to target.
+    if not _object_in_xy_classifier(
+            state, target, container, buffer=_CONTAINER_SWEEP_XY_BUFFER):
+        return False
+
+    # Container is below target.
+    target_z = state.get(target, "z")
+    target_half_height = state.get(target, "height") / 2
+    target_bottom = target_z - target_half_height
+
+    container_z = state.get(container, "z")
+    container_half_height = state.get(container, "height") / 2
+    container_top = container_z + container_half_height
+
+    return target_bottom > container_top
+
+
 _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
@@ -768,6 +790,9 @@ _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
                       _blocking_classifier)
 _NotBlocked = Predicate("NotBlocked", [_base_object_type],
                         _not_blocked_classifier)
+_ContainerReadyForSweeping = Predicate(
+    "ContainerReadyForSweeping", [_container_type, _movable_object_type],
+    _container_ready_for_sweeping_classifier)
 
 
 ## Operators (needed in the environment for non-percept atom hack)
@@ -814,6 +839,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InView, [robot, obj])
     }
+    ignore_effs = set()
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -833,6 +859,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
     }
+    ignore_effs = set()
     yield STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -852,6 +879,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
     }
+    ignore_effs = set()
     yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -872,7 +900,34 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
+    ignore_effs = set()
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+
+    # SweepIntoContainer
+    robot = Variable("?robot", _robot_type)
+    sweeper = Variable("?sweeper", _movable_object_type)
+    target = Variable("?target", _movable_object_type)
+    surface = Variable("?surface", _base_object_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, sweeper, target, surface, container]
+    preconds = {
+        LiftedAtom(_NotBlocked, [target]),
+        LiftedAtom(_Holding, [robot, sweeper]),
+        LiftedAtom(_On, [target, surface]),
+        LiftedAtom(_Reachable, [robot, target]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+    }
+    add_effs = {
+        LiftedAtom(_Inside, [target, container]),
+    }
+    del_effs = {
+        LiftedAtom(_On, [target, surface]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+        LiftedAtom(_Reachable, [robot, target]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("SweepIntoContainer", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
 
@@ -1281,3 +1336,111 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
                                              np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
         return super()._run_init_search_for_objects(detection_ids)
+
+
+###############################################################################
+#                               Soda Sweep Env                                #
+###############################################################################
+
+
+class SpotSodaSweepEnv(SpotRearrangementEnv):
+    """An environment where a soda can needs to be sweeped with a brush into a
+    bucket.
+
+    To force sweeping, the goal includes holding the brush.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToViewObject",
+            "PickObjectFromTop",
+            "SweepIntoContainer",
+            # TODO add PrepareContainerForSweeping
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_soda_sweep_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return {
+            _robot_type,
+            _base_object_type,
+            _movable_object_type,
+            _immovable_object_type,
+            _container_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {
+            _On,
+            _HandEmpty,
+            _Holding,
+            _Reachable,
+            _InView,
+            _Inside,
+            _Blocking,
+            _NotBlocked,
+            _ContainerReadyForSweeping,
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return {
+            _HandEmpty,
+            _Holding,
+            _On,
+            _Reachable,
+            _InView,
+            _Inside,
+            _Blocking,
+            _NotBlocked,
+            _ContainerReadyForSweeping,
+        }
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        soda_can = Object("soda_can", _movable_object_type)
+        soda_can_detection = LanguageObjectDetectionID("soda can")
+        detection_id_to_obj[soda_can_detection] = soda_can
+
+        brush = Object("brush", _movable_object_type)
+        brush_detection = LanguageObjectDetectionID("brush")
+        detection_id_to_obj[brush_detection] = brush
+
+        bucket = Object("bucket", _container_type)
+        bucket_detection = LanguageObjectDetectionID("bucket")
+        detection_id_to_obj[bucket_detection] = bucket
+
+        known_immovables = load_spot_metadata()["known-immovable-objects"]
+        for obj_name, obj_pos in known_immovables.items():
+            obj = Object(obj_name, _immovable_object_type)
+            pose = math_helpers.SE3Pose(obj_pos["x"],
+                                        obj_pos["y"],
+                                        obj_pos["z"],
+                                        rot=math_helpers.Quat())
+            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
+        return set()
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the soda in the bucket and hold the brush"
