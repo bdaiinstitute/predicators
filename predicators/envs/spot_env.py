@@ -525,7 +525,7 @@ class SpotRearrangementEnv(BaseEnv):
 ###############################################################################
 
 ## Constants
-HANDEMPTY_GRIPPER_THRESHOLD = 5.0  # made public for use in perceiver
+HANDEMPTY_GRIPPER_THRESHOLD = 4.0  # made public for use in perceiver
 _ONTOP_Z_THRESHOLD = 0.25
 _INSIDE_Z_THRESHOLD = 0.25
 _ONTOP_SURFACE_BUFFER = 0.1
@@ -909,7 +909,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
-    ignore_effs = set()
+    ignore_effs = {_InView, _Reachable}
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -1370,10 +1370,9 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
 
 
 class SpotSodaSweepEnv(SpotRearrangementEnv):
-    """An environment where a soda can needs to be sweeped with a brush into a
-    bucket.
+    """An environment where a soda can needs to be swept into a bucket.
 
-    To force sweeping, the goal includes holding the brush.
+    To force sweeping, the goal includes holding the sweeper.
     """
 
     def __init__(self, use_gui: bool = True) -> None:
@@ -1450,9 +1449,9 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         soda_can_detection = LanguageObjectDetectionID("soda can")
         detection_id_to_obj[soda_can_detection] = soda_can
 
-        brush = Object("brush", _movable_object_type)
-        brush_detection = LanguageObjectDetectionID("brush")
-        detection_id_to_obj[brush_detection] = brush
+        plunger = Object("plunger", _movable_object_type)
+        plunger_detection = LanguageObjectDetectionID("plunger")
+        detection_id_to_obj[plunger_detection] = plunger
 
         chair = Object("chair", _movable_object_type)
         chair_detection = LanguageObjectDetectionID("chair")

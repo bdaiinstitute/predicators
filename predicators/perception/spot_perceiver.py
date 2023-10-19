@@ -330,11 +330,11 @@ class SpotPerceiver(BasePerceiver):
             robot = Object("robot", _robot_type)
             can = Object("soda_can", _movable_object_type)
             bucket = Object("bucket", _container_type)
-            brush = Object("brush", _movable_object_type)
+            plunger = Object("plunger", _movable_object_type)
             Inside = pred_name_to_pred["Inside"]
             Holding = pred_name_to_pred["Holding"]
             return {
                 GroundAtom(Inside, [can, bucket]),
-                GroundAtom(Holding, [robot, brush])
+                GroundAtom(Holding, [robot, plunger])
             }
         raise NotImplementedError("Unrecognized goal description")
