@@ -6,6 +6,7 @@ from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
+from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 
 
 def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose,
@@ -52,7 +53,6 @@ if __name__ == "__main__":
         open_gripper
     from predicators.spot_utils.skills.spot_navigation import go_home, \
         navigate_to_relative_pose
-    from predicators.spot_utils.skills.spot_stow_arm import stow_arm
     from predicators.spot_utils.spot_localization import SpotLocalizer
     from predicators.spot_utils.utils import get_graph_nav_dir, \
         get_relative_se2_from_se3, get_spot_home_pose, verify_estop

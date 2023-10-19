@@ -779,6 +779,10 @@ _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
                     _inside_classifier)
+# NOTE: currently disabling inside predicate check because we don't have a good
+# way to do the check, especially after sweeping.
+_Inside = Predicate(_Inside.name, _Inside.types,
+                    _create_dummy_predicate_classifier(_Inside))
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
@@ -1181,7 +1185,6 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
             _On,
             _Reachable,
             _InView,
-            _Inside,
             _Blocking,
             _NotBlocked,
         }
@@ -1281,7 +1284,6 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _On,
             _Reachable,
             _InView,
-            _Inside,
             _Blocking,
             _NotBlocked,
         }
@@ -1400,7 +1402,10 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _On,
             _Reachable,
             _InView,
-            _Inside,
+            # NOTE: we can't easily check that an object is inside a container
+            # after sweeping, because the robot is holding a sweeper, blocking
+            # the hand camera that we'd usually use to check containment.
+            # _Inside,
             _Blocking,
             _NotBlocked,
             _ContainerReadyForSweeping,
