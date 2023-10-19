@@ -728,6 +728,11 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     if _object_in_xy_classifier(state, blocker_obj, blocked_obj):
         return False
 
+    spot, = state.get_objects(_robot_type)
+    if blocked_obj.is_instance(_movable_object_type) and \
+        _holding_classifier(state, [spot, blocked_obj]):
+        return False
+
     # Draw a line between blocked and the robot’s home pose.
     # Check if blocker intersects that line.
     robot_home_pose = get_spot_home_pose()
@@ -1379,6 +1384,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "MoveToReachObject",
             "MoveToViewObject",
             "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DragToUnblockObject",
             "SweepIntoContainer",
             "PrepareContainerForSweeping",
         }
@@ -1446,6 +1453,10 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         brush = Object("brush", _movable_object_type)
         brush_detection = LanguageObjectDetectionID("brush")
         detection_id_to_obj[brush_detection] = brush
+
+        chair = Object("chair", _movable_object_type)
+        chair_detection = LanguageObjectDetectionID("chair")
+        detection_id_to_obj[chair_detection] = chair
 
         bucket = Object("bucket", _container_type)
         bucket_detection = LanguageObjectDetectionID("bucket")
