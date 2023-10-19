@@ -1248,11 +1248,6 @@ def run_task_plan_once(
         raise ValueError("Unrecognized sesame_task_planner: "
                          f"{CFG.sesame_task_planner}")
 
-    # TODO remove
-    print("TASK PLAN:")
-    for step in plan:
-        print(step.name, step.objects)
-
     return plan, atoms_seq, metrics
 
 

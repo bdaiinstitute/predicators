@@ -73,7 +73,7 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
                                     objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dyaw to move while holding.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([-1.0, 0.5, np.pi / 3])
+    return np.array([-1.25, 0.0, np.pi / 3])
 
 
 def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
@@ -95,7 +95,7 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     # collision detection.
     home_pose = get_spot_home_pose()
 
-    return np.array([-0.8, -0.5, home_pose.angle])
+    return np.array([-0.8, -0.4, home_pose.angle])
 
 
 class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):

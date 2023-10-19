@@ -525,8 +525,8 @@ class SpotRearrangementEnv(BaseEnv):
 ###############################################################################
 
 ## Constants
-HANDEMPTY_GRIPPER_THRESHOLD = 4.0  # made public for use in perceiver
-_ONTOP_Z_THRESHOLD = 0.25
+HANDEMPTY_GRIPPER_THRESHOLD = 5.0  # made public for use in perceiver
+_ONTOP_Z_THRESHOLD = 0.5
 _INSIDE_Z_THRESHOLD = 0.25
 _ONTOP_SURFACE_BUFFER = 0.1
 _INSIDE_SURFACE_BUFFER = 0.1
@@ -1450,7 +1450,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[soda_can_detection] = soda_can
 
         plunger = Object("plunger", _movable_object_type)
-        plunger_detection = LanguageObjectDetectionID("plunger")
+        plunger_detection = LanguageObjectDetectionID("wood black plunger")
         detection_id_to_obj[plunger_detection] = plunger
 
         chair = Object("chair", _movable_object_type)

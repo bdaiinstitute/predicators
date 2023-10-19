@@ -41,6 +41,8 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
 def _navigate_to_relative_pose_and_gaze(
         robot: Robot, rel_pose: math_helpers.SE2Pose, localizer: SpotLocalizer,
         gaze_target: math_helpers.Vec3) -> None:
+    # Stow first.
+    stow_arm(robot)
     # First navigate to the pose.
     navigate_to_relative_pose(robot, rel_pose)
     # Get the relative gaze target based on the new robot pose.
