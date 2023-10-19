@@ -526,7 +526,7 @@ class SpotRearrangementEnv(BaseEnv):
 
 ## Constants
 HANDEMPTY_GRIPPER_THRESHOLD = 5.0  # made public for use in perceiver
-_ONTOP_Z_THRESHOLD = 0.5
+_ONTOP_Z_THRESHOLD = 0.25
 _INSIDE_Z_THRESHOLD = 0.25
 _ONTOP_SURFACE_BUFFER = 0.1
 _INSIDE_SURFACE_BUFFER = 0.1
