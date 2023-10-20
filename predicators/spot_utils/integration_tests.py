@@ -3,8 +3,9 @@
 Run with --spot_robot_ip and any other flags.
 """
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from bosdyn.client import create_standard_sdk, math_helpers
@@ -34,6 +35,82 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     get_relative_se2_from_se3, sample_move_offset_from_target, \
     spot_pose_to_geom2d, verify_estop
 
+from PIL import Image
+
+OBJECT_CROPS = {
+    # min_x, max_x, min_y, max_y
+    "hammer": (160, 450, 160, 350),
+    "hex_key": (160, 450, 160, 350),
+    "brush": (100, 400, 350, 480),
+    "hex_screwdriver": (100, 400, 350, 480),
+    "bike_release": (160, 450, 0, 350)
+}
+
+OBJECT_COLOR_BOUNDS = {
+    # (min R, min G, min B), (max R, max G, max B)
+    "hammer": ((0, 0, 50), (40, 40, 200)),
+    "hex_key": ((0, 50, 50), (40, 150, 200)),
+    "brush": ((0, 100, 200), (80, 255, 255)),
+    "hex_screwdriver": ((0, 0, 50), (40, 40, 200)),
+    "bike_release": ((0, 120, 160), (50, 160, 255))
+}
+
+OBJECT_GRASP_OFFSET = {
+    # dx, dy
+    "hammer": (0, 0),
+    "hex_key": (0, 50),
+    "brush": (0, 0),
+    "hex_screwdriver": (0, 0),
+    "bike_release": (0, 0),
+}
+
+def _find_object_center(img: np.ndarray,
+                        obj_name: str) -> Optional[Tuple[int, int]]:
+    # Copy to make sure we don't modify the image.
+    img = img.copy()
+
+    # Crop
+    crop_min_x, crop_max_x, crop_min_y, crop_max_y = OBJECT_CROPS[obj_name]
+    cropped_img = img[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
+    im = Image.fromarray(cropped_img)
+    im.save("hand_cropped.jpeg")
+
+    # Mask color.
+    lo, hi = OBJECT_COLOR_BOUNDS[obj_name]
+    lower = np.array(lo)
+    upper = np.array(hi)
+    mask = cv2.inRange(cropped_img, lower, upper)
+    im = Image.fromarray(mask)
+    im.save("hand_mask.jpeg")
+
+    # Apply blur.
+    mask = cv2.GaussianBlur(mask, (5, 5), 0)
+
+    # Connected components with stats.
+    nb_components, _, stats, centroids = cv2.connectedComponentsWithStats(
+        mask, connectivity=4)
+
+    # Fail if nothing found.
+    if nb_components <= 1:
+        return None
+
+    # Find the largest non background component.
+    # NOTE: range() starts from 1 since 0 is the background label.
+    max_label, _ = max(
+        ((i, stats[i, cv2.CC_STAT_AREA]) for i in range(1, nb_components)),
+        key=lambda x: x[1])
+
+    cropped_x, cropped_y = map(int, centroids[max_label])
+
+    x = cropped_x + crop_min_x
+    y = cropped_y + crop_min_y
+
+    # Apply offset.
+    dx, dy = OBJECT_GRASP_OFFSET[obj_name]
+    x = np.clip(x + dx, 0, img.shape[1])
+    y = np.clip(y + dy, 0, img.shape[0])
+
+    return (x, y)
 
 def test_find_move_pick_place(
     robot: Robot,
@@ -95,11 +172,10 @@ def test_find_move_pick_place(
 
     # Run detection to get a pixel for grasping.
     _, artifacts = detect_objects([manipuland_id], rgbds)
-    pixel = get_object_center_pixel_from_artifacts(artifacts, manipuland_id,
-                                                   hand_camera)
+    pixel = _find_object_center(rgbds['hand_color_image'].rgb, "bike_release")
 
     # Pick at the pixel with a top-down grasp.
-    grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+    grasp_at_pixel(robot, rgbds[hand_camera], pixel, grasp_rot=math_helpers.Quat.from_pitch(0.0))
     localizer.localize()
 
     # Stow the arm.
@@ -314,7 +390,83 @@ def test_move_with_sampling() -> None:
                                              angle)
         navigate_to_relative_pose(robot, rel_pose)
 
+def test_find_move_grasp(
+    robot: Robot,
+    localizer: SpotLocalizer,
+    manipuland_id: ObjectDetectionID,
+    pre_pick_surface_nav_distance: float = 1.25,
+    pre_pick_floor_nav_distance: float = 1.75,
+    pre_pick_nav_angle: float = -np.pi / 2,
+) -> None:
+    """TBD
+    """
+    go_home(robot, localizer)
+    localizer.localize()
 
+    # Find objects.
+    object_ids = [manipuland_id]
+    detections, _ = init_search_for_objects(robot, localizer, object_ids)
+
+    # Get current robot pose.
+    robot_pose = localizer.get_last_robot_pose()
+    # In this case, we assume the object is on the floor.
+    rel_pose = get_relative_se2_from_se3(robot_pose,
+                                            detections[manipuland_id],
+                                            pre_pick_floor_nav_distance,
+                                            pre_pick_nav_angle)
+    navigate_to_relative_pose(robot, rel_pose)
+    localizer.localize()
+
+    # Look down at the surface.
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+    open_gripper(robot)
+
+    # Capture an image from the hand camera.
+    hand_camera = "hand_color_image"
+    rgbds = capture_images(robot, localizer, [hand_camera])
+
+    # Run detection to get a pixel for grasping.
+    pixel = _find_object_center(rgbds[hand_camera].rgb, "bike_release")
+
+    # Pick at the pixel with a top-down grasp.
+    grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+    localizer.localize()
+
+def test_find_grasp_bike_release() -> None:
+    """Test for find, move, pick bike release"""
+
+    # Parse flags.
+    args = utils.parse_args(env_required=False,
+                            seed_required=False,
+                            approach_required=False)
+    utils.update_config(args)
+
+    # Set up the robot and localizer.
+    hostname = CFG.spot_robot_ip
+    upload_dir = Path(__file__).parent / "graph_nav_maps"
+    path = upload_dir / CFG.spot_graph_nav_map
+    sdk = create_standard_sdk("TestClient")
+    robot = sdk.create_robot(hostname)
+    authenticate(robot)
+    verify_estop(robot)
+    lease_client = robot.ensure_client(LeaseClient.default_service_name)
+    lease_client.take()
+    lease_keepalive = LeaseKeepAlive(lease_client,
+                                     must_acquire=True,
+                                     return_at_exit=True)
+    assert path.exists()
+    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+
+    # Run test with april tag release.
+    release = AprilTagObjectDetectionID(
+        401, math_helpers.SE3Pose(0.0, 0.0, 0.0, math_helpers.Quat()))
+
+    # Run test with cube on floor.
+    input("Place the bike outside room by Fiducial number 9")
+    test_find_move_grasp(robot, localizer, release, pre_pick_nav_angle = 0)
+    
 if __name__ == "__main__":
-    test_all_find_move_pick_place()
+    # test_all_find_move_pick_place()
     # test_move_with_sampling()
+    test_find_grasp_bike_release()
+
