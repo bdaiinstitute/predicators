@@ -8,18 +8,16 @@ from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
 
 
-def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose,
-          sweep_yaw: float, sweep_distance: float) -> None:
-    """Sweep in the xy plane, starting at the start pose and then moving in the
-    yaw direction for the given distance."""
+def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
+          move_dy: float) -> None:
+    """Sweep in the xy plane, starting at the start pose and then moving."""
     # First, move the hand to the start pose.
     move_hand_to_relative_pose(robot, sweep_start_pose)
     # Calculate the end pose.
-    relative_hand_move = math_helpers.SE3Pose(
-        x=sweep_distance * np.cos(sweep_yaw),
-        y=sweep_distance * np.sin(sweep_yaw),
-        z=0,
-        rot=math_helpers.Quat())
+    relative_hand_move = math_helpers.SE3Pose(x=move_dx,
+                                              y=move_dy,
+                                              z=0,
+                                              rot=math_helpers.Quat())
     sweep_end_pose = relative_hand_move * sweep_start_pose
     # Move the hand to the end pose.
     move_hand_to_relative_pose(robot, sweep_end_pose)
@@ -118,14 +116,8 @@ if __name__ == "__main__":
         # Calculate sweep parameters.
         # Get angle between robot and soda can.
         robot_pose = localizer.get_last_robot_pose()
-        robot_soda_yaw = np.arctan2(soda_pose.y - robot_pose.y,
-                                    soda_pose.x - robot_pose.x)
-        # Start sweeping 90 degrees clockwise.
-        sweep_start_yaw = robot_soda_yaw + np.pi / 2
-        # Get the sweep start x / y.
-        sweep_start_dist = 0.25
-        start_dx = sweep_start_dist * np.cos(sweep_start_yaw)
-        start_dy = sweep_start_dist * np.sin(sweep_start_yaw)
+        start_dx = 0.0
+        start_dy = 0.25
         start_dz = 0.0
         start_x = soda_pose.x - robot_pose.x + start_dx
         start_y = soda_pose.y - robot_pose.y + start_dy
@@ -136,11 +128,11 @@ if __name__ == "__main__":
                                                 rot=math_helpers.Quat.from_yaw(
                                                     -np.pi / 2))
         # Calculate the yaw and distance for the sweep.
-        sweep_yaw = sweep_start_yaw + np.pi
-        sweep_distance = 2 * sweep_start_dist
+        sweep_move_dx = 0.0
+        sweep_move_dy = -0.5
 
         # Execute the sweep.
-        sweep(robot, sweep_start_pose, sweep_yaw, sweep_distance)
+        sweep(robot, sweep_start_pose, sweep_move_dx, sweep_move_dy)
 
         # Stow to finish.
         stow_arm(robot)
