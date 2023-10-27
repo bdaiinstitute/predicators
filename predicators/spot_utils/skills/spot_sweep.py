@@ -116,7 +116,6 @@ if __name__ == "__main__":
         localizer.localize()
 
         # Calculate sweep parameters.
-        # Get angle between robot and soda can.
         robot_pose = localizer.get_last_robot_pose()
         start_dx = 0.0
         start_dy = 0.25

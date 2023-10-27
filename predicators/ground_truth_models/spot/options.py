@@ -333,14 +333,8 @@ def _sweep_into_container_policy(state: State, memory: Dict,
 
     target_obj = objects[target_obj_idx]
     target_pose = utils.get_se3_pose_from_state(state, target_obj)
-    robot_target_yaw = np.arctan2(target_pose.y - robot_pose.y,
-                                  target_pose.x - robot_pose.x)
-    # Start sweeping 90 degrees clockwise, plus offset.
-    sweep_start_yaw = robot_target_yaw + np.pi / 2 + angle_offset
-    # Get the sweep start x / y.
-    sweep_start_dist = sweep_magnitude / 2
-    start_dx = sweep_start_dist * np.cos(sweep_start_yaw)
-    start_dy = sweep_start_dist * np.sin(sweep_start_yaw)
+    start_dx = 0.0
+    start_dy = 0.25
     start_dz = 0.0
     start_x = target_pose.x - robot_pose.x + start_dx
     start_y = target_pose.y - robot_pose.y + start_dy
@@ -351,13 +345,13 @@ def _sweep_into_container_policy(state: State, memory: Dict,
                                             rot=math_helpers.Quat.from_yaw(
                                                 -np.pi / 2))
     # Calculate the yaw and distance for the sweep.
-    sweep_yaw = sweep_start_yaw + np.pi
-    sweep_distance = 2 * sweep_start_dist
+    sweep_move_dx = 0.0
+    sweep_move_dy = -0.5
 
     # Execute the sweep.
     return utils.create_spot_env_action(
         name, objects, sweep,
-        (robot, sweep_start_pose, sweep_yaw, sweep_distance))
+        (robot, sweep_start_pose, sweep_move_dx, sweep_move_dy))
 
 
 def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
