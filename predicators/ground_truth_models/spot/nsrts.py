@@ -79,9 +79,9 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
 def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
                                   objs: Sequence[Object]) -> Array:
-    # Parameters are angle offset and sweep magnitude.
+    # Parameters are start dx, start dy.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.5])
+    return np.array([0.0, 0.25])
 
 
 def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],

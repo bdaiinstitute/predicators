@@ -325,16 +325,13 @@ def _sweep_into_container_policy(state: State, memory: Dict,
 
     robot, _, _ = get_robot()
 
-    angle_offset, sweep_magnitude = params
+    start_dx, start_dy = params
 
-    # Get angle between robot and target.
     robot_obj = objects[robot_obj_idx]
     robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
 
     target_obj = objects[target_obj_idx]
     target_pose = utils.get_se3_pose_from_state(state, target_obj)
-    start_dx = 0.0
-    start_dy = 0.25
     start_dz = 0.0
     start_x = target_pose.x - robot_pose.x + start_dx
     start_y = target_pose.y - robot_pose.y + start_dy
@@ -345,8 +342,8 @@ def _sweep_into_container_policy(state: State, memory: Dict,
                                             rot=math_helpers.Quat.from_yaw(
                                                 -np.pi / 2))
     # Calculate the yaw and distance for the sweep.
-    sweep_move_dx = 0.0
-    sweep_move_dy = -0.5
+    sweep_move_dx = start_dx
+    sweep_move_dy = -(2 * start_dy)
 
     # Execute the sweep.
     return utils.create_spot_env_action(
@@ -387,7 +384,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
-    "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # angle offset, mag
+    "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
 }
 
