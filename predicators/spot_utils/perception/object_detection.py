@@ -19,7 +19,7 @@ import logging
 from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 
-# import apriltag
+import apriltag
 import cv2
 import dill as pkl
 import numpy as np
