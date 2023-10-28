@@ -26,8 +26,8 @@ from predicators.spot_utils.perception.object_detection import \
     ObjectDetectionID
 from predicators.spot_utils.utils import load_spot_metadata
 from predicators.structs import Action, Array, EnvironmentTask, \
-    GoalDescription, GroundAtom, Object, Predicate, State, STRIPSOperator, \
-    Type
+    GoalDescription, GroundAtom, Object, ParameterizedOption, Predicate, \
+    State, STRIPSOperator, Type
 
 ###############################################################################
 #                         Custom Environment Definition                       #
@@ -41,7 +41,7 @@ _MoveToViewObjectOperator = _OP_TO_NAME["MoveToViewObject"]
 _OldPickObjectFromTopOperator = _OP_TO_NAME["PickObjectFromTop"]
 _CustomPickObjectFromTopOperator = STRIPSOperator(
     "CustomPickObjectFromTop",
-    # These can all be changed, but for now, we'll just use them as-is.
+    # These can all be changed, but for now, we'll just use them as is.
     _OldPickObjectFromTopOperator.parameters,
     _OldPickObjectFromTopOperator.preconditions,
     _OldPickObjectFromTopOperator.add_effects,
@@ -149,7 +149,7 @@ _MoveToViewObjectNSRT = _MoveToViewObjectOperator.make_nsrt(
 types = [p.type for p in _CustomPickObjectFromTopOperator.parameters]
 
 
-def _execute_custom_pick_from_top_on_robot(object_name: str):
+def _execute_custom_pick_from_top_on_robot(object_name: str) -> None:
     # TODO: add whatever code here
     print(f"I'm executing a pick on {object_name}!")
 
@@ -188,7 +188,9 @@ def _main() -> None:
     env = CustomSpotGraspEnv()
 
     # Create the options and NSRTs.
-    options = {_MoveToViewObjectOption, _CustomPickObjectFromTopOption}
+    options: Set[ParameterizedOption] = {
+        _MoveToViewObjectOption, _CustomPickObjectFromTopOption
+    }
     nsrts = {_MoveToViewObjectNSRT, _CustomPickObjectFromTopNSRT}
 
     # Create the option model (shouldn't actually get used for now).
@@ -196,15 +198,15 @@ def _main() -> None:
 
     # Create oracle approach.
     train_tasks = [t.task for t in env.get_train_tasks()]
-    approach = OracleApproach(env.predicates,
-                              options,
-                              env.types,
-                              env.action_space,
-                              train_tasks,
-                              nsrts=nsrts,
-                              option_model=option_model)
+    base_approach = OracleApproach(env.predicates,
+                                   options,
+                                   env.types,
+                                   env.action_space,
+                                   train_tasks,
+                                   nsrts=nsrts,
+                                   option_model=option_model)
     # Wrap the approach in a spot wrapper.
-    approach = SpotWrapperApproach(approach, env.predicates, options,
+    approach = SpotWrapperApproach(base_approach, env.predicates, options,
                                    env.types, env.action_space, train_tasks)
 
     # Create perceiver, execution monitor, cogman.
@@ -228,6 +230,10 @@ def _main() -> None:
             print("Goal reached!")
             break
         act = cogman.step(obs)
+        if act is None:
+            # I don't expect this to happen.
+            print("Cogman terminated without goal reached.")
+            break
         obs = env.step(act)
     else:
         print(f"Reached max steps ({max_steps}), goal not reached")
