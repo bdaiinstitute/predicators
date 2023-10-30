@@ -1477,3 +1477,99 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda in the bucket and hold the brush"
+
+
+###############################################################################
+#                Real-World Ball and Cup Sticky Table Env                     #
+###############################################################################
+
+
+class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
+    """A real-world version of the ball and cup sticky table environment.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_ball_and_cup_sticky_table_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return {
+            _robot_type,
+            _base_object_type,
+            _movable_object_type,
+            _immovable_object_type,
+            _container_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {
+            _On,
+            _HandEmpty,
+            _Holding,
+            _Reachable,
+            _InView,
+            _Inside,
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return {
+            _HandEmpty,
+            _Holding,
+            _On,
+            _Reachable,
+            _InView,
+            _Inside,
+        }
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        {_On}
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        ball = Object("ball", _movable_object_type)
+        ball_detection = LanguageObjectDetectionID("billiards ball")
+        detection_id_to_obj[ball_detection] = ball
+
+        cup = Object("cup", _container_type)
+        cup_detection = LanguageObjectDetectionID("cup")
+        detection_id_to_obj[cup_detection] = cup
+
+        # TODO: how do we find hte positions of immovable objects to put
+        # into the metadata?
+        known_immovables = load_spot_metadata()["known-immovable-objects"]
+        for obj_name, obj_pos in known_immovables.items():
+            obj = Object(obj_name, _immovable_object_type)
+            pose = math_helpers.SE3Pose(obj_pos["x"],
+                                        obj_pos["y"],
+                                        obj_pos["z"],
+                                        rot=math_helpers.Quat())
+            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
+        return set()
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the ball on the table"
