@@ -113,7 +113,10 @@ def _create_dummy_predicate_classifier(
         pred: Predicate) -> Callable[[State, Sequence[Object]], bool]:
 
     def _classifier(s: State, objs: Sequence[Object]) -> bool:
-        assert isinstance(s, _PartialPerceptionState)
+        try:
+            assert isinstance(s, _PartialPerceptionState)
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
         atom = GroundAtom(pred, objs)
         return s.simulator_state_atom_holds(atom)
 
@@ -785,7 +788,7 @@ _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
                     _inside_classifier)
 # NOTE: currently disabling inside predicate check because we don't have a good
 # way to do the check, especially after sweeping.
-_Inside = Predicate(_Inside.name, _Inside.types,
+_FakeInside = Predicate(_Inside.name, _Inside.types,
                     _create_dummy_predicate_classifier(_Inside))
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
@@ -1539,7 +1542,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
-        {_On}
+        return {_On}
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
@@ -1547,14 +1550,14 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         ball = Object("ball", _movable_object_type)
-        ball_detection = LanguageObjectDetectionID("billiards ball")
+        ball_detection = LanguageObjectDetectionID("ball")
         detection_id_to_obj[ball_detection] = ball
 
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("cup")
+        cup_detection = LanguageObjectDetectionID("tape roll")
         detection_id_to_obj[cup_detection] = cup
 
-        # TODO: how do we find hte positions of immovable objects to put
+        # TODO: how do we find the positions of immovable objects to put
         # into the metadata?
         known_immovables = load_spot_metadata()["known-immovable-objects"]
         for obj_name, obj_pos in known_immovables.items():
