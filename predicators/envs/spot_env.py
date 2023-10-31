@@ -1584,7 +1584,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj[ball_detection] = ball
 
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("azure cup")
+        cup_detection = LanguageObjectDetectionID("blue cup")
         detection_id_to_obj[cup_detection] = cup
 
         known_immovables = load_spot_metadata()["known-immovable-objects"]
