@@ -14,6 +14,10 @@ april-tag-offsets:
     z: -0.2
 # Known immovable objects. Assuming default rotations.
 known-immovable-objects:
+  smooth_table:
+    x: 0.72
+    y: 1.25
+    z: -0.42
   floor:
     x: 0.0
     y: 0.0
