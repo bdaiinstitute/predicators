@@ -383,6 +383,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectFromTop": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
+    "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
@@ -394,6 +395,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
+    "DropObjectInsideContainerOnTop": _drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
     "SweepIntoContainer": _sweep_into_container_policy,
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,

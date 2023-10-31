@@ -362,7 +362,7 @@ class SpotRearrangementEnv(BaseEnv):
         # Have the spot walk around the environment once to construct
         # an initial observation.
         objects_in_view = self._actively_construct_initial_object_views()
-        rgb_images = capture_images(self._robot, self._localizer)
+        rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
         self._localizer.localize()
@@ -370,7 +370,7 @@ class SpotRearrangementEnv(BaseEnv):
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
-        obs = _SpotObservation(rgb_images, objects_in_view, set(),
+        obs = _SpotObservation(rgbd_images, objects_in_view, set(),
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds)
         goal_description = self._generate_goal_description()
@@ -504,8 +504,14 @@ class SpotRearrangementEnv(BaseEnv):
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        detections, _ = init_search_for_objects(self._robot, self._localizer,
+        detections, artifacts = init_search_for_objects(self._robot, self._localizer,
                                                 detection_ids)
+        outdir = Path(CFG.spot_perception_outdir)
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        detections_outfile = outdir / f"detections_{time_str}.png"
+        no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+        visualize_all_artifacts(artifacts, detections_outfile,
+                                no_detections_outfile)
         return detections
 
     @property
@@ -892,6 +898,29 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     ignore_effs = set()
     yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+
+    # DropObjectInsideContainerOnTop
+    robot = Variable("?robot", _robot_type)
+    held = Variable("?held", _movable_object_type)
+    container = Variable("?container", _container_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, held, container, surface]
+    preconds = {
+        LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_Reachable, [robot, container]),
+        LiftedAtom(_On, [container, surface]),
+    }
+    add_effs = {
+        LiftedAtom(_Inside, [held, container]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_On, [held, surface])
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, held]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("DropObjectInsideContainerOnTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # DragToUnblockObject
@@ -1500,6 +1529,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             "MoveToViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
+            "DropObjectInsideContainerOnTop"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -1554,11 +1584,9 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj[ball_detection] = ball
 
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("tape roll")
+        cup_detection = LanguageObjectDetectionID("azure cup")
         detection_id_to_obj[cup_detection] = cup
 
-        # TODO: how do we find the positions of immovable objects to put
-        # into the metadata?
         known_immovables = load_spot_metadata()["known-immovable-objects"]
         for obj_name, obj_pos in known_immovables.items():
             obj = Object(obj_name, _immovable_object_type)
