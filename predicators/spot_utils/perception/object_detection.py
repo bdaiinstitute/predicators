@@ -356,6 +356,10 @@ def _get_pose_from_segmented_bounding_box(
         print("WARNING: depth reading failed. Is hand occluding?")
         return None
     depth_value = np.median(segmented_depth)
+    if rgbd.camera_name == "left_fisheye_image" or rgbd.camera_name == "right_fisheye_image":
+        print(rgbd.camera_name)
+        print(rgbd.depth.max())
+    #     import ipdb; ipdb.set_trace()
 
     # Convert to camera frame position.
     fx = rgbd.camera_model.intrinsics.focal_length.x

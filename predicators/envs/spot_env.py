@@ -278,6 +278,7 @@ class SpotRearrangementEnv(BaseEnv):
         # Get the universe of all object detections.
         all_object_detection_ids = set(self._detection_id_to_obj)
         # Get the camera images.
+        time.sleep(0.5)
         rgbds = capture_images(self._robot, self._localizer)
         all_detections, all_artifacts = detect_objects(
             all_object_detection_ids, rgbds)
@@ -644,13 +645,21 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
 
     if not _object_in_xy_classifier(
             state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
+        if "cup" in obj_on.name and "drafting" in obj_surface.name:
+            import ipdb; ipdb.set_trace()
+        classifier_val_for_debugging = _object_in_xy_classifier(
+            state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER)
         return False
 
     # Check that the bottom of the object is close to the top of the surface.
     expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
     actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
 
-    return abs(actual - expect) < _ONTOP_Z_THRESHOLD
+    classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
+    if "cup" in obj_on.name and "drafting" in obj_surface.name and not classification_val:
+        import ipdb; ipdb.set_trace()
+
+    return classification_val
 
 
 def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1580,8 +1589,12 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         ball = Object("ball", _movable_object_type)
-        ball_detection = LanguageObjectDetectionID("ball")
+        ball_detection = LanguageObjectDetectionID("small white ball")
         detection_id_to_obj[ball_detection] = ball
+
+        # cube = Object("cube", _movable_object_type)
+        # cube_detection = AprilTagObjectDetectionID(410)
+        # detection_id_to_obj[cube_detection] = cube
 
         cup = Object("cup", _container_type)
         cup_detection = LanguageObjectDetectionID("blue cup")

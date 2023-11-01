@@ -32,13 +32,17 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
                                   objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
-    del state, goal, objs, rng  # randomization coming soon
+    del state, goal, rng  # randomization coming soon
+
+    home_pose = get_spot_home_pose()
 
     # Currently assume that the robot is facing the surface in its home pose.
     # Soon, we will change this to actually sample angles of approach and do
     # collision detection.
-    home_pose = get_spot_home_pose()
     approach_angle = home_pose.angle - np.pi
+
+    if len(objs) == 2 and objs[1].name == "cup":
+        approach_angle = home_pose.angle - (np.pi / 2)
 
     # NOTE: closer than move_to_view. Important for placing.
     return np.array([0.8, approach_angle])
@@ -56,7 +60,7 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
                                  objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dz (to surface objects center).
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.0, 0.1])
+    return np.array([0.0, 0.0, 0.05])
 
 
 def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
@@ -64,8 +68,13 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
                                 objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dz to the center of the top of the
     # container.
-    del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.0, 0.5])
+    del state, goal, rng  # randomization coming soon
+
+    drop_height = 0.5
+    if len(objs) == 3 and objs[1].name == "cup":
+        drop_height = 0.15
+
+    return np.array([0.0, 0.0, drop_height])
 
 
 def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],

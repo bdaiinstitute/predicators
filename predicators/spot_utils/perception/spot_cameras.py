@@ -2,6 +2,8 @@
 from typing import Collection, Dict, Optional, Type
 
 import cv2
+from pathlib import Path
+from matplotlib import pyplot as plt
 import numpy as np
 from bosdyn.api import image_pb2
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, get_a_tform_b
@@ -114,6 +116,26 @@ def capture_images(
                                     transforms_snapshot,
                                     frame_name_image_sensor, camera_model)
         rgbds[camera_name] = rgbd
+
+        # DEBUGGING!
+        no_detections_outfile = Path(".") / "idk_man.png"
+        if camera_name == "hand_color_image":
+            _, axes = plt.subplots(1,
+                                3,
+                                squeeze=False,
+                                figsize=(3 * 2, 3 * 1))
+            plt.suptitle("Cameras without Detections")
+            ax_row = axes[0]
+            ax_row[0].imshow(rgbd.rotated_rgb)
+            ax_row[1].imshow(rgbd.rgb)
+            ax_row[2].imshow(rgbd.depth, cmap='Greys_r', vmin=0, vmax=10000)
+
+            # Labels.
+            ax_row[0].set_ylabel(f"[{rgbd.camera_name}]", fontsize=6)
+            plt.tight_layout()
+            plt.savefig(no_detections_outfile, dpi=300)
+            print(f"Wrote out to {no_detections_outfile}.")
+
 
     _LAST_CAPTURED_IMAGES = rgbds
 
