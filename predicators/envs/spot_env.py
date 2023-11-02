@@ -400,6 +400,8 @@ class SpotRearrangementEnv(BaseEnv):
         for obj in objects_in_view:
             if "lost" in obj.type.feature_names:
                 init_json_dict[obj.name]["lost"] = 0.0
+            if "in_hand_view" in obj.type.feature_names:
+                init_json_dict[obj.name]["in_hand_view"] = 1.0
             if "in_view" in obj.type.feature_names:
                 init_json_dict[obj.name]["in_view"] = 1.0
             if "held" in obj.type.feature_names:
@@ -559,7 +561,7 @@ _base_object_type = Type("base-object", [
 ])
 _movable_object_type = Type("movable",
                             list(_base_object_type.feature_names) +
-                            ["held", "lost", "in_view"],
+                            ["held", "lost", "in_hand_view", "in_view"],
                             parent=_base_object_type)
 _immovable_object_type = Type("immovable",
                               list(_base_object_type.feature_names),
@@ -687,7 +689,12 @@ def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     return obj_top < container_top + _INSIDE_Z_THRESHOLD
 
 
-def in_view_classifier(state: State, objects: Sequence[Object]) -> bool:
+def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
+    """Made public for perceiver."""
+    _, tool = objects
+    return state.get(tool, "in_hand_view") > 0.5
+
+def in_general_view_classifier(state: State, objects: Sequence[Object]) -> bool:
     """Made public for perceiver."""
     _, tool = objects
     return state.get(tool, "in_view") > 0.5
@@ -808,8 +815,10 @@ _FakeInside = Predicate(_Inside.name, _Inside.types,
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
+_InHandView = Predicate("InHandView", [_robot_type, _movable_object_type],
+                    in_hand_view_classifier)
 _InView = Predicate("InView", [_robot_type, _movable_object_type],
-                    in_view_classifier)
+                    in_general_view_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type],
                        _reachable_classifier)
 _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
@@ -832,7 +841,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     preconds = {LiftedAtom(_NotBlocked, [obj])}
     add_effs = {LiftedAtom(_Reachable, [robot, obj])}
     del_effs: Set[LiftedAtom] = set()
-    ignore_effs = {_Reachable, _InView}
+    ignore_effs = {_Reachable, _InHandView}
     yield STRIPSOperator("MoveToReachObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -841,9 +850,9 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
     preconds = {LiftedAtom(_NotBlocked, [obj])}
-    add_effs = {LiftedAtom(_InView, [robot, obj])}
+    add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
-    ignore_effs = {_Reachable, _InView}
+    ignore_effs = {_Reachable, _InHandView}
     yield STRIPSOperator("MoveToViewObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -855,7 +864,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     preconds = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj])
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
@@ -863,7 +872,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj])
     }
     ignore_effs = set()
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
@@ -917,7 +926,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, held, container, surface]
     preconds = {
         LiftedAtom(_Holding, [robot, held]),
-        LiftedAtom(_Reachable, [robot, container]),
+        # LiftedAtom(_Reachable, [robot, container]),
+        LiftedAtom(_InHandView, [robot, container]),
         LiftedAtom(_On, [container, surface]),
     }
     add_effs = {
@@ -949,7 +959,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
-    ignore_effs = {_InView, _Reachable}
+    ignore_effs = {_InHandView, _Reachable}
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -994,7 +1004,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_Holding, [robot, container]),
     }
-    ignore_effs = {_Reachable, _InView}
+    ignore_effs = {_Reachable, _InHandView}
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
@@ -1040,7 +1050,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Blocking,
             _NotBlocked,
         }
@@ -1052,7 +1062,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _On,
-            _InView,
+            _InHandView,
             _Reachable,
             _Blocking,
             _NotBlocked,
@@ -1138,7 +1148,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Blocking,
             _NotBlocked,
         }
@@ -1150,7 +1160,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _On,
-            _InView,
+            _InHandView,
             _Reachable,
             _Blocking,
             _NotBlocked,
@@ -1234,7 +1244,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Inside,
             _Blocking,
             _NotBlocked,
@@ -1248,7 +1258,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
             _Holding,
             _On,
             _Reachable,
-            _InView,
+            _InHandView,
             _Blocking,
             _NotBlocked,
         }
@@ -1333,7 +1343,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Inside,
             _Blocking,
             _NotBlocked,
@@ -1347,7 +1357,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _Holding,
             _On,
             _Reachable,
-            _InView,
+            _InHandView,
             _Blocking,
             _NotBlocked,
         }
@@ -1451,7 +1461,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Inside,
             _Blocking,
             _NotBlocked,
@@ -1466,7 +1476,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _Holding,
             _On,
             _Reachable,
-            _InView,
+            _InHandView,
             # NOTE: we can't easily check that an object is inside a container
             # after sweeping, because the robot is holding a sweeper, blocking
             # the hand camera that we'd usually use to check containment.
@@ -1563,7 +1573,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
+            _InHandView,
             _Inside,
         }
 
@@ -1575,7 +1585,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _Holding,
             _On,
             _Reachable,
-            _InView,
+            _InHandView,
             _Inside,
         }
 

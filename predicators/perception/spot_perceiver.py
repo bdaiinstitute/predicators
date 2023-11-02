@@ -11,7 +11,7 @@ from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotCubeEnv, SpotRearrangementEnv, _container_type, \
     _immovable_object_type, _movable_object_type, _PartialPerceptionState, \
-    _robot_type, _SpotObservation, in_view_classifier
+    _robot_type, _SpotObservation, in_hand_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import load_spot_metadata
@@ -110,7 +110,7 @@ class SpotPerceiver(BasePerceiver):
                 # be in view to assess whether it was placed correctly.
                 robot, obj = objects[:2]
                 state = self._create_state()
-                is_in_view = in_view_classifier(state, [robot, obj])
+                is_in_view = in_hand_view_classifier(state, [robot, obj])
                 if not is_in_view:
                     # We lost the object!
                     logging.info("[Perceiver] Object was lost!")
@@ -195,10 +195,13 @@ class SpotPerceiver(BasePerceiver):
             if obj.is_instance(_movable_object_type):
                 # Detect if the object is in view currently.
                 if obj in self._known_objects_in_hand_view:
-                    in_view_val = 1.0
+                    in_hand_view_val = 1.0
                 else:
-                    in_view_val = 0.0
-                state_dict[obj]["in_view"] = in_view_val
+                    in_hand_view_val = 0.0
+                state_dict[obj]["in_hand_view"] = in_hand_view_val
+                # All objects that we know the pose of are
+                # in view!
+                state_dict[obj]["in_view"] = 1.0
                 # Detect if we have lost the tool.
                 if obj in self._lost_objects:
                     lost_val = 1.0
@@ -233,67 +236,67 @@ class SpotPerceiver(BasePerceiver):
                                         simulator_state=simulator_state)
 
         # Uncomment to create visualizations of the state.
-        # from matplotlib import pyplot as plt
+        from matplotlib import pyplot as plt
 
-        # from predicators.envs.spot_env import _object_to_top_down_geom
-        # fig = plt.figure()
-        # ax = fig.gca()
-        # # Draw the robot as a point.
-        # robot_x = state.get(self._robot, "x")
-        # robot_y = state.get(self._robot, "y")
-        # plt.plot([robot_x], [robot_y], color="red", marker="o")
-        # # Draw the other objects.
-        # for obj in state:
-        #     if obj == self._robot:
-        #         continue
-        #     # Don't plot the floor because it's enormous.
-        #     if obj.name == "floor":
-        #         continue
-        #     geom = _object_to_top_down_geom(obj, state)
-        #     geom.plot(ax,
-        #               label=obj.name,
-        #               facecolor=(0.0, 0.0, 0.0, 0.0),
-        #               edgecolor="black")
-        #     text_pos = (state.get(obj, "x"), state.get(obj, "y"))
-        #     ax.text(text_pos[0],
-        #             text_pos[1],
-        #             obj.name,
-        #             color='white',
-        #             fontsize=12,
-        #             fontweight='bold',
-        #             bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
-        # plt.tight_layout()
-        # plt.savefig("top-down-state-view.png")
+        from predicators.envs.spot_env import _object_to_top_down_geom
+        fig = plt.figure()
+        ax = fig.gca()
+        # Draw the robot as a point.
+        robot_x = state.get(self._robot, "x")
+        robot_y = state.get(self._robot, "y")
+        plt.plot([robot_x], [robot_y], color="red", marker="o")
+        # Draw the other objects.
+        for obj in state:
+            if obj == self._robot:
+                continue
+            # Don't plot the floor because it's enormous.
+            if obj.name == "floor":
+                continue
+            geom = _object_to_top_down_geom(obj, state)
+            geom.plot(ax,
+                      label=obj.name,
+                      facecolor=(0.0, 0.0, 0.0, 0.0),
+                      edgecolor="black")
+            text_pos = (state.get(obj, "x"), state.get(obj, "y"))
+            ax.text(text_pos[0],
+                    text_pos[1],
+                    obj.name,
+                    color='white',
+                    fontsize=12,
+                    fontweight='bold',
+                    bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
+        plt.tight_layout()
+        plt.savefig("top-down-state-view.png")
 
-        # from predicators.envs.spot_env import _object_to_side_view_geom
-        # fig = plt.figure()
-        # ax = fig.gca()
-        # # Draw the robot as a point.
-        # robot_y = state.get(self._robot, "y")
-        # robot_z = state.get(self._robot, "z")
-        # plt.plot([robot_y], [robot_z], color="red", marker="o")
-        # # Draw the other objects.
-        # for obj in state:
-        #     if obj == self._robot:
-        #         continue
-        #     # Don't plot the floor because it's enormous.
-        #     if obj.name == "floor":
-        #         continue
-        #     geom = _object_to_side_view_geom(obj, state)
-        #     geom.plot(ax,
-        #               label=obj.name,
-        #               facecolor=(0.0, 0.0, 0.0, 0.0),
-        #               edgecolor="black")
-        #     text_pos = (state.get(obj, "y"), state.get(obj, "z"))
-        #     ax.text(text_pos[0],
-        #             text_pos[1],
-        #             obj.name,
-        #             color='white',
-        #             fontsize=12,
-        #             fontweight='bold',
-        #             bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
-        # plt.tight_layout()
-        # plt.savefig("side-state-view.png")
+        from predicators.envs.spot_env import _object_to_side_view_geom
+        fig = plt.figure()
+        ax = fig.gca()
+        # Draw the robot as a point.
+        robot_y = state.get(self._robot, "y")
+        robot_z = state.get(self._robot, "z")
+        plt.plot([robot_y], [robot_z], color="red", marker="o")
+        # Draw the other objects.
+        for obj in state:
+            if obj == self._robot:
+                continue
+            # Don't plot the floor because it's enormous.
+            if obj.name == "floor":
+                continue
+            geom = _object_to_side_view_geom(obj, state)
+            geom.plot(ax,
+                      label=obj.name,
+                      facecolor=(0.0, 0.0, 0.0, 0.0),
+                      edgecolor="black")
+            text_pos = (state.get(obj, "y"), state.get(obj, "z"))
+            ax.text(text_pos[0],
+                    text_pos[1],
+                    obj.name,
+                    color='white',
+                    fontsize=12,
+                    fontweight='bold',
+                    bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
+        plt.tight_layout()
+        plt.savefig("side-state-view.png")
         # import ipdb; ipdb.set_trace()
 
         return state

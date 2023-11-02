@@ -17,15 +17,22 @@ def _move_to_view_object_sampler(state: State, goal: Set[GroundAtom],
                                  rng: np.random.Generator,
                                  objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
-    del state, goal, objs, rng  # randomization coming soon
+    del state, goal, rng  # randomization coming soon
 
+    home_pose = get_spot_home_pose()
     # Currently assume that the robot is facing the surface in its home pose.
     # Soon, we will change this to actually sample angles of approach and do
     # collision detection.
-    home_pose = get_spot_home_pose()
     approach_angle = home_pose.angle - np.pi
+    approach_dist = 1.2
 
-    return np.array([1.20, approach_angle])
+    if len(objs) == 2 and objs[1].name == "cup":
+        # TODO: need to check whether the cup is on top of a 
+        # table; which we might need to turn into a separate operator.
+        approach_dist = 1.75
+        approach_angle = home_pose.angle - (np.pi / 2)
+
+    return np.array([approach_dist, approach_angle])
 
 
 def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
@@ -71,7 +78,7 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     del state, goal, rng  # randomization coming soon
 
     drop_height = 0.5
-    if len(objs) == 3 and objs[1].name == "cup":
+    if len(objs) == 4 and objs[2].name == "cup":
         drop_height = 0.15
 
     return np.array([0.0, 0.0, drop_height])
