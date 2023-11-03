@@ -213,15 +213,28 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
 ###############################################################################
 
 
-def _move_to_view_object_policy(state: State, memory: Dict,
+def _move_to_hand_view_object_policy(state: State, memory: Dict,
                                 objects: Sequence[Object],
                                 params: Array) -> Action:
-    name = "MoveToViewObject"
+    name = "MoveToHandViewObject"
     distance_param_idx = 0
     yaw_param_idx = 1
     robot_obj_idx = 0
     target_obj_idx = 1
     do_gaze = True
+    return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
+                                  robot_obj_idx, target_obj_idx, do_gaze,
+                                  state, memory, objects, params)
+
+def _move_to_body_view_object_policy(state: State, memory: Dict,
+                                objects: Sequence[Object],
+                                params: Array) -> Action:
+    name = "MoveToBodyViewObject"
+    distance_param_idx = 0
+    yaw_param_idx = 1
+    robot_obj_idx = 0
+    target_obj_idx = 1
+    do_gaze = False
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
@@ -440,8 +453,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
-    "MoveToHandViewObject": _move_to_view_object_policy,
-    "MoveToBodyViewObject": _move_to_view_object_policy,
+    "MoveToHandViewObject": _move_to_hand_view_object_policy,
+    "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,

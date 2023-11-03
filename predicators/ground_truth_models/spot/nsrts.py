@@ -95,7 +95,7 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     dx = 0.0
     if len(objs) == 4 and objs[2].name == "cup":
         drop_height = 0.15
-        dx = 0.06 # we benefit from dropping more forward in the x!
+        dx = 0.08 # we benefit from dropping more forward in the x!
 
     return np.array([dx, 0.0, drop_height])
 
