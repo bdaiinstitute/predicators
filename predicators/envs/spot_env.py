@@ -1561,6 +1561,9 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         super().__init__(use_gui)
 
         op_to_name = {o.name: o for o in _create_operators()}
+        # NOTE: we do not yet have planning operators sufficient enough
+        # to make the planning graph fully-connected. These are
+        # forthcoming.
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
@@ -1620,12 +1623,6 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         ball_detection = LanguageObjectDetectionID("small white ball")
         detection_id_to_obj[ball_detection] = ball
 
-        # cube = Object("cube", _movable_object_type)
-        # cube_detection = AprilTagObjectDetectionID(410)
-        # detection_id_to_obj[cube_detection] = cube
-
-        # TODO: replace with black ball so it stands out from white bowl
-        # better.
         cup = Object("cup", _container_type)
         cup_detection = LanguageObjectDetectionID("white bowl")
         detection_id_to_obj[cup_detection] = cup
