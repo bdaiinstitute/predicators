@@ -1624,8 +1624,10 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         # cube_detection = AprilTagObjectDetectionID(410)
         # detection_id_to_obj[cube_detection] = cube
 
+        # TODO: replace with black ball so it stands out from white bowl
+        # better.
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("blue cup")
+        cup_detection = LanguageObjectDetectionID("white bowl")
         detection_id_to_obj[cup_detection] = cup
 
         known_immovables = load_spot_metadata()["known-immovable-objects"]
