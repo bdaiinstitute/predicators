@@ -541,7 +541,7 @@ _ONTOP_Z_THRESHOLD = 0.25
 _INSIDE_Z_THRESHOLD = 0.25
 _ONTOP_SURFACE_BUFFER = 0.1
 _INSIDE_SURFACE_BUFFER = 0.1
-_REACHABLE_THRESHOLD = 1.7
+_REACHABLE_THRESHOLD = 1.85
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_XY_BUFFER = 1.5
 
@@ -841,19 +841,30 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     preconds = {LiftedAtom(_NotBlocked, [obj])}
     add_effs = {LiftedAtom(_Reachable, [robot, obj])}
     del_effs: Set[LiftedAtom] = set()
-    ignore_effs = {_Reachable, _InHandView}
+    ignore_effs = {_Reachable, _InHandView, _InView}
     yield STRIPSOperator("MoveToReachObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
-    # MoveToViewObject
+    # MoveToHandViewObject
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
     preconds = {LiftedAtom(_NotBlocked, [obj])}
     add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
-    ignore_effs = {_Reachable, _InHandView}
-    yield STRIPSOperator("MoveToViewObject", parameters, preconds, add_effs,
+    ignore_effs = {_Reachable, _InHandView, _InView}
+    yield STRIPSOperator("MoveToHandViewObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+    
+    # MoveToBodyViewObject
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {LiftedAtom(_NotBlocked, [obj])}
+    add_effs = {LiftedAtom(_InView, [robot, obj]), LiftedAtom(_Reachable, [robot, obj])}
+    del_effs = set()
+    ignore_effs = {_Reachable, _InHandView, _InView}
+    yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # PickObjectFromTop
@@ -874,7 +885,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj])
     }
-    ignore_effs = set()
+    ignore_effs = {_Inside}
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -926,8 +937,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, held, container, surface]
     preconds = {
         LiftedAtom(_Holding, [robot, held]),
-        # LiftedAtom(_Reachable, [robot, container]),
-        LiftedAtom(_InHandView, [robot, container]),
+        LiftedAtom(_Reachable, [robot, container]),
+        LiftedAtom(_InView, [robot, container]),
         LiftedAtom(_On, [container, surface]),
     }
     add_effs = {
@@ -1024,7 +1035,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
         }
@@ -1122,7 +1133,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
         }
@@ -1216,7 +1227,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -1314,7 +1325,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -1431,7 +1442,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DragToUnblockObject",
@@ -1545,7 +1556,8 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
+            "MoveToBodyViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInsideContainerOnTop"
@@ -1573,6 +1585,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _Reachable,
+            _InView,
             _InHandView,
             _Inside,
         }
@@ -1585,6 +1598,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _Holding,
             _On,
             _Reachable,
+            _InView,
             _InHandView,
             _Inside,
         }

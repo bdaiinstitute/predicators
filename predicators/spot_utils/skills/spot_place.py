@@ -3,6 +3,7 @@
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
+import time
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose, open_gripper
@@ -26,6 +27,7 @@ def place_at_relative_position(robot: Robot,
                                            z=body_to_position.z,
                                            rot=rot)
     move_hand_to_relative_pose(robot, body_tform_goal)
+    time.sleep(1.5)
     # Open the hand.
     open_gripper(robot)
 

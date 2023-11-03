@@ -12,8 +12,7 @@ from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
 
-
-def _move_to_view_object_sampler(state: State, goal: Set[GroundAtom],
+def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
                                  rng: np.random.Generator,
                                  objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
@@ -32,6 +31,21 @@ def _move_to_view_object_sampler(state: State, goal: Set[GroundAtom],
         approach_dist = 1.75
         approach_angle = home_pose.angle - (np.pi / 2)
 
+    return np.array([approach_dist, approach_angle])
+
+
+def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
+                                 rng: np.random.Generator,
+                                 objs: Sequence[Object]) -> Array:
+    # Parameters are relative distance, dyaw (to the object you're moving to).
+    del state, goal, rng  # randomization coming soon
+
+    home_pose = get_spot_home_pose()
+    # Currently assume that the robot is facing the surface in its home pose.
+    # Soon, we will change this to actually sample angles of approach and do
+    # collision detection.
+    approach_angle = home_pose.angle - np.pi
+    approach_dist = 1.2
     return np.array([approach_dist, approach_angle])
 
 
@@ -78,10 +92,12 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     del state, goal, rng  # randomization coming soon
 
     drop_height = 0.5
+    dx = 0.0
     if len(objs) == 4 and objs[2].name == "cup":
         drop_height = 0.15
+        dx = 0.06 # we benefit from dropping more forward in the x!
 
-    return np.array([0.0, 0.0, drop_height])
+    return np.array([dx, 0.0, drop_height])
 
 
 def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
@@ -139,7 +155,8 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
         nsrts = set()
 
         operator_name_to_sampler: Dict[str, NSRTSampler] = {
-            "MoveToViewObject": _move_to_view_object_sampler,
+            "MoveToHandViewObject": _move_to_hand_view_object_sampler,
+            "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTop": _pick_object_from_top_sampler,
             "PlaceObjectOnTop": _place_object_on_top_sampler,
