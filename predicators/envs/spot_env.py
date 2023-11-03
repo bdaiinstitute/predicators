@@ -113,11 +113,7 @@ def _create_dummy_predicate_classifier(
         pred: Predicate) -> Callable[[State, Sequence[Object]], bool]:
 
     def _classifier(s: State, objs: Sequence[Object]) -> bool:
-        try:
-            assert isinstance(s, _PartialPerceptionState)
-        except AssertionError:
-            import ipdb
-            ipdb.set_trace()
+        assert isinstance(s, _PartialPerceptionState)
         atom = GroundAtom(pred, objs)
         return s.simulator_state_atom_holds(atom)
 
@@ -648,11 +644,6 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
 
     if not _object_in_xy_classifier(
             state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
-        if "cup" in obj_on.name and "drafting" in obj_surface.name:
-            import ipdb
-            ipdb.set_trace()
-        classifier_val_for_debugging = _object_in_xy_classifier(
-            state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER)
         return False
 
     # Check that the bottom of the object is close to the top of the surface.
@@ -660,10 +651,6 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
 
     classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
-    if "cup" in obj_on.name and "drafting" in obj_surface.name and not classification_val:
-        import ipdb
-        ipdb.set_trace()
-
     return classification_val
 
 

@@ -26,9 +26,9 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
     approach_angle = home_pose.angle - np.pi
     approach_dist = 1.2
 
+    # For the cup on the table, we need to be further back to actually
+    # view it.
     if len(objs) == 2 and objs[1].name == "cup":
-        # TODO: need to check whether the cup is on top of a
-        # table; which we might need to turn into a separate operator.
         approach_dist = 1.75
         approach_angle = home_pose.angle - (np.pi / 2)
 
@@ -39,7 +39,7 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
                                       rng: np.random.Generator,
                                       objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
-    del state, goal, rng  # randomization coming soon
+    del state, goal, objs, rng  # randomization coming soon
 
     home_pose = get_spot_home_pose()
     # Currently assume that the robot is facing the surface in its home pose.
