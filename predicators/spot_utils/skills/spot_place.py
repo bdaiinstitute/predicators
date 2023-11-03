@@ -28,6 +28,9 @@ def place_at_relative_position(robot: Robot,
                                            z=body_to_position.z,
                                            rot=rot)
     move_hand_to_relative_pose(robot, body_tform_goal)
+    # NOTE: short sleep necessary because without it, the robot
+    # sometimes opens the gripper before the arm has fully
+    # arrived at its position.
     time.sleep(1.5)
     # Open the hand.
     open_gripper(robot)
