@@ -1,9 +1,10 @@
 """Interface for spot placing skill."""
 
+import time
+
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
-import time
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose, open_gripper

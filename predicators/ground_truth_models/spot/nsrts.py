@@ -12,9 +12,10 @@ from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
 
+
 def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
-                                 rng: np.random.Generator,
-                                 objs: Sequence[Object]) -> Array:
+                                      rng: np.random.Generator,
+                                      objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del state, goal, rng  # randomization coming soon
 
@@ -26,7 +27,7 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
     approach_dist = 1.2
 
     if len(objs) == 2 and objs[1].name == "cup":
-        # TODO: need to check whether the cup is on top of a 
+        # TODO: need to check whether the cup is on top of a
         # table; which we might need to turn into a separate operator.
         approach_dist = 1.75
         approach_angle = home_pose.angle - (np.pi / 2)
@@ -35,8 +36,8 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
 
 
 def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
-                                 rng: np.random.Generator,
-                                 objs: Sequence[Object]) -> Array:
+                                      rng: np.random.Generator,
+                                      objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del state, goal, rng  # randomization coming soon
 
@@ -95,7 +96,7 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     dx = 0.0
     if len(objs) == 4 and objs[2].name == "cup":
         drop_height = 0.15
-        dx = 0.08 # we benefit from dropping more forward in the x!
+        dx = 0.08  # we benefit from dropping more forward in the x!
 
     return np.array([dx, 0.0, drop_height])
 
@@ -136,11 +137,8 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
-            "spot_cube_env",
-            "spot_soda_table_env",
-            "spot_soda_bucket_env",
-            "spot_soda_chair_env",
-            "spot_soda_sweep_env",
+            "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
+            "spot_soda_chair_env", "spot_soda_sweep_env",
             "spot_ball_and_cup_sticky_table_env"
         }
 

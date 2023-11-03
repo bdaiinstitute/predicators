@@ -1,14 +1,14 @@
 """Utility functions for capturing images from Spot's cameras."""
+from pathlib import Path
 from typing import Collection, Dict, Optional, Type
 
 import cv2
-from pathlib import Path
-from matplotlib import pyplot as plt
 import numpy as np
 from bosdyn.api import image_pb2
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, get_a_tform_b
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.sdk import Robot
+from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 
 from predicators.spot_utils.perception.perception_structs import \
@@ -135,7 +135,6 @@ def capture_images(
         #     plt.tight_layout()
         #     plt.savefig(no_detections_outfile, dpi=300)
         #     print(f"Wrote out to {no_detections_outfile}.")
-
 
     _LAST_CAPTURED_IMAGES = rgbds
 

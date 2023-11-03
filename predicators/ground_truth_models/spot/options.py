@@ -29,7 +29,8 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
-    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE_HIGH, get_relative_se2_from_se3
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, \
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE_HIGH, get_relative_se2_from_se3
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
 
@@ -92,13 +93,16 @@ def _drop_at_relative_position_and_look(
     # Look straight down.
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
 
+
 def _move_closer_and_drop_at_relative_position_and_look(
         robot: Robot, rel_pose: math_helpers.SE3Pose) -> None:
     # First, check if we're too far away in distance or angle
     # to place.
     dist_to_object = np.sqrt(rel_pose.x * rel_pose.x + rel_pose.y * rel_pose.y)
     if dist_to_object > 0.75:
-        pose_to_nav_to = math_helpers.SE2Pose(rel_pose.x - (0.75 * rel_pose.x / dist_to_object), rel_pose.y - (0.75 * rel_pose.y / dist_to_object), 0.0)
+        pose_to_nav_to = math_helpers.SE2Pose(
+            rel_pose.x - (0.75 * rel_pose.x / dist_to_object),
+            rel_pose.y - (0.75 * rel_pose.y / dist_to_object), 0.0)
         navigate_to_relative_pose(robot, pose_to_nav_to)
     # Place with a new rel_pose!
     rel_pose.x = rel_pose.x - pose_to_nav_to.x
@@ -107,7 +111,8 @@ def _move_closer_and_drop_at_relative_position_and_look(
     # Close the gripper.
     close_gripper(robot)
     # Look straight down.
-    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE_HIGH)
+    move_hand_to_relative_pose(robot,
+                               DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE_HIGH)
 
 
 def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
@@ -214,8 +219,8 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
 
 
 def _move_to_hand_view_object_policy(state: State, memory: Dict,
-                                objects: Sequence[Object],
-                                params: Array) -> Action:
+                                     objects: Sequence[Object],
+                                     params: Array) -> Action:
     name = "MoveToHandViewObject"
     distance_param_idx = 0
     yaw_param_idx = 1
@@ -226,9 +231,10 @@ def _move_to_hand_view_object_policy(state: State, memory: Dict,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
 
+
 def _move_to_body_view_object_policy(state: State, memory: Dict,
-                                objects: Sequence[Object],
-                                params: Array) -> Action:
+                                     objects: Sequence[Object],
+                                     params: Array) -> Action:
     name = "MoveToBodyViewObject"
     distance_param_idx = 0
     yaw_param_idx = 1
@@ -329,9 +335,10 @@ def _drop_object_inside_policy(state: State, memory: Dict,
                                         _drop_at_relative_position_and_look,
                                         (robot, place_rel_pos))
 
+
 def _move_and_drop_object_inside_policy(state: State, memory: Dict,
-                               objects: Sequence[Object],
-                               params: Array) -> Action:
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
     del memory  # not used
 
     name = "MoveAndDropObjectInside"
@@ -356,9 +363,9 @@ def _move_and_drop_object_inside_policy(state: State, memory: Dict,
                                       y=container_rel_pose.y + dy,
                                       z=place_z)
 
-    return utils.create_spot_env_action(name, objects,
-                                        _move_closer_and_drop_at_relative_position_and_look,
-                                        (robot, place_rel_pos))
+    return utils.create_spot_env_action(
+        name, objects, _move_closer_and_drop_at_relative_position_and_look,
+        (robot, place_rel_pos))
 
 
 def _drag_to_unblock_object_policy(state: State, memory: Dict,
@@ -445,7 +452,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectFromTop": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
-    "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
+    "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
+                                          (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
@@ -496,7 +504,8 @@ class SpotCubeEnvGroundTruthOptionFactory(GroundTruthOptionFactory):
     def get_env_names(cls) -> Set[str]:
         return {
             "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
-            "spot_soda_chair_env", "spot_soda_sweep_env", "spot_ball_and_cup_sticky_table_env"
+            "spot_soda_chair_env", "spot_soda_sweep_env",
+            "spot_ball_and_cup_sticky_table_env"
         }
 
     @classmethod

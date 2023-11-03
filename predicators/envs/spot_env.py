@@ -116,7 +116,8 @@ def _create_dummy_predicate_classifier(
         try:
             assert isinstance(s, _PartialPerceptionState)
         except AssertionError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         atom = GroundAtom(pred, objs)
         return s.simulator_state_atom_holds(atom)
 
@@ -507,8 +508,8 @@ class SpotRearrangementEnv(BaseEnv):
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        detections, artifacts = init_search_for_objects(self._robot, self._localizer,
-                                                detection_ids)
+        detections, artifacts = init_search_for_objects(
+            self._robot, self._localizer, detection_ids)
         outdir = Path(CFG.spot_perception_outdir)
         time_str = time.strftime("%Y%m%d-%H%M%S")
         detections_outfile = outdir / f"detections_{time_str}.png"
@@ -648,7 +649,8 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     if not _object_in_xy_classifier(
             state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
         if "cup" in obj_on.name and "drafting" in obj_surface.name:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         classifier_val_for_debugging = _object_in_xy_classifier(
             state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER)
         return False
@@ -659,7 +661,8 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
 
     classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
     if "cup" in obj_on.name and "drafting" in obj_surface.name and not classification_val:
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
 
     return classification_val
 
@@ -694,7 +697,9 @@ def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
     _, tool = objects
     return state.get(tool, "in_hand_view") > 0.5
 
-def in_general_view_classifier(state: State, objects: Sequence[Object]) -> bool:
+
+def in_general_view_classifier(state: State,
+                               objects: Sequence[Object]) -> bool:
     """Made public for perceiver."""
     _, tool = objects
     return state.get(tool, "in_view") > 0.5
@@ -811,12 +816,12 @@ _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
 # NOTE: currently disabling inside predicate check because we don't have a good
 # way to do the check, especially after sweeping.
 _FakeInside = Predicate(_Inside.name, _Inside.types,
-                    _create_dummy_predicate_classifier(_Inside))
+                        _create_dummy_predicate_classifier(_Inside))
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
 _InHandView = Predicate("InHandView", [_robot_type, _movable_object_type],
-                    in_hand_view_classifier)
+                        in_hand_view_classifier)
 _InView = Predicate("InView", [_robot_type, _movable_object_type],
                     in_general_view_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type],
@@ -853,19 +858,22 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
     ignore_effs = {_Reachable, _InHandView, _InView}
-    yield STRIPSOperator("MoveToHandViewObject", parameters, preconds, add_effs,
-                         del_effs, ignore_effs)
-    
+    yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+
     # MoveToBodyViewObject
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
     preconds = {LiftedAtom(_NotBlocked, [obj])}
-    add_effs = {LiftedAtom(_InView, [robot, obj]), LiftedAtom(_Reachable, [robot, obj])}
+    add_effs = {
+        LiftedAtom(_InView, [robot, obj]),
+        LiftedAtom(_Reachable, [robot, obj])
+    }
     del_effs = set()
     ignore_effs = {_Reachable, _InHandView, _InView}
-    yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds, add_effs,
-                         del_effs, ignore_effs)
+    yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
 
     # PickObjectFromTop
     robot = Variable("?robot", _robot_type)
@@ -950,8 +958,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, held]),
     }
     ignore_effs = set()
-    yield STRIPSOperator("DropObjectInsideContainerOnTop", parameters, preconds, add_effs,
-                         del_effs, ignore_effs)
+    yield STRIPSOperator("DropObjectInsideContainerOnTop", parameters,
+                         preconds, add_effs, del_effs, ignore_effs)
 
     # DragToUnblockObject
     robot = Variable("?robot", _robot_type)
@@ -1547,19 +1555,15 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
 
 class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
-    """A real-world version of the ball and cup sticky table environment.
-    """
+    """A real-world version of the ball and cup sticky table environment."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
 
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
-            "MoveToReachObject",
-            "MoveToHandViewObject",
-            "MoveToBodyViewObject",
-            "PickObjectFromTop",
-            "PlaceObjectOnTop",
+            "MoveToReachObject", "MoveToHandViewObject",
+            "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
             "DropObjectInsideContainerOnTop"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
