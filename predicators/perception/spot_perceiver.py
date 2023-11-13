@@ -346,8 +346,8 @@ class SpotPerceiver(BasePerceiver):
             On = pred_name_to_pred["On"]
             Inside = pred_name_to_pred["Inside"]
             return {
-                # GroundAtom(On, [ball, drafting_table]),
+                GroundAtom(On, [ball, drafting_table]),
                 GroundAtom(On, [cup, drafting_table]),
-                # GroundAtom(Inside, [ball, cup])
+                GroundAtom(Inside, [ball, cup])
             }
         raise NotImplementedError("Unrecognized goal description")
