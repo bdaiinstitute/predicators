@@ -63,7 +63,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     # collision detection.
     approach_angle = home_pose.angle - np.pi
 
-    if len(objs) == 2 and objs[1].name == "cup":
+    if len(objs) == 2 and (objs[1].name == "cup" or objs[1].name == "drafting_table"):
         approach_angle = home_pose.angle - (np.pi / 2)
 
     # NOTE: closer than move_to_view. Important for placing.
