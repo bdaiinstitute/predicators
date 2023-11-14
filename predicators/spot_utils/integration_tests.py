@@ -212,7 +212,7 @@ def test_move_with_sampling() -> None:
     allowed_regions = metadata.get("allowed-regions", {})
     convex_hulls = []
     for region_pts in allowed_regions.values():
-        dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))
+        dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))  # pylint: disable=no-member
         convex_hulls.append(dealunay_hull)
 
     # Run test with april tag cube.

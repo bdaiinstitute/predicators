@@ -139,13 +139,14 @@ def get_relative_se2_from_se3(
 
 
 def sample_move_offset_from_target(
-        target_origin: Tuple[float, float],
-        robot_geom: Rectangle,
-        collision_geoms: Collection[_Geom2D],
-        rng: np.random.Generator,
-        max_distance: float,
-        allowed_regions: Collection[scipy.spatial.Delaunay],
-        max_samples: int = 100) -> Tuple[float, float, Rectangle]:
+    target_origin: Tuple[float, float],
+    robot_geom: Rectangle,
+    collision_geoms: Collection[_Geom2D],
+    rng: np.random.Generator,
+    max_distance: float,
+    allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
+    max_samples: int = 100
+) -> Tuple[float, float, Rectangle]:
     """Sampler for navigating to a target object.
 
     Returns a distance and an angle in radians. Also returns the next
