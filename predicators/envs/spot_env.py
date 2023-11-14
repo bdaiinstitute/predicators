@@ -199,18 +199,16 @@ class SpotRearrangementEnv(BaseEnv):
         # part of actions are used.
         return Box(0, 1, (0, ))
 
+    @abc.abstractmethod
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         """Environment-specific task generation for spot dry runs."""
-        del train_or_test, task_idx  # not used here
-        raise NotImplementedError("Dry task generation not implemented.")
 
+    @abc.abstractmethod
     def _get_next_dry_observation(
             self, action: Action,
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         """Environment-specific step-like function for spot dry runs."""
-        del action, nonpercept_atoms  # not used here
-        raise NotImplementedError("Dry step function not implemented.")
 
     def reset(self, train_or_test: str, task_idx: int) -> Observation:
         # NOTE: task_idx and train_or_test ignored unless loading from JSON!
@@ -1394,6 +1392,15 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda on the smooth table"
 
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _get_next_dry_observation(
+            self, action: Action,
+            nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        raise NotImplementedError("Dry step function not implemented.")
+
 
 ###############################################################################
 #                               Soda Bucket Env                               #
@@ -1490,6 +1497,15 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda in the bucket"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _get_next_dry_observation(
+            self, action: Action,
+            nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        raise NotImplementedError("Dry step function not implemented.")
 
 
 ###############################################################################
@@ -1605,6 +1621,15 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
                                              np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
         return super()._run_init_search_for_objects(detection_ids)
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _get_next_dry_observation(
+            self, action: Action,
+            nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        raise NotImplementedError("Dry step function not implemented.")
 
 
 ###############################################################################
@@ -1722,6 +1747,15 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda in the bucket and hold the brush"
 
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _get_next_dry_observation(
+            self, action: Action,
+            nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        raise NotImplementedError("Dry step function not implemented.")
+
 
 ###############################################################################
 #                Real-World Ball and Cup Sticky Table Env                     #
@@ -1818,3 +1852,12 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the ball on the table"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _get_next_dry_observation(
+            self, action: Action,
+            nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        raise NotImplementedError("Dry step function not implemented.")
