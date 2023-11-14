@@ -6,6 +6,7 @@ from typing import Collection, Dict, Optional, Tuple
 
 import cv2
 import numpy as np
+import scipy
 import yaml
 from bosdyn.api import estop_pb2, robot_state_pb2
 from bosdyn.client import math_helpers
@@ -14,7 +15,6 @@ from bosdyn.client.exceptions import ProxyConnectionError, TimedOutError
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
-import scipy
 
 from predicators.settings import CFG
 from predicators.utils import Rectangle, _Geom2D
@@ -162,14 +162,16 @@ def sample_move_offset_from_target(
         rot = angle + np.pi if angle < 0 else angle - np.pi
         cand_geom = Rectangle.from_center(x, y, robot_geom.width,
                                           robot_geom.height, rot)
-        # Check for out-of-bounds.
-        oob = False
-        for cx, cy in cand_geom.vertices:
-            for region in allowed_regions:
+        # Check for out-of-bounds. To do this, we're looking for
+        # one allowed region where all four points defining the
+        # robot will be within the region in the new pose.
+        oob = True
+        for region in allowed_regions:
+            for cx, cy in cand_geom.vertices:
                 if region.find_simplex(np.array([cx, cy])) < 0:
-                    oob = True
                     break
-            if oob:
+            else:
+                oob = False
                 break
         if oob:
             continue

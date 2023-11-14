@@ -3,16 +3,17 @@
 Run with --spot_robot_ip and any other flags.
 """
 from typing import Optional
-import scipy
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate
 
 from predicators import utils
+from predicators.envs.spot_env import load_spot_metadata
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, detect_objects, \
@@ -35,7 +36,7 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_FLOOR_POSE, get_graph_nav_dir, \
     get_relative_se2_from_se3, get_spot_home_pose, \
     sample_move_offset_from_target, spot_pose_to_geom2d, verify_estop
-from predicators.envs.spot_env import load_spot_metadata
+
 
 def test_find_move_pick_place(
     robot: Robot,
@@ -250,7 +251,8 @@ def test_move_with_sampling() -> None:
         # Visualize everything.
         # figsize = (1.1 * (room_bounds[2] - room_bounds[0]),
         #            1.1 * (room_bounds[3] - room_bounds[1]))
-        _, ax = plt.subplots(1, 1, figsize=figsize)
+        # _, ax = plt.subplots(1, 1, figsize=figsize)
+        _, ax = plt.subplots(1, 1)
         robot_geom.plot(ax, facecolor="lightgreen", edgecolor="black")
         # Draw the origin of the robot, which should be the back right leg.
         ax.scatter([robot_geom.x], [robot_geom.y],

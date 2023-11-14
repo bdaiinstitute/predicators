@@ -9,10 +9,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
     Tuple
-import scipy
 
 import matplotlib
 import numpy as np
+import scipy
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
@@ -188,7 +188,8 @@ class SpotRearrangementEnv(BaseEnv):
         # We can simply test if a point is inside the hull or not with
         # hull.find_simplex(np.array(point)) >= 0
         # Next step: put this in an integration test!
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
