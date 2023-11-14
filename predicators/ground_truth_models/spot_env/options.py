@@ -193,7 +193,7 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
         pixel = (0, 0)
-        img = np.zeros((1, 1, 1), dtype=np.uint8)
+        img: Optional[RGBDImageWithContext] = None
     else:
         target_detection_id = get_detection_id_for_object(target_obj)
         rgbds = get_last_captured_images()
@@ -201,8 +201,8 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         hand_camera = "hand_color_image"
         img = rgbds[hand_camera]
         pixel = get_object_center_pixel_from_artifacts(artifacts,
-                                                    target_detection_id,
-                                                    hand_camera)
+                                                       target_detection_id,
+                                                       hand_camera)
 
     # Grasp from the top-down.
     top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)

@@ -121,7 +121,7 @@ def detect_objects_from_april_tags(
     """
     if not object_ids:
         return {}, {}
-    
+
     if not _APRILTAG_IMPORTED:
         raise ModuleNotFoundError("Need to install 'apriltag' package")
 
