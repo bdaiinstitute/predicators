@@ -232,11 +232,16 @@ class SpotRearrangementEnv(BaseEnv):
         assert isinstance(obs, _SpotObservation)
         assert self.action_space.contains(action.arr)
 
-        # TODO: handle special actions differently in dry run.
-
         # Special case: the action is "done", indicating that the robot
         # believes it has finished the task. Used for goal checking.
         if action_name == "done":
+
+            # During a dry run, trust that the goal is accomplished if the
+            # done action is returned, since we don't want a human in the loop.
+            if CFG.spot_run_dry:
+                self._current_task_goal_reached = True
+                return self._current_observation
+
             while True:
                 goal_description = self._current_task.goal_description
                 logging.info(f"The goal is: {goal_description}")
@@ -1161,7 +1166,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
         objects_in_view[smooth_table] = smooth_table_pose
 
         sticky_table = Object("sticky_table", _immovable_object_type)
-        y = y + 2.0
+        x = x + _REACHABLE_THRESHOLD / 2
         sticky_table_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[sticky_table] = sticky_table_pose
 
@@ -1203,8 +1208,8 @@ class SpotCubeEnv(SpotRearrangementEnv):
         # Initialize values based on the current observation.
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
-        objects_in_view = obs.objects_in_view
-        objects_hand_view = obs.objects_in_hand_view
+        objects_in_view = obs.objects_in_view.copy()
+        objects_in_hand_view = set(obs.objects_in_hand_view)
         gripper_open_percentage = obs.gripper_open_percentage
         robot_pose = obs.robot_pos
 
@@ -1212,21 +1217,58 @@ class SpotCubeEnv(SpotRearrangementEnv):
             _, target_obj = action_objs
 
             # Add the target object to the set of objects in hand view.
-            objects_hand_view.add(target_obj)
+            objects_in_hand_view.add(target_obj)
 
             # Update the robot position to be looking at the object, roughly.
             target_obj_pose = objects_in_view[target_obj]
             robot_pose = math_helpers.SE3Pose(
-                x=target_obj_pose.x,
-                y=target_obj_pose.y + 2.5,
+                x=target_obj_pose.x + _REACHABLE_THRESHOLD / 2,
+                y=target_obj_pose.y,
                 z=robot_pose.z,
                 rot=robot_pose.rot,
             )
+
+        elif action_name == "PickObjectFromTop":
+            # Can't see anything in the hand because it's occluded now.
+            objects_in_hand_view = set()
+            # Gripper is now open.
+            gripper_open_percentage = 100.0
+
+        elif action_name == "MoveToReachObject":
+            _, target_obj = action_objs
+            
+            # Update the robot position to be looking at the object, roughly.
+            target_obj_pose = objects_in_view[target_obj]
+            robot_pose = math_helpers.SE3Pose(
+                x=target_obj_pose.x - _REACHABLE_THRESHOLD / 2,
+                y=target_obj_pose.y,
+                z=robot_pose.z,
+                rot=robot_pose.rot,
+            )
+
+        elif action_name == "PlaceObjectOnTop":
+
+            # TODO definitely add randomness here!
+            _, held_obj, target_surface = action_objs
+            static_feats = load_spot_metadata()["static-object-features"]
+            surface_radius = static_feats[target_surface.name]["length"] / 2
+            surface_height = static_feats[target_surface.name]["height"]
+            held_obj_height = static_feats[held_obj.name]["height"]
+            surface_pose = objects_in_view[target_surface]
+            x = surface_pose.x + surface_radius / 2
+            y = surface_pose.y + surface_radius / 2
+            z = surface_pose.z + surface_height / 2 + held_obj_height
+            held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+            objects_in_view[held_obj] = held_obj_pose
+
+            # Gripper is now closed.
+            gripper_open_percentage = 0.0
+
         
         next_obs = _SpotObservation(
             images={},
             objects_in_view=objects_in_view,
-            objects_in_hand_view=objects_hand_view,
+            objects_in_hand_view=objects_in_hand_view,
             robot=self._spot_object,
             gripper_open_percentage=gripper_open_percentage,
             robot_pos=robot_pose,
