@@ -1,6 +1,6 @@
 """Ground-truth NSRTs for the PDDLEnv."""
 
-from typing import Dict, Sequence, Set, Tuple
+from typing import Dict, Sequence, Set
 
 import numpy as np
 
@@ -12,22 +12,6 @@ from predicators.spot_utils.utils import get_spot_home_pose
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
-
-
-def _sample_collision_free_robot_point(
-        state: State, rng: np.random.Generator, target_obj: Object,
-        min_distance_from_obj: float) -> Tuple[float, float]:
-    """Uses known object geometries to find collision-free locations for the
-    robot to navigate to.
-
-    NOTE: this currently is not aware of the bounds of the map; it's only
-    aware of the objects in it.
-    """
-    # TODO: use the "sample_move_offset_from_target" function from
-    # utils.py. This might actually preclude the need for this current
-    # function.
-
-    pass
 
 
 def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
@@ -82,8 +66,6 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
 
     if len(objs) == 2 and objs[1].name == "cup":
         approach_angle = home_pose.angle - (np.pi / 2)
-
-    collision_geoms = [_object_to_top_down_geom(obj) for obj in set(state)]
 
     # NOTE: closer than move_to_view. Important for placing.
     return np.array([0.8, approach_angle])
