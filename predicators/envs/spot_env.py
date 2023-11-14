@@ -12,7 +12,6 @@ from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
 
 import matplotlib
 import numpy as np
-import scipy
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
@@ -177,19 +176,6 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Create constant objects.
         self._spot_object = Object("robot", _robot_type)
-
-        # DEBUGGING!
-        metadata = load_spot_metadata()
-        allowed_regions = metadata.get("allowed-regions", {})
-        convex_hulls = []
-        for region_pts in allowed_regions.values():
-            dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))
-            convex_hulls.append(dealunay_hull)
-        # We can simply test if a point is inside the hull or not with
-        # hull.find_simplex(np.array(point)) >= 0
-        # Next step: put this in an integration test!
-        import ipdb
-        ipdb.set_trace()
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
