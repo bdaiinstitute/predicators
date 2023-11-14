@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
     Tuple
+import scipy
 
 import matplotlib
 import numpy as np
@@ -176,6 +177,18 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Create constant objects.
         self._spot_object = Object("robot", _robot_type)
+
+        # DEBUGGING!
+        metadata = load_spot_metadata()
+        allowed_regions = metadata.get("allowed-regions", {})
+        convex_hulls = []
+        for region_pts in allowed_regions.values():
+            dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))
+            convex_hulls.append(dealunay_hull)
+        # We can simply test if a point is inside the hull or not with
+        # hull.find_simplex(np.array(point)) >= 0
+        # Next step: put this in an integration test!
+        import ipdb; ipdb.set_trace()
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:

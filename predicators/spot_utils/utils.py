@@ -14,6 +14,7 @@ from bosdyn.client.exceptions import ProxyConnectionError, TimedOutError
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
+import scipy
 
 from predicators.settings import CFG
 from predicators.utils import Rectangle, _Geom2D
@@ -143,14 +144,13 @@ def sample_move_offset_from_target(
         collision_geoms: Collection[_Geom2D],
         rng: np.random.Generator,
         max_distance: float,
-        room_bounds: Tuple[float, float, float, float],
+        allowed_regions: Collection[scipy.spatial.Delaunay],
         max_samples: int = 100) -> Tuple[float, float, Rectangle]:
     """Sampler for navigating to a target object.
 
     Returns a distance and an angle in radians. Also returns the next
     robot geom for visualization and debugging convenience.
     """
-    min_x, min_y, max_x, max_y = room_bounds
     for _ in range(max_samples):
         distance = rng.uniform(0.0, max_distance)
         angle = rng.uniform(-np.pi, np.pi)
@@ -165,8 +165,11 @@ def sample_move_offset_from_target(
         # Check for out-of-bounds.
         oob = False
         for cx, cy in cand_geom.vertices:
-            if cx < min_x or cy < min_y or cx > max_x or cy > max_y:
-                oob = True
+            for region in allowed_regions:
+                if region.find_simplex(np.array([cx, cy])) < 0:
+                    oob = True
+                    break
+            if oob:
                 break
         if oob:
             continue
