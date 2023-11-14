@@ -5,6 +5,7 @@ from typing import Dict, Sequence, Set
 import numpy as np
 
 from predicators.envs import get_or_create_env
+from predicators.envs.spot_env import SpotRearrangementEnv
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.spot_utils.utils import get_spot_home_pose
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
