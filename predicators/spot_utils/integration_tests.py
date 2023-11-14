@@ -436,6 +436,6 @@ def test_repeated_brush_bucket_dump_pick_place(
 
 
 if __name__ == "__main__":
-    # test_all_find_move_pick_place()
+    test_all_find_move_pick_place()
     test_move_with_sampling()
-    # test_repeated_brush_bucket_dump_pick_place()
+    test_repeated_brush_bucket_dump_pick_place()
