@@ -249,9 +249,6 @@ def test_move_with_sampling() -> None:
             allowed_regions=convex_hulls,
         )
         # Visualize everything.
-        # figsize = (1.1 * (room_bounds[2] - room_bounds[0]),
-        #            1.1 * (room_bounds[3] - room_bounds[1]))
-        # _, ax = plt.subplots(1, 1, figsize=figsize)
         _, ax = plt.subplots(1, 1)
         robot_geom.plot(ax, facecolor="lightgreen", edgecolor="black")
         # Draw the origin of the robot, which should be the back right leg.
@@ -277,12 +274,6 @@ def test_move_with_sampling() -> None:
                            marker="*",
                            color="gold",
                            zorder=3)
-        # Draw the walls.
-        # min_x, min_y, max_x, max_y = room_bounds
-        # ax.plot((min_x, min_x), (min_y, max_y), linestyle="--", color="gray")
-        # ax.plot((max_x, max_x), (min_y, max_y), linestyle="--", color="gray")
-        # ax.plot((min_x, max_x), (min_y, min_y), linestyle="--", color="gray")
-        # ax.plot((min_x, max_x), (max_y, max_y), linestyle="--", color="gray")
         plt.savefig(f"sampling_integration_test_{i}.png")
 
         # Execute the move.
