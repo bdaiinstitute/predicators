@@ -646,7 +646,11 @@ def _object_to_top_down_geom(obj: Object,
                              size_buffer: float = 0.0) -> utils._Geom2D:
     assert obj.is_instance(_base_object_type)
     shape_type = int(np.round(state.get(obj, "shape")))
-    se3_pose = utils.get_se3_pose_from_state(state, obj)
+    if obj.is_instance(_movable_object_type) and state.get(obj, "held") > 0.5:
+        robot, = state.get_objects(_robot_type)
+        se3_pose = utils.get_se3_pose_from_state(state, robot)
+    else:
+        se3_pose = utils.get_se3_pose_from_state(state, obj)
     angle = se3_pose.rot.to_yaw()
     center_x = se3_pose.x
     center_y = se3_pose.y
@@ -666,7 +670,12 @@ def _object_to_side_view_geom(obj: Object,
                               size_buffer: float = 0.0) -> utils._Geom2D:
     assert obj.is_instance(_base_object_type)
     # The shape doesn't matter because all shapes are rectangles from the side.
-    se3_pose = utils.get_se3_pose_from_state(state, obj)
+    # If the object is held, use the robot's pose.
+    if obj.is_instance(_movable_object_type) and state.get(obj, "held") > 0.5:
+        robot, = state.get_objects(_robot_type)
+        se3_pose = utils.get_se3_pose_from_state(state, robot)
+    else:
+        se3_pose = utils.get_se3_pose_from_state(state, obj)
     center_y = se3_pose.y
     center_z = se3_pose.z
     length = state.get(obj, "length") + size_buffer
