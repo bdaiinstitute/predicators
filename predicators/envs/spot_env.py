@@ -1136,7 +1136,7 @@ def _dry_simulate_move_to_view_hand(
 
     # Update the robot position to be looking at the object, roughly.
     current_robot_se2_pose = robot_pose.get_closest_se2_transform()
-    new_robot_se2_pose = robot_rel_se2_pose * current_robot_se2_pose
+    new_robot_se2_pose = current_robot_se2_pose * robot_rel_se2_pose
     robot_pose = new_robot_se2_pose.get_closest_se3_transform()
 
     # Finalize the next observation.
@@ -1165,7 +1165,7 @@ def _dry_simulate_move_to_reach_obj(
 
     # Update the robot position to be looking at the object, roughly.
     current_robot_se2_pose = robot_pose.get_closest_se2_transform()
-    new_robot_se2_pose = robot_rel_se2_pose * current_robot_se2_pose
+    new_robot_se2_pose = current_robot_se2_pose * robot_rel_se2_pose
     robot_pose = new_robot_se2_pose.get_closest_se3_transform()
 
     # Finalize the next observation.
@@ -1265,7 +1265,7 @@ def _dry_simulate_drag_to_unblock(
 
     # Update the robot pose.
     old_robot_se2_pose = robot_pose.get_closest_se2_transform()
-    new_robot_se2_pose = robot_rel_se2_pose * old_robot_se2_pose
+    new_robot_se2_pose = old_robot_se2_pose * robot_rel_se2_pose
     robot_pose = new_robot_se2_pose.get_closest_se3_transform()
 
     # Now update the held object relative to the robot.
