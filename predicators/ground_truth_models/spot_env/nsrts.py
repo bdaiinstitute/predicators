@@ -29,7 +29,6 @@ def _get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
                 if state.get(obj, "held") > 0.5:
                     continue
             collision_geoms.append(_object_to_top_down_geom(obj, state))
-            print(obj.name)
     return collision_geoms
 
 
