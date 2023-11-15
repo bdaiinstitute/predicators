@@ -41,7 +41,7 @@ from predicators.spot_utils.utils import get_graph_nav_dir, \
     load_spot_metadata, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
-    STRIPSOperator, Type, Variable
+    STRIPSOperator, Type, Variable, Video
 
 ###############################################################################
 #                                Base Class                                   #
