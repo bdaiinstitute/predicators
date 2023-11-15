@@ -240,6 +240,7 @@ def test_move_with_sampling() -> None:
             robot_geom,
             collision_geoms,
             rng,
+            min_distance=0.0,
             max_distance=max_distance,
             allowed_regions=convex_hulls,
         )
