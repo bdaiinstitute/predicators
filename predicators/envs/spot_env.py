@@ -214,7 +214,7 @@ class SpotRearrangementEnv(BaseEnv):
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         """Step-like function for spot dry runs."""
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, _ = action.extra_info
+        action_name, action_objs, _, action_args = action.extra_info
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
 
@@ -235,11 +235,12 @@ class SpotRearrangementEnv(BaseEnv):
             _, held_obj, target_surface = action_objs
             return _dry_simulate_place_on_top(obs, held_obj, target_surface,
                                               nonpercept_atoms)
-        
+
         if action_name == "PrepareContainerForSweeping":
-            _, container_obj, target_obj = action_objs
-            return _dry_simulate_prepare_container_for_sweeping(obs, container_obj, target_obj,
-                                              nonpercept_atoms)
+            _, container_obj, _ = action_objs
+            _, _, new_robot_se2_pose = action_args
+            return _dry_simulate_prepare_container_for_sweeping(
+                obs, container_obj, new_robot_se2_pose, nonpercept_atoms)
 
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
@@ -1176,7 +1177,7 @@ def _dry_simulate_pick_from_top(
     # Can't see anything in the hand because it's occluded now.
     objects_in_hand_view: Set[Object] = set()
 
-    # Gripper is now open.
+    # Gripper is now closed.
     gripper_open_percentage = 100.0
 
     # Finalize the next observation.
@@ -1218,7 +1219,7 @@ def _dry_simulate_place_on_top(
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
 
-    # Gripper is now closed.
+    # Gripper is now empty.
     gripper_open_percentage = 0.0
 
     # Finalize the next observation.
@@ -1237,7 +1238,8 @@ def _dry_simulate_place_on_top(
 
 
 def _dry_simulate_prepare_container_for_sweeping(
-        last_obs: _SpotObservation, container_obj: Object, target_obj: Object,
+        last_obs: _SpotObservation, container_obj: Object,
+        new_robot_se2_pose: math_helpers.SE2Pose,
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
 
     # Initialize values based on the last observation.
@@ -1245,11 +1247,25 @@ def _dry_simulate_prepare_container_for_sweeping(
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
     robot_pose = last_obs.robot_pos
 
-    # Place the held container next to the target object.
-    import ipdb; ipdb.set_trace()
+    # Place the held container next to the target object, on the floor.
+    # Also move the robot accordingly.
+    static_object_feats = load_spot_metadata()["static-object-features"]
+    container_height = static_object_feats[container_obj.name]["height"]
+    floor_obj = next(o for o in objects_in_view if o.name == "floor")
+    floor_pose = objects_in_view[floor_obj]
+    # First update the robot.
+    robot_pose = new_robot_se2_pose.get_closest_se3_transform()
+    # Now update the container relative to the robot.
+    robot_length = 0.8
+    robot_yaw = new_robot_se2_pose.angle
+    x = robot_pose.x + robot_length * np.cos(robot_yaw)
+    y = robot_pose.y + robot_length * np.sin(robot_yaw)
+    z = floor_pose.z + container_height / 2
+    container_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+    objects_in_view[container_obj] = container_pose
 
-    # Gripper is now open.
-    gripper_open_percentage = 100.0
+    # Gripper is now empty.
+    gripper_open_percentage = 0.0
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
@@ -1264,7 +1280,6 @@ def _dry_simulate_prepare_container_for_sweeping(
     )
 
     return next_obs
-
 
 
 ###############################################################################
@@ -1859,7 +1874,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda in the bucket and hold the brush"
-    
+
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         del train_or_test, task_idx  # randomization coming later
@@ -1873,7 +1888,9 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         static_object_feats = metadata["static-object-features"]
         known_immovables = metadata["known-immovable-objects"]
         table_height = static_object_feats["white-table"]["height"]
+        table_length = static_object_feats["white-table"]["length"]
         soda_can_height = static_object_feats["soda_can"]["height"]
+        soda_can_length = static_object_feats["soda_can"]["length"]
         plunger_height = static_object_feats["plunger"]["height"]
         chair_height = static_object_feats["chair"]["height"]
         bucket_height = static_object_feats["bucket"]["height"]
@@ -1883,7 +1900,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
         soda_can = Object("soda_can", _movable_object_type)
         x = table_x
-        y = table_y
+        y = table_y - table_length / 2.25 + soda_can_length
         z = floor_z + table_height + soda_can_height / 2
         soda_can_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[soda_can] = soda_can_pose
