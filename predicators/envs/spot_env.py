@@ -1822,7 +1822,10 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the soda in the bucket and hold the brush"
+
+        # TODO
+        # return "put the soda in the bucket and hold the brush"
+        return "pick up the soda can"
     
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -1853,22 +1856,22 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         objects_in_view[soda_can] = soda_can_pose
 
         plunger = Object("plunger", _movable_object_type)
-        x = 3.0
-        y = -1.0
+        x = table_x
+        y = self.render_y_ub - (self.render_y_ub - self.render_y_lb) / 5
         z = floor_z + plunger_height / 2
         plunger_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[plunger] = plunger_pose
 
         chair = Object("chair", _movable_object_type)
-        x = 3.0
-        y = 3.0
+        x = self.render_x_lb + (self.render_x_ub - self.render_x_lb) / 5
+        y = self.render_y_lb + (self.render_y_ub - self.render_y_lb) / 5
         z = floor_z + chair_height / 2
         chair_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[chair] = chair_pose
 
         bucket = Object("bucket", _container_type)
-        x = 5.0
-        y = -1.0
+        x = table_x
+        y = self.render_y_lb + (self.render_y_ub - self.render_y_lb) / 5
         z = floor_z + bucket_height / 2
         bucket_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[bucket] = bucket_pose
