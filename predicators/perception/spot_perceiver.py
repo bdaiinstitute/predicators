@@ -335,7 +335,8 @@ class SpotPerceiver(BasePerceiver):
                       label=obj.name,
                       facecolor=(0.0, 0.0, 0.0, 0.0),
                       edgecolor="black")
-            text_pos = (state.get(obj, "x"), state.get(obj, "y"))
+            assert isinstance(geom, (utils.Rectangle, utils.Circle))
+            text_pos = (geom.x, geom.y)
             ax.text(text_pos[0],
                     text_pos[1],
                     obj.name,
