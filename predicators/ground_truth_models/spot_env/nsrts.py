@@ -5,12 +5,13 @@ from typing import Dict, Sequence, Set
 import numpy as np
 
 from predicators.envs import get_or_create_env
-from predicators.envs.spot_env import SpotRearrangementEnv
+from predicators.envs.spot_env import SpotRearrangementEnv, get_allowed_map_regions
 from predicators.ground_truth_models import GroundTruthNSRTFactory
-from predicators.spot_utils.utils import get_spot_home_pose
+from predicators.spot_utils.utils import get_spot_home_pose, sample_move_offset_from_target, spot_pose_to_geom2d
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
+import predicators.utils as utils
 
 
 def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
@@ -54,7 +55,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
                                   objs: Sequence[Object]) -> Array:
     # Parameters are relative distance, dyaw (to the object you're moving to).
-    del state, goal, rng  # randomization coming soon
+    del state, goal
 
     home_pose = get_spot_home_pose()
 
@@ -65,6 +66,23 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
 
     if len(objs) == 2 and objs[1].name == "cup":
         approach_angle = home_pose.angle - (np.pi / 2)
+
+    robot_obj = objs[0]
+    obj_to_nav_to = objs[1]
+    obj_to_nav_to_pos = (state.get(obj_to_nav_to, "x"), state.get(obj_to_nav_to, "y"))
+    spot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+    robot_geom = spot_pose_to_geom2d(spot_pose)
+    convex_hulls = get_allowed_map_regions()
+
+    # distance, angle, _ = sample_move_offset_from_target(
+    #         obj_to_nav_to_pos,
+    #         robot_geom,
+    #         collision_geoms,
+    #         rng,
+    #         max_distance=max_distance,
+    #         allowed_regions=convex_hulls,
+    #     )
+
 
     # NOTE: closer than move_to_view. Important for placing.
     return np.array([0.8, approach_angle])

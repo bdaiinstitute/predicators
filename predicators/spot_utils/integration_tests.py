@@ -13,7 +13,7 @@ from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate
 
 from predicators import utils
-from predicators.envs.spot_env import load_spot_metadata
+from predicators.envs.spot_env import get_allowed_map_regions
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, detect_objects, \
@@ -208,14 +208,9 @@ def test_move_with_sampling() -> None:
                                      return_at_exit=True)
     assert path.exists()
     localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
-    metadata = load_spot_metadata()
-    allowed_regions = metadata.get("allowed-regions", {})
-    convex_hulls = []
-    for region_pts in allowed_regions.values():
-        dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))  # pylint: disable=no-member
-        convex_hulls.append(dealunay_hull)
+    convex_hulls = get_allowed_map_regions()
 
-    # Run test with april tag cube.
+    # Run test with april tag round tables.
     surface1 = AprilTagObjectDetectionID(408)
     surface2 = AprilTagObjectDetectionID(409)
 

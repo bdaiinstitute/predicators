@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
-    Tuple
+    Tuple, Collection
 
 import matplotlib
 import numpy as np
@@ -17,6 +17,7 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate, setup_logging
 from gym.spaces import Box
+import scipy
 
 from predicators import utils
 from predicators.envs import BaseEnv
@@ -157,6 +158,16 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
     detection_id_to_obj = env._detection_id_to_obj  # pylint: disable=protected-access
     obj_to_detection_id = {o: d for d, o in detection_id_to_obj.items()}
     return obj_to_detection_id[obj]
+
+@functools.lru_cache(maxsize=None)
+def get_allowed_map_regions() -> Collection[scipy.spatial.Delaunay]: # pylint: disable=no-member
+    metadata = load_spot_metadata()
+    allowed_regions = metadata.get("allowed-regions", {})
+    convex_hulls = []
+    for region_pts in allowed_regions.values():
+        dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts)) # pylint: disable=no-member
+        convex_hulls.append(dealunay_hull)
+    return convex_hulls
 
 
 class SpotRearrangementEnv(BaseEnv):
