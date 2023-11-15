@@ -1164,7 +1164,7 @@ def _dry_simulate_pick_from_top(
     robot_pose = last_obs.robot_pos
 
     # Can't see anything in the hand because it's occluded now.
-    objects_in_hand_view = set()
+    objects_in_hand_view: Set[Object] = set()
 
     # Gripper is now open.
     gripper_open_percentage = 100.0
