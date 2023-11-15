@@ -1,6 +1,6 @@
 """Ground-truth NSRTs for the PDDLEnv."""
 
-from typing import Dict, Sequence, Set
+from typing import Dict, List, Sequence, Set
 
 import numpy as np
 
@@ -9,11 +9,28 @@ from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
     _object_to_top_down_geom, get_allowed_map_regions
 from predicators.ground_truth_models import GroundTruthNSRTFactory
-from predicators.spot_utils.utils import get_spot_home_pose, \
+from predicators.spot_utils.utils import _Geom2D, get_spot_home_pose, \
     sample_move_offset_from_target, spot_pose_to_geom2d
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
 from predicators.utils import null_sampler
+
+
+def _get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
+    """Get all relevant collision geometries for navigating."""
+    # We want to consider collisions with all objects that:
+    # (1) aren't the robot
+    # (2) aren't the floor
+    # (3) aren't being currently held.
+    collision_geoms = []
+    for obj in set(state):
+        if obj.type.name != "robot" and obj.name != "floor":
+            if "held" in obj.type.feature_names:
+                if state.get(obj, "held") > 0.5:
+                    continue
+            collision_geoms.append(_object_to_top_down_geom(obj, state))
+            print(obj.name)
+    return collision_geoms
 
 
 def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
@@ -32,18 +49,7 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
     spot_pose = utils.get_se3_pose_from_state(state, robot_obj)
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
-    # We want to consider collisions with all objects that:
-    # (1) aren't the robot
-    # (2) aren't the floor
-    # (3) aren't being currently held.
-    collision_geoms = []
-    for obj in set(state):
-        if obj.type.name != "robot" and obj.name != "floor":
-            if "held" in obj.type.feature_names:
-                if state.get("held") > 0.5:
-                    continue
-            collision_geoms.append(obj)
-
+    collision_geoms = _get_collision_geoms_for_nav(state)
     distance, angle, _ = sample_move_offset_from_target(
         obj_to_nav_to_pos,
         robot_geom,
@@ -73,17 +79,8 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     spot_pose = utils.get_se3_pose_from_state(state, robot_obj)
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
-    # We want to consider collisions with all objects that:
-    # (1) aren't the robot
-    # (2) aren't the floor
-    # (3) aren't being currently held.
-    collision_geoms = []
-    for obj in set(state):
-        if obj.type.name != "robot" and obj.name != "floor":
-            if "held" in obj.type.feature_names:
-                if state.get("held") > 0.5:
-                    continue
-            collision_geoms.append(obj)
+    collision_geoms = _get_collision_geoms_for_nav(state)
+
     distance, angle, _ = sample_move_offset_from_target(
         obj_to_nav_to_pos,
         robot_geom,
@@ -105,7 +102,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
 
     # NOTE: closer than move_to_view. Important for placing.
     min_dist = 0.0
-    max_dist = 0.8
+    max_dist = 0.95
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
@@ -114,18 +111,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     spot_pose = utils.get_se3_pose_from_state(state, robot_obj)
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
-    # We want to consider collisions with all objects that:
-    # (1) aren't the robot
-    # (2) aren't the floor
-    # (3) aren't being currently held.
-    collision_geoms = []
-    for obj in set(state):
-        if obj.type.name != "robot" and obj.name != "floor":
-            if "held" in obj.type.feature_names:
-                if state.get("held") > 0.5:
-                    continue
-            collision_geoms.append(obj)
-
+    collision_geoms = _get_collision_geoms_for_nav(state)
     distance, angle, _ = sample_move_offset_from_target(
         obj_to_nav_to_pos,
         robot_geom,

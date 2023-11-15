@@ -71,6 +71,16 @@ def _place_at_relative_position_and_stow(
         robot: Robot, rel_pose: math_helpers.SE3Pose) -> None:
     # Place.
     place_at_relative_position(robot, rel_pose)
+    # Now, move the arm back slightly. We do this because if we're
+    # placing an objec directly onto a table instead of dropping it,
+    # then stowing/moving the hand immediately after might cause
+    # us to knock the object off the table.
+    slightly_back_and_up_pose = math_helpers.SE3Pose(
+        x=rel_pose.x - 0.15,
+        y=rel_pose.y,
+        z=rel_pose.z + 0.1,
+        rot=math_helpers.Quat.from_pitch(np.pi / 3))
+    move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
     # Stow.
     stow_arm(robot)
 
@@ -300,10 +310,13 @@ def _place_object_on_top_policy(state: State, memory: Dict,
         return utils.create_spot_env_action(name, objects, _drop_and_stow,
                                             (robot, ))
 
+    # The dz parameter is with respect to the top of the container.
+    surface_half_height = state.get(surface_obj, "height") / 2
     surface_rel_pose = robot_pose.inverse() * surface_pose
     place_rel_pos = math_helpers.Vec3(x=surface_rel_pose.x + dx,
                                       y=surface_rel_pose.y + dy,
-                                      z=surface_rel_pose.z + dz)
+                                      z=surface_rel_pose.z + dz +
+                                      surface_half_height)
 
     return utils.create_spot_env_action(name, objects,
                                         _place_at_relative_position_and_stow,
