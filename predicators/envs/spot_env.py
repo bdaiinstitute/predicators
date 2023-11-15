@@ -7,8 +7,8 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, Iterator, List, Optional, Sequence, Set, \
-    Tuple, ClassVar
+from typing import Callable, ClassVar, Dict, Iterator, List, Optional, \
+    Sequence, Set, Tuple
 
 import matplotlib
 import numpy as np
@@ -1107,7 +1107,7 @@ def _dry_simulate_move_to_view_hand(
     # Update the robot position to be looking at the object, roughly.
     target_obj_pose = objects_in_view[target_obj]
     robot_pose = math_helpers.SE3Pose(
-        x=target_obj_pose.x + _REACHABLE_THRESHOLD / 2,
+        x=target_obj_pose.x - _REACHABLE_THRESHOLD / 2,
         y=target_obj_pose.y,
         z=robot_pose.z,
         rot=robot_pose.rot,

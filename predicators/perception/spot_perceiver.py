@@ -3,17 +3,17 @@
 import logging
 from typing import Dict, Optional, Set
 
-from matplotlib import pyplot as plt
-
 import numpy as np
 from bosdyn.client import math_helpers
+from matplotlib import pyplot as plt
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotCubeEnv, SpotRearrangementEnv, _container_type, \
-    _immovable_object_type, _movable_object_type, _PartialPerceptionState, \
-    _robot_type, _SpotObservation, in_hand_view_classifier, _object_to_top_down_geom
+    _immovable_object_type, _movable_object_type, _object_to_top_down_geom, \
+    _PartialPerceptionState, _robot_type, _SpotObservation, \
+    in_hand_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import load_spot_metadata
@@ -307,6 +307,7 @@ class SpotPerceiver(BasePerceiver):
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
         # Draw the robot as an arrow.
+        assert self._robot is not None
         robot_pose = utils.get_se3_pose_from_state(state, self._robot)
         robot_x = robot_pose.x
         robot_y = robot_pose.y
@@ -315,7 +316,12 @@ class SpotPerceiver(BasePerceiver):
         head_width = arrow_length / 3
         robot_dx = arrow_length * np.cos(robot_yaw)
         robot_dy = arrow_length * np.sin(robot_yaw)
-        plt.arrow(robot_x, robot_y, robot_dx, robot_dy, color="red", head_width=head_width)
+        plt.arrow(robot_x,
+                  robot_y,
+                  robot_dx,
+                  robot_dy,
+                  color="red",
+                  head_width=head_width)
         # Draw the other objects.
         for obj in state:
             if obj == self._robot:
