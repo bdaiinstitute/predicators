@@ -1699,9 +1699,82 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         move_hand_to_relative_pose(self._robot, hand_pose)
         return super()._run_init_search_for_objects(detection_ids)
 
-    def _get_dry_task(self, train_or_test: str,
+     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
-        raise NotImplementedError("Dry task generation not implemented.")
+        del train_or_test, task_idx  # randomization coming later
+
+        # Create the objects and their initial poses.
+        objects_in_view: Dict[Object, math_helpers.SE3Pose] = {}
+
+        # Make up some poses for the objects, with the soda can starting on the
+        # table, and the bucket, chair, and plunger starting on the floor.
+        metadata = load_spot_metadata()
+        static_object_feats = metadata["static-object-features"]
+        known_immovables = metadata["known-immovable-objects"]
+        table_height = static_object_feats["white-table"]["height"]
+        soda_can_height = static_object_feats["soda_can"]["height"]
+        plunger_height = static_object_feats["plunger"]["height"]
+        chair_height = static_object_feats["chair"]["height"]
+        bucket_height = static_object_feats["bucket"]["height"]
+        floor_z = known_immovables["floor"]["z"]
+        table_x = known_immovables["white-table"]["x"]
+        table_y = known_immovables["white-table"]["y"]
+
+        soda_can = Object("soda_can", _movable_object_type)
+        x = table_x
+        y = table_y
+        z = floor_z + table_height + soda_can_height / 2
+        soda_can_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[soda_can] = soda_can_pose
+
+        plunger = Object("plunger", _movable_object_type)
+        x = 3.0
+        y = -1.0
+        z = floor_z + plunger_height / 2
+        plunger_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[plunger] = plunger_pose
+
+        chair = Object("chair", _movable_object_type)
+        x = 3.0
+        y = 3.0
+        z = floor_z + chair_height / 2
+        chair_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[chair] = chair_pose
+
+        bucket = Object("bucket", _container_type)
+        x = 5.0
+        y = -1.0
+        z = floor_z + bucket_height / 2
+        bucket_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[bucket] = bucket_pose
+
+        for obj_name, obj_pos in known_immovables.items():
+            obj = Object(obj_name, _immovable_object_type)
+            pose = math_helpers.SE3Pose(obj_pos["x"],
+                                        obj_pos["y"],
+                                        obj_pos["z"],
+                                        rot=math_helpers.Quat())
+            objects_in_view[obj] = pose
+
+        # Create robot pose.
+        robot_se2 = get_spot_home_pose()
+        robot_pose = robot_se2.get_closest_se3_transform()
+
+        # Create the initial observation.
+        init_obs = _SpotObservation(
+            images={},
+            objects_in_view=objects_in_view,
+            objects_in_hand_view=set(),
+            robot=self._spot_object,
+            gripper_open_percentage=0.0,
+            robot_pos=robot_pose,
+            nonpercept_atoms=self._get_initial_nonpercept_atoms(),
+            nonpercept_predicates=(self.predicates - self.percept_predicates),
+        )
+
+        # Finish the task.
+        goal_description = self._generate_goal_description()
+        return EnvironmentTask(init_obs, goal_description)
 
 
 ###############################################################################
