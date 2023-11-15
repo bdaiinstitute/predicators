@@ -235,6 +235,11 @@ class SpotRearrangementEnv(BaseEnv):
             _, held_obj, target_surface = action_objs
             return _dry_simulate_place_on_top(obs, held_obj, target_surface,
                                               nonpercept_atoms)
+        
+        if action_name == "PrepareContainerForSweeping":
+            _, container_obj, target_obj = action_objs
+            return _dry_simulate_prepare_container_for_sweeping(obs, container_obj, target_obj,
+                                              nonpercept_atoms)
 
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
@@ -1231,6 +1236,37 @@ def _dry_simulate_place_on_top(
     return next_obs
 
 
+def _dry_simulate_prepare_container_for_sweeping(
+        last_obs: _SpotObservation, container_obj: Object, target_obj: Object,
+        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+
+    # Initialize values based on the last observation.
+    objects_in_view = last_obs.objects_in_view.copy()
+    objects_in_hand_view = set(last_obs.objects_in_hand_view)
+    robot_pose = last_obs.robot_pos
+
+    # Place the held container next to the target object.
+    import ipdb; ipdb.set_trace()
+
+    # Gripper is now open.
+    gripper_open_percentage = 100.0
+
+    # Finalize the next observation.
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=objects_in_view,
+        objects_in_hand_view=objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=robot_pose,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
+
+    return next_obs
+
+
+
 ###############################################################################
 #                                Cube Table Env                               #
 ###############################################################################
@@ -1822,10 +1858,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-
-        # TODO
-        # return "put the soda in the bucket and hold the brush"
-        return "pick up the soda can"
+        return "put the soda in the bucket and hold the brush"
     
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
