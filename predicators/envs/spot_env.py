@@ -220,15 +220,17 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "MoveToHandViewObject":
             _, target_obj = action_objs
+            robot_rel_se2_pose = action_args[1]
             return _dry_simulate_move_to_view_hand(obs, target_obj,
+                                                   robot_rel_se2_pose,
                                                    nonpercept_atoms)
 
         if action_name == "PickObjectFromTop":
             return _dry_simulate_pick_from_top(obs, nonpercept_atoms)
 
         if action_name == "MoveToReachObject":
-            _, target_obj = action_objs
-            return _dry_simulate_move_to_reach_obj(obs, target_obj,
+            robot_rel_se2_pose = action_args[1]
+            return _dry_simulate_move_to_reach_obj(obs, robot_rel_se2_pose,
                                                    nonpercept_atoms)
 
         if action_name == "PlaceObjectOnTop":
@@ -246,6 +248,13 @@ class SpotRearrangementEnv(BaseEnv):
             _, _, target, _, container = action_objs
             return _dry_simulate_sweep_into_container(obs, target, container,
                                                       nonpercept_atoms)
+
+        if action_name == "DragToUnblockObject":
+            _, _, blocker = action_objs
+            _, robot_rel_se2_pose = action_args
+            return _dry_simulate_drag_to_unblock(obs, blocker,
+                                                 robot_rel_se2_pose,
+                                                 nonpercept_atoms)
 
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
@@ -1114,6 +1123,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
 
 def _dry_simulate_move_to_view_hand(
         last_obs: _SpotObservation, target_obj: Object,
+        robot_rel_se2_pose: math_helpers.SE2Pose,
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
@@ -1125,13 +1135,9 @@ def _dry_simulate_move_to_view_hand(
     objects_in_hand_view.add(target_obj)
 
     # Update the robot position to be looking at the object, roughly.
-    target_obj_pose = objects_in_view[target_obj]
-    robot_pose = math_helpers.SE3Pose(
-        x=target_obj_pose.x - _REACHABLE_THRESHOLD / 2,
-        y=target_obj_pose.y,
-        z=robot_pose.z,
-        rot=robot_pose.rot,
-    )
+    current_robot_se2_pose = robot_pose.get_closest_se2_transform()
+    new_robot_se2_pose = robot_rel_se2_pose * current_robot_se2_pose
+    robot_pose = new_robot_se2_pose.get_closest_se3_transform()
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
@@ -1149,7 +1155,7 @@ def _dry_simulate_move_to_view_hand(
 
 
 def _dry_simulate_move_to_reach_obj(
-        last_obs: _SpotObservation, target_obj: Object,
+        last_obs: _SpotObservation, robot_rel_se2_pose: math_helpers.SE2Pose,
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
@@ -1158,13 +1164,9 @@ def _dry_simulate_move_to_reach_obj(
     robot_pose = last_obs.robot_pos
 
     # Update the robot position to be looking at the object, roughly.
-    target_obj_pose = objects_in_view[target_obj]
-    robot_pose = math_helpers.SE3Pose(
-        x=target_obj_pose.x - _REACHABLE_THRESHOLD / 2,
-        y=target_obj_pose.y,
-        z=robot_pose.z,
-        rot=robot_pose.rot,
-    )
+    current_robot_se2_pose = robot_pose.get_closest_se2_transform()
+    new_robot_se2_pose = robot_rel_se2_pose * current_robot_se2_pose
+    robot_pose = new_robot_se2_pose.get_closest_se3_transform()
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
@@ -1230,6 +1232,49 @@ def _dry_simulate_place_on_top(
     x = surface_pose.x + surface_radius / 2
     y = surface_pose.y + surface_radius / 2
     z = surface_pose.z + surface_height / 2 + held_obj_height
+    held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+    objects_in_view[held_obj] = held_obj_pose
+
+    # Gripper is now empty.
+    gripper_open_percentage = 0.0
+
+    # Finalize the next observation.
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=objects_in_view,
+        objects_in_hand_view=objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=robot_pose,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
+
+    return next_obs
+
+
+def _dry_simulate_drag_to_unblock(
+        last_obs: _SpotObservation, held_obj: Object,
+        robot_rel_se2_pose: math_helpers.SE2Pose,
+        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+
+    # Initialize values based on the last observation.
+    objects_in_view = last_obs.objects_in_view.copy()
+    objects_in_hand_view = set(last_obs.objects_in_hand_view)
+    robot_pose = last_obs.robot_pos
+
+    # Update the robot pose.
+    old_robot_se2_pose = robot_pose.get_closest_se2_transform()
+    new_robot_se2_pose = robot_rel_se2_pose * old_robot_se2_pose
+    robot_pose = new_robot_se2_pose.get_closest_se3_transform()
+
+    # Now update the held object relative to the robot.
+    old_held_pose = objects_in_view[held_obj]
+    robot_length = 0.8
+    robot_yaw = new_robot_se2_pose.angle
+    x = robot_pose.x + robot_length * np.cos(robot_yaw)
+    y = robot_pose.y + robot_length * np.sin(robot_yaw)
+    z = old_held_pose.z
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
 
@@ -1941,6 +1986,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         soda_can_length = static_object_feats["soda_can"]["length"]
         plunger_height = static_object_feats["plunger"]["height"]
         chair_height = static_object_feats["chair"]["height"]
+        chair_width = static_object_feats["chair"]["width"]
         bucket_height = static_object_feats["bucket"]["height"]
         floor_z = known_immovables["floor"]["z"]
         table_x = known_immovables["white-table"]["x"]
@@ -1961,8 +2007,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         objects_in_view[plunger] = plunger_pose
 
         chair = Object("chair", _movable_object_type)
-        x = self.render_x_lb + (self.render_x_ub - self.render_x_lb) / 5
-        y = self.render_y_lb + (self.render_y_ub - self.render_y_lb) / 5
+        x = soda_can_pose.x - 1.5 * chair_width
+        y = soda_can_pose.y
         z = floor_z + chair_height / 2
         chair_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[chair] = chair_pose
