@@ -242,6 +242,11 @@ class SpotRearrangementEnv(BaseEnv):
             return _dry_simulate_prepare_container_for_sweeping(
                 obs, container_obj, new_robot_se2_pose, nonpercept_atoms)
 
+        if action_name == "SweepIntoContainer":
+            _, _, target, _, container = action_objs
+            return _dry_simulate_sweep_into_container(obs, target, container,
+                                                      nonpercept_atoms)
+
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
 
@@ -1275,6 +1280,40 @@ def _dry_simulate_prepare_container_for_sweeping(
 
     # Gripper is now empty.
     gripper_open_percentage = 0.0
+
+    # Finalize the next observation.
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=objects_in_view,
+        objects_in_hand_view=objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=robot_pose,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
+
+    return next_obs
+
+
+def _dry_simulate_sweep_into_container(
+        last_obs: _SpotObservation, swept_obj: Object, container: Object,
+        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+
+    # Initialize values based on the last observation.
+    objects_in_view = last_obs.objects_in_view.copy()
+    objects_in_hand_view = set(last_obs.objects_in_hand_view)
+    robot_pose = last_obs.robot_pos
+    gripper_open_percentage = last_obs.gripper_open_percentage
+
+    static_feats = load_spot_metadata()["static-object-features"]
+    swept_obj_height = static_feats[swept_obj.name]["height"]
+    container_pose = objects_in_view[container]
+    x = container_pose.x
+    y = container_pose.y
+    z = container_pose.z + swept_obj_height / 2
+    swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+    objects_in_view[swept_obj] = swept_obj_pose
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
