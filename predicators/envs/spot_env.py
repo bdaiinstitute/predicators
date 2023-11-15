@@ -704,6 +704,12 @@ def _object_to_side_view_geom(obj: Object,
 
 
 ## Predicates
+def _neq_classifier(state: State, objects: Sequence[Object]) -> bool:
+    del state  # not used
+    obj0, obj1 = objects
+    return obj0 != obj1
+
+
 def _handempty_classifier(state: State, objects: Sequence[Object]) -> bool:
     spot = objects[0]
     gripper_open_percentage = state.get(spot, "gripper_open_percentage")
@@ -897,6 +903,8 @@ def _container_ready_for_sweeping_classifier(
     return target_bottom > container_top
 
 
+_NEq = Predicate("NEq", [_base_object_type, _base_object_type],
+                 _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
@@ -992,7 +1000,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, held, surface]
     preconds = {
         LiftedAtom(_Holding, [robot, held]),
-        LiftedAtom(_Reachable, [robot, surface])
+        LiftedAtom(_Reachable, [robot, surface]),
+        LiftedAtom(_NEq, [held, surface]),
     }
     add_effs = {
         LiftedAtom(_On, [held, surface]),
@@ -1412,6 +1421,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
@@ -1571,6 +1581,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
@@ -1671,6 +1682,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
@@ -1774,6 +1786,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
@@ -1896,6 +1909,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
@@ -2088,6 +2102,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
+            _NEq,
             _On,
             _HandEmpty,
             _Holding,
