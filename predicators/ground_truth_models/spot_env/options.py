@@ -203,9 +203,19 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         pixel = get_object_center_pixel_from_artifacts(artifacts,
                                                        target_detection_id,
                                                        hand_camera)
+        
+        # TODO save systematically?
+        import imageio.v2 as iio
+        import cv2
+        rgb = img.rgb.copy()
+        cv2.circle(rgb, pixel, 5, (0,255,0), -1)
+        iio.imsave("grasp_debug.png", rgb)
 
     # Grasp from the top-down.
-    top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+
+    # TODO... sample this??
+    # grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    grasp_rot = math_helpers.Quat.from_roll(np.pi / 2)
 
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \
@@ -216,7 +226,7 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         fn = _grasp_at_pixel_and_stow
 
     return utils.create_spot_env_action(name, objects, fn,
-                                        (robot, img, pixel, top_down_rot))
+                                        (robot, img, pixel, grasp_rot))
 
 
 ###############################################################################
