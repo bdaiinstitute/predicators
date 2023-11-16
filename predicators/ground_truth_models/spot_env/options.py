@@ -43,6 +43,7 @@ def navigate_to_relative_pose_and_gaze(robot: Robot,
                                        rel_pose: math_helpers.SE2Pose,
                                        localizer: SpotLocalizer,
                                        gaze_target: math_helpers.Vec3) -> None:
+    """Navigate to a pose and then gaze at a specific target afterwards."""
     # Stow first.
     stow_arm(robot)
     # First navigate to the pose.
