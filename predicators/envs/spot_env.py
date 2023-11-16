@@ -12,12 +12,12 @@ from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
 
 import matplotlib
 import numpy as np
-import scipy
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate, setup_logging
 from gym.spaces import Box
+from scipy.spatial import Delaunay  # pylint: disable=no-name-in-module
 
 from predicators import utils
 from predicators.envs import BaseEnv
@@ -161,13 +161,13 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
 
 
 @functools.lru_cache(maxsize=None)
-def get_allowed_map_regions() -> Collection[scipy.spatial.Delaunay]:  # pylint: disable=no-member
+def get_allowed_map_regions() -> Collection[Delaunay]:
     """Gets Delaunay regions from metadata that correspond to free space."""
     metadata = load_spot_metadata()
     allowed_regions = metadata.get("allowed-regions", {})
     convex_hulls = []
     for region_pts in allowed_regions.values():
-        dealunay_hull = scipy.spatial.Delaunay(np.array(region_pts))  # pylint: disable=no-member
+        dealunay_hull = Delaunay(np.array(region_pts))
         convex_hulls.append(dealunay_hull)
     return convex_hulls
 
