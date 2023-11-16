@@ -1,6 +1,7 @@
 """Interface for moving the spot hand."""
 
 import time
+
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, ODOM_FRAME_NAME, \
     get_a_tform_b

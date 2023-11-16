@@ -7,8 +7,8 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable, ClassVar, Dict, Iterator, List, Optional, \
-    Sequence, Set, Tuple, Collection
+from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
+    Optional, Sequence, Set, Tuple
 
 import matplotlib
 import numpy as np

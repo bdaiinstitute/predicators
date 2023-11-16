@@ -39,9 +39,10 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
 ###############################################################################
 
 
-def navigate_to_relative_pose_and_gaze(
-        robot: Robot, rel_pose: math_helpers.SE2Pose, localizer: SpotLocalizer,
-        gaze_target: math_helpers.Vec3) -> None:
+def navigate_to_relative_pose_and_gaze(robot: Robot,
+                                       rel_pose: math_helpers.SE2Pose,
+                                       localizer: SpotLocalizer,
+                                       gaze_target: math_helpers.Vec3) -> None:
     # Stow first.
     stow_arm(robot)
     # First navigate to the pose.
@@ -49,18 +50,8 @@ def navigate_to_relative_pose_and_gaze(
     # Get the relative gaze target based on the new robot pose.
     localizer.localize()
     robot_pose = localizer.get_last_robot_pose()
-    # rel_gaze_target_world = math_helpers.Vec3(
-    #     gaze_target[0] - robot_pose.x,
-    #     gaze_target[1] - robot_pose.y,
-    #     gaze_target[2] - robot_pose.z,
-    # )
     # Transform this to the body frame.
-    # rel_gaze_target_body = robot_pose.transform_vec3(rel_gaze_target_world)
-    rel_gaze_target_body = robot_pose.transform_vec3(gaze_target)
-    # print(rel_gaze_target_world)
-    print(rel_gaze_target_body)
-    import ipdb; ipdb.set_trace()
-
+    rel_gaze_target_body = robot_pose.inverse().transform_vec3(gaze_target)
     # Then gaze.
     gaze_at_relative_pose(robot, rel_gaze_target_body)
 

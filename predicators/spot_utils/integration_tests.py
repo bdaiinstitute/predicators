@@ -13,13 +13,14 @@ from bosdyn.client.util import authenticate
 
 from predicators import utils
 from predicators.envs.spot_env import get_allowed_map_regions
+from predicators.ground_truth_models.spot_env.options import \
+    navigate_to_relative_pose_and_gaze
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, detect_objects, \
     get_object_center_pixel_from_artifacts
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID
-from predicators.ground_truth_models.spot_env.options import navigate_to_relative_pose_and_gaze
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.skills.spot_dump import dump_container
 from predicators.spot_utils.skills.spot_find_objects import \
@@ -276,8 +277,9 @@ def test_move_with_sampling() -> None:
                                              angle)
         # navigate_to_relative_pose(robot, rel_pose)
         gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
-                                    target_pose.z)
-        navigate_to_relative_pose_and_gaze(robot, rel_pose, localizer, gaze_target)
+                                        target_pose.z)
+        navigate_to_relative_pose_and_gaze(robot, rel_pose, localizer,
+                                           gaze_target)
 
 
 def test_repeated_brush_bucket_dump_pick_place(
