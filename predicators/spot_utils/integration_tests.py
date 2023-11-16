@@ -233,7 +233,6 @@ def test_move_with_sampling() -> None:
     for i in range(num_samples):
         localizer.localize()
         robot_pose = localizer.get_last_robot_pose()
-        print(f"Pose before moving: {robot_pose}")
         robot_geom = spot_pose_to_geom2d(robot_pose)
         distance, angle, next_robot_geom = sample_move_offset_from_target(
             target_origin,
