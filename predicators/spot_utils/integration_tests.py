@@ -485,9 +485,49 @@ def test_platform_dragging(pre_pick_nav_distance: float = 1.25) -> None:
     rgbd = rgbds[hand_camera]
 
     # Run detection to get a pixel for grasping.
-    # TODO remove
-    from predicators.spot_utils.utils import get_pixel_from_user
-    pixel = get_pixel_from_user(rgbd.rgb)
+    # TODO move this code somewhere else...
+
+    import imageio.v2 as iio
+    import cv2
+
+    lo, hi = ((0, 130, 130), (130, 255, 255))
+    crop_min_x, crop_max_x, crop_min_y, crop_max_y = (0, 640, 240, 480)
+
+    # Copy to make sure we don't modify the image.
+    img = rgbd.rgb.copy()
+    # Crop
+    cropped_img = img[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
+    # Mask color.
+    lower = np.array(lo)
+    upper = np.array(hi)
+    mask = cv2.inRange(cropped_img, lower, upper)
+    # Apply blur.
+    mask = cv2.GaussianBlur(mask, (5, 5), 0)
+    # Connected components with stats.
+    nb_components, _, stats, centroids = cv2.connectedComponentsWithStats(
+        mask, connectivity=4)
+    # Fail if nothing found.
+    if nb_components <= 1:
+        return None
+    # Find the largest non background component.
+    # NOTE: range() starts from 1 since 0 is the background label.
+    max_label, _ = max(
+        ((i, stats[i, cv2.CC_STAT_AREA]) for i in range(1, nb_components)),
+        key=lambda x: x[1])
+
+    # Fail component too small.
+    if stats[max_label][4] < 1000:
+        return None
+
+    cropped_x, cropped_y = map(int, centroids[max_label])
+
+    x = cropped_x + crop_min_x
+    y = cropped_y + crop_min_y
+
+    pixel = (x, y)
+
+    cv2.circle(img, pixel, 5, (0,255,0), -1)
+    iio.imsave("platform_handle.png", img)
 
     # Pick at the pixel with a top-down and rotated grasp.
     top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
@@ -539,7 +579,7 @@ def test_platform_dragging(pre_pick_nav_distance: float = 1.25) -> None:
     robot_command_client.robot_command(command)
 
     # Drag to the left.
-    drag_rel_pose = math_helpers.SE2Pose(0.0, 1.5, 0.0)
+    drag_rel_pose = math_helpers.SE2Pose(0.0, 1.0, 0.0)
     
     # Drag backward.
     # drag_rel_pose = math_helpers.SE2Pose(-0.5, 0.0, 0.0)
