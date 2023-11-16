@@ -4,7 +4,7 @@ from typing import Dict, List, Sequence, Set
 
 import numpy as np
 
-import predicators.utils as utils
+from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
     _object_to_top_down_geom, get_allowed_map_regions

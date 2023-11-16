@@ -6,7 +6,6 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
 from bosdyn.client import create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot

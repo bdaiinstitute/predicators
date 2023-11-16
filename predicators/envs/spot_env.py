@@ -162,6 +162,7 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
 
 @functools.lru_cache(maxsize=None)
 def get_allowed_map_regions() -> Collection[scipy.spatial.Delaunay]:  # pylint: disable=no-member
+    """Gets Delaunay regions from metadata that correspond to free space."""
     metadata = load_spot_metadata()
     allowed_regions = metadata.get("allowed-regions", {})
     convex_hulls = []
