@@ -25,7 +25,7 @@ def _get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
     collision_geoms = []
     for obj in set(state):
         if obj.type.name != "robot" and obj.name != "floor":
-            if obj.isinstance(_movable_object_type):
+            if obj.type == _movable_object_type:
                 if state.get(obj, "held") > 0.5:
                     continue
             collision_geoms.append(_object_to_top_down_geom(obj, state))
