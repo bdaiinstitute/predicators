@@ -1435,6 +1435,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,
@@ -1595,6 +1596,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,
@@ -1697,6 +1699,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,
@@ -1801,6 +1804,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,
@@ -1925,6 +1929,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,
@@ -1964,13 +1969,16 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         bucket_detection = LanguageObjectDetectionID("bucket")
         detection_id_to_obj[bucket_detection] = bucket
 
+        # TODO factor out!
         known_immovables = load_spot_metadata()["known-immovable-objects"]
         for obj_name, obj_pos in known_immovables.items():
             obj = Object(obj_name, _immovable_object_type)
+            yaw = obj_pos.get("yaw", 0.0)
+            rot = math_helpers.Quat.from_yaw(yaw)
             pose = math_helpers.SE3Pose(obj_pos["x"],
                                         obj_pos["y"],
                                         obj_pos["z"],
-                                        rot=math_helpers.Quat())
+                                        rot=rot)
             detection_id = KnownStaticObjectDetectionID(obj_name, pose)
             detection_id_to_obj[detection_id] = obj
 
@@ -2042,6 +2050,18 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
                                         rot=math_helpers.Quat())
             objects_in_view[obj] = pose
 
+        # TODO factor out!
+        known_immovables = load_spot_metadata()["known-immovable-objects"]
+        for obj_name, obj_pos in known_immovables.items():
+            obj = Object(obj_name, _immovable_object_type)
+            yaw = obj_pos.get("yaw", 0.0)
+            rot = math_helpers.Quat.from_yaw(yaw)
+            pose = math_helpers.SE3Pose(obj_pos["x"],
+                                        obj_pos["y"],
+                                        obj_pos["z"],
+                                        rot=rot)
+            objects_in_view[obj] = pose
+
         # Create robot pose.
         robot_se2 = get_spot_home_pose()
         robot_pose = robot_se2.get_closest_se3_transform()
@@ -2061,6 +2081,110 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         # Finish the task.
         goal_description = self._generate_goal_description()
         return EnvironmentTask(init_obs, goal_description)
+
+
+###############################################################################
+#                          Water Bottle Shelf Env                             #
+###############################################################################
+
+
+class SpotBottleShelfEnv(SpotRearrangementEnv):
+    """An environment where a water bottle needs to be moved from the table
+    into one of the lower shelves."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_bottle_shelf_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return {
+            _robot_type,
+            _base_object_type,
+            _movable_object_type,
+            _immovable_object_type,
+            _container_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {
+            _NEq,
+            _On,
+            _HandEmpty,
+            _Holding,
+            _Reachable,
+            _InHandView,
+            _Inside,
+            _Blocking,
+            _NotBlocked,
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return {
+            _NEq,
+            _HandEmpty,
+            _Holding,
+            _On,
+            _Reachable,
+            _InHandView,
+            _Blocking,
+            _NotBlocked,
+        }
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        bottle = Object("water_bottle", _movable_object_type)
+        bottle_detection = LanguageObjectDetectionID("blue water bottle")
+        detection_id_to_obj[bottle_detection] = bottle
+
+        # TODO factor out!
+        known_immovables = load_spot_metadata()["known-immovable-objects"]
+        for obj_name, obj_pos in known_immovables.items():
+            obj = Object(obj_name, _immovable_object_type)
+            yaw = obj_pos.get("yaw", 0.0)
+            rot = math_helpers.Quat.from_yaw(yaw)
+            pose = math_helpers.SE3Pose(obj_pos["x"],
+                                        obj_pos["y"],
+                                        obj_pos["z"],
+                                        rot=rot)
+            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
+        return set()
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the water bottle in the second shelf"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
 
 
 ###############################################################################
@@ -2116,6 +2240,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
+            _NEq,
             _HandEmpty,
             _Holding,
             _On,

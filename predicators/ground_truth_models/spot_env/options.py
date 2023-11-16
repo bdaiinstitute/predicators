@@ -511,7 +511,7 @@ class SpotCubeEnvGroundTruthOptionFactory(GroundTruthOptionFactory):
         return {
             "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
             "spot_soda_chair_env", "spot_soda_sweep_env",
-            "spot_ball_and_cup_sticky_table_env"
+            "spot_ball_and_cup_sticky_table_env", "spot_bottle_shelf_env",
         }
 
     @classmethod

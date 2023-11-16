@@ -290,6 +290,13 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(On, [cup, drafting_table]),
                 GroundAtom(Inside, [ball, cup])
             }
+        if goal_description == "put the water bottle in the second shelf":
+            bottle = Object("water_bottle", _movable_object_type)
+            shelf = Object("shelf1", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            return {
+                GroundAtom(On, [bottle, shelf]),
+            }
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,
@@ -345,7 +352,7 @@ class SpotPerceiver(BasePerceiver):
                     bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
         ax.set_xlim(x_lb, x_ub)
         ax.set_ylim(y_lb, y_ub)
-        ax.axis("off")
+        # ax.axis("off")
         plt.tight_layout()
         img = utils.fig2data(fig, CFG.render_state_dpi)
         return [img]
