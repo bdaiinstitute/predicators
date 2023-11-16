@@ -53,8 +53,6 @@ def gaze_at_relative_pose(
     # Build the arm command.
     cmd = RobotCommandBuilder.arm_gaze_command(gaze_target.x, gaze_target.y,
                                                gaze_target.z, ODOM_FRAME_NAME)
-    # cmd = RobotCommandBuilder.arm_gaze_command(gaze_target.x, gaze_target.y,
-    #                                            gaze_target.z, BODY_FRAME_NAME)
     # Send the request.
     cmd_id = robot_command_client.robot_command(cmd)
     # Wait until the arm arrives at the goal.
