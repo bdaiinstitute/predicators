@@ -722,8 +722,13 @@ if __name__ == "__main__":
         def _detect_bowl(
             rgbds: Dict[str, RGBDImageWithContext]
         ) -> Optional[math_helpers.SE3Pose]:
-            # Start by using vision-language to look for the bowl.
-            language_id = LanguageObjectDetectionID("white bowl")
+            # ONLY use the hand camera (which we assume is looking down)
+            # because otherwise it's impossible to see the top/bottom.
+            hand_camera = "hand_color_image"
+            assert hand_camera in rgbds
+            rgbds = {hand_camera: rgbds[hand_camera]}
+            # Start by using vision-language.
+            language_id = LanguageObjectDetectionID("large cup")
             detections, artifacts = detect_objects([language_id], rgbds)
             if not detections:
                 return None
