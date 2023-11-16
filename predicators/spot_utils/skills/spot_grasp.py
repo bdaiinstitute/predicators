@@ -105,6 +105,8 @@ if __name__ == "__main__":
 
     from predicators import utils
     from predicators.settings import CFG
+    from predicators.spot_utils.perception.object_detection import \
+        AprilTagObjectDetectionID, detect_objects, get_grasp_pixel
     from predicators.spot_utils.perception.spot_cameras import capture_images
     from predicators.spot_utils.spot_localization import SpotLocalizer
     from predicators.spot_utils.utils import get_graph_nav_dir, \
@@ -143,4 +145,45 @@ if __name__ == "__main__":
         top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
         grasp_at_pixel(robot, rgbd, pixel, grasp_rot=top_down_rot)
 
-    _run_manual_test()
+    def _run_platform_grasp_test() -> None:
+        # A test for grasping the handle of the platform (april tag 411).
+        args = utils.parse_args(env_required=False,
+                                seed_required=False,
+                                approach_required=False)
+        utils.update_config(args)
+
+        object_id = AprilTagObjectDetectionID(411)
+
+        # Get constants.
+        hostname = CFG.spot_robot_ip
+        path = get_graph_nav_dir()
+        sdk = create_standard_sdk('GraspSkillTestClient')
+        robot = sdk.create_robot(hostname)
+        authenticate(robot)
+        verify_estop(robot)
+        lease_client = robot.ensure_client(LeaseClient.default_service_name)
+        lease_client.take()
+        lease_keepalive = LeaseKeepAlive(lease_client,
+                                         must_acquire=True,
+                                         return_at_exit=True)
+        robot.time_sync.wait_for_sync()
+        localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+
+        # Capture an image.
+        camera = "hand_color_image"
+        rgbds = capture_images(robot, localizer, [camera])
+        rgbd = rgbds[camera]
+
+        # Select a pixel for the platform
+        _, artifacts = detect_objects([object_id], rgbds)
+        pixel = get_grasp_pixel(rgbds, artifacts, object_id, camera)
+
+        # Grasp at the pixel with a top/side grasp.
+        top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+        side_rot = math_helpers.Quat.from_yaw(np.pi / 2)
+        grasp_rot = side_rot * top_down_rot
+        grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
+
+    # TODO recomment
+    # _run_manual_test()
+    _run_platform_grasp_test()

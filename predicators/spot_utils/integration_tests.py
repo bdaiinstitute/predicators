@@ -17,7 +17,7 @@ from predicators.envs.spot_env import load_spot_metadata
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, detect_objects, \
-    get_object_center_pixel_from_artifacts
+    get_grasp_pixel
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -102,8 +102,7 @@ def test_find_move_pick_place(
 
     # Run detection to get a pixel for grasping.
     _, artifacts = detect_objects([manipuland_id], rgbds)
-    pixel = get_object_center_pixel_from_artifacts(artifacts, manipuland_id,
-                                                   hand_camera)
+    pixel = get_grasp_pixel(rgbds, artifacts, manipuland_id, hand_camera)
 
     # Pick at the pixel with a top-down grasp.
     grasp_at_pixel(robot, rgbds[hand_camera], pixel)
@@ -355,8 +354,7 @@ def test_repeated_brush_bucket_dump_pick_place(
 
         # Run detection to get a pixel for grasping.
         _, artifacts = detect_objects([brush], rgbds)
-        pixel = get_object_center_pixel_from_artifacts(artifacts, brush,
-                                                       hand_camera)
+        pixel = get_grasp_pixel(rgbds, artifacts, brush, hand_camera)
 
         # Pick at the pixel with a top-down grasp.
         grasp_at_pixel(robot, rgbds[hand_camera], pixel)
@@ -409,8 +407,7 @@ def test_repeated_brush_bucket_dump_pick_place(
         # Choose a grasp.
         _, artifacts = detect_objects([bucket], rgbds)
 
-        r, c = get_object_center_pixel_from_artifacts(artifacts, bucket,
-                                                      hand_camera)
+        r, c = get_grasp_pixel(rgbds, artifacts, bucket, hand_camera)
         pixel = (r + bucket_grasp_dr, c)
 
         # Grasp at the pixel with a top-down grasp.
