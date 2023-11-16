@@ -16,6 +16,10 @@ april-tag-offsets:
     x: 0.25
     y: -0.1
     z: -0.2
+  tag-411:  # platform
+    x: 0.25
+    y: 0.0
+    z: 0.1
 # Allowed regions. Each region is defined by a set of points
 # that form the boundary of the region. We will check
 # whether a pose is within the region by checking whether the

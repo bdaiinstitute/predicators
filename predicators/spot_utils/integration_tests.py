@@ -426,7 +426,83 @@ def test_repeated_brush_bucket_dump_pick_place(
         localizer.localize()
 
 
+def test_platform_dragging(pre_pick_nav_distance: float = 1.25) -> None:
+    """Test finding, grabbing, and dragging the platform with april tag 411.
+    """
+    # Parse flags.
+    args = utils.parse_args(env_required=False,
+                            seed_required=False,
+                            approach_required=False)
+    utils.update_config(args)
+
+    # Set up the robot and localizer.
+    hostname = CFG.spot_robot_ip
+    path = get_graph_nav_dir()
+    sdk = create_standard_sdk("TestClient")
+    robot = sdk.create_robot(hostname)
+    authenticate(robot)
+    verify_estop(robot)
+    lease_client = robot.ensure_client(LeaseClient.default_service_name)
+    lease_client.take()
+    lease_keepalive = LeaseKeepAlive(lease_client,
+                                     must_acquire=True,
+                                     return_at_exit=True)
+    assert path.exists()
+    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+
+    platform = AprilTagObjectDetectionID(411)
+
+    # Test assumes that the platform is in front of the robot's home position.
+    localizer.localize()
+    go_home(robot, localizer)
+    localizer.localize()
+
+    home_pose = get_spot_home_pose()
+    pre_pick_nav_angle = home_pose.angle - np.pi
+    pre_place_nav_angle = pre_pick_nav_angle
+
+    # Find the platform.
+    detections, _ = init_search_for_objects(robot, localizer, [platform])
+
+    # Navigate to in front of the platform.
+    # Navigate to the first surface.
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    rel_pose = get_relative_se2_from_se3(robot_pose,
+                                            detections[platform],
+                                            pre_pick_nav_distance,
+                                            pre_pick_nav_angle)
+    navigate_to_relative_pose(robot, rel_pose)
+    localizer.localize()
+
+    # Look down at the surface.
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+    open_gripper(robot)
+
+    # Capture an image from the hand camera.
+    hand_camera = "hand_color_image"
+    rgbds = capture_images(robot, localizer, [hand_camera])
+    rgbd = rgbds[hand_camera]
+
+    # Run detection to get a pixel for grasping.
+    # TODO remove
+    from predicators.spot_utils.utils import get_pixel_from_user
+    pixel = get_pixel_from_user(rgbd.rgb)
+
+    # Pick at the pixel with a top-down and rotated grasp.
+    top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    side_rot = math_helpers.Quat.from_yaw(np.pi / 2)
+    grasp_rot = side_rot * top_down_rot
+    grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
+    localizer.localize()
+
+    # Drag to the left.
+
+
+
 if __name__ == "__main__":
-    test_all_find_move_pick_place()
-    test_move_with_sampling()
-    test_repeated_brush_bucket_dump_pick_place()
+    # test_all_find_move_pick_place()
+    # test_move_with_sampling()
+    # test_repeated_brush_bucket_dump_pick_place()
+    test_platform_dragging()
+
