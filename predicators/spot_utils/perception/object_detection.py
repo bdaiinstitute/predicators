@@ -790,6 +790,5 @@ if __name__ == "__main__":
         visualize_all_artifacts(artifacts, detections_outfile,
                                 no_detections_outfile)
 
-    # TODO recomment
-    # _run_manual_test()
+    _run_manual_test()
     _run_pythonic_bowl_test()
