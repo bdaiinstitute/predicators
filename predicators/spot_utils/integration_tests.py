@@ -275,7 +275,6 @@ def test_move_with_sampling() -> None:
         # Execute the move and gaze at the target.
         rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                              angle)
-        # navigate_to_relative_pose(robot, rel_pose)
         gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
                                         target_pose.z)
         navigate_to_relative_pose_and_gaze(robot, rel_pose, localizer,
