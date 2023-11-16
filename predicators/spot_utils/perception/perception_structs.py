@@ -79,7 +79,7 @@ class LanguageObjectDetectionID(ObjectDetectionID):
 
 @dataclass(frozen=True)
 class PythonicObjectDetectionID(ObjectDetectionID):
-    """An ID for an object to be detected with an arbitrary python functoin."""
+    """An ID for an object to be detected with an arbitrary python function."""
     name: str
     fn: Callable[[Dict[str, RGBDImageWithContext]],
                  Optional[math_helpers.SE3Pose]]
