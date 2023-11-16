@@ -5,9 +5,6 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-lo, hi = ((0, 130, 130), (130, 255, 255))
-crop_min_x, crop_max_x, crop_min_y, crop_max_y = (0, 640, 240, 480)
-
 
 def find_color_based_centroid(
         img: NDArray[np.uint8],
