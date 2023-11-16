@@ -496,8 +496,61 @@ def test_platform_dragging(pre_pick_nav_distance: float = 1.25) -> None:
     grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
     localizer.localize()
 
-    # Drag to the left.
+    # TODO move this out...
+    from bosdyn.api import arm_command_pb2, synchronized_command_pb2, robot_command_pb2
+    from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
+    from collections import OrderedDict
+    from predicators.spot_utils.utils import get_robot_state
 
+    ARM_6DOF_NAMES = [
+        "arm0.sh0",
+        "arm0.sh1",
+        "arm0.el0",
+        "arm0.el1",
+        "arm0.wr0",
+        "arm0.wr1",
+    ]
+    robot_state = get_robot_state(robot)
+    arm_proprioception = OrderedDict({
+            i.name[len("arm0."):]: i
+            for i in robot_state.kinematic_state.joint_states
+            if i.name in ARM_6DOF_NAMES
+        })
+    positions = np.array(
+        [v.position.value for v in arm_proprioception.values()])
+    sh0, sh1, el0, el1, wr0, wr1 = positions
+
+    traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(
+        sh0, sh1, el0, el1, wr0, wr1)
+    arm_joint_traj = arm_command_pb2.ArmJointTrajectory(
+        points=[traj_point])
+    # Make a RobotCommand
+    joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
+        trajectory=arm_joint_traj)
+    arm_command = arm_command_pb2.ArmCommand.Request(
+        arm_joint_move_command=joint_move_command)
+    sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
+        arm_command=arm_command)
+    arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
+        synchronized_command=sync_arm)
+    command = RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
+    robot_command_client = robot.ensure_client(
+        RobotCommandClient.default_service_name)
+    robot_command_client.robot_command(command)
+
+    # Drag to the left.
+    drag_rel_pose = math_helpers.SE2Pose(0.0, 1.5, 0.0)
+    
+    # Drag backward.
+    # drag_rel_pose = math_helpers.SE2Pose(-0.5, 0.0, 0.0)
+    
+    navigate_to_relative_pose(robot, drag_rel_pose,
+                              max_xytheta_vel=(0.25, 0.25, 0.1),
+                              min_xytheta_vel=(-0.25, -0.25, -0.1))
+
+    # Open the gripper and stow the arm to finish.
+    open_gripper(robot)
+    stow_arm(robot)
 
 
 if __name__ == "__main__":
