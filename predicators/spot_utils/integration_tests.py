@@ -19,6 +19,7 @@ from predicators.spot_utils.perception.object_detection import \
     get_object_center_pixel_from_artifacts
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID
+from predicators.ground_truth_models.spot_env.options import navigate_to_relative_pose_and_gaze
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.skills.spot_dump import dump_container
 from predicators.spot_utils.skills.spot_find_objects import \
@@ -209,15 +210,14 @@ def test_move_with_sampling() -> None:
     localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
     convex_hulls = get_allowed_map_regions()
 
-    # Run test with april tag round tables.
+    # Run test with april tag round table.
     surface1 = AprilTagObjectDetectionID(408)
-    surface2 = AprilTagObjectDetectionID(409)
 
     go_home(robot, localizer)
     localizer.localize()
 
     # Find objects.
-    object_ids = [surface1, surface2]
+    object_ids = [surface1]
     detections, _ = init_search_for_objects(robot, localizer, object_ids)
 
     # Create collision geoms using known object sizes.
@@ -233,6 +233,7 @@ def test_move_with_sampling() -> None:
     for i in range(num_samples):
         localizer.localize()
         robot_pose = localizer.get_last_robot_pose()
+        print(f"Pose before moving: {robot_pose}")
         robot_geom = spot_pose_to_geom2d(robot_pose)
         distance, angle, next_robot_geom = sample_move_offset_from_target(
             target_origin,
@@ -271,10 +272,13 @@ def test_move_with_sampling() -> None:
                            zorder=3)
         plt.savefig(f"sampling_integration_test_{i}.png")
 
-        # Execute the move.
+        # Execute the move and gaze at the target.
         rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                              angle)
-        navigate_to_relative_pose(robot, rel_pose)
+        # navigate_to_relative_pose(robot, rel_pose)
+        gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
+                                    target_pose.z)
+        navigate_to_relative_pose_and_gaze(robot, rel_pose, localizer, gaze_target)
 
 
 def test_repeated_brush_bucket_dump_pick_place(
@@ -422,6 +426,6 @@ def test_repeated_brush_bucket_dump_pick_place(
 
 
 if __name__ == "__main__":
-    test_all_find_move_pick_place()
+    # test_all_find_move_pick_place()
     test_move_with_sampling()
-    test_repeated_brush_bucket_dump_pick_place()
+    # test_repeated_brush_bucket_dump_pick_place()

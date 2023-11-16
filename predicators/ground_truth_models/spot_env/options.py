@@ -39,7 +39,7 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
 ###############################################################################
 
 
-def _navigate_to_relative_pose_and_gaze(
+def navigate_to_relative_pose_and_gaze(
         robot: Robot, rel_pose: math_helpers.SE2Pose, localizer: SpotLocalizer,
         gaze_target: math_helpers.Vec3) -> None:
     # Stow first.
@@ -49,11 +49,16 @@ def _navigate_to_relative_pose_and_gaze(
     # Get the relative gaze target based on the new robot pose.
     localizer.localize()
     robot_pose = localizer.get_last_robot_pose()
+    print(f"Pose after movement: {robot_pose}")
+    print(f"Gaze Target: {gaze_target}")
     rel_gaze_target = math_helpers.Vec3(
         gaze_target[0] - robot_pose.x,
         gaze_target[1] - robot_pose.y,
         gaze_target[2] - robot_pose.z,
     )
+    print(f"Relative gaze target: {rel_gaze_target}")
+    print()
+    import ipdb; ipdb.set_trace()
     # Then gaze.
     gaze_at_relative_pose(robot, rel_gaze_target)
 
@@ -186,7 +191,7 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
         fn: Callable = navigate_to_relative_pose
         fn_args: Tuple = (robot, rel_pose)
     else:
-        fn = _navigate_to_relative_pose_and_gaze
+        fn = navigate_to_relative_pose_and_gaze
         fn_args = (robot, rel_pose, localizer, gaze_target)
 
     return utils.create_spot_env_action(name, objects, fn, fn_args)

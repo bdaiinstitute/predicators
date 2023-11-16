@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, Iterator, List, Optional, \
-    Sequence, Set, Tuple
+    Sequence, Set, Tuple, Collection
 
 import matplotlib
 import numpy as np
