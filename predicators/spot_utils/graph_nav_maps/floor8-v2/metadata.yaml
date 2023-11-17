@@ -43,9 +43,9 @@ known-immovable-objects:
     y: 0.5
     z: -0.1
   shelf1:
-    x: 3.2
-    y: 1.855
-    z: 0.6
+    x: 3.5
+    y: 2.25
+    z: 0.13
     yaw: 0.7
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:

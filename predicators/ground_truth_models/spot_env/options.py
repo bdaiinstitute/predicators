@@ -71,7 +71,7 @@ def _place_at_relative_position_and_stow(
     # Place.
     place_at_relative_position(robot, rel_pose)
     # Now, move the arm back slightly. We do this because if we're
-    # placing an objec directly onto a table instead of dropping it,
+    # placing an object directly onto a table instead of dropping it,
     # then stowing/moving the hand immediately after might cause
     # us to knock the object off the table.
     slightly_back_and_up_pose = math_helpers.SE3Pose(
@@ -222,8 +222,8 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     # Grasp from the top-down.
 
     # TODO... sample this??
-    # grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
-    grasp_rot = math_helpers.Quat.from_roll(np.pi / 2)
+    grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    # grasp_rot = math_helpers.Quat.from_roll(np.pi / 2)
 
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \

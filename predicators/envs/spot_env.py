@@ -2169,7 +2169,7 @@ class SpotBottleShelfEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         bottle = Object("water_bottle", _movable_object_type)
-        bottle_detection = LanguageObjectDetectionID("blue water bottle")
+        bottle_detection = LanguageObjectDetectionID("yellow brush")
         detection_id_to_obj[bottle_detection] = bottle
 
         # TODO factor out!

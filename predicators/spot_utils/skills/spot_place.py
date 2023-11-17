@@ -22,6 +22,10 @@ def place_at_relative_position(robot: Robot,
     Placing is always straight ahead of the robot, angled down.
     """
     # First move the hand to the target pose.
+
+    # TODO mess with this...
+    # rot = math_helpers.Quat.from_roll(np.pi / 2)
+
     rot = math_helpers.Quat.from_pitch(downward_angle)
     body_tform_goal = math_helpers.SE3Pose(x=body_to_position.x,
                                            y=body_to_position.y,
