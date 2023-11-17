@@ -27,7 +27,8 @@ from predicators.spot_utils.perception.object_detection import \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
 from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext
+    RGBDImageWithContext, PythonicObjectDetectionID
+from predicators.spot_utils.perception.object_specific_pythonic_detectors import detect_bowl
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.skills.spot_find_objects import \
     init_search_for_objects
@@ -915,6 +916,16 @@ def _container_ready_for_sweeping_classifier(
 
     return target_bottom > container_top
 
+def _container_upright_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    container, = objects
+    qw = state.get(container, "qw")
+    qx = state.get(container, "qx")
+    qy = state.get(container, "qy")
+    qz = state.get(container, "qz")
+    container_roll = math_helpers.Quat(qw, qx, qy, qz).to_roll()
+    return container_roll > (np.pi / 2)
+
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
@@ -942,6 +953,9 @@ _NotBlocked = Predicate("NotBlocked", [_base_object_type],
 _ContainerReadyForSweeping = Predicate(
     "ContainerReadyForSweeping", [_container_type, _movable_object_type],
     _container_ready_for_sweeping_classifier)
+_ContainerUpright = Predicate(
+    "ContainerUpright", [_container_type], _container_upright_classifier
+)
 
 
 ## Operators (needed in the environment for non-percept atom hack)
@@ -1034,7 +1048,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, held, container]
     preconds = {
         LiftedAtom(_Holding, [robot, held]),
-        LiftedAtom(_Reachable, [robot, container])
+        LiftedAtom(_Reachable, [robot, container]),
+        LiftedAtom(_ContainerUpright, [container])
     }
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
@@ -1058,6 +1073,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Reachable, [robot, container]),
         LiftedAtom(_InView, [robot, container]),
         LiftedAtom(_On, [container, surface]),
+        LiftedAtom(_ContainerUpright, [container])
     }
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
@@ -2152,7 +2168,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj[ball_detection] = ball
 
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("large cup")
+        cup_detection = PythonicObjectDetectionID("large cup", detect_bowl)
         detection_id_to_obj[cup_detection] = cup
 
         known_immovables = load_spot_metadata()["known-immovable-objects"]
