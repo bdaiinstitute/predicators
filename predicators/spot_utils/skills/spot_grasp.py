@@ -23,6 +23,8 @@ def grasp_at_pixel(
     pixel: Tuple[int, int],
     move_while_grasping: bool = True,
     grasp_rot: Optional[math_helpers.Quat] = None,
+    grasp_axes_constraints: Optional[Tuple[geometry_pb2.Vec3,
+                                           geometry_pb2.Vec3]] = None,
     rot_thresh: float = 0.17,
     timeout: float = 20.0,
 ) -> None:
@@ -53,6 +55,18 @@ def grasp_at_pixel(
         frame_name_image_sensor=rgbd.frame_name_image_sensor,
         camera_model=rgbd.camera_model,
         walk_gaze_mode=walk_gaze_mode)
+
+    # If the grasp axes are constrained, then add in these constraints.
+    # Taken from: https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/arm_grasp/arm_grasp.py
+    if grasp_axes_constraints is not None:
+        axis_on_gripper_ewrt_gripper = grasp_axes_constraints[0]
+        axis_to_align_with_ewrt_vo = grasp_axes_constraints[1]
+        constraint = grasp.grasp_params.allowable_orientation.add()
+        constraint.vector_alignment_with_tolerance.axis_on_gripper_ewrt_gripper.CopyFrom(
+            axis_on_gripper_ewrt_gripper)
+        constraint.vector_alignment_with_tolerance.axis_to_align_with_ewrt_frame.CopyFrom(
+            axis_to_align_with_ewrt_vo)
+        constraint.vector_alignment_with_tolerance.threshold_radians = 0.17
 
     # If a desired rotation for the hand was given, add a grasp constraint.
     if grasp_rot is not None:
@@ -110,7 +124,7 @@ if __name__ == "__main__":
     from predicators.spot_utils.utils import get_graph_nav_dir, \
         get_pixel_from_user, verify_estop
 
-    def _run_manual_test() -> None:
+    def _run_manual_test_rot_constraint() -> None:
         # Put inside a function to avoid variable scoping issues.
         args = utils.parse_args(env_required=False,
                                 seed_required=False,
@@ -143,4 +157,43 @@ if __name__ == "__main__":
         top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
         grasp_at_pixel(robot, rgbd, pixel, grasp_rot=top_down_rot)
 
-    _run_manual_test()
+    def _run_manual_test_vec_constraints() -> None:
+        # Put inside a function to avoid variable scoping issues.
+        args = utils.parse_args(env_required=False,
+                                seed_required=False,
+                                approach_required=False)
+        utils.update_config(args)
+
+        # Get constants.
+        hostname = CFG.spot_robot_ip
+        path = get_graph_nav_dir()
+        sdk = create_standard_sdk('GraspSkillTestClient')
+        robot = sdk.create_robot(hostname)
+        authenticate(robot)
+        verify_estop(robot)
+        lease_client = robot.ensure_client(LeaseClient.default_service_name)
+        lease_client.take()
+        lease_keepalive = LeaseKeepAlive(lease_client,
+                                         must_acquire=True,
+                                         return_at_exit=True)
+        robot.time_sync.wait_for_sync()
+        localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+
+        # Capture an image.
+        camera = "hand_color_image"
+        rgbd = capture_images(robot, localizer, [camera])[camera]
+
+        # Select a pixel manually.
+        pixel = get_pixel_from_user(rgbd.rgb)
+
+        # Grasp at the pixel with a side grasp.
+        gripper_axes_constraint = geometry_pb2.Vec3(x=0, y=1, z=0)
+        vision_axis_constraint = geometry_pb2.Vec3(x=0, y=0, z=1)
+        grasp_at_pixel(robot,
+                       rgbd,
+                       pixel,
+                       grasp_axes_constraints=(gripper_axes_constraint,
+                                               vision_axis_constraint))
+
+    # _run_manual_test_rot_constraint()
+    _run_manual_test_vec_constraints()
