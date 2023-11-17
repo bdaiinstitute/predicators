@@ -67,18 +67,19 @@ def _grasp_at_pixel_and_stow(robot: Robot, img: RGBDImageWithContext,
 
 
 def _place_at_relative_position_and_stow(
-        robot: Robot, rel_pose: math_helpers.SE3Pose) -> None:
+    robot: Robot,
+    rel_pose: math_helpers.SE3Pose,
+) -> None:
     # Place.
     place_at_relative_position(robot, rel_pose)
     # Now, move the arm back slightly. We do this because if we're
     # placing an objec directly onto a table instead of dropping it,
     # then stowing/moving the hand immediately after might cause
     # us to knock the object off the table.
-    slightly_back_and_up_pose = math_helpers.SE3Pose(
-        x=rel_pose.x - 0.15,
-        y=rel_pose.y,
-        z=rel_pose.z + 0.1,
-        rot=math_helpers.Quat.from_pitch(np.pi / 3))
+    slightly_back_and_up_pose = math_helpers.SE3Pose(x=rel_pose.x - 0.15,
+                                                     y=rel_pose.y,
+                                                     z=rel_pose.z + 0.1,
+                                                     rot=rel_pose.rotation)
     move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
     # Stow.
     stow_arm(robot)
@@ -311,10 +312,51 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     # The dz parameter is with respect to the top of the container.
     surface_half_height = state.get(surface_obj, "height") / 2
     surface_rel_pose = robot_pose.inverse() * surface_pose
-    place_rel_pos = math_helpers.Vec3(x=surface_rel_pose.x + dx,
+    place_rel_pos = math_helpers.SE3Pose(x=surface_rel_pose.x + dx,
                                       y=surface_rel_pose.y + dy,
                                       z=surface_rel_pose.z + dz +
-                                      surface_half_height)
+                                      surface_half_height,
+                                      rot=math_helpers.Quat.from_roll(np.pi / 3))
+
+    return utils.create_spot_env_action(name, objects,
+                                        _place_at_relative_position_and_stow,
+                                        (robot, place_rel_pos))
+
+
+def _place_container_on_top_at_angle_policy(state: State, memory: Dict,
+                                objects: Sequence[Object],
+                                params: Array) -> Action:
+    del memory  # not used
+
+    name = "PlaceConainerOnTop"
+    robot_obj_idx = 0
+    surface_obj_idx = 2
+
+    robot, _, _ = get_robot()
+
+    dx, dy, dz, qw, qx, qy, qz = params
+
+    robot_obj = objects[robot_obj_idx]
+    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+
+    surface_obj = objects[surface_obj_idx]
+    surface_pose = utils.get_se3_pose_from_state(state, surface_obj)
+
+    # Special case: the robot is already on top of the surface (because it is
+    # probably the floor). When this happens, just drop the object.
+    surface_geom = _object_to_top_down_geom(surface_obj, state)
+    if surface_geom.contains_point(robot_pose.x, robot_pose.y):
+        return utils.create_spot_env_action(name, objects, _drop_and_stow,
+                                            (robot, ))
+
+    # The dz parameter is with respect to the top of the container.
+    surface_half_height = state.get(surface_obj, "height") / 2
+    surface_rel_pose = robot_pose.inverse() * surface_pose
+    place_rel_pos = math_helpers.SE3Pose(x=surface_rel_pose.x + dx,
+                                      y=surface_rel_pose.y + dy,
+                                      z=surface_rel_pose.z + dz +
+                                      surface_half_height,
+                                      rot=math_helpers.Quat(qw, qx, qy, qz))
 
     return utils.create_spot_env_action(name, objects,
                                         _place_at_relative_position_and_stow,
@@ -468,6 +510,10 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "PickObjectFromTop": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
+    "PlaceContainerUprightOnTop":
+    Box(-np.inf, np.inf, (7, )),  # rel dx, dy, dz, orientation quaternion
+    "PlaceContainerUpsideDownOnTop":
+    Box(-np.inf, np.inf, (7, )),  # rel dx, dy, dz, orientation quaternion
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
                                           (3, )),  # rel dx, dy, dz
@@ -482,6 +528,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
+    "PlaceContainerUprightOnTop": _place_container_on_top_at_angle_policy,
+    "PlaceContainerUpsideDownOnTop": _place_container_on_top_at_angle_policy,
     "DropObjectInside": _drop_object_inside_policy,
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,

@@ -38,7 +38,8 @@ def dump_container(robot: Robot,
     time.sleep(2.0)
     # Place the container back down.
     body_to_position = math_helpers.Vec3(x=dump_x, y=place_y, z=place_z)
-    place_at_relative_position(robot, body_to_position, place_angle)
+    placement_quat = math_helpers.Quat.from_pitch(place_angle)
+    place_at_relative_position(robot, body_to_position, placement_quat)
 
 
 if __name__ == "__main__":

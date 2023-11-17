@@ -2161,8 +2161,9 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         # forthcoming.
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
-            "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
-            "DropObjectInsideContainerOnTop"
+            "MoveToBodyViewObject", "PickObjectFromTop",
+            "DropObjectInsideContainerOnTop", "PlaceContainerUprightOnTop",
+            "PlaceContainerUpsideDownOnTop"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -2183,31 +2184,16 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return {
-            _NEq,
-            _On,
-            _HandEmpty,
-            _Holding,
-            _Reachable,
-            _InView,
-            _InHandView,
-            _Inside,
-            _ContainerUpright,
-            _ContainerUpsideDown
+            _NEq, _On, _HandEmpty, _Holding, _Reachable, _InView, _InHandView,
+            _Inside, _ContainerUpright, _ContainerUpsideDown
         }
 
     @property
     def percept_predicates(self) -> Set[Predicate]:
         """The predicates that are NOT stored in the simulator state."""
         return {
-            _HandEmpty,
-            _Holding,
-            _On,
-            _Reachable,
-            _InView,
-            _InHandView,
-            _Inside,
-            _ContainerUpright,
-            _ContainerUpsideDown
+            _HandEmpty, _Holding, _On, _Reachable, _InView, _InHandView,
+            _Inside, _ContainerUpright, _ContainerUpsideDown
         }
 
     @property

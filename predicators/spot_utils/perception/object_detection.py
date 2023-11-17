@@ -442,7 +442,9 @@ def get_object_center_pixel_from_artifacts(
         return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
     assert isinstance(object_id, PythonicObjectDetectionID)
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
+
 
 def visualize_all_artifacts(artifacts: Dict[str,
                                             Any], detections_outfile: Path,

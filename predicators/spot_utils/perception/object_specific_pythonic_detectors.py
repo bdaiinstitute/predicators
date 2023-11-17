@@ -25,17 +25,17 @@ def detect_bowl(
     detections, artifacts = detect_objects([language_id], rgbds)
     if not detections:
         return None
-    roll = 0.0    
+    roll = 0.0
     obj_id_to_img_detections = artifacts["language"][
-            "object_id_to_img_detections"]
+        "object_id_to_img_detections"]
     img_detections = obj_id_to_img_detections[language_id]
     assert len(img_detections) > 0
     # Get the detection from the hand image and use this to tell whether
     # the cup is upright or not. If not detection in the hand image,
     # we'll assume the cup is upright (i.e. roll is 0).
-    if img_detections.get("hand_color_image") is not None:    
+    if img_detections.get("hand_color_image") is not None:
         # Crop using the bounding box. If there were multiple detections,
-        # choose the highest scoring one.    
+        # choose the highest scoring one.
         hand_seg_bb = img_detections["hand_color_image"]
         x1, y1, x2, y2 = hand_seg_bb.bounding_box
         x_min, x_max = min(x1, x2), max(x1, x2)

@@ -10,9 +10,11 @@ from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose, open_gripper
 
 
-def place_at_relative_position(robot: Robot,
-                               body_to_position: math_helpers.Vec3,
-                               downward_angle: float = np.pi / 3) -> None:
+def place_at_relative_position(
+    robot: Robot,
+    body_to_position: math_helpers.Vec3,
+    placement_quat: math_helpers.Quat = math_helpers.Quat.from_pitch(np.pi / 3)
+) -> None:
     """Assuming something is held, place is at the given pose.
 
     The position is relative to the robot's body. It is the responsibility
@@ -22,11 +24,10 @@ def place_at_relative_position(robot: Robot,
     Placing is always straight ahead of the robot, angled down.
     """
     # First move the hand to the target pose.
-    rot = math_helpers.Quat.from_pitch(downward_angle)
     body_tform_goal = math_helpers.SE3Pose(x=body_to_position.x,
                                            y=body_to_position.y,
                                            z=body_to_position.z,
-                                           rot=rot)
+                                           rot=placement_quat)
     move_hand_to_relative_pose(robot, body_tform_goal)
     # NOTE: short sleep necessary because without it, the robot
     # sometimes opens the gripper before the arm has fully

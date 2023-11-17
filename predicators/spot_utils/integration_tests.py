@@ -382,7 +382,8 @@ def test_repeated_brush_bucket_dump_pick_place(
             z=surface_rel_pose.z + place_offset_z)
         place_at_relative_position(robot,
                                    place_rel_pos,
-                                   downward_angle=np.pi / 2)
+                                   downward_angle=math_helpers.Quat.from_pitch(
+                                       np.pi / 2))
         localizer.localize()
 
         # Stow the arm again.
