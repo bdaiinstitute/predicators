@@ -47,6 +47,11 @@ known-immovable-objects:
     y: 2.25
     z: 0.05
     yaw: 0.7
+  shelf2:
+    x: 3.5
+    y: 2.25
+    z: 0.4
+    yaw: 0.7
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
   smooth_table:
@@ -89,8 +94,13 @@ static-object-features:
     height: 0.1
     length: 0.4
     width: 0.2
+  shelf2:
+    shape: 1
+    height: 0.1
+    length: 0.4
+    width: 0.2
   brush:
-    shape: 2
+    shape: 1
     height: 0.1
     length: 0.2
     width: 0.1

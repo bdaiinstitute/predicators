@@ -2191,7 +2191,7 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the brush in the second shelf"
+        return "put the brush in the third shelf"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
