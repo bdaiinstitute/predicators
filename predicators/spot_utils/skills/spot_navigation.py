@@ -14,7 +14,7 @@ from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
 from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import get_robot_state, get_spot_home_pose
+from predicators.spot_utils.utils import get_robot_state, get_spot_home_pose, get_lock_arm_command
 
 
 def navigate_to_relative_pose(robot: Robot,
@@ -24,11 +24,13 @@ def navigate_to_relative_pose(robot: Robot,
                               min_xytheta_vel: Tuple[float, float,
                                                      float] = (-2.0, -2.0,
                                                                -1.0),
-                              timeout: float = 20.0) -> None:
+                              timeout: float = 20.0,
+                              lock_arm: bool = False) -> None:
     """Execute a relative move.
 
     The pose is dx, dy, dyaw relative to the robot's body.
     """
+
     # Get the robot's current state.
     robot_state = get_robot_state(robot)
     transforms = robot_state.kinematic_state.transforms_snapshot
@@ -61,10 +63,16 @@ def navigate_to_relative_pose(robot: Robot,
         goal_heading=out_tform_goal.angle,
         frame_name=ODOM_FRAME_NAME,
         params=mobility_params)
+    
     cmd_id = robot_command_client.robot_command(lease=None,
                                                 command=robot_cmd,
                                                 end_time_secs=time.time() +
                                                 timeout)
+
+    if lock_arm:
+        lock_arm_cmd = get_lock_arm_command(robot)
+        robot_cmd = RobotCommandBuilder.build_synchro_command(robot_cmd, lock_arm_cmd)
+
     start_time = time.perf_counter()
     while (time.perf_counter() - start_time) <= timeout:
         feedback = robot_command_client.robot_command_feedback(cmd_id)

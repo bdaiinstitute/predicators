@@ -235,9 +235,8 @@ def spot_pose_to_geom2d(pose: math_helpers.SE3Pose) -> Rectangle:
                                  side_length, yaw)
 
 
-def lock_arm(robot: Robot) -> None:
-    """Send a command to lock the arm in place for the duration of the next
-    command.
+def get_lock_arm_command(robot: Robot) -> robot_command_pb2.RobotCommand:
+    """Get a command to lock the arm in place.
 
     Useful for dragging, for example.
     """
@@ -271,7 +270,4 @@ def lock_arm(robot: Robot) -> None:
         arm_command=arm_command)
     arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
         synchronized_command=sync_arm)
-    command = RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
-    robot_command_client = robot.ensure_client(
-        RobotCommandClient.default_service_name)
-    robot_command_client.robot_command(command)
+    return arm_sync_robot_cmd

@@ -24,7 +24,7 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     # Use CV2 to find a pixel.
     lo, hi = ((0, 130, 130), (130, 255, 255))
 
-    cropped_centroid = find_color_based_centroid(img, lo, hi)
+    cropped_centroid = find_color_based_centroid(img, lo, hi, min_component_size=100)
     if cropped_centroid is None:
         raise RuntimeError("Could not find grasp for platform from image.")
 

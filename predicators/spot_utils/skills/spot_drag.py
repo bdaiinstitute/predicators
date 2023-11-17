@@ -13,25 +13,43 @@ from predicators.spot_utils.skills.spot_hand_move import \
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
-from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, lock_arm
 
 
 def drag(
     robot: Robot,
-    drag_rel_pose: math_helpers.SE2Pose,
+    drag_dx: float,
+    drag_dy: float,
     max_xytheta_vel=(0.25, 0.25, 0.1),
-    min_xytheta_vel=(-0.25, -0.25, -0.1)
+    min_xytheta_vel=(-0.25, -0.25, -0.1),
+    init_dy: float = -0.1,
 ) -> None:
     """Drag in the body frame, assuming that the dragged object is already
     grasped."""
-    # Lock the arm.
-    lock_arm(robot)
 
-    # Move.
+    # NOTE: separating the movements into x and y is important for stability.
+
+    # Start by moving backwards a little bit to create suitable distance
+    # between the thing being dragged and the robot.
     navigate_to_relative_pose(robot,
-                              drag_rel_pose,
+                              math_helpers.SE2Pose(0.0, init_dy, 0.0),
                               max_xytheta_vel=max_xytheta_vel,
-                              min_xytheta_vel=min_xytheta_vel)
+                              min_xytheta_vel=min_xytheta_vel,
+                              lock_arm=True)
+
+
+    # Move with the arm locked, first in the x direction.
+    navigate_to_relative_pose(robot,
+                              math_helpers.SE2Pose(drag_dx, 0.0, 0.0),
+                              max_xytheta_vel=max_xytheta_vel,
+                              min_xytheta_vel=min_xytheta_vel,
+                              lock_arm=True)
+    
+    # Move with the arm locked, now in the y direction.
+    navigate_to_relative_pose(robot,
+                              math_helpers.SE2Pose(0.0, drag_dy, 0.0),
+                              max_xytheta_vel=max_xytheta_vel,
+                              min_xytheta_vel=min_xytheta_vel,
+                              lock_arm=True)
 
     # Open the gripper and stow the arm to finish.
     open_gripper(robot)
@@ -59,6 +77,8 @@ if __name__ == "__main__":
     from predicators.spot_utils.spot_localization import SpotLocalizer
     from predicators.spot_utils.utils import get_graph_nav_dir, \
         get_relative_se2_from_se3, get_spot_home_pose, verify_estop
+    from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_FLOOR_POSE
+
 
     def _run_manual_test() -> None:
         # Put inside a function to avoid variable scoping issues.
@@ -89,7 +109,7 @@ if __name__ == "__main__":
 
         home_pose = get_spot_home_pose()
         pre_pick_nav_angle = home_pose.angle - np.pi
-        pre_pick_nav_distance = 1.25
+        pre_pick_nav_distance = 0.8
 
         # Find the platform.
         detections, _ = init_search_for_objects(robot, localizer, [platform])
@@ -104,7 +124,7 @@ if __name__ == "__main__":
         localizer.localize()
 
         # Look down at the surface.
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FLOOR_POSE)
         open_gripper(robot)
 
         # Capture an image from the hand camera.
@@ -118,13 +138,12 @@ if __name__ == "__main__":
 
         # Pick at the pixel with a top-down and rotated grasp.
         top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
-        side_rot = math_helpers.Quat.from_yaw(np.pi / 2)
+        side_rot = math_helpers.Quat.from_yaw(-np.pi / 2)
         grasp_rot = side_rot * top_down_rot
         grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
         localizer.localize()
 
         # Drag!
-        drag_rel_pose = math_helpers.SE2Pose(-0.5, 0.5, 0.0)
-        drag(robot, drag_rel_pose)
+        drag(robot, 1.00, -0.5)
 
     _run_manual_test()
