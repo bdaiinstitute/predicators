@@ -20,54 +20,43 @@ from predicators.spot_utils.utils import get_graph_nav_dir
 def detect_bowl(
         rgbds: Dict[str,
                     RGBDImageWithContext]) -> Optional[math_helpers.SE3Pose]:
-    # ONLY use the hand camera (which we assume is looking down)
-    # because otherwise it's impossible to see the top/bottom.
-    hand_camera = "hand_color_image"
-    assert hand_camera in rgbds
-    rgbds = {hand_camera: rgbds[hand_camera]}
-    # Start by using vision-language.
+    # Start by using vision-language to find the cup.
     language_id = LanguageObjectDetectionID("large cup")
     detections, artifacts = detect_objects([language_id], rgbds)
     if not detections:
         return None
-    # Crop using the bounding box. If there were multiple detections,
-    # choose the highest scoring one.
+    roll = 0.0    
     obj_id_to_img_detections = artifacts["language"][
-        "object_id_to_img_detections"]
+            "object_id_to_img_detections"]
     img_detections = obj_id_to_img_detections[language_id]
     assert len(img_detections) > 0
-    best_seg_bb: Optional[SegmentedBoundingBox] = None
-    best_seg_bb_score = -np.inf
-    best_camera: Optional[str] = None
-    for camera, seg_bb in img_detections.items():
-        if seg_bb.score > best_seg_bb_score:
-            best_seg_bb_score = seg_bb.score
-            best_seg_bb = seg_bb
-            best_camera = camera
-    assert best_camera is not None
-    assert best_seg_bb is not None
-    x1, y1, x2, y2 = best_seg_bb.bounding_box
-    x_min, x_max = min(x1, x2), max(x1, x2)
-    y_min, y_max = min(y1, y2), max(y1, y2)
-    best_rgb = rgbds[best_camera].rgb
-    height, width = best_rgb.shape[:2]
-    r_min = min(max(int(y_min), 0), height)
-    r_max = min(max(int(y_max), 0), height)
-    c_min = min(max(int(x_min), 0), width)
-    c_max = min(max(int(x_max), 0), width)
-    cropped_img = best_rgb[r_min:r_max, c_min:c_max]
-    # Look for the blue tape inside the bounding box.
-    lo, hi = ((0, 145, 145), (90, 255, 255))
-    centroid = find_color_based_centroid(cropped_img, lo, hi)
-    blue_tape_found = (centroid is not None)
-    # If the blue tape was found, assume that the bowl is oriented
-    # upside-down; otherwise, it's right-side up.
-    if blue_tape_found:
-        roll = np.pi
-        print("Detected blue tape; bowl is upside-down!")
-    else:
-        roll = 0.0
-        print("Did NOT detect blue tape; bowl is right side-up!")
+    # Get the detection from the hand image and use this to tell whether
+    # the cup is upright or not. If not detection in the hand image,
+    # we'll assume the cup is upright (i.e. roll is 0).
+    if img_detections.get("hand_color_image") is not None:    
+        # Crop using the bounding box. If there were multiple detections,
+        # choose the highest scoring one.    
+        hand_seg_bb = img_detections["hand_color_image"]
+        x1, y1, x2, y2 = hand_seg_bb.bounding_box
+        x_min, x_max = min(x1, x2), max(x1, x2)
+        y_min, y_max = min(y1, y2), max(y1, y2)
+        best_rgb = rgbds["hand_color_image"].rgb
+        height, width = best_rgb.shape[:2]
+        r_min = min(max(int(y_min), 0), height)
+        r_max = min(max(int(y_max), 0), height)
+        c_min = min(max(int(x_min), 0), width)
+        c_max = min(max(int(x_max), 0), width)
+        cropped_img = best_rgb[r_min:r_max, c_min:c_max]
+        # Look for the blue tape inside the bounding box.
+        lo, hi = ((0, 145, 145), (90, 255, 255))
+        centroid = find_color_based_centroid(cropped_img, lo, hi)
+        blue_tape_found = (centroid is not None)
+        # If the blue tape was found, assume that the bowl is oriented
+        # upside-down; otherwise, it's right-side up.
+        if blue_tape_found:
+            roll = np.pi
+            print("Detected blue tape; bowl is upside-down!")
+    # Convert roll to a quaternion to construct the object pose.
     rot = math_helpers.Quat.from_roll(roll)
     # Use the x, y, z from vision-language.
     vision_language_pose = detections[language_id]

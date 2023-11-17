@@ -26,9 +26,10 @@ from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
+from predicators.spot_utils.perception.object_specific_pythonic_detectors import \
+    detect_bowl
 from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext, PythonicObjectDetectionID
-from predicators.spot_utils.perception.object_specific_pythonic_detectors import detect_bowl
+    PythonicObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.skills.spot_find_objects import \
     init_search_for_objects
@@ -916,15 +917,21 @@ def _container_ready_for_sweeping_classifier(
 
     return target_bottom > container_top
 
-def _container_upright_classifier(
-        state: State, objects: Sequence[Object]) -> bool:
+
+def _container_upright_classifier(state: State,
+                                  objects: Sequence[Object]) -> bool:
     container, = objects
     qw = state.get(container, "qw")
     qx = state.get(container, "qx")
     qy = state.get(container, "qy")
     qz = state.get(container, "qz")
     container_roll = math_helpers.Quat(qw, qx, qy, qz).to_roll()
-    return container_roll > (np.pi / 2)
+    return container_roll < (np.pi / 2)
+
+
+def _container_upsidedown_classifier(state: State,
+                                     objects: Sequence[Object]) -> bool:
+    return not _container_upright_classifier(state, objects)
 
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
@@ -953,9 +960,10 @@ _NotBlocked = Predicate("NotBlocked", [_base_object_type],
 _ContainerReadyForSweeping = Predicate(
     "ContainerReadyForSweeping", [_container_type, _movable_object_type],
     _container_ready_for_sweeping_classifier)
-_ContainerUpright = Predicate(
-    "ContainerUpright", [_container_type], _container_upright_classifier
-)
+_ContainerUpright = Predicate("ContainerUpright", [_container_type],
+                              _container_upright_classifier)
+_ContainerUpsideDown = Predicate("ContainerUpsideDown", [_container_type],
+                                 _container_upsidedown_classifier)
 
 
 ## Operators (needed in the environment for non-percept atom hack)
@@ -1019,6 +1027,50 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_Inside}
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
+
+    # PlaceContainerUprightOnTop
+    robot = Variable("?robot", _robot_type)
+    held = Variable("?held", _container_type)
+    surface = Variable("?surface", _base_object_type)
+    parameters = [robot, held, surface]
+    preconds = {
+        LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_Reachable, [robot, surface]),
+        LiftedAtom(_NEq, [held, surface]),
+    }
+    add_effs = {
+        LiftedAtom(_On, [held, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_ContainerUpright, [held])
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, held]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PlaceContainerUprightOnTop", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+
+    # PlaceContainerUpsideDownOnTop
+    robot = Variable("?robot", _robot_type)
+    held = Variable("?held", _container_type)
+    surface = Variable("?surface", _base_object_type)
+    parameters = [robot, held, surface]
+    preconds = {
+        LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_Reachable, [robot, surface]),
+        LiftedAtom(_NEq, [held, surface]),
+    }
+    add_effs = {
+        LiftedAtom(_On, [held, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_ContainerUpsideDown, [held])
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, held]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PlaceContainerUpsideDownOnTop", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
 
     # PlaceObjectOnTop
     robot = Variable("?robot", _robot_type)
@@ -2139,6 +2191,8 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _InView,
             _InHandView,
             _Inside,
+            _ContainerUpright,
+            _ContainerUpsideDown
         }
 
     @property
@@ -2152,6 +2206,8 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _InView,
             _InHandView,
             _Inside,
+            _ContainerUpright,
+            _ContainerUpsideDown
         }
 
     @property

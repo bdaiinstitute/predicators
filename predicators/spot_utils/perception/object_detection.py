@@ -432,15 +432,17 @@ def get_object_center_pixel_from_artifacts(
         pr, pc = april_detection.center
         return int(pr), int(pc)
 
-    assert isinstance(object_id, LanguageObjectDetectionID)
-    detections = artifacts["language"]["object_id_to_img_detections"]
-    try:
-        seg_bb = detections[object_id][camera_name]
-    except KeyError:
-        raise ValueError(f"{object_id} not detected in {camera_name}")
-    x1, y1, x2, y2 = seg_bb.bounding_box
-    return int((x1 + x2) / 2), int((y1 + y2) / 2)
+    elif isinstance(object_id, LanguageObjectDetectionID):
+        detections = artifacts["language"]["object_id_to_img_detections"]
+        try:
+            seg_bb = detections[object_id][camera_name]
+        except KeyError:
+            raise ValueError(f"{object_id} not detected in {camera_name}")
+        x1, y1, x2, y2 = seg_bb.bounding_box
+        return int((x1 + x2) / 2), int((y1 + y2) / 2)
 
+    assert isinstance(object_id, PythonicObjectDetectionID)
+    import ipdb; ipdb.set_trace()
 
 def visualize_all_artifacts(artifacts: Dict[str,
                                             Any], detections_outfile: Path,

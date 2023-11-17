@@ -21,9 +21,9 @@ def find_color_based_centroid(
     mask = cv2.inRange(img, lower, upper)
     # Apply blur.
     mask = cv2.GaussianBlur(mask, (5, 5), 0)
-    # import imageio.v2 as iio
-    # iio.imsave("debug_img.png", img)
-    # iio.imsave("debug_mask.png", mask)
+    import imageio.v2 as iio
+    iio.imsave("debug_img.png", img)
+    iio.imsave("debug_mask.png", mask)
     # Connected components with stats.
     nb_components, _, stats, centroids = cv2.connectedComponentsWithStats(
         mask, connectivity=4)
