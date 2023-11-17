@@ -45,7 +45,7 @@ known-immovable-objects:
   shelf1:
     x: 3.5
     y: 2.25
-    z: 0.13
+    z: 0.05
     yaw: 0.7
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -89,11 +89,11 @@ static-object-features:
     height: 0.1
     length: 0.4
     width: 0.2
-  water_bottle:
+  brush:
     shape: 2
-    height: 0.2
-    length: 0.05
-    width: 0.05
+    height: 0.1
+    length: 0.2
+    width: 0.1
   bucket:
     shape: 2
     height: 0.4

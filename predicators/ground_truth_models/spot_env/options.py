@@ -209,22 +209,11 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
         img = rgbds[hand_camera]
-        
         pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
                                 hand_camera)
-        # TODO save systematically?
-        import imageio.v2 as iio
-        import cv2
-        rgb = img.rgb.copy()
-        cv2.circle(rgb, pixel, 5, (0,255,0), -1)
-        iio.imsave("grasp_debug.png", rgb)
 
     # Grasp from the top-down.
-
-    # TODO... sample this??
     grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
-    # grasp_rot = math_helpers.Quat.from_roll(np.pi / 2)
-
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \
         state.get(target_obj, "length") * state.get(target_obj, "width")
@@ -530,9 +519,13 @@ class SpotCubeEnvGroundTruthOptionFactory(GroundTruthOptionFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
-            "spot_cube_env", "spot_soda_table_env", "spot_soda_bucket_env",
-            "spot_soda_chair_env", "spot_soda_sweep_env",
-            "spot_ball_and_cup_sticky_table_env", "spot_bottle_shelf_env",
+            "spot_cube_env",
+            "spot_soda_table_env",
+            "spot_soda_bucket_env",
+            "spot_soda_chair_env",
+            "spot_soda_sweep_env",
+            "spot_ball_and_cup_sticky_table_env",
+            "spot_brush_shelf_env",
         }
 
     @classmethod

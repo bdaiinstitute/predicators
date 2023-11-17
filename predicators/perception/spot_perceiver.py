@@ -295,12 +295,12 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(On, [cup, drafting_table]),
                 GroundAtom(Inside, [ball, cup])
             }
-        if goal_description == "put the water bottle in the second shelf":
-            bottle = Object("water_bottle", _movable_object_type)
+        if goal_description == "put the brush in the second shelf":
+            brush = Object("brush", _movable_object_type)
             shelf = Object("shelf1", _immovable_object_type)
             On = pred_name_to_pred["On"]
             return {
-                GroundAtom(On, [bottle, shelf]),
+                GroundAtom(On, [brush, shelf]),
             }
         raise NotImplementedError("Unrecognized goal description")
 

@@ -2097,13 +2097,13 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
 
 ###############################################################################
-#                          Water Bottle Shelf Env                             #
+#                               Brush Shelf Env                               #
 ###############################################################################
 
 
-class SpotBottleShelfEnv(SpotRearrangementEnv):
-    """An environment where a water bottle needs to be moved from the table
-    into one of the lower shelves."""
+class SpotBrushShelfEnv(SpotRearrangementEnv):
+    """An environment where a brush needs to be moved from the table into one
+    of the lower shelves."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -2119,7 +2119,7 @@ class SpotBottleShelfEnv(SpotRearrangementEnv):
 
     @classmethod
     def get_name(cls) -> str:
-        return "spot_bottle_shelf_env"
+        return "spot_brush_shelf_env"
 
     @property
     def types(self) -> Set[Type]:
@@ -2168,9 +2168,9 @@ class SpotBottleShelfEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
-        bottle = Object("water_bottle", _movable_object_type)
-        bottle_detection = LanguageObjectDetectionID("yellow brush")
-        detection_id_to_obj[bottle_detection] = bottle
+        brush = Object("brush", _movable_object_type)
+        brush_detection = LanguageObjectDetectionID("yellow brush")
+        detection_id_to_obj[brush_detection] = brush
 
         # TODO factor out!
         known_immovables = load_spot_metadata()["known-immovable-objects"]
@@ -2191,13 +2191,11 @@ class SpotBottleShelfEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the water bottle in the second shelf"
+        return "put the brush in the second shelf"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
-
-
 
 
 ###############################################################################
