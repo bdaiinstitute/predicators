@@ -1,6 +1,7 @@
 """Small utility functions for spot."""
 
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import Collection, Dict, Optional, Tuple
 
@@ -8,10 +9,12 @@ import cv2
 import numpy as np
 import scipy
 import yaml
-from bosdyn.api import estop_pb2, robot_state_pb2
+from bosdyn.api import arm_command_pb2, estop_pb2, robot_command_pb2, \
+    robot_state_pb2, synchronized_command_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.estop import EstopClient
 from bosdyn.client.exceptions import ProxyConnectionError, TimedOutError
+from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
@@ -230,3 +233,45 @@ def spot_pose_to_geom2d(pose: math_helpers.SE3Pose) -> Rectangle:
     yaw = pose.rot.to_yaw()
     return Rectangle.from_center(pose.x, pose.y, front_to_back_length,
                                  side_length, yaw)
+
+
+def lock_arm(robot: Robot) -> None:
+    """Send a command to lock the arm in place for the duration of the next
+    command.
+
+    Useful for dragging, for example.
+    """
+    arm_6dof_names = [
+        "arm0.sh0",
+        "arm0.sh1",
+        "arm0.el0",
+        "arm0.el1",
+        "arm0.wr0",
+        "arm0.wr1",
+    ]
+    robot_state = get_robot_state(robot)
+    arm_proprioception = OrderedDict({
+        i.name[len("arm0."):]: i
+        for i in robot_state.kinematic_state.joint_states
+        if i.name in arm_6dof_names
+    })
+    positions = np.array(
+        [v.position.value for v in arm_proprioception.values()])
+    sh0, sh1, el0, el1, wr0, wr1 = positions
+
+    traj_point = RobotCommandBuilder.create_arm_joint_trajectory_point(
+        sh0, sh1, el0, el1, wr0, wr1)
+    arm_joint_traj = arm_command_pb2.ArmJointTrajectory(points=[traj_point])
+    # Make a RobotCommand
+    joint_move_command = arm_command_pb2.ArmJointMoveCommand.Request(
+        trajectory=arm_joint_traj)
+    arm_command = arm_command_pb2.ArmCommand.Request(
+        arm_joint_move_command=joint_move_command)
+    sync_arm = synchronized_command_pb2.SynchronizedCommand.Request(
+        arm_command=arm_command)
+    arm_sync_robot_cmd = robot_command_pb2.RobotCommand(
+        synchronized_command=sync_arm)
+    command = RobotCommandBuilder.build_synchro_command(arm_sync_robot_cmd)
+    robot_command_client = robot.ensure_client(
+        RobotCommandClient.default_service_name)
+    robot_command_client.robot_command(command)
