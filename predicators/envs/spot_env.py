@@ -172,6 +172,22 @@ def get_allowed_map_regions() -> Collection[Delaunay]:
     return convex_hulls
 
 
+def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
+    """Load known immovable object poses from metadata."""
+    known_immovables = load_spot_metadata()["known-immovable-objects"]
+    obj_to_pose: Dict[Object, math_helpers.SE3Pose] = {}
+    for obj_name, obj_pos in known_immovables.items():
+        obj = Object(obj_name, _immovable_object_type)
+        yaw = obj_pos.get("yaw", 0.0)
+        rot = math_helpers.Quat.from_yaw(yaw)
+        pose = math_helpers.SE3Pose(obj_pos["x"],
+                                    obj_pos["y"],
+                                    obj_pos["z"],
+                                    rot=rot)
+        obj_to_pose[obj] = pose
+    return obj_to_pose
+
+
 class SpotRearrangementEnv(BaseEnv):
     """An environment containing tasks for a real Spot robot to execute.
 
@@ -858,10 +874,16 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     if blocker_obj == blocked_obj:
         return False
 
-    if _object_in_xy_classifier(state, blocked_obj, blocker_obj):
+    if _object_in_xy_classifier(state,
+                                blocked_obj,
+                                blocker_obj,
+                                buffer=_ONTOP_SURFACE_BUFFER):
         return False
 
-    if _object_in_xy_classifier(state, blocker_obj, blocked_obj):
+    if _object_in_xy_classifier(state,
+                                blocker_obj,
+                                blocked_obj,
+                                buffer=_ONTOP_SURFACE_BUFFER):
         return False
 
     spot, = state.get_objects(_robot_type)
@@ -1465,30 +1487,27 @@ class SpotCubeEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
 
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
         cube = Object("cube", _movable_object_type)
         cube_detection = AprilTagObjectDetectionID(410)
+        detection_id_to_obj[cube_detection] = cube
 
         smooth_table = Object("smooth_table", _immovable_object_type)
         smooth_table_detection = AprilTagObjectDetectionID(408)
+        detection_id_to_obj[smooth_table_detection] = smooth_table
 
         sticky_table = Object("sticky_table", _immovable_object_type)
         sticky_table_detection = AprilTagObjectDetectionID(409)
+        detection_id_to_obj[sticky_table_detection] = sticky_table
 
-        floor = Object("floor", _immovable_object_type)
-        floor_feats = load_spot_metadata()["known-immovable-objects"]["floor"]
-        x = floor_feats["x"]
-        y = floor_feats["y"]
-        z = floor_feats["z"]
-        floor_detection = KnownStaticObjectDetectionID(
-            "floor",
-            pose=math_helpers.SE3Pose(x, y, z, rot=math_helpers.Quat()))
+        for obj, pose in get_known_immovable_objects().items():
+            # Only keep the floor.
+            if obj.name == "floor":
+                detection = KnownStaticObjectDetectionID(obj.name, pose=pose)
+                detection_id_to_obj[detection] = obj
 
-        return {
-            cube_detection: cube,
-            smooth_table_detection: smooth_table,
-            sticky_table_detection: sticky_table,
-            floor_detection: floor,
-        }
+        return detection_id_to_obj
 
     def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
         return set()
@@ -1636,14 +1655,8 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
         soda_can_detection = LanguageObjectDetectionID("soda can")
         detection_id_to_obj[soda_can_detection] = soda_can
 
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=math_helpers.Quat())
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj
@@ -1739,14 +1752,8 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
         bucket_detection = LanguageObjectDetectionID("bucket")
         detection_id_to_obj[bucket_detection] = bucket
 
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=math_helpers.Quat())
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj
@@ -1848,14 +1855,8 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         bucket_detection = LanguageObjectDetectionID("bucket")
         detection_id_to_obj[bucket_detection] = bucket
 
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=math_helpers.Quat())
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj
@@ -1982,17 +1983,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         bucket_detection = LanguageObjectDetectionID("bucket")
         detection_id_to_obj[bucket_detection] = bucket
 
-        # TODO factor out!
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            yaw = obj_pos.get("yaw", 0.0)
-            rot = math_helpers.Quat.from_yaw(yaw)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=rot)
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj
@@ -2063,16 +2055,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
                                         rot=math_helpers.Quat())
             objects_in_view[obj] = pose
 
-        # TODO factor out!
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            yaw = obj_pos.get("yaw", 0.0)
-            rot = math_helpers.Quat.from_yaw(yaw)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=rot)
+        for obj, pose in get_known_immovable_objects().items():
             objects_in_view[obj] = pose
 
         # Create robot pose.
@@ -2172,17 +2155,8 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
         brush_detection = LanguageObjectDetectionID("yellow brush")
         detection_id_to_obj[brush_detection] = brush
 
-        # TODO factor out!
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            yaw = obj_pos.get("yaw", 0.0)
-            rot = math_helpers.Quat.from_yaw(yaw)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=rot)
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj
@@ -2191,7 +2165,7 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
         return set()
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the brush in the third shelf"
+        return "put the brush in the second shelf"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -2278,14 +2252,8 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         cup_detection = LanguageObjectDetectionID("large cup")
         detection_id_to_obj[cup_detection] = cup
 
-        known_immovables = load_spot_metadata()["known-immovable-objects"]
-        for obj_name, obj_pos in known_immovables.items():
-            obj = Object(obj_name, _immovable_object_type)
-            pose = math_helpers.SE3Pose(obj_pos["x"],
-                                        obj_pos["y"],
-                                        obj_pos["z"],
-                                        rot=math_helpers.Quat())
-            detection_id = KnownStaticObjectDetectionID(obj_name, pose)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
         return detection_id_to_obj

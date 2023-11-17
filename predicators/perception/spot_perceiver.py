@@ -302,13 +302,6 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(On, [brush, shelf]),
             }
-        if goal_description == "put the brush in the third shelf":
-            brush = Object("brush", _movable_object_type)
-            shelf = Object("shelf2", _immovable_object_type)
-            On = pred_name_to_pred["On"]
-            return {
-                GroundAtom(On, [brush, shelf]),
-            }
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,
