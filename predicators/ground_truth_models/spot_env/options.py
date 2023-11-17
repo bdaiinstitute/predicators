@@ -49,6 +49,8 @@ def _navigate_to_relative_pose_and_gaze(
     # Get the relative gaze target based on the new robot pose.
     localizer.localize()
     robot_pose = localizer.get_last_robot_pose()
+    print(gaze_target)
+    print(robot_pose)
     rel_gaze_target = math_helpers.Vec3(
         gaze_target[0] - robot_pose.x,
         gaze_target[1] - robot_pose.y,

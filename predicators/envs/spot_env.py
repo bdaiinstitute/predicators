@@ -838,6 +838,14 @@ def _container_ready_for_sweeping_classifier(
 
     return target_bottom > container_top
 
+def _stable_surface_classifier(state: State, objects: Sequence[Object]) -> bool:
+    pass
+
+def _empty_classifier(state: State, objects: Sequence[Object]) -> bool:
+    pass
+
+def _empty_floor_classifier(state: State, objects: Sequence[Object]) -> bool:
+    pass
 
 _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
@@ -1125,13 +1133,13 @@ class SpotCubeEnv(SpotRearrangementEnv):
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
 
         cube = Object("cube", _movable_object_type)
-        cube_detection = AprilTagObjectDetectionID(410)
+        cube_detection = AprilTagObjectDetectionID(20)
 
         smooth_table = Object("smooth_table", _immovable_object_type)
-        smooth_table_detection = AprilTagObjectDetectionID(408)
+        smooth_table_detection = AprilTagObjectDetectionID(19)
 
         sticky_table = Object("sticky_table", _immovable_object_type)
-        sticky_table_detection = AprilTagObjectDetectionID(409)
+        sticky_table_detection = AprilTagObjectDetectionID(18)
 
         floor = Object("floor", _immovable_object_type)
         floor_feats = load_spot_metadata()["known-immovable-objects"]["floor"]
@@ -1764,7 +1772,6 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
 class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     """A real-world version of the ball and cup sticky table environment."""
-
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
 
@@ -1775,8 +1782,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
-            "DropObjectInsideContainerOnTop"
-        }
+            "DropObjectInsideContainerOnTop"}
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
     @classmethod
@@ -1792,17 +1798,22 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _immovable_object_type,
             _container_type,
         }
-
+    
     @property
     def predicates(self) -> Set[Predicate]:
+        _Stable = Predicate("Stable", [_base_object_type], _stable_surface_classifier)
+        _Empty = Predicate("Empty", [_base_object_type], _empty_classifier)
+        _EmptyFloor = Predicate("EmptyFloor", [], _empty_floor_classifier)
         return {
             _On,
             _HandEmpty,
             _Holding,
             _Reachable,
-            _InView,
             _InHandView,
+            _InView,
             _Inside,
+            _Blocking,
+            _NotBlocked,
         }
 
     @property
@@ -1817,7 +1828,6 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _InHandView,
             _Inside,
         }
-
     @property
     def goal_predicates(self) -> Set[Predicate]:
         return {_On}
@@ -1861,3 +1871,61 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             self, action: Action,
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         raise NotImplementedError("Dry step function not implemented.")
+
+class SpotCleanupTableEnv(SpotRearrangementEnv):
+    """An environment corresponding to the table cleanup where the robot
+    removes objects from one table and places them onto another. There 
+    is a ball in the environment that acts as an unstable placement 
+    surface to showcase precondition learning."""
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_cleanup_table_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return {_robot_type,
+                _base_object_type,
+                _movable_object_type,
+                _immovable_object_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        _Stable = Predicate("Stable", [_base_object_type], _stable_surface_classifier)
+        _Empty = Predicate("Empty", [_base_object_type], _empty_classifier)
+        _EmptyFloor = Predicate("EmptyFloor", [], _empty_floor_classifier)
+        return {
+            _On,
+            _HandEmpty,
+            _Holding,
+            _Reachable,
+            _InView,
+            _Blocking,
+            _NotBlocked,
+            _Stable,
+            _Empty,
+            _EmptyFloor,
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return self.predicates
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+

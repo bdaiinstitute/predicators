@@ -45,7 +45,7 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     # Currently assume that the robot is facing the surface in its home pose.
     # Soon, we will change this to actually sample angles of approach and do
     # collision detection.
-    approach_angle = home_pose.angle - np.pi
+    approach_angle = home_pose.angle - np.pi 
     approach_dist = 1.2
     return np.array([approach_dist, approach_angle])
 

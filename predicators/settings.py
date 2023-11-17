@@ -167,11 +167,11 @@ class GlobalSettings:
     ikfast_norm = np.inf  # norm ord for np.linalg.norm
 
     # SpotEnv parameters
-    spot_robot_ip = "invalid-IP-address"
+    spot_robot_ip = "192.168.80.3"  #"invalid-IP-address"
     spot_fiducial_size = 44.45
     spot_vision_detection_threshold = 0.3
     spot_perception_outdir = "spot_perception_outputs"
-    spot_graph_nav_map = "floor8-v2"
+    spot_graph_nav_map = "spot_office"
     spot_grasp_stow_volume_threshold = 0.1
     spot_run_dry = False
 
