@@ -115,7 +115,7 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(InViewTool, [spot, cube]).holds(state)
 
     # Now sample and run an option to pick from the surface.
-    GraspToolFromSurface = nsrt_name_to_nsrt["GraspToolFromSurface"]
+    GraspToolFromSurface = nsrt_name_to_nsrt["PickObjectFromTop"]
     grasp_cube_nrst = GraspToolFromSurface.ground([spot, cube, init_table])
     assert all(a.holds(state) for a in grasp_cube_nrst.preconditions)
     option = grasp_cube_nrst.sample_option(state, set(), rng)
@@ -134,6 +134,8 @@ def real_robot_cube_env_test() -> None:
 
     # Sample and run an option to move to the surface.
     move_to_target_table_nsrt = MoveToSurface.ground([spot, target_table])
+    for a in move_to_target_table_nsrt.preconditions:
+        print(a, a.holds(state))
     assert all(a.holds(state) for a in move_to_target_table_nsrt.preconditions)
     option = move_to_target_table_nsrt.sample_option(state, set(), rng)
     assert option.initiable(state)
@@ -146,7 +148,7 @@ def real_robot_cube_env_test() -> None:
             break
 
     # Sample and run an option to place on the surface.
-    PlaceToolOnSurface = nsrt_name_to_nsrt["PlaceToolOnSurface"]
+    PlaceToolOnSurface = nsrt_name_to_nsrt["PlaceObjectOnTop"]
     place_on_table_nsrt = PlaceToolOnSurface.ground([spot, cube, target_table])
     assert all(a.holds(state) for a in place_on_table_nsrt.preconditions)
     option = place_on_table_nsrt.sample_option(state, set(), rng)
@@ -183,7 +185,7 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(HandEmpty, [spot]).holds(state)
 
     # Sample an option to pick from the surface again.
-    GraspToolFromSurface = nsrt_name_to_nsrt["GraspToolFromSurface"]
+    GraspToolFromSurface = nsrt_name_to_nsrt["PickObjectFromTop"]
     grasp_cube_nsrt = GraspToolFromSurface.ground([spot, cube, target_table])
     assert all(a.holds(state) for a in grasp_cube_nsrt.preconditions)
     option = grasp_cube_nsrt.sample_option(state, set(), rng)
@@ -245,7 +247,7 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(InViewTool, [spot, cube]).holds(state)
 
     # Now pick from floor.
-    GraspToolFromFloorOp = nsrt_name_to_nsrt["PickObjetFromTop"]#["GraspToolFromFloor"]
+    GraspToolFromFloorOp = nsrt_name_to_nsrt["PickObjectFromTop"]#["GraspToolFromFloor"]
     grasp_cube_nrst = GraspToolFromFloorOp.ground([spot, cube, floor])
     assert all(a.holds(state) for a in grasp_cube_nrst.preconditions)
     option = grasp_cube_nrst.sample_option(state, set(), rng)
