@@ -16,7 +16,7 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     # then use CV2 to find the blue handle inside of it.
     del artifacts  # not used
     rgb = rgbds[camera_name].rgb
-    half_height = rgb.shape[0] // 2
+    half_height = rgb.shape[0] // 4
 
     # Crop the bottom half of the image.
     img = rgb[half_height:]

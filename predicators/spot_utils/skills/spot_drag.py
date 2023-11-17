@@ -21,20 +21,21 @@ def drag(
     drag_dy: float,
     max_xytheta_vel=(0.25, 0.25, 0.1),
     min_xytheta_vel=(-0.25, -0.25, -0.1),
-    init_dy: float = -0.1,
+    # init_dx: float = -0.25,
 ) -> None:
     """Drag in the body frame, assuming that the dragged object is already
     grasped."""
 
     # NOTE: separating the movements into x and y is important for stability.
 
-    # Start by moving backwards a little bit to create suitable distance
-    # between the thing being dragged and the robot.
-    navigate_to_relative_pose(robot,
-                              math_helpers.SE2Pose(0.0, init_dy, 0.0),
-                              max_xytheta_vel=max_xytheta_vel,
-                              min_xytheta_vel=min_xytheta_vel,
-                              lock_arm=True)
+    # # Start by moving backwards a little bit to create suitable distance
+    # # between the thing being dragged and the robot.
+    # navigate_to_relative_pose(robot,
+    #                           math_helpers.SE2Pose(init_dx, 0.0, 0.0),
+    #                           max_xytheta_vel=max_xytheta_vel,
+    #                           min_xytheta_vel=min_xytheta_vel,
+    #                           lock_arm=True)
+
 
 
     # Move with the arm locked, first in the x direction.
@@ -143,7 +144,10 @@ if __name__ == "__main__":
         grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
         localizer.localize()
 
+        # TODO...
+        move_hand_to_relative_pose(robot, math_helpers.SE3Pose(1.0, 0.0, -0.2, grasp_rot))
+
         # Drag!
-        drag(robot, 1.00, -0.5)
+        drag(robot, 0.75, -0.5)
 
     _run_manual_test()
