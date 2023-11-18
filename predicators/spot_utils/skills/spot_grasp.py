@@ -25,7 +25,7 @@ def grasp_at_pixel(
     grasp_rot: Optional[math_helpers.Quat] = None,
     grasp_axes_constraints: Optional[Tuple[geometry_pb2.Vec3,
                                            geometry_pb2.Vec3]] = None,
-    rot_thresh: float = 0.17,
+    rot_thresh: float = 0.52,
     timeout: float = 20.0,
 ) -> None:
     """Grasp an object at a specified pixel in the RGBD image, which should be
@@ -59,19 +59,23 @@ def grasp_at_pixel(
     # If the grasp axes are constrained, then add in these constraints.
     # Taken from: https://github.com/boston-dynamics/spot-sdk/blob/master/python/examples/arm_grasp/arm_grasp.py
     if grasp_axes_constraints is not None:
-        axis_on_gripper_ewrt_gripper = grasp_axes_constraints[0]
-        axis_to_align_with_ewrt_vo = grasp_axes_constraints[1]
-        constraint = grasp.grasp_params.allowable_orientation.add()
-        constraint.vector_alignment_with_tolerance.axis_on_gripper_ewrt_gripper.CopyFrom(
-            axis_on_gripper_ewrt_gripper)
-        constraint.vector_alignment_with_tolerance.axis_to_align_with_ewrt_frame.CopyFrom(
-            axis_to_align_with_ewrt_vo)
-        constraint.vector_alignment_with_tolerance.threshold_radians = 0.17
+        for curr_grasp_axes_constraints in grasp_axes_constraints:
+            grasp.grasp_params.grasp_params_frame_name = VISION_FRAME_NAME  # pylint: disable=no-member
+            grasp.grasp_params.position_constraint = 2
+            axis_on_gripper_ewrt_gripper = curr_grasp_axes_constraints[0]
+            axis_to_align_with_ewrt_vo = curr_grasp_axes_constraints[1]
+            constraint = grasp.grasp_params.allowable_orientation.add()
+            constraint.vector_alignment_with_tolerance.axis_on_gripper_ewrt_gripper.CopyFrom(
+                axis_on_gripper_ewrt_gripper)
+            constraint.vector_alignment_with_tolerance.axis_to_align_with_ewrt_frame.CopyFrom(
+                axis_to_align_with_ewrt_vo)
+            constraint.vector_alignment_with_tolerance.threshold_radians = 0.52
 
     # If a desired rotation for the hand was given, add a grasp constraint.
     if grasp_rot is not None:
         robot_state = get_robot_state(robot)
         grasp.grasp_params.grasp_params_frame_name = VISION_FRAME_NAME  # pylint: disable=no-member
+        grasp.grasp_params.position_constraint = 2
         vision_tform_body = get_vision_tform_body(
             robot_state.kinematic_state.transforms_snapshot)
         # Rotation from the body to our desired grasp.
@@ -80,7 +84,7 @@ def grasp_at_pixel(
         constraint = grasp.grasp_params.allowable_orientation.add()  # pylint: disable=no-member
         constraint.rotation_with_tolerance.rotation_ewrt_frame.CopyFrom(
             vision_rot.to_proto())
-        constraint.rotation_with_tolerance.threshold_radians = rot_thresh
+        constraint.rotation_with_tolerance.threshold_radians = 1.0 #rot_thresh
 
     # Create the request.
     grasp_request = manipulation_api_pb2.ManipulationApiRequest(
@@ -186,14 +190,28 @@ if __name__ == "__main__":
         # Select a pixel manually.
         pixel = get_pixel_from_user(rgbd.rgb)
 
-        # Grasp at the pixel with a side grasp.
-        gripper_axes_constraint = geometry_pb2.Vec3(x=0, y=1, z=0)
-        vision_axis_constraint = geometry_pb2.Vec3(x=0, y=0, z=1)
+        # # Grasp at the pixel with a side grasp.
+        # gripper_axes_constraint0 = geometry_pb2.Vec3(x=0, y=1, z=0)
+        # vision_axis_constraint0 = geometry_pb2.Vec3(x=0, y=0, z=1)
+        # gripper_axes_constraint1 = geometry_pb2.Vec3(x=0, y=1, z=0)
+        # vision_axis_constraint1 = geometry_pb2.Vec3(x=0, y=0, z=-1)
+        # grasp_at_pixel(robot,
+        #                rgbd,
+        #                pixel,
+        #                grasp_axes_constraints=[(gripper_axes_constraint0,
+        #                                        vision_axis_constraint0),
+        #                                        (gripper_axes_constraint1,
+        #                                        vision_axis_constraint1)])
+
+        # side_grasp = math_helpers.Quat.from_roll(np.pi / 2)
+        side_forward_grasp = math_helpers.Quat.from_roll(np.pi / 2)
+        pitch_turn = math_helpers.Quat.from_pitch(np.pi / 2)
+        side_grasp = math_helpers.Quat.mult(side_forward_grasp, pitch_turn)
+
         grasp_at_pixel(robot,
-                       rgbd,
-                       pixel,
-                       grasp_axes_constraints=(gripper_axes_constraint,
-                                               vision_axis_constraint))
+                rgbd,
+                pixel,
+                grasp_rot=side_grasp)
 
     # _run_manual_test_rot_constraint()
     _run_manual_test_vec_constraints()
