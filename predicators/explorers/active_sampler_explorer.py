@@ -483,17 +483,20 @@ class ActiveSamplerExplorer(BaseExplorer):
                 "replan": self._replanning_tasks,
             }[task_type][task_idx]
             assert task.init is not DefaultState
-            plan, _, _ = run_task_plan_once(
-                task,
-                self._nsrts,
-                self._predicates,
-                self._types,
-                timeout,
-                self._seed,
-                task_planning_heuristic=task_planning_heuristic,
-                ground_op_costs=ground_op_costs,
-                default_cost=self._default_cost,
-                max_horizon=np.inf)
+            try:
+                plan, _, _ = run_task_plan_once(
+                    task,
+                    self._nsrts,
+                    self._predicates,
+                    self._types,
+                    timeout,
+                    self._seed,
+                    task_planning_heuristic=task_planning_heuristic,
+                    ground_op_costs=ground_op_costs,
+                    default_cost=self._default_cost,
+                    max_horizon=np.inf)
+            except (PlanningFailure, PlanningTimeout):
+                plan = []
             self._task_plan_cache[task_id] = [n.op for n in plan]
 
         self._task_plan_calls_since_replan[task_id] += 1
