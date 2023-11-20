@@ -919,6 +919,12 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     if blocker_obj == blocked_obj:
         return False
 
+    # Only consider draggable (non-placeable) objects to be possible blockers.
+    placeable = blocker_obj.is_instance(_movable_object_type) and \
+        _is_placeable_classifier(state, [blocker_obj])
+    if placeable:
+        return False
+
     if _object_in_xy_classifier(state,
                                 blocked_obj,
                                 blocker_obj,
@@ -948,10 +954,10 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     blocked_robot_line = utils.LineSegment(robot_home_x, robot_home_y,
                                            blocked_x, blocked_y)
 
-    # Don't put the blocker on the robot, even if it's held, because we don't
-    # want to consider the blocker to be unblocked until it's actually moved
-    # out of the way and released by the robot. Otherwise the robot might just
-    # pick something up and put it back down, thinking it's unblocked.
+    # Don't put the draggable blocker on the robot, even if it's held,
+    # because we don't want to consider the blocker to be unblocked until it's
+    # actually moved out of the way and released by the robot. Otherwise the
+    # robot might just pick something up and put it back down.
     blocker_geom = _object_to_top_down_geom(blocker_obj,
                                             state,
                                             put_on_robot_if_held=False)
@@ -1365,8 +1371,8 @@ def _dry_simulate_place_on_top(
     surface_height = static_feats[target_surface.name]["height"]
     held_obj_height = static_feats[held_obj.name]["height"]
     surface_pose = objects_in_view[target_surface]
-    x = surface_pose.x + surface_radius / 2
-    y = surface_pose.y + surface_radius / 2
+    x = surface_pose.x
+    y = surface_pose.y
     z = surface_pose.z + surface_height / 2 + held_obj_height
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
@@ -1498,7 +1504,7 @@ def _dry_simulate_sweep_into_container(
     # If the sweep parameters are close enough to optimal, the object should
     # end up in the container.
     optimal_dx, optimal_dy = 0.0, 0.25
-    thresh = 0.1
+    thresh = 0.5
     if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
         x = container_pose.x
         y = container_pose.y
