@@ -1061,6 +1061,7 @@ def fd_plan_from_sas_file(
     num_nodes_expanded = re.findall(r"Expanded (\d+) state", output)
     num_nodes_created = re.findall(r"Evaluated (\d+) state", output)
     if len(num_nodes_expanded) != 1:
+        logging.info("######### Fast Downward Crash Output #########")
         raise RuntimeError("ERROR: Fast downward crashed unexpectedly. The "
                            "full output is above.")
     assert len(num_nodes_created) == 1
