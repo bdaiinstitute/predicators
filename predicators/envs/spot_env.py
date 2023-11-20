@@ -1367,7 +1367,6 @@ def _dry_simulate_place_on_top(
     # a proof-of-concept for dry running spot environments.
 
     static_feats = load_spot_metadata()["static-object-features"]
-    surface_radius = static_feats[target_surface.name]["length"] / 2
     surface_height = static_feats[target_surface.name]["height"]
     held_obj_height = static_feats[held_obj.name]["height"]
     surface_pose = objects_in_view[target_surface]
