@@ -28,7 +28,8 @@ class SpotPerceiver(BasePerceiver):
     def __init__(self) -> None:
         super().__init__()
         self._known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
-        self._known_objects_in_hand_view: Set[Object] = set()
+        self._objects_in_view: Set[Object] = set()
+        self._objects_in_hand_view: Set[Object] = set()
         self._robot: Optional[Object] = None
         self._nonpercept_atoms: Set[GroundAtom] = set()
         self._nonpercept_predicates: Set[Predicate] = set()
@@ -58,7 +59,8 @@ class SpotPerceiver(BasePerceiver):
         self._curr_env = get_or_create_env(CFG.env)
         assert isinstance(self._curr_env, SpotRearrangementEnv)
         self._known_object_poses = {}
-        self._known_objects_in_hand_view = set()
+        self._objects_in_view = set()
+        self._objects_in_hand_view = set()
         self._robot = None
         self._nonpercept_atoms = set()
         self._nonpercept_predicates = set()
@@ -156,7 +158,8 @@ class SpotPerceiver(BasePerceiver):
         self._waiting_for_observation = False
         self._robot = observation.robot
         self._known_object_poses.update(observation.objects_in_view)
-        self._known_objects_in_hand_view = observation.objects_in_hand_view
+        self._objects_in_view = set(observation.objects_in_view)
+        self._objects_in_hand_view = observation.objects_in_hand_view
         self._nonpercept_atoms = observation.nonpercept_atoms
         self._nonpercept_predicates = observation.nonpercept_predicates
         self._gripper_open_percentage = observation.gripper_open_percentage
@@ -196,15 +199,17 @@ class SpotPerceiver(BasePerceiver):
             state_dict[obj].update(static_feats)
             # Add initial features for movable objects.
             if obj.is_instance(_movable_object_type):
-                # Detect if the object is in view currently.
-                if obj in self._known_objects_in_hand_view:
+                # Detect if the object is in (hand) view currently.
+                if obj in self._objects_in_hand_view:
                     in_hand_view_val = 1.0
                 else:
                     in_hand_view_val = 0.0
                 state_dict[obj]["in_hand_view"] = in_hand_view_val
-                # All objects that we know the pose of are
-                # in view!
-                state_dict[obj]["in_view"] = 1.0
+                if obj in self._objects_in_view:
+                    in_view_val = 1.0
+                else:
+                    in_view_val = 0.0
+                state_dict[obj]["in_view"] = in_view_val
                 # Detect if we have lost the tool.
                 if obj in self._lost_objects:
                     lost_val = 1.0
@@ -290,6 +295,13 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(On, [cup, drafting_table]),
                 GroundAtom(Inside, [ball, cup])
             }
+        if goal_description == "put the brush in the second shelf":
+            brush = Object("brush", _movable_object_type)
+            shelf = Object("shelf1", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            return {
+                GroundAtom(On, [brush, shelf]),
+            }
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,
@@ -345,7 +357,6 @@ class SpotPerceiver(BasePerceiver):
                     bbox=dict(facecolor="gray", edgecolor="gray", alpha=0.5))
         ax.set_xlim(x_lb, x_ub)
         ax.set_ylim(y_lb, y_ub)
-        ax.axis("off")
         plt.tight_layout()
         img = utils.fig2data(fig, CFG.render_state_dpi)
         return [img]
