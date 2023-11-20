@@ -72,6 +72,7 @@ ENVS:
       active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
+      perceiver: spot_perceiver
   # regional_bumpy_cover:
   #   NAME: "regional_bumpy_cover"
   #   FLAGS:
