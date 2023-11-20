@@ -806,6 +806,15 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     return classification_val
 
 
+def _above_classifier(state: State, objects: Sequence[Object]) -> bool:
+    obj1, obj2 = objects
+
+    bottom1 = state.get(obj1, "z") - state.get(obj1, "height") / 2
+    top2 = state.get(obj2, "z") + state.get(obj2, "height") / 2
+
+    return bottom1 > top2
+
+
 def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_in, obj_container = objects
 
@@ -969,6 +978,8 @@ _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
+_Above = Predicate("Above", [_base_object_type, _base_object_type],
+                   _above_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
                     _inside_classifier)
 # NOTE: currently disabling inside predicate check because we don't have a good
@@ -1180,6 +1191,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, container, target]
     preconds = {
         LiftedAtom(_Holding, [robot, container]),
+        LiftedAtom(_Above, [target, container]),
     }
     add_effs = {
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
@@ -1518,6 +1530,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             _InHandView,
             _Blocking,
             _NotBlocked,
+            _Above,
         }
 
     @property
@@ -1533,6 +1546,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             _Reachable,
             _Blocking,
             _NotBlocked,
+            _Above,
         }
 
     @property
@@ -1678,6 +1692,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
             _InHandView,
             _Blocking,
             _NotBlocked,
+            _Above,
         }
 
     @property
@@ -1693,6 +1708,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
             _Reachable,
             _Blocking,
             _NotBlocked,
+            _Above,
         }
 
     @property
@@ -1775,6 +1791,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
             _Reachable,
             _InHandView,
             _Inside,
+            _Above,
             _Blocking,
             _NotBlocked,
         }
@@ -1788,6 +1805,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _On,
+            _Above,
             _Reachable,
             _InHandView,
             _Blocking,
@@ -1876,6 +1894,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _Reachable,
             _InHandView,
             _Inside,
+            _Above,
             _Blocking,
             _NotBlocked,
         }
@@ -1889,6 +1908,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             _HandEmpty,
             _Holding,
             _On,
+            _Above,
             _Reachable,
             _InHandView,
             _Blocking,
@@ -1996,6 +2016,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _Reachable,
             _InHandView,
             _Inside,
+            _Above,
             _Blocking,
             _NotBlocked,
             _ContainerReadyForSweeping,
@@ -2013,6 +2034,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _Reachable,
             _InHandView,
             _Inside,
+            _Above,
             _Blocking,
             _NotBlocked,
             _ContainerReadyForSweeping,
@@ -2185,6 +2207,7 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
             _Reachable,
             _InHandView,
             _Inside,
+            _Above,
             _Blocking,
             _NotBlocked,
         }
@@ -2282,6 +2305,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _InView,
             _InHandView,
             _Inside,
+            _Above,
         }
 
     @property
@@ -2297,6 +2321,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             _InView,
             _InHandView,
             _Inside,
+            _Above,
         }
 
     @property
