@@ -43,15 +43,18 @@ def _move_offset_sampler(state: State, robot_obj: Object,
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
     collision_geoms = _get_collision_geoms_for_nav(state)
-    distance, angle, _ = sample_move_offset_from_target(
-        obj_to_nav_to_pos,
-        robot_geom,
-        collision_geoms,
-        rng,
-        min_distance=min_dist,
-        max_distance=max_dist,
-        allowed_regions=convex_hulls,
-    )
+    try:
+        distance, angle, _ = sample_move_offset_from_target(
+            obj_to_nav_to_pos,
+            robot_geom,
+            collision_geoms,
+            rng,
+            min_distance=min_dist,
+            max_distance=max_dist,
+            allowed_regions=convex_hulls,
+        )
+    except:
+        import ipdb; ipdb.set_trace()
     return np.array([distance, angle])
 
 

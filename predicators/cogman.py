@@ -66,6 +66,10 @@ class CogMan:
                 state, self._current_env_task)
             self._episode_images.extend(imgs)
 
+            import imageio.v2 as iio
+            iio.imsave("debug.png", imgs[0])
+
+
             # Uncomment for live visualization.
             # import cv2
             # cv2.imshow("debug", imgs[0])
