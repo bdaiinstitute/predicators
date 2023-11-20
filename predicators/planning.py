@@ -1063,7 +1063,7 @@ def fd_plan_from_sas_file(
     if len(num_nodes_expanded) != 1:
         logging.info("######### Fast Downward Crash Output #########")
         logging.info(output)
-        raise RuntimeError("ERROR: Fast downward crashed unexpectedly. The "
+        raise PlanningFailure("ERROR: Fast downward crashed unexpectedly. The "
                            "full output is above.")
     assert len(num_nodes_created) == 1
     metrics["num_nodes_expanded"] = float(num_nodes_expanded[0])

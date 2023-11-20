@@ -54,6 +54,14 @@ def _move_offset_sampler(state: State, robot_obj: Object,
             allowed_regions=convex_hulls,
         )
     except:
+        from matplotlib import pyplot as plt
+        fig, ax = plt.subplots(1, 1)
+        for geom in collision_geoms:
+            geom.plot(ax)
+        plt.xlim((-5, 5))
+        plt.ylim((-5, 5))
+        plt.tight_layout()
+        plt.savefig("merp.png")
         import ipdb; ipdb.set_trace()
     return np.array([distance, angle])
 
