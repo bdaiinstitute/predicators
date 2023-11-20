@@ -2077,7 +2077,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         raise NotImplementedError("Dry step function not implemented.")
 
-class SpotCleanupTableEnv(SpotRearrangementEnv):
+class SpotCleanupShelfEnv(SpotRearrangementEnv):
     """An environment corresponding to the table cleanup where the robot
     removes objects from one table and places them onto another. There 
     is a ball in the environment that acts as an unstable placement 
@@ -2092,12 +2092,52 @@ class SpotCleanupTableEnv(SpotRearrangementEnv):
             "MoveToViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
+            "DragToUnblockObject",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
     @classmethod
     def get_name(cls) -> str:
-        return "spot_cleanup_table_env"
+        return "spot_cleanup_shelf_env"
+
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        cube = Object("cube", _movable_object_type)
+        cube_detection = AprilTagObjectDetectionID(12)
+
+        shelf = Object("shelf", _immovable_object_type)
+        shelf_detection = AprilTagObjectDetectionID(19)
+
+        yoga_ball = Object("yoga_ball", _immovable_object_type)
+        yoga_ball_detection = AprilTagObjectDetectionID(18)
+
+        chair = Object("chair", _movable_object_type)
+        chair_detection = AprilTagObjectDetectionID(13)
+
+        cabinet = Object("cabinet", _immovable_object_type)
+        cabinet_detection = AprilTagObjectDetectionID(11)
+
+        for obj, pose in get_known_immovable_objects().items():
+            # Only keep the floor.
+            if obj.name == "floor":
+                detection = KnownStaticObjectDetectionID(obj.name, pose=pose)
+                detection_id_to_obj[detection] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clear the shelf"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask
+        del train_or_test, task_idx # task always the same for this simple env
+
+        # Create te objects and their initial poses
+        objects_in_view: Dict[Object, math_helpers.SE3Pose] = {}
+
+        # ...
 
     @property
     def types(self) -> Set[Type]:

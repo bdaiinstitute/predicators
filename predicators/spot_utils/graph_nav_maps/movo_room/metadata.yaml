@@ -8,13 +8,21 @@ april-tag-offsets:
     x: 0
     y: -0.3
     z: 0
-  tag-19:   # table
+  tag-19:   # shelf
     x: 0
     y: -0.3
     z: -0.2
   tag-12: #tag-20:   # cube
     x: 0
     y: -0.02
+    z: 0
+  tag-13:   # chair
+    x: 0
+    y: 0
+    z: -0.2
+  tag-11:   # cabinet
+    x: 0
+    y: -0.19
     z: 0
 allowed-regions:
   main-rooom:
@@ -33,12 +41,12 @@ known-immovable-objects:
     z: -0.1
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
-  smooth_table:
+  shelf:
     shape: 1  # cuboid
     height: 0.91 # 0.7 # 0.52
     length: 1.2 # 1.2 # 0.51
     width: 0.3 # 0.7 # 0.51
-  sticky_table:
+  yoga_ball:
     shape: 2  # cylinder
     height: 0.85
     length: 0.6
@@ -75,6 +83,11 @@ static-object-features:
     length: 0.23
   chair:
     shape: 2
-    height: 0.8
-    length: 0.5
-    width: 0.5
+    height: 0.83
+    length: 0.6
+    width: 0.6
+  cabinet:
+    shape: 2
+    height: 0.53
+    length: 0.45
+    width: 0.38
