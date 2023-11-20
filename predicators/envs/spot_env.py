@@ -954,10 +954,10 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     blocked_robot_line = utils.LineSegment(robot_home_x, robot_home_y,
                                            blocked_x, blocked_y)
 
-    # Don't put the draggable blocker on the robot, even if it's held,
-    # because we don't want to consider the blocker to be unblocked until it's
-    # actually moved out of the way and released by the robot. Otherwise the
-    # robot might just pick something up and put it back down.
+    # Don't put the blocker on the robot, even if it's held, because we don't
+    # want to consider the blocker to be unblocked until it's actually moved
+    # out of the way and released by the robot. Otherwise the robot might just
+    # pick something up and put it back down, thinking it's unblocked.
     blocker_geom = _object_to_top_down_geom(blocker_obj,
                                             state,
                                             put_on_robot_if_held=False)
