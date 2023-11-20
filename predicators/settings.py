@@ -666,6 +666,8 @@ class GlobalSettings:
                     # tasks take more actions to complete.
                     "pybullet_cover": 1000,
                     "pybullet_blocks": 1000,
+                    "spot_cube_env": 1000,
+                    "spot_soda_sweep_env": 1000,
                     "doors": 1000,
                     "coffee": 1000,
                     "kitchen": 1000,
