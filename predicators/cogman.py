@@ -67,9 +67,9 @@ class CogMan:
             self._episode_images.extend(imgs)
 
             # Uncomment for live visualization.
-            import cv2
-            cv2.imshow("debug", imgs[0])
-            cv2.waitKey(10)
+            # import cv2
+            # cv2.imshow("debug", imgs[0])
+            # cv2.waitKey(10)
 
         # Replace the first step because the state was already added in reset().
         if not self._episode_action_history:
