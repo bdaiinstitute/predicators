@@ -352,7 +352,8 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
             else:  # Use all features.
                 for obj in objects:
                     sampler_input_lst.extend(state[obj])
-                sampler_input_lst.extend(params)
+                if params:
+                    sampler_input_lst.extend(params)
         else:
             raise NotImplementedError("Oracle feature selection not "
                                       f"implemented for {CFG.env}")
