@@ -346,6 +346,14 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 for obj in objects:
                     sampler_input_lst.extend(state[obj])
                 sampler_input_lst.extend(params)
+        elif "spot" in CFG.env:
+            if "Sweep" in param_option.name:
+                import ipdb; ipdb.set_trace()
+                sampler_input_lst.extend(params)
+            else:  # Use all features.
+                for obj in objects:
+                    sampler_input_lst.extend(state[obj])
+                sampler_input_lst.extend(params)
         else:
             raise NotImplementedError("Oracle feature selection not "
                                       f"implemented for {CFG.env}")
