@@ -174,6 +174,7 @@ class GlobalSettings:
     spot_graph_nav_map = "floor8-v2"
     spot_grasp_stow_volume_threshold = 0.1
     spot_run_dry = False
+    spot_use_perfect_samplers = False  # for debugging
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3
@@ -642,9 +643,6 @@ class GlobalSettings:
     grammar_search_expected_nodes_allow_noops = True
     grammar_search_classifier_pretty_str_names = ["?x", "?y", "?z"]
 
-    # grammar search clustering algorithm parameters
-    grammar_search_clustering_gmm_num_components = 10
-
     @classmethod
     def get_arg_specific_settings(cls, args: Dict[str, Any]) -> Dict[str, Any]:
         """A workaround for global settings that are derived from the
@@ -672,7 +670,7 @@ class GlobalSettings:
                     # the horizon to be shorter.
                     "touch_point": 15,
                     # Ditto for the simple grid row environment.
-                    "grid_row": cls.grid_row_num_cells + 2,
+                    "grid_row": cls.grid_row_num_cells + 5,
                 })[args.get("env", "")],
 
             # Maximum number of steps to roll out an option policy.

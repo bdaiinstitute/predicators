@@ -217,6 +217,9 @@ class SpotRearrangementEnv(BaseEnv):
         # Create constant objects.
         self._spot_object = Object("robot", _robot_type)
 
+        # For noisy simulation in dry runs.
+        self._noise_rng = np.random.default_rng(CFG.seed)
+
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
         """Expose the STRIPSOperators for use by oracles."""
@@ -275,8 +278,14 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "SweepIntoContainer":
             _, _, target, _, container = action_objs
-            return _dry_simulate_sweep_into_container(obs, target, container,
-                                                      nonpercept_atoms)
+            _, _, sweep_start_dx, sweep_start_dy = action_args
+            return _dry_simulate_sweep_into_container(obs,
+                                                      target,
+                                                      container,
+                                                      nonpercept_atoms,
+                                                      start_dx=sweep_start_dx,
+                                                      start_dy=sweep_start_dy,
+                                                      rng=self._noise_rng)
 
         if action_name == "DragToUnblockObject":
             _, _, blocker = action_objs
@@ -1411,7 +1420,8 @@ def _dry_simulate_prepare_container_for_sweeping(
 
 def _dry_simulate_sweep_into_container(
         last_obs: _SpotObservation, swept_obj: Object, container: Object,
-        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        nonpercept_atoms: Set[GroundAtom], start_dx: float, start_dy: float,
+        rng: np.random.Generator) -> _SpotObservation:
 
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
@@ -1422,9 +1432,28 @@ def _dry_simulate_sweep_into_container(
     static_feats = load_spot_metadata()["static-object-features"]
     swept_obj_height = static_feats[swept_obj.name]["height"]
     container_pose = objects_in_view[container]
-    x = container_pose.x
-    y = container_pose.y
-    z = container_pose.z + swept_obj_height / 2
+    container_radius = static_feats[container.name]["width"] / 2
+    swept_obj_radius = static_feats[container.name]["width"] / 2
+
+    # NOTE: this may change soon to be more physically realistic.
+    # If the sweep parameters are close enough to optimal, the object should
+    # end up in the container.
+    optimal_dx, optimal_dy = 0.0, 0.25
+    thresh = 0.1
+    if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
+        x = container_pose.x
+        y = container_pose.y
+        z = container_pose.z + swept_obj_height / 2
+    # Otherwise, the object fails randomly somewhere around the container.
+    else:
+        angle = rng.uniform(0, 2 * np.pi)
+        distance = (container_radius + swept_obj_radius) * rng.uniform(
+            1.25, 1.5)
+        dx = distance * np.cos(angle)
+        dy = distance * np.sin(angle)
+        x = container_pose.x + dx
+        y = container_pose.y + dy
+        z = container_pose.z
     swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[swept_obj] = swept_obj_pose
 
@@ -1983,10 +2012,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             _On,
             _Reachable,
             _InHandView,
-            # NOTE: we can't easily check that an object is inside a container
-            # after sweeping, because the robot is holding a sweeper, blocking
-            # the hand camera that we'd usually use to check containment.
-            # _Inside,
+            _Inside,
             _Blocking,
             _NotBlocked,
             _ContainerReadyForSweeping,
