@@ -2,7 +2,7 @@
 ---
 APPROACHES:
   planning_progress_explore:
-    NAME: "active_sampler_learning"
+    NAME: "spot_wrapper[active_sampler_learning]"
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
@@ -111,4 +111,4 @@ FLAGS:
   sesame_grounder: "fd_translator"
   active_sampler_learning_n_iter_no_change: 5000
 START_SEED: 456
-NUM_SEEDS: 10
+NUM_SEEDS: 1
