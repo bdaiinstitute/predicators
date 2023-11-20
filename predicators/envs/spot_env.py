@@ -1473,7 +1473,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
 
         cube = Object("cube", _movable_object_type)
-        cube_detection = AprilTagObjectDetectionID(20)
+        cube_detection = AprilTagObjectDetectionID(12)
 
         smooth_table = Object("smooth_table", _immovable_object_type)
         smooth_table_detection = AprilTagObjectDetectionID(19)
