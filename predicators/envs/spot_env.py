@@ -1502,7 +1502,7 @@ def _dry_simulate_sweep_into_container(
     # NOTE: this may change soon to be more physically realistic.
     # If the sweep parameters are close enough to optimal, the object should
     # end up in the container.
-    optimal_dx, optimal_dy = 0.0, 0.25
+    optimal_dx, optimal_dy = 0.0, -0.5
     thresh = 0.5
     if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
         x = container_pose.x
