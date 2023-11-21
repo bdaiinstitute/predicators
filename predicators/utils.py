@@ -350,7 +350,10 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
             if "Sweep" in param_option.name:
                 sampler_input_lst.extend(params)
             else:
-                base_feat_names = ["x", "y", "z", "qw", "qx", "qy", "qz", "shape", "height", "width", "length"]
+                base_feat_names = [
+                    "x", "y", "z", "qw", "qx", "qy", "qz", "shape", "height",
+                    "width", "length"
+                ]
                 for obj in objects:
                     if obj.type.name == "robot":
                         sampler_input_lst.extend(state[obj])
