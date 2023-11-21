@@ -337,9 +337,8 @@ class ActiveSamplerExplorer(BaseExplorer):
             model = create_competence_model(model_name, skill_name)
             self._competence_models[last_executed_op] = model
         self._competence_models[last_executed_op].observe(success)
-        # Aggressively save data after every single option execution, but only
-        # if running on the real robot!
-        if "spot" in CFG.env and not CFG.spot_run_dry:
+        # Aggressively save data after every single option execution.
+        if CFG.active_sampler_learning_save_every_datum:
             init_state = self._last_init_option_state
             assert init_state is not None
             option = self._last_executed_option

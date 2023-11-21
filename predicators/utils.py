@@ -346,7 +346,7 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 for obj in objects:
                     sampler_input_lst.extend(state[obj])
                 sampler_input_lst.extend(params)
-        elif "spot" in CFG.env:
+        elif "spot" in CFG.env:  # pragma: no cover
             if "Sweep" in param_option.name:
                 sampler_input_lst.extend(params)
             else:
