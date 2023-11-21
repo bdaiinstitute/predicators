@@ -202,7 +202,8 @@ class SpotRearrangementEnv(BaseEnv):
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
-        assert "spot_wrapper" in CFG.approach, \
+        assert "spot_wrapper" in CFG.approach or \
+               "spot_wrapper" in CFG.approach_wrapper, \
             "Must use spot wrapper in spot envs!"
         robot, localizer, lease_client = get_robot()
         self._robot = robot
