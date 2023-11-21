@@ -66,14 +66,10 @@ class CogMan:
                 state, self._current_env_task)
             self._episode_images.extend(imgs)
 
-            import imageio.v2 as iio
-            iio.imsave("debug.png", imgs[0])
-
-
             # Uncomment for live visualization.
             # import cv2
             # cv2.imshow("debug", imgs[0])
-            # cv2.waitKey(10)
+            # cv2.waitKey(0)
 
         # Replace the first step because the state was already added in reset().
         if not self._episode_action_history:
