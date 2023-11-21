@@ -1191,7 +1191,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     robot = Variable("?robot", _robot_type)
     blocked = Variable("?blocked", _base_object_type)
     blocker = Variable("?blocker", _movable_object_type)
-    parameters = [robot, blocked, blocker]
+    parameters = [robot, blocker, blocked]
     preconds = {
         LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
