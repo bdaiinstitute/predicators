@@ -927,9 +927,9 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
         return False
 
     # Only consider draggable (non-placeable) objects to be possible blockers.
-    placeable = blocker_obj.is_instance(_movable_object_type) and \
-        _is_placeable_classifier(state, [blocker_obj])
-    if placeable:
+    if not blocker_obj.is_instance(_movable_object_type):
+        return False
+    if _is_placeable_classifier(state, [blocker_obj]):
         return False
 
     if _object_in_xy_classifier(state,
@@ -1372,31 +1372,51 @@ def _dry_simulate_place_on_top(last_obs: _SpotObservation, held_obj: Object,
     robot_pose = last_obs.robot_pos
     static_feats = load_spot_metadata()["static-object-features"]
     surface_height = static_feats[target_surface.name]["height"]
-    surface_radius = static_feats[target_surface.name]["width"] / 2
+    surface_width = static_feats[target_surface.name]["width"]
+    surface_length = static_feats[target_surface.name]["length"]
+    surface_shape = int(np.round(static_feats[target_surface.name]["shape"]))
     held_obj_height = static_feats[held_obj.name]["height"]
     held_obj_radius = static_feats[held_obj.name]["width"] / 2
     surface_pose = objects_in_view[target_surface]
+    floor_obj = next(o for o in objects_in_view if o.name == "floor")
+    floor_pose = objects_in_view[floor_obj]
 
-    # NOTE: this may change soon to be more physically realistic.
-    # If the place parameters are close enough to optimal, the object should
-    # end up in the container.
-    optimal_dx, optimal_dy, optimal_dz = 0.0, 0.0, 0.05
-    thresh = 0.25
-    if abs(place_rel_pos.x - optimal_dx) + \
-       abs(place_rel_pos.y - optimal_dy) + \
-       abs(place_rel_pos.z - optimal_dz) < thresh:
-        x = surface_pose.x
-        y = surface_pose.y
+    # Convert relative place pos to absolute place pos.
+    abs_x = robot_pose.x + place_rel_pos.x
+    abs_y = robot_pose.y + place_rel_pos.y
+    abs_z = robot_pose.z + place_rel_pos.z
+
+    # Check if this absolute position is above the surface.
+    is_above = abs_z > surface_pose.z
+
+    # Check if the absolute position is on the surface.
+    if surface_shape == _Spot3DShape.CUBOID.value:
+        surface_geom: utils._Geom2D = utils.Rectangle.from_center(
+            surface_pose.x, surface_pose.y, surface_width, surface_length,
+            surface_pose.rot.to_yaw())
+    else:
+        assert surface_shape == _Spot3DShape.CYLINDER.value
+        assert np.isclose(surface_width, surface_length)
+        radius = surface_width / 2
+        surface_geom = utils.Circle(surface_pose.x, surface_pose.y, radius)
+    in_surface_xy = surface_geom.contains_point(abs_x, abs_y)
+
+    # Successful place.
+    if is_above and in_surface_xy:
+        x = abs_x
+        y = abs_y
+        # "Gravity".
         z = surface_pose.z + surface_height / 2 + held_obj_height
-    # Otherwise, the object fails randomly somewhere around the container.
+    # Failure: the object fails randomly somewhere around the surface.
     else:
         angle = rng.uniform(0, 2 * np.pi)
+        surface_radius = max(surface_width, surface_length) / 2
         distance = (surface_radius + held_obj_radius) * rng.uniform(1.25, 1.5)
         dx = distance * np.cos(angle)
         dy = distance * np.sin(angle)
         x = surface_pose.x + dx
         y = surface_pose.y + dy
-        z = surface_pose.z
+        z = floor_pose.z + held_obj_height / 2
 
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
