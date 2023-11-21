@@ -301,7 +301,7 @@ class SpotRearrangementEnv(BaseEnv):
                                                       rng=self._noise_rng)
 
         if action_name == "DragToUnblockObject":
-            _, _, blocker = action_objs
+            _, blocker, _ = action_objs
             _, robot_rel_se2_pose = action_args
             return _dry_simulate_drag_to_unblock(obs, blocker,
                                                  robot_rel_se2_pose,
