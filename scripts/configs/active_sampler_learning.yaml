@@ -2,7 +2,7 @@
 ---
 APPROACHES:
   planning_progress_explore:
-    NAME: "spot_wrapper[active_sampler_learning]"
+    NAME: "active_sampler_learning"
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
@@ -73,6 +73,7 @@ ENVS:
       active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
       perceiver: spot_perceiver
+      approach_wrapper: spot_wrapper
   regional_bumpy_cover:
     NAME: "regional_bumpy_cover"
     FLAGS:
