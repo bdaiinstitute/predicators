@@ -63,7 +63,7 @@ class CogMan:
         if CFG.make_cogman_videos:
             assert self._current_env_task is not None
             imgs = self._perceiver.render_mental_images(
-                state, self._current_env_task)
+                state, self._current_env_task)                
             self._episode_images.extend(imgs)
         # Replace the first step because the state was already added in reset().
         if not self._episode_action_history:

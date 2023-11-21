@@ -2249,7 +2249,8 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         detection_id_to_obj[ball_detection] = ball
 
         cup = Object("cup", _container_type)
-        cup_detection = LanguageObjectDetectionID("large thick white ring")
+        # cup_detection = LanguageObjectDetectionID("white ring of tape")
+        cup_detection = LanguageObjectDetectionID("ashtray/large black wheel")
         detection_id_to_obj[cup_detection] = cup
 
         for obj, pose in get_known_immovable_objects().items():
