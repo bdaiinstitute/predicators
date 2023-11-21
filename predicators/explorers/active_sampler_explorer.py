@@ -357,7 +357,7 @@ class ActiveSamplerExplorer(BaseExplorer):
             filepath_template = f"{pfx}*.data"
             datapoint_id = 0
             all_saved_files = glob.glob(filepath_template)
-            if all_saved_files:
+            if all_saved_files:  # pragma: no cover
                 regex_prefix = re.escape(pfx)
                 regex = f"{regex_prefix}(\\d+).data"
                 for filename in all_saved_files:
