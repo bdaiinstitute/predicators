@@ -280,8 +280,14 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "PlaceObjectOnTop":
             _, held_obj, target_surface = action_objs
+            if len(action_args) == 1:
+                assert target_surface.name == "floor"
+                place_rel_pos = math_helpers.Vec3(0.0, 0.0, 0.05)
+            else:
+                place_rel_pos = action_args[1]
             return _dry_simulate_place_on_top(obs, held_obj, target_surface,
-                                              nonpercept_atoms)
+                                              nonpercept_atoms, place_rel_pos,
+                                              self._noise_rng)
 
         if action_name == "PrepareContainerForSweeping":
             _, container_obj, _, _ = action_objs
@@ -1354,26 +1360,44 @@ def _dry_simulate_pick_from_top(
     return next_obs
 
 
-def _dry_simulate_place_on_top(
-        last_obs: _SpotObservation, held_obj: Object, target_surface: Object,
-        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+def _dry_simulate_place_on_top(last_obs: _SpotObservation, held_obj: Object,
+                               target_surface: Object,
+                               nonpercept_atoms: Set[GroundAtom],
+                               place_rel_pos: math_helpers.Vec3,
+                               rng: np.random.Generator) -> _SpotObservation:
 
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
     robot_pose = last_obs.robot_pos
-
-    # NOTE: there is no randomness right now, since there's no
-    # randomness in the sampler. We can add some later. This is just
-    # a proof-of-concept for dry running spot environments.
-
     static_feats = load_spot_metadata()["static-object-features"]
     surface_height = static_feats[target_surface.name]["height"]
+    surface_radius = static_feats[target_surface.name]["width"] / 2
     held_obj_height = static_feats[held_obj.name]["height"]
+    held_obj_radius = static_feats[held_obj.name]["width"] / 2
     surface_pose = objects_in_view[target_surface]
-    x = surface_pose.x
-    y = surface_pose.y
-    z = surface_pose.z + surface_height / 2 + held_obj_height
+
+    # NOTE: this may change soon to be more physically realistic.
+    # If the place parameters are close enough to optimal, the object should
+    # end up in the container.
+    optimal_dx, optimal_dy, optimal_dz = 0.0, 0.0, 0.05
+    thresh = 0.25
+    if abs(place_rel_pos.x - optimal_dx) + \
+       abs(place_rel_pos.y - optimal_dy) + \
+       abs(place_rel_pos.z - optimal_dz) < thresh:
+        x = surface_pose.x
+        y = surface_pose.y
+        z = surface_pose.z + surface_height / 2 + held_obj_height
+    # Otherwise, the object fails randomly somewhere around the container.
+    else:
+        angle = rng.uniform(0, 2 * np.pi)
+        distance = (surface_radius + held_obj_radius) * rng.uniform(1.25, 1.5)
+        dx = distance * np.cos(angle)
+        dy = distance * np.sin(angle)
+        x = surface_pose.x + dx
+        y = surface_pose.y + dy
+        z = surface_pose.z
+
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
 

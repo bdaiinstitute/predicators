@@ -113,8 +113,12 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
                                  rng: np.random.Generator,
                                  objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dz (to surface objects center).
-    del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.0, 0.05])
+    del state, goal, objs
+    if CFG.spot_use_perfect_samplers:
+        return np.array([0.0, 0.0, 0.05])
+    dx, dy = rng.uniform(-0.25, 0.25, size=2)
+    dz = rng.uniform(0.0, 0.25)
+    return np.array([dx, dy, dz])
 
 
 def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
