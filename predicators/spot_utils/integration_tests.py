@@ -2,8 +2,10 @@
 
 Run with --spot_robot_ip and any other flags.
 """
+import time
 from typing import Optional
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from bosdyn.client import create_standard_sdk, math_helpers
@@ -12,10 +14,13 @@ from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate
 
 from predicators import utils
+from predicators.envs.spot_env import get_allowed_map_regions
+from predicators.ground_truth_models.spot_env.options import \
+    navigate_to_relative_pose_and_gaze
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, detect_objects, \
-    get_object_center_pixel_from_artifacts
+    get_grasp_pixel
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -100,8 +105,7 @@ def test_find_move_pick_place(
 
     # Run detection to get a pixel for grasping.
     _, artifacts = detect_objects([manipuland_id], rgbds)
-    pixel = get_object_center_pixel_from_artifacts(artifacts, manipuland_id,
-                                                   hand_camera)
+    pixel = get_grasp_pixel(rgbds, artifacts, manipuland_id, hand_camera)
 
     # Pick at the pixel with a top-down grasp.
     grasp_at_pixel(robot, rgbds[hand_camera], pixel)
@@ -181,8 +185,6 @@ def test_move_with_sampling() -> None:
     """Test for moving to a surface with a sampled rotation and distance,
     taking into account potential collisions with walls and other surfaces."""
 
-    # Approximate values for the set up on the fourth floor.
-    room_bounds = (0.4, -1.0, 4.0, 2.0)  # min x, min y, max x, max y
     surface_radius = 0.2
 
     num_samples = 10
@@ -208,16 +210,16 @@ def test_move_with_sampling() -> None:
                                      return_at_exit=True)
     assert path.exists()
     localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+    convex_hulls = get_allowed_map_regions()
 
-    # Run test with april tag cube.
+    # Run test with april tag round table.
     surface1 = AprilTagObjectDetectionID(408)
-    surface2 = AprilTagObjectDetectionID(409)
 
     go_home(robot, localizer)
     localizer.localize()
 
     # Find objects.
-    object_ids = [surface1, surface2]
+    object_ids = [surface1]
     detections, _ = init_search_for_objects(robot, localizer, object_ids)
 
     # Create collision geoms using known object sizes.
@@ -239,13 +241,12 @@ def test_move_with_sampling() -> None:
             robot_geom,
             collision_geoms,
             rng,
+            min_distance=0.0,
             max_distance=max_distance,
-            room_bounds=room_bounds,
+            allowed_regions=convex_hulls,
         )
         # Visualize everything.
-        figsize = (1.1 * (room_bounds[2] - room_bounds[0]),
-                   1.1 * (room_bounds[3] - room_bounds[1]))
-        _, ax = plt.subplots(1, 1, figsize=figsize)
+        _, ax = plt.subplots(1, 1)
         robot_geom.plot(ax, facecolor="lightgreen", edgecolor="black")
         # Draw the origin of the robot, which should be the back right leg.
         ax.scatter([robot_geom.x], [robot_geom.y],
@@ -270,18 +271,15 @@ def test_move_with_sampling() -> None:
                            marker="*",
                            color="gold",
                            zorder=3)
-        # Draw the walls.
-        min_x, min_y, max_x, max_y = room_bounds
-        ax.plot((min_x, min_x), (min_y, max_y), linestyle="--", color="gray")
-        ax.plot((max_x, max_x), (min_y, max_y), linestyle="--", color="gray")
-        ax.plot((min_x, max_x), (min_y, min_y), linestyle="--", color="gray")
-        ax.plot((min_x, max_x), (max_y, max_y), linestyle="--", color="gray")
         plt.savefig(f"sampling_integration_test_{i}.png")
 
-        # Execute the move.
+        # Execute the move and gaze at the target.
         rel_pose = get_relative_se2_from_se3(robot_pose, target_pose, distance,
                                              angle)
-        navigate_to_relative_pose(robot, rel_pose)
+        gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
+                                        target_pose.z)
+        navigate_to_relative_pose_and_gaze(robot, rel_pose, localizer,
+                                           gaze_target)
 
 
 def test_repeated_brush_bucket_dump_pick_place(
@@ -357,8 +355,7 @@ def test_repeated_brush_bucket_dump_pick_place(
 
         # Run detection to get a pixel for grasping.
         _, artifacts = detect_objects([brush], rgbds)
-        pixel = get_object_center_pixel_from_artifacts(artifacts, brush,
-                                                       hand_camera)
+        pixel = get_grasp_pixel(rgbds, artifacts, brush, hand_camera)
 
         # Pick at the pixel with a top-down grasp.
         grasp_at_pixel(robot, rgbds[hand_camera], pixel)
@@ -411,8 +408,7 @@ def test_repeated_brush_bucket_dump_pick_place(
         # Choose a grasp.
         _, artifacts = detect_objects([bucket], rgbds)
 
-        r, c = get_object_center_pixel_from_artifacts(artifacts, bucket,
-                                                      hand_camera)
+        r, c = get_grasp_pixel(rgbds, artifacts, bucket, hand_camera)
         pixel = (r + bucket_grasp_dr, c)
 
         # Grasp at the pixel with a top-down grasp.
@@ -428,7 +424,88 @@ def test_repeated_brush_bucket_dump_pick_place(
         localizer.localize()
 
 
+def test_platform_grasp(pre_pick_nav_distance: float = 1.25) -> None:
+    """Test finding and grasping the platform with april tag 411."""
+    # Parse flags.
+    args = utils.parse_args(env_required=False,
+                            seed_required=False,
+                            approach_required=False)
+    utils.update_config(args)
+
+    # Set up the robot and localizer.
+    hostname = CFG.spot_robot_ip
+    path = get_graph_nav_dir()
+    sdk = create_standard_sdk("TestClient")
+    robot = sdk.create_robot(hostname)
+    authenticate(robot)
+    verify_estop(robot)
+    lease_client = robot.ensure_client(LeaseClient.default_service_name)
+    lease_client.take()
+    lease_keepalive = LeaseKeepAlive(lease_client,
+                                     must_acquire=True,
+                                     return_at_exit=True)
+    assert path.exists()
+    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+
+    platform = AprilTagObjectDetectionID(411)
+
+    # Test assumes that the platform is in front of the robot's home position.
+    localizer.localize()
+    go_home(robot, localizer)
+    localizer.localize()
+
+    home_pose = get_spot_home_pose()
+    pre_pick_nav_angle = home_pose.angle - np.pi
+
+    # Find the platform.
+    detections, _ = init_search_for_objects(robot, localizer, [platform])
+
+    # Navigate to in front of the platform.
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    rel_pose = get_relative_se2_from_se3(robot_pose, detections[platform],
+                                         pre_pick_nav_distance,
+                                         pre_pick_nav_angle)
+    navigate_to_relative_pose(robot, rel_pose)
+    localizer.localize()
+
+    # Look down at the surface.
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+    open_gripper(robot)
+
+    # Capture an image from the hand camera.
+    hand_camera = "hand_color_image"
+    rgbds = capture_images(robot, localizer, [hand_camera])
+    rgbd = rgbds[hand_camera]
+
+    # Run detection to get a pixel for grasping.
+    _, artifacts = detect_objects([platform], rgbds)
+    pixel = get_grasp_pixel(rgbds, artifacts, platform, hand_camera)
+
+    # Show the selected pixel for debugging.
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    # Pick at the pixel with a top-down and rotated grasp.
+    top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    side_rot = math_helpers.Quat.from_yaw(np.pi / 2)
+    grasp_rot = side_rot * top_down_rot
+    grasp_at_pixel(robot, rgbd, pixel, grasp_rot=grasp_rot)
+    localizer.localize()
+
+    # Pause to ponder how wonderful the grasp is.
+    time.sleep(5.0)
+
+    # Open and stow.
+    open_gripper(robot)
+    stow_arm(robot)
+
+
 if __name__ == "__main__":
     test_all_find_move_pick_place()
     test_move_with_sampling()
     test_repeated_brush_bucket_dump_pick_place()
+    test_platform_grasp()

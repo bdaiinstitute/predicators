@@ -45,6 +45,7 @@ class GlobalSettings:
     # in unit tests, make sure to pass in a value for `render_state_dpi` into
     # your call to utils.reset_config().
     render_state_dpi = 150
+    approach_wrapper = None
 
     # cover_multistep_options env parameters
     cover_multistep_action_limits = [-np.inf, np.inf]
@@ -173,6 +174,8 @@ class GlobalSettings:
     spot_perception_outdir = "spot_perception_outputs"
     spot_graph_nav_map = "floor8-v2"
     spot_grasp_stow_volume_threshold = 0.1
+    spot_run_dry = False
+    spot_use_perfect_samplers = False  # for debugging
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3
@@ -560,6 +563,7 @@ class GlobalSettings:
     active_sampler_learning_exploration_epsilon = 0.5
     active_sampler_learning_replay_buffer_size = 1000000
     active_sampler_learning_batch_size = 64
+    active_sampler_learning_save_every_datum = False
 
     # skill competence model parameters
     skill_competence_model = "optimistic"
@@ -641,6 +645,9 @@ class GlobalSettings:
     grammar_search_expected_nodes_allow_noops = True
     grammar_search_classifier_pretty_str_names = ["?x", "?y", "?z"]
 
+    # grammar search clustering algorithm parameters
+    grammar_search_clustering_gmm_num_components = 10
+
     @classmethod
     def get_arg_specific_settings(cls, args: Dict[str, Any]) -> Dict[str, Any]:
         """A workaround for global settings that are derived from the
@@ -668,7 +675,7 @@ class GlobalSettings:
                     # the horizon to be shorter.
                     "touch_point": 15,
                     # Ditto for the simple grid row environment.
-                    "grid_row": cls.grid_row_num_cells + 5,
+                    "grid_row": cls.grid_row_num_cells + 2,
                 })[args.get("env", "")],
 
             # Maximum number of steps to roll out an option policy.
