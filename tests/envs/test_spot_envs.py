@@ -242,8 +242,7 @@ def real_robot_cube_env_test() -> None:
     go_home(robot, localizer)
 
     # Drop the object onto the floor.
-    PlaceToolOnFloor = nsrt_name_to_nsrt[
-        "PlaceObjectOnTop"]  #["PlaceToolOnFloor"]
+    PlaceToolOnFloor = nsrt_name_to_nsrt["PlaceObjectOnTop"]
     place_cube_nrst = PlaceToolOnFloor.ground([spot, cube, floor])
     assert all(a.holds(state) for a in place_cube_nrst.preconditions)
     option = place_cube_nrst.sample_option(state, set(), rng)
