@@ -84,9 +84,6 @@ def real_robot_cube_env_test() -> None:
     target_table = table1 if init_table is table2 else table2
 
     # Find the applicable NSRTs.
-    atoms = utils.abstract(state, env.predicates)
-    applicable_nsrts = list(utils.get_applicable_operators(
-        ground_nsrts, atoms))
     move_to_cube_nsrt = MoveToHandViewObject.ground((spot, cube))
     # Sample and run an option to move to the surface.
     option = move_to_cube_nsrt.sample_option(state, set(), rng)
