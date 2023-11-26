@@ -108,7 +108,7 @@ def _move_closer_and_drop_at_relative_position_and_look(
     # First, check if we're too far away in distance or angle
     # to place.
     dist_to_object = np.sqrt(rel_pose.x * rel_pose.x + rel_pose.y * rel_pose.y)
-    if dist_to_object > 0.75:
+    if dist_to_object > 0.55:
         pose_to_nav_to = math_helpers.SE2Pose(
             rel_pose.x - (0.75 * rel_pose.x / dist_to_object),
             rel_pose.y - (0.75 * rel_pose.y / dist_to_object), 0.0)
@@ -213,7 +213,7 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
                                 hand_camera)
 
     # Grasp from the top-down.
-    grasp_rot = None #math_helpers.Quat.from_pitch(np.pi / 2)
+    grasp_rot = None  #math_helpers.Quat.from_pitch(np.pi / 2)
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \
         state.get(target_obj, "length") * state.get(target_obj, "width")
