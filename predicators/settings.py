@@ -45,6 +45,7 @@ class GlobalSettings:
     # in unit tests, make sure to pass in a value for `render_state_dpi` into
     # your call to utils.reset_config().
     render_state_dpi = 150
+    approach_wrapper = None
 
     # cover_multistep_options env parameters
     cover_multistep_action_limits = [-np.inf, np.inf]
@@ -174,6 +175,7 @@ class GlobalSettings:
     spot_graph_nav_map = "floor8-v2"
     spot_grasp_stow_volume_threshold = 0.1
     spot_run_dry = False
+    spot_use_perfect_samplers = False  # for debugging
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3
@@ -561,6 +563,7 @@ class GlobalSettings:
     active_sampler_learning_exploration_epsilon = 0.5
     active_sampler_learning_replay_buffer_size = 1000000
     active_sampler_learning_batch_size = 64
+    active_sampler_learning_save_every_datum = False
 
     # skill competence model parameters
     skill_competence_model = "optimistic"
