@@ -1,6 +1,8 @@
 """A perceiver specific to spot envs."""
 
 import logging
+import time
+from pathlib import Path
 from typing import Dict, Optional, Set
 
 import imageio.v2 as iio
@@ -365,5 +367,9 @@ class SpotPerceiver(BasePerceiver):
         plt.tight_layout()
         img = utils.fig2data(fig, CFG.render_state_dpi)
         # Save the most recent top-down view at every time step.
-        iio.imsave("top-down-state-view.png", img)
+        outdir = Path(CFG.spot_perception_outdir)
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        outfile = outdir / f"mental_top_down_{time_str}.png"
+        iio.imsave(outfile, img)
+        logging.info(f"Wrote out to {outfile}")
         return [img]
