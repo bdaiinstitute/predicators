@@ -215,7 +215,7 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
                                 hand_camera)
 
     # Grasp from the top-down.
-    grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    grasp_rot = None
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \
         state.get(target_obj, "length") * state.get(target_obj, "width")
