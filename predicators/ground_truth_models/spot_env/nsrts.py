@@ -1,6 +1,6 @@
 """Ground-truth NSRTs for the PDDLEnv."""
 
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Dict, List, Sequence, Set
 
 import numpy as np
 
@@ -13,8 +13,6 @@ from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     get_grasp_pixel, get_last_detected_objects
-from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import \
     get_last_captured_images
 from predicators.spot_utils.utils import _Geom2D, get_spot_home_pose, \
