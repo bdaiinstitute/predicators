@@ -196,7 +196,8 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     del memory  # not used
 
     robot, _, _ = get_robot()
-
+    assert len(params) == 2
+    pixel = (int(params[0]), int(params[1]))
     target_obj = objects[target_obj_idx]
 
     # Special case: if we're running dry, the image won't be used.
@@ -218,7 +219,7 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         fn = _grasp_at_pixel_and_stow
 
     return utils.create_spot_env_action(name, objects, fn,
-                                        (robot, img, params, grasp_rot))
+                                        (robot, img, pixel, grasp_rot))
 
 
 ###############################################################################

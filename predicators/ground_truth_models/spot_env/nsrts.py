@@ -126,7 +126,7 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
                                 hand_camera, rng)
 
-    return pixel
+    return np.array(pixel)
 
 
 def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
