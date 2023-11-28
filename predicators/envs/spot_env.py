@@ -1829,21 +1829,15 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        """Override to have the hand look down at the table at first."""
+        """Override to move the hand up so it can easily see when the ball is
+        on top of a table.."""
         hand_pose = math_helpers.SE3Pose(x=0.80,
                                          y=0.0,
                                          z=0.75,
                                          rot=math_helpers.Quat.from_pitch(
                                              np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
-        detections, artifacts = init_search_for_objects(
-            self._robot, self._localizer, detection_ids, 4)
-        outdir = Path(CFG.spot_perception_outdir)
-        time_str = time.strftime("%Y%m%d-%H%M%S")
-        detections_outfile = outdir / f"detections_{time_str}.png"
-        no_detections_outfile = outdir / f"no_detections_{time_str}.png"
-        visualize_all_artifacts(artifacts, detections_outfile,
-                                no_detections_outfile)
+        return super()._run_init_search_for_objects(detection_ids)
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -2062,7 +2056,6 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             "DropObjectInsideContainerOnTop", "PickCupToDumpBall"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
-
 
     @classmethod
     def get_name(cls) -> str:
