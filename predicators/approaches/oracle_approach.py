@@ -42,6 +42,7 @@ class OracleApproach(BilevelPlanningApproach):
                          max_skeletons_optimized,
                          bilevel_plan_without_sim,
                          option_model=option_model)
+
         if nsrts is None:
             nsrts = get_gt_nsrts(CFG.env, self._initial_predicates,
                                  self._initial_options)

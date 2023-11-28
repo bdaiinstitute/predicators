@@ -863,6 +863,17 @@ def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     return obj_top < container_top + _INSIDE_Z_THRESHOLD
 
 
+def _not_inside_any_container_classifier(state: State,
+                                         objects: Sequence[Object]) -> bool:
+    obj_in, = objects
+
+    for container in state.get_objects(_container_type):
+        if _inside_classifier(state, [obj_in, container]):
+            return False
+
+    return True
+
+
 def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
     """Made public for perceiver."""
     _, tool = objects
@@ -1015,11 +1026,14 @@ _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
 _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
-_Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
+_Inside = Predicate("Inside", [_movable_object_type, _container_type],
                     _inside_classifier)
 # NOTE: use this predicate instead if you want to disable inside checking.
 _FakeInside = Predicate(_Inside.name, _Inside.types,
                         _create_dummy_predicate_classifier(_Inside))
+_NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
+                                   [_movable_object_type],
+                                   _not_inside_any_container_classifier)
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
@@ -1045,6 +1059,7 @@ _ALL_PREDICATES = {
     _On,
     _TopAbove,
     _Inside,
+    _NotInsideAnyContainer,
     _HandEmpty,
     _Holding,
     _InHandView,
@@ -1104,14 +1119,14 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     preconds = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InHandView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotInsideAnyContainer, [obj])
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
     }
     del_effs = {
         LiftedAtom(_On, [obj, surface]),
-        LiftedAtom(_Inside, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj])
     }
@@ -1157,6 +1172,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_NotInsideAnyContainer, [held])
     }
     ignore_effs = set()
     yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
@@ -1181,6 +1197,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_NotInsideAnyContainer, [held])
     }
     ignore_effs = set()
     yield STRIPSOperator("DropObjectInsideContainerOnTop", parameters,
@@ -1230,6 +1247,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_On, [target, surface]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
         LiftedAtom(_Reachable, [robot, target]),
+        LiftedAtom(_NotInsideAnyContainer, [held])
     }
     ignore_effs = set()
     yield STRIPSOperator("SweepIntoContainer", parameters, preconds, add_effs,
@@ -1818,7 +1836,14 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
                                          rot=math_helpers.Quat.from_pitch(
                                              np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
-        return super()._run_init_search_for_objects(detection_ids)
+        detections, artifacts = init_search_for_objects(
+            self._robot, self._localizer, detection_ids, 4)
+        outdir = Path(CFG.spot_perception_outdir)
+        time_str = time.strftime("%Y%m%d-%H%M%S")
+        detections_outfile = outdir / f"detections_{time_str}.png"
+        no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+        visualize_all_artifacts(artifacts, detections_outfile,
+                                no_detections_outfile)
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -2027,21 +2052,67 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
-
         op_to_name = {o.name: o for o in _create_operators()}
+        op_to_name.update(
+            {o.name: o
+             for o in self._create_environment_specific_operators()})
         # NOTE: we do not yet have planning operators sufficient enough
         # to make the planning graph fully-connected. These are
         # forthcoming.
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
-            "DropObjectInsideContainerOnTop"
+            "DropObjectInsideContainerOnTop", "PickCupToDumpBall"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+        import ipdb; ipdb.set_trace()
+
 
     @classmethod
     def get_name(cls) -> str:
         return "spot_ball_and_cup_sticky_table_env"
+
+    @staticmethod
+    def _create_environment_specific_operators() -> Iterator[STRIPSOperator]:
+        """Operators specific to this environment."""
+        # PickCupToDumpBall
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        surface = Variable("?surface", _base_object_type)
+        obj_inside = Variable("?object", _movable_object_type)
+        parameters = [robot, container, surface, obj_inside]
+        preconds = {
+            LiftedAtom(_On, [container, surface]),
+            LiftedAtom(_Inside, [obj_inside, container]),
+            LiftedAtom(_On, [obj_inside, surface]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_InHandView, [robot, container])
+        }
+        add_effs = {
+            LiftedAtom(_Holding, [robot, container]),
+            LiftedAtom(_NotInsideAnyContainer, [obj_inside])
+        }
+        del_effs = {
+            LiftedAtom(_Inside, [obj_inside, container]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_InHandView, [robot, container]),
+            LiftedAtom(_On, [container, surface]),
+        }
+        ignore_effs = set()
+        yield STRIPSOperator("PickCupToDumpBall", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+    def _run_init_search_for_objects(
+        self, detection_ids: Set[ObjectDetectionID]
+    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+        """Override to have the hand look down at the table at first."""
+        hand_pose = math_helpers.SE3Pose(x=0.80,
+                                         y=0.0,
+                                         z=0.75,
+                                         rot=math_helpers.Quat.from_pitch(
+                                             np.pi / 4))
+        move_hand_to_relative_pose(self._robot, hand_pose)
+        return super()._run_init_search_for_objects(detection_ids)
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
