@@ -2056,16 +2056,12 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_to_name.update(
             {o.name: o
              for o in self._create_environment_specific_operators()})
-        # NOTE: we do not yet have planning operators sufficient enough
-        # to make the planning graph fully-connected. These are
-        # forthcoming.
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
             "DropObjectInsideContainerOnTop", "PickCupToDumpBall"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
-        import ipdb; ipdb.set_trace()
 
 
     @classmethod
