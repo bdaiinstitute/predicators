@@ -645,6 +645,7 @@ class SpotRearrangementEnv(BaseEnv):
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+        """Override to have the hand look down at the table at first."""
         assert self._robot is not None
         assert self._localizer is not None
         detections, artifacts = init_search_for_objects(
@@ -866,11 +867,9 @@ def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
 def _not_inside_any_container_classifier(state: State,
                                          objects: Sequence[Object]) -> bool:
     obj_in, = objects
-
     for container in state.get_objects(_container_type):
         if _inside_classifier(state, [obj_in, container]):
             return False
-
     return True
 
 
@@ -1247,7 +1246,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_On, [target, surface]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
         LiftedAtom(_Reachable, [robot, target]),
-        LiftedAtom(_NotInsideAnyContainer, [held])
+        LiftedAtom(_NotInsideAnyContainer, [target])
     }
     ignore_effs = set()
     yield STRIPSOperator("SweepIntoContainer", parameters, preconds, add_effs,
@@ -1274,6 +1273,33 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_Reachable, _InHandView}
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
+
+    # PickCupToDumpBall
+    robot = Variable("?robot", _robot_type)
+    container = Variable("?container", _container_type)
+    surface = Variable("?surface", _base_object_type)
+    obj_inside = Variable("?object", _movable_object_type)
+    parameters = [robot, container, surface, obj_inside]
+    preconds = {
+        LiftedAtom(_On, [container, surface]),
+        LiftedAtom(_Inside, [obj_inside, container]),
+        LiftedAtom(_On, [obj_inside, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, container])
+    }
+    add_effs = {
+        LiftedAtom(_Holding, [robot, container]),
+        LiftedAtom(_NotInsideAnyContainer, [obj_inside])
+    }
+    del_effs = {
+        LiftedAtom(_Inside, [obj_inside, container]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, container]),
+        LiftedAtom(_On, [container, surface]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PickCupToDumpBall", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
 
 
 ###############################################################################
@@ -1830,7 +1856,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
         """Override to move the hand up so it can easily see when the ball is
-        on top of a table.."""
+        on top of a table."""
         hand_pose = math_helpers.SE3Pose(x=0.80,
                                          y=0.0,
                                          z=0.75,
@@ -2047,9 +2073,6 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
         op_to_name = {o.name: o for o in _create_operators()}
-        op_to_name.update(
-            {o.name: o
-             for o in self._create_environment_specific_operators()})
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
@@ -2061,40 +2084,11 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     def get_name(cls) -> str:
         return "spot_ball_and_cup_sticky_table_env"
 
-    @staticmethod
-    def _create_environment_specific_operators() -> Iterator[STRIPSOperator]:
-        """Operators specific to this environment."""
-        # PickCupToDumpBall
-        robot = Variable("?robot", _robot_type)
-        container = Variable("?container", _container_type)
-        surface = Variable("?surface", _base_object_type)
-        obj_inside = Variable("?object", _movable_object_type)
-        parameters = [robot, container, surface, obj_inside]
-        preconds = {
-            LiftedAtom(_On, [container, surface]),
-            LiftedAtom(_Inside, [obj_inside, container]),
-            LiftedAtom(_On, [obj_inside, surface]),
-            LiftedAtom(_HandEmpty, [robot]),
-            LiftedAtom(_InHandView, [robot, container])
-        }
-        add_effs = {
-            LiftedAtom(_Holding, [robot, container]),
-            LiftedAtom(_NotInsideAnyContainer, [obj_inside])
-        }
-        del_effs = {
-            LiftedAtom(_Inside, [obj_inside, container]),
-            LiftedAtom(_HandEmpty, [robot]),
-            LiftedAtom(_InHandView, [robot, container]),
-            LiftedAtom(_On, [container, surface]),
-        }
-        ignore_effs = set()
-        yield STRIPSOperator("PickCupToDumpBall", parameters, preconds,
-                             add_effs, del_effs, ignore_effs)
-
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        """Override to have the hand look down at the table at first."""
+        """Override to move the hand up so it can easily see when the ball is
+        on top of a table."""
         hand_pose = math_helpers.SE3Pose(x=0.80,
                                          y=0.0,
                                          z=0.75,
