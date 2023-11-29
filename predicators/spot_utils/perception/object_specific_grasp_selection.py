@@ -2,6 +2,9 @@
 
 from typing import Any, Callable, Dict, Tuple
 
+import numpy as np
+from bosdyn.client import math_helpers
+
 from predicators.spot_utils.perception.cv2_utils import \
     find_color_based_centroid
 from predicators.spot_utils.perception.perception_structs import \
@@ -15,11 +18,12 @@ ball_prompt = "/".join([
     "cotton ball",
 ])
 ball_obj = LanguageObjectDetectionID(ball_prompt)
+cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 
 
-def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
-                              artifacts: Dict[str, Any],
-                              camera_name: str) -> Tuple[int, int]:
+def _get_platform_grasp_pixel_and_rot(
+        rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+        camera_name: str) -> Tuple[int, int, float, float, float, float]:
     # This assumes that we have just navigated to the april tag and are now
     # looking down at the platform. We crop the top half of the image and
     # then use CV2 to find the blue handle inside of it.
@@ -42,12 +46,12 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     x = cropped_x
     y = cropped_y + half_height
 
-    return (x, y)
+    return (x, y, 0.0, 0.0, 0.0, 0.0)
 
 
-def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
-                          artifacts: Dict[str, Any],
-                          camera_name: str) -> Tuple[int, int]:
+def _get_ball_grasp_pixel_and_rot(
+        rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+        camera_name: str) -> Tuple[int, int, float, float, float, float]:
     del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
@@ -55,17 +59,35 @@ def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     except KeyError:
         raise ValueError(f"{ball_obj} not detected in {camera_name}")
     x1, y1, x2, y2 = seg_bb.bounding_box
-    return int((x1 + x2) / 2), int((y1 + y2) / 2)
+    pixel = int((x1 + x2) / 2), int((y1 + y2) / 2)
+    quat_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    return (pixel[0], pixel[1], quat_rot.w, quat_rot.x, quat_rot.y, quat_rot.z)
+
+
+def _get_cup_grasp_pixel_and_rot(
+        rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+        camera_name: str) -> Tuple[int, int, float, float, float, float]:
+    del rgbds
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[cup_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{cup_obj} not detected in {camera_name}")
+    # Select the first (topmost) pixel from the mask. This ensures we
+    # always make a grasp by the topmost surface.
+    mask = seg_bb.mask
+    pixels_in_mask = np.where(mask)
+    return (pixels_in_mask[1][0], pixels_in_mask[0][0], 0.0, 0.0, 0.0, 0.0)
 
 
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[
-    [Dict[str,
-          RGBDImageWithContext], Dict[str, Any], str], Tuple[int, int]]] = {
-              # Platform-specific grasp selection.
-              AprilTagObjectDetectionID(411):
-              _get_platform_grasp_pixel,
-              # Ball-specific grasp selection.
-              LanguageObjectDetectionID(ball_prompt):
-              _get_ball_grasp_pixel
-          }
+    [Dict[str, RGBDImageWithContext], Dict[str, Any], str],
+    Tuple[int, int, float, float, float, float]]] = {
+        # Platform-specific grasp selection.
+        AprilTagObjectDetectionID(411): _get_platform_grasp_pixel_and_rot,
+        # Ball-specific grasp selection.
+        ball_obj: _get_ball_grasp_pixel_and_rot,
+        # Cup-specific grasp selection.
+        cup_obj: _get_cup_grasp_pixel_and_rot
+    }

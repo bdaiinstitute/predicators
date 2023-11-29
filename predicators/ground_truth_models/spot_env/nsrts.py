@@ -113,7 +113,7 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
     target_obj = objs[1]
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
-        pixel = (0, 0)
+        params_tuple = (0, 0, 0.0, 0.0, 0.0, 0.0)
     else:
         # Select the coordinates of a pixel within the image so that
         # we grasp at that pixel!
@@ -121,10 +121,10 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
-        pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
+        params_tuple = get_grasp_pixel(rgbds, artifacts, target_detection_id,
                                 hand_camera, rng)
 
-    return np.array(pixel)
+    return np.array(params_tuple)
 
 
 def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],

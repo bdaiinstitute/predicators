@@ -441,10 +441,6 @@ def get_random_mask_pixel_from_artifacts(
     except KeyError:
         raise ValueError(f"{object_id} not detected in {camera_name}")
 
-    # Select center pixel of bounding box.
-    # x1, y1, x2, y2 = seg_bb.bounding_box
-    # pixel_tuple = int((x1 + x2) / 2), int((y1 + y2) / 2)
-
     # Select a random valid pixel from the mask.
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
