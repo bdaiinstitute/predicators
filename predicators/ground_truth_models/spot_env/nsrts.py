@@ -122,7 +122,7 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
         params_tuple = get_grasp_pixel(rgbds, artifacts, target_detection_id,
-                                hand_camera, rng)
+                                       hand_camera, rng)
 
     return np.array(params_tuple)
 
