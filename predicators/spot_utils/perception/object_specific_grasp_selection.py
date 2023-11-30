@@ -11,10 +11,7 @@ from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 
 ball_prompt = "/".join([
-    "small white ball",
-    "ping-pong ball",
-    "snowball",
-    "cotton ball",
+    "small white ball", "ping-pong ball", "snowball", "cotton ball",
     "white button"
 ])
 ball_obj = LanguageObjectDetectionID(ball_prompt)

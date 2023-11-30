@@ -2121,10 +2121,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
         ball = Object("ball", _movable_object_type)
         ball_prompt = "/".join([
-            "small white ball",
-            "ping-pong ball",
-            "snowball",
-            "cotton ball",
+            "small white ball", "ping-pong ball", "snowball", "cotton ball",
             "white button"
         ])
         ball_detection = LanguageObjectDetectionID(ball_prompt)
