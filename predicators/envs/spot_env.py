@@ -1092,7 +1092,10 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
-    preconds = {LiftedAtom(_NotBlocked, [obj])}
+    preconds = {
+        LiftedAtom(_NotBlocked, [obj]),
+        LiftedAtom(_HandEmpty, [robot])
+    }
     add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
     ignore_effs = {_Reachable, _InHandView, _InView}
