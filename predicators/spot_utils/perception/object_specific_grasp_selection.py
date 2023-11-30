@@ -48,9 +48,9 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     return (x, y)
 
 
-def _get_ball_grasp_pixel(
-        rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
-        camera_name: str) -> Tuple[int, int]:
+def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
+                          artifacts: Dict[str, Any],
+                          camera_name: str) -> Tuple[int, int]:
     del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
