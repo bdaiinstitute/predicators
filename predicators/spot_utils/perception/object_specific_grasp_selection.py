@@ -15,6 +15,7 @@ ball_prompt = "/".join([
     "ping-pong ball",
     "snowball",
     "cotton ball",
+    "white button"
 ])
 ball_obj = LanguageObjectDetectionID(ball_prompt)
 cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")

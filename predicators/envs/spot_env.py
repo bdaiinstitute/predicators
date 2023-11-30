@@ -2125,6 +2125,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
             "ping-pong ball",
             "snowball",
             "cotton ball",
+            "white button"
         ])
         ball_detection = LanguageObjectDetectionID(ball_prompt)
         detection_id_to_obj[ball_detection] = ball
