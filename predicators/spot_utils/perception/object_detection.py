@@ -266,17 +266,23 @@ def _query_detic_sam(
     classes = sorted(o.language_id for o in object_ids)
 
     # Query server, retrying to handle possible wifi issues.
+    import time
+    start_time = time.perf_counter()
     for _ in range(max_server_retries):
         try:
+            print("Sending request...")
             r = requests.post("http://localhost:5550/batch_predict",
                               files=buf_dict,
                               data={"classes": ",".join(classes)})
+            print("Done.")
             break
         except requests.exceptions.ConnectionError:
+            print("Connection error, retrying...")
             continue
     else:
         logging.warning("DETIC-SAM FAILED, POSSIBLE SERVER/WIFI ISSUE")
         return object_id_to_img_detections
+    print(f"Detic-sam took {time.perf_counter() - start_time} seconds")
 
     # If the status code is not 200, then fail.
     if r.status_code != 200:

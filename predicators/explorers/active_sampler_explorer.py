@@ -399,6 +399,11 @@ class ActiveSamplerExplorer(BaseExplorer):
 
     def _score_ground_op(
             self, ground_op: _GroundSTRIPSOperator) -> Tuple[float, ...]:
+        
+        if ground_op.name == "PlaceObjectOnTop" and "drafting_table" in str(ground_op) and "ball" in str(ground_op):
+            return (1.0, 0.0)
+        return (0.0, self._rng.uniform())
+
         if CFG.active_sampler_explore_task_strategy == "planning_progress":
             score = self._score_ground_op_planning_progress(ground_op)
         elif CFG.active_sampler_explore_task_strategy == "success_rate":
