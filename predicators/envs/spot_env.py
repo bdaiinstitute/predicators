@@ -391,8 +391,14 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            # Get the new observation.
-            next_obs = self._build_observation(next_nonpercept)
+            # Get the new observation. Again, automatically retry if needed.
+            while True:
+                try:
+                    next_obs = self._build_observation(next_nonpercept)
+                    break
+                except RetryableRpcError as e:
+                    logging.warning("WARNING: the following retryable error "
+                                    f"was encountered. Trying again.\n{e}")
 
         self._current_observation = next_obs
         return self._current_observation
