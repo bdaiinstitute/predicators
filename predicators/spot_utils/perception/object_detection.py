@@ -410,8 +410,9 @@ def get_grasp_pixel(rgbds: Dict[str,
         selector = OBJECT_SPECIFIC_GRASP_SELECTORS[object_id]
         return selector(rgbds, artifacts, camera_name)
 
-    return get_random_mask_pixel_from_artifacts(artifacts, object_id,
-                                                camera_name, rng)
+    pixel = get_random_mask_pixel_from_artifacts(artifacts, object_id,
+                                                 camera_name, rng)
+    return (pixel[0], pixel[1])
 
 
 def get_random_mask_pixel_from_artifacts(

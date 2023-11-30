@@ -3,6 +3,7 @@
 from typing import Dict, List, Sequence, Set
 
 import numpy as np
+from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.envs import get_or_create_env
@@ -121,8 +122,13 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
-        params_tuple = get_grasp_pixel(rgbds, artifacts, target_detection_id,
-                                       hand_camera, rng)
+        grasp_pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
+                                      hand_camera, rng)
+        rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
+        if target_obj.name == "ball":
+            rot_quat = math_helpers.Quat.from_pitch(np.pi / 2)
+            rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
+            params_tuple = grasp_pixel + rot_quat_tuple
 
     return np.array(params_tuple)
 
