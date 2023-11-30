@@ -377,6 +377,7 @@ class ActiveSamplerExplorer(BaseExplorer):
         # Run task planning and then greedily execute.
         timeout = CFG.timeout
         task_planning_heuristic = CFG.sesame_task_planning_heuristic
+        import ipdb; ipdb.set_trace()
         ground_op_costs = {
             o: -np.log(m.get_current_competence())
             for o, m in self._competence_models.items()
