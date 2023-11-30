@@ -337,6 +337,11 @@ class ActiveSamplerExplorer(BaseExplorer):
             model = create_competence_model(model_name, skill_name)
             self._competence_models[last_executed_op] = model
         self._competence_models[last_executed_op].observe(success)
+
+        if "PlaceObjectOnTop" in last_executed_op.name:
+            for i in range(5):
+                self._competence_models[last_executed_op].observe(success)
+
         # Aggressively save data after every single option execution.
         if CFG.active_sampler_learning_save_every_datum:
             init_state = self._last_init_option_state
@@ -377,11 +382,14 @@ class ActiveSamplerExplorer(BaseExplorer):
         # Run task planning and then greedily execute.
         timeout = CFG.timeout
         task_planning_heuristic = CFG.sesame_task_planning_heuristic
-        import ipdb; ipdb.set_trace()
         ground_op_costs = {
             o: -np.log(m.get_current_competence())
             for o, m in self._competence_models.items()
         }
+
+        print(ground_op_costs)
+        import ipdb; ipdb.set_trace()
+
         # Set large horizon for planning here because we don't want to error
         # out due to plan exceeding horizon here.
         plan, atoms_seq, _ = run_task_plan_once(
@@ -395,6 +403,12 @@ class ActiveSamplerExplorer(BaseExplorer):
             ground_op_costs=ground_op_costs,
             default_cost=self._default_cost,
             max_horizon=np.inf)
+        
+        for act in plan:
+            print(act)
+            print()
+        import ipdb; ipdb.set_trace()
+
         return utils.nsrt_plan_to_greedy_option_policy(
             plan, task.goal, self._rng, necessary_atoms_seq=atoms_seq)
 
