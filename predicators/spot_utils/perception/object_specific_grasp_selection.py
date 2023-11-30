@@ -74,8 +74,8 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
         seg_bb = detections[cup_obj][camera_name]
     except KeyError:
         raise ValueError(f"{cup_obj} not detected in {camera_name}")
-    # Select the first (topmost) pixel from the mask. This ensures we
-    # always make a grasp by the topmost surface.
+    # Select the first (left-most and top-most) pixel from the mask.
+    # This ensures we always make a grasp by the topmost surface.
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
     return (pixels_in_mask[1][0], pixels_in_mask[0][0])
