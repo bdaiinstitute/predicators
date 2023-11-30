@@ -57,9 +57,12 @@ def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
         seg_bb = detections[ball_obj][camera_name]
     except KeyError:
         raise ValueError(f"{ball_obj} not detected in {camera_name}")
-    x1, y1, x2, y2 = seg_bb.bounding_box
-    pixel = int((x1 + x2) / 2), int((y1 + y2) / 2)
-    return (pixel[0], pixel[1])
+    # Select the last (bottom-most) pixel from the mask. We do this because the
+    # back finger of the robot gripper might displace the ball during grasping
+    # if we try to grasp at the center.
+    mask = seg_bb.mask
+    pixels_in_mask = np.where(mask)
+    return (pixels_in_mask[1][-1], pixels_in_mask[0][-1])
 
 
 def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
