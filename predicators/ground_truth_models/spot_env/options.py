@@ -212,8 +212,8 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
 
     robot, _, _ = get_robot()
     assert len(params) == 6
-    target_obj = objects[target_obj_idx]
     pixel = (int(params[0]), int(params[1]))
+    target_obj = objects[target_obj_idx]
 
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
