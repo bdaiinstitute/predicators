@@ -182,8 +182,20 @@ def sample_random_nearby_point_to_move(
     Returns a distance and an angle in radians. Also returns the next
     robot geom for visualization and debugging convenience.
     """
-    # TODO
-    pass
+    for _ in range(max_samples):
+        distance = rng.uniform(0.1, max_distance_away)
+        angle = rng.uniform(-np.pi, np.pi)
+        dx = np.cos(angle) * distance
+        dy = np.sin(angle) * distance
+        x = robot_geom.x + dx
+        y = robot_geom.y + dy
+        # Face towards the target.
+        rot = angle + np.pi if angle < 0 else angle - np.pi
+        cand_geom = Rectangle.from_center(x, y, robot_geom.width,
+                                          robot_geom.height, rot)
+        if valid_navigation_position(cand_geom, collision_geoms,
+                                     allowed_regions):
+            return (distance, angle, cand_geom)
 
 
 def sample_move_offset_from_target(
