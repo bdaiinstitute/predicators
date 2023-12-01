@@ -137,12 +137,14 @@ def get_relative_se2_from_se3(
     robot_se2 = robot_pose.get_closest_se2_transform()
     return robot_se2.inverse() * target_se2
 
-def valid_navigation_position(robot_geom: Rectangle,
-                              collision_geoms: Collection[_Geom2D],
-                              allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
-                              ) -> bool:
-    """Checks whether a given robot geom is not in collision and also
-    within some allowed region."""
+
+def valid_navigation_position(
+        robot_geom: Rectangle,
+        collision_geoms: Collection[_Geom2D],
+        allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
+) -> bool:
+    """Checks whether a given robot geom is not in collision and also within
+    some allowed region."""
     # Check for out-of-bounds. To do this, we're looking for
     # one allowed region where all four points defining the
     # robot will be within the region in the new pose.
@@ -165,17 +167,17 @@ def valid_navigation_position(robot_geom: Rectangle,
     # Success!
     return not collision
 
+
 def sample_random_nearby_point_to_move(
-        robot_geom: Rectangle,
-        collision_geoms: Collection[_Geom2D],
-        rng: np.random.Generator,
-        max_distance_away: float,
-        allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
-        max_samples: int = 1000
+    robot_geom: Rectangle,
+    collision_geoms: Collection[_Geom2D],
+    rng: np.random.Generator,
+    max_distance_away: float,
+    allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
+    max_samples: int = 1000
 ) -> Tuple[float, float, Rectangle]:
-    """Sampler for navigating to a randomly selected point within some
-    distance from the current robot's position. Useful when trying
-    to find lost objects.
+    """Sampler for navigating to a randomly selected point within some distance
+    from the current robot's position. Useful when trying to find lost objects.
 
     Returns a distance and an angle in radians. Also returns the next
     robot geom for visualization and debugging convenience.
@@ -210,7 +212,8 @@ def sample_move_offset_from_target(
         rot = angle + np.pi if angle < 0 else angle - np.pi
         cand_geom = Rectangle.from_center(x, y, robot_geom.width,
                                           robot_geom.height, rot)
-        if valid_navigation_position(cand_geom, collision_geoms, allowed_regions):
+        if valid_navigation_position(cand_geom, collision_geoms,
+                                     allowed_regions):
             return (distance, angle, cand_geom)
 
     raise RuntimeError(f"Sampling failed after {max_samples} attempts")
