@@ -717,8 +717,21 @@ class _Spot3DShape(Enum):
 _robot_type = Type(
     "robot",
     ["gripper_open_percentage", "x", "y", "z", "qw", "qx", "qy", "qz"])
+# NOTE: include a unique object identifier in the object state to allow for
+# object-specific sampler learning (e.g., pick hammer vs pick plunger).
 _base_object_type = Type("base-object", [
-    "x", "y", "z", "qw", "qx", "qy", "qz", "shape", "height", "width", "length"
+    "x",
+    "y",
+    "z",
+    "qw",
+    "qx",
+    "qy",
+    "qz",
+    "shape",
+    "height",
+    "width",
+    "length",
+    "object_id",
 ])
 _movable_object_type = Type(
     "movable",
