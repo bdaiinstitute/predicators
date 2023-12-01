@@ -543,20 +543,6 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
         policy = _OPERATOR_NAME_TO_POLICY[operator_name]
         super().__init__(operator_name, policy, types, params_space)
 
-    # def __getnewargs__(self) -> Tuple:
-    #     """Avoid pickling issues with bosdyn functions."""
-    #     return (self.name, self.types)
-
-    # def __getstate__(self) -> Dict:
-    #     """Avoid pickling issues with bosdyn functions."""
-    #     return {"name": self.name}
-
-    # def __new__(cls, operator_name: str, types: List[Type]):
-    #     """Load options properly given how we're pickling."""
-    #     params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
-    #     policy = _OPERATOR_NAME_TO_POLICY[operator_name]
-    #     super().__init__(operator_name, policy, types, params_space)
-
     def __reduce__(self):
         return (_SpotParameterizedOption, (self.name, self.types))
 
