@@ -1,6 +1,6 @@
 """Ground-truth options for PDDL environments."""
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 from bosdyn.client import math_helpers
