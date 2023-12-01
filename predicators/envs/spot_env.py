@@ -272,8 +272,9 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "PickObjectFromTop":
             _, target_obj, _ = action_objs
-
-            return _dry_simulate_pick_from_top(obs, nonpercept_atoms)
+            pixel = action_args[2]
+            return _dry_simulate_pick_from_top(obs, target_obj, pixel,
+                                               nonpercept_atoms)
 
         if action_name == "MoveToReachObject":
             robot_rel_se2_pose = action_args[1]
@@ -1389,17 +1390,23 @@ def _dry_simulate_move_to_reach_obj(
 
 
 def _dry_simulate_pick_from_top(
-        last_obs: _SpotObservation,
+        last_obs: _SpotObservation, target_obj: Object, pixel: Tuple[int, int],
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
     robot_pose = last_obs.robot_pos
 
-    # Can't see anything in the hand because it's occluded now.
-    objects_in_hand_view: Set[Object] = set()
-
-    # Gripper is now closed.
-    gripper_open_percentage = 100.0
+    # Check if the grasp is valid.
+    target_pose = objects_in_view[target_obj]
+    if _dry_grasp_is_valid(target_obj, target_pose, pixel):
+        # Can't see anything in the hand because it's occluded now.
+        objects_in_hand_view: Set[Object] = set()
+        # Gripper is now closed.
+        gripper_open_percentage = 100.0
+    # If the grasp failed, don't update the state.
+    else:
+        objects_in_hand_view = set(last_obs.objects_in_hand_view)
+        gripper_open_percentage = last_obs.gripper_open_percentage
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
@@ -1414,6 +1421,32 @@ def _dry_simulate_pick_from_top(
     )
 
     return next_obs
+
+
+def _dry_grasp_is_valid(target_obj: Object, target_pose: math_helpers.SE3Pose,
+                        pixel: Tuple[int, int]) -> bool:
+    """Helper for _dry_simulate_pick_from_top()."""
+    # For now, we're assuming that the image is already oriented consistently
+    # with respect to the object. But in the future, we might want to use the
+    # pose of the target object (and the pose of the camera) to re-orient the
+    # pixel before checking it in the grasp map.
+    del target_pose
+    # Load the top-down grasp map for this object.
+    grasp_map_filename = f"grasp_maps/{target_obj.name}-grasps.npy"
+    grasp_map_path = utils.get_env_asset_path(grasp_map_filename)
+    grasp_map = np.load(grasp_map_path)
+    is_valid = grasp_map[pixel[0], pixel[1]]
+
+    # Uncomment for debugging.
+    from matplotlib import pyplot as plt
+    plt.imshow(grasp_map)
+    plt.plot([pixel[0]], [pixel[1]], marker="*", markersize=3, color="red")
+    valid_str = "valid" if is_valid else "NOT valid"
+    plt.title(f"Grasp for {target_obj.name} is {valid_str}")
+    plt.savefig("grasp_debug.png")
+    import ipdb; ipdb.set_trace()
+
+    return grasp_map[pixel[0], pixel[1]]
 
 
 def _dry_simulate_place_on_top(

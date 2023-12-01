@@ -213,22 +213,15 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     robot, _, _ = get_robot()
     assert len(params) == 6
     target_obj = objects[target_obj_idx]
+    pixel = (int(params[0]), int(params[1]))
 
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
         img: Optional[RGBDImageWithContext] = None
-        img_height = 1.0
-        img_width = 1.0
     else:
         rgbds = get_last_captured_images()
         hand_camera = "hand_color_image"
         img = rgbds[hand_camera]
-        img_height, img_width = img.rgb.shape[:2]
-
-    # De-normalize the pixel.
-    norm_pixel_r = params[0] * img_height
-    norm_pixel_c = params[1] * img_width
-    pixel = (int(norm_pixel_r), int(norm_pixel_c))
 
     # Grasp from the top-down.
     grasp_rot = None
