@@ -543,7 +543,7 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
         policy = _OPERATOR_NAME_TO_POLICY[operator_name]
         super().__init__(operator_name, policy, types, params_space)
 
-    def __reduce__(self):
+    def __reduce__(self) -> Tuple:
         return (_SpotParameterizedOption, (self.name, self.types))
 
 
