@@ -271,6 +271,8 @@ class SpotRearrangementEnv(BaseEnv):
                                                    nonpercept_atoms)
 
         if action_name == "PickObjectFromTop":
+            _, target_obj, _ = action_objs
+
             return _dry_simulate_pick_from_top(obs, nonpercept_atoms)
 
         if action_name == "MoveToReachObject":
