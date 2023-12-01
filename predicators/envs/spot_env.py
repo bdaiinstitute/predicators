@@ -310,6 +310,9 @@ class SpotRearrangementEnv(BaseEnv):
                                                  robot_rel_se2_pose,
                                                  nonpercept_atoms)
 
+        if action_name in ["find-objects", "stow-arm"]:
+            return _dry_simulate_noop(obs, nonpercept_atoms)
+
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
 
@@ -1438,15 +1441,16 @@ def _dry_grasp_is_valid(target_obj: Object, target_pose: math_helpers.SE3Pose,
     is_valid = grasp_map[pixel[0], pixel[1]]
 
     # Uncomment for debugging.
-    from matplotlib import pyplot as plt
-    plt.imshow(grasp_map)
-    plt.plot([pixel[0]], [pixel[1]], marker="*", markersize=3, color="red")
-    valid_str = "valid" if is_valid else "NOT valid"
-    plt.title(f"Grasp for {target_obj.name} is {valid_str}")
-    plt.savefig("grasp_debug.png")
-    import ipdb; ipdb.set_trace()
+    # from matplotlib import pyplot as plt
+    # plt.figure()
+    # plt.imshow(grasp_map)
+    # plt.plot([pixel[1]], [pixel[0]], marker="*", markersize=3, color="red")
+    # valid_str = "VALID" if is_valid else "NOT valid"
+    # plt.title(f"Grasp for {target_obj.name} is {valid_str}")
+    # plt.savefig("grasp_debug.png")
+    # import ipdb; ipdb.set_trace()
 
-    return grasp_map[pixel[0], pixel[1]]
+    return is_valid
 
 
 def _dry_simulate_place_on_top(
@@ -1629,6 +1633,25 @@ def _dry_simulate_sweep_into_container(
         nonpercept_predicates=last_obs.nonpercept_predicates,
     )
 
+    return next_obs
+
+
+def _dry_simulate_noop(last_obs: _SpotObservation,
+                       nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+    objects_in_view = last_obs.objects_in_view.copy()
+    objects_in_hand_view = set(last_obs.objects_in_hand_view)
+    robot_pose = last_obs.robot_pos
+    gripper_open_percentage = last_obs.gripper_open_percentage
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=objects_in_view,
+        objects_in_hand_view=objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=robot_pose,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
     return next_obs
 
 
