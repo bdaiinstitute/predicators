@@ -350,7 +350,6 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
             if "Sweep" in param_option.name:
                 sampler_input_lst.extend(params)
             elif "Pick" in param_option.name:
-                import ipdb; ipdb.set_trace()
                 _, target_obj, _ = objects
                 object_id = state.get(target_obj, "object_id")
                 sampler_input_lst.append(object_id)
