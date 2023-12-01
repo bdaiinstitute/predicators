@@ -561,7 +561,6 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
         return (_SpotParameterizedOption, (self.name, self.types))
 
 
-
 class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
     """Ground-truth options for Spot environments."""
 
