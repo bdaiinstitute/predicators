@@ -20,7 +20,7 @@ from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_FLOOR_POSE, get_allowed_map_regions, \
     get_collision_geoms_for_nav, sample_random_nearby_point_to_move, \
-    spot_pose_to_geom2d
+    spot_pose_to_geom2d, get_relative_se2_from_se3
 from predicators.structs import State
 
 
@@ -171,10 +171,9 @@ def find_objects(
     try:
         step_back_to_find_objects(robot, localizer, object_ids)
     except RuntimeError:
-
-        prompt = ("Either hit 'c' to have the robot try to find the object "
-                  "by navigating to a random pose, or "
-                  "please take control of the robot and make the object "
+        prompt = ("Hit 'c' to have the robot try to find the object "
+                  "by moving to a random pose, or "
+                  "take control of the robot and make the object "
                   "become in its view. Hit the 'Enter' key when you're done!")
         user_pref = utils.prompt_user(prompt)
         lease_client.take()
@@ -184,9 +183,11 @@ def find_objects(
             robot_geom = spot_pose_to_geom2d(spot_pose)
             collision_geoms = get_collision_geoms_for_nav(state)
             allowed_regions = get_allowed_map_regions()
-            sample_random_nearby_point_to_move(robot_geom, collision_geoms,
+            dist, yaw, _ = sample_random_nearby_point_to_move(robot_geom, collision_geoms,
                                                rng, 2.5, allowed_regions)
-
+            rel_pose = get_relative_se2_from_se3(spot_pose, spot_pose, dist,
+                                         yaw)
+            navigate_to_relative_pose(robot, rel_pose)
 
 if __name__ == "__main__":
     # Run this file alone to test manually.
