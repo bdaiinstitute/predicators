@@ -14,7 +14,6 @@ from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate
 
 from predicators import utils
-from predicators.envs.spot_env import get_allowed_map_regions
 from predicators.ground_truth_models.spot_env.options import \
     navigate_to_relative_pose_and_gaze
 from predicators.settings import CFG
@@ -38,7 +37,8 @@ from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_FLOOR_POSE, get_graph_nav_dir, \
     get_relative_se2_from_se3, get_spot_home_pose, \
-    sample_move_offset_from_target, spot_pose_to_geom2d, verify_estop
+    sample_move_offset_from_target, spot_pose_to_geom2d, verify_estop, \
+    get_allowed_map_regions
 
 
 def test_find_move_pick_place(
