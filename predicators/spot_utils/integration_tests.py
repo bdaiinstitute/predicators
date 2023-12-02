@@ -35,10 +35,9 @@ from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
-    DEFAULT_HAND_LOOK_FLOOR_POSE, get_graph_nav_dir, \
+    DEFAULT_HAND_LOOK_FLOOR_POSE, get_allowed_map_regions, get_graph_nav_dir, \
     get_relative_se2_from_se3, get_spot_home_pose, \
-    sample_move_offset_from_target, spot_pose_to_geom2d, verify_estop, \
-    get_allowed_map_regions
+    sample_move_offset_from_target, spot_pose_to_geom2d, verify_estop
 
 
 def test_find_move_pick_place(
