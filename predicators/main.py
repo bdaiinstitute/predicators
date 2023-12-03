@@ -207,9 +207,9 @@ def _run_pipeline(env: BaseEnv,
                 if not interaction_requests:
                     logging.info("Did not receive any interaction requests, "
                                  "terminating")
-                    break  # agent doesn't want to learn anything more; terminate
-                interaction_results, query_cost = _generate_interaction_results(
-                    cogman, env, teacher, interaction_requests, i)
+                    break  # agent doesn't want to learn more; terminate
+                interaction_results, query_cost = \
+                    _generate_interaction_results(cogman, env, teacher, interaction_requests, i)
                 num_online_transitions += sum(
                     len(result.actions) for result in interaction_results)
                 total_query_cost += query_cost
