@@ -334,6 +334,7 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     # about the robot's current pose when computing the relative
     # placement position.
     if not CFG.spot_run_dry:
+        assert localizer is not None
         localizer.localize()
         robot_pose = localizer.get_last_robot_pose()
 

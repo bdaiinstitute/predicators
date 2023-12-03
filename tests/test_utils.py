@@ -326,8 +326,9 @@ def test_triangle():
     assert "Degenerate triangle" in str(e)
 
     rng = np.random.default_rng(0)
-    p1 = tri1.sample_random_point(rng)
-    assert tri1.contains_point(p1[0], p1[1])
+    for _ in range(10):
+        p1 = tri1.sample_random_point(rng)
+        assert tri1.contains_point(p1[0], p1[1])
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/triangle_unit_test.png")
