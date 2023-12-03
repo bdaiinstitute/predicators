@@ -248,6 +248,10 @@ def test_line_segment():
     seg2 = utils.LineSegment(1, 1, 6.7, 7.4)
     assert not utils.geom2ds_intersect(seg1, seg2)
 
+    rng = np.random.default_rng(0)
+    p1 = seg1.sample_random_point(rng)
+    assert seg1.contains_point(p1[0], p1[1])
+
 
 def test_circle():
     """Tests for Circle()."""
@@ -279,6 +283,10 @@ def test_circle():
     assert utils.geom2ds_intersect(circ1, circ2)
     assert not utils.geom2ds_intersect(circ1, circ3)
     assert utils.geom2ds_intersect(circ2, circ3)
+
+    rng = np.random.default_rng(0)
+    p3 = circ3.sample_random_point(rng)
+    assert circ3.contains_point(p3[0], p3[1])
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/circle_unit_test.png")
@@ -316,6 +324,10 @@ def test_triangle():
     with pytest.raises(ValueError) as e:
         utils.Triangle(0.0, 0.0, 1.0, 1.0, -1.0, -1.0)
     assert "Degenerate triangle" in str(e)
+
+    rng = np.random.default_rng(0)
+    p1 = tri1.sample_random_point(rng)
+    assert tri1.contains_point(p1[0], p1[1])
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/triangle_unit_test.png")
@@ -397,6 +409,10 @@ def test_rectangle():
                                         height=4,
                                         rotation_about_center=0)
     assert rect7.center == (1, 2)
+
+    rng = np.random.default_rng(0)
+    p7 = rect7.sample_random_point(rng)
+    assert rect7.contains_point(p7[0], p7[1])
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/rectangle_unit_test.png")

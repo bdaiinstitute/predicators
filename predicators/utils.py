@@ -354,6 +354,10 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 object_id = state.get(target_obj, "object_id")
                 sampler_input_lst.append(object_id)
                 sampler_input_lst.extend(params)
+            elif "Place" in param_option.name and "OnTop" in param_option.name:
+                # Samples are relative dx, dy, dz, and that's all that
+                # should be necessary for the classifier.
+                sampler_input_lst.extend(params)
             else:
                 base_feat_names = [
                     "x", "y", "z", "qw", "qx", "qy", "qz", "shape", "height",
@@ -501,7 +505,16 @@ class Triangle(_Geom2D):
 
     def sample_random_point(self,
                             rng: np.random.Generator) -> Tuple[float, float]:
-        raise NotImplementedError("Implementation forthcoming!")
+        a = np.array([self.x2 - self.x1, self.y2 - self.y1])
+        b = np.array([self.x3 - self.x1, self.y3 - self.y1])
+        u1 = rng.uniform(0, 1)
+        u2 = rng.uniform(0, 1)
+        if u1 + u2 > 1.0:
+            u1 = 1 - u1
+            u2 = 1 - u2
+        point_in_triangle = (u1 * a + u2 * b) + np.array([self.x1, self.y1])
+        assert self.contains_point(point_in_triangle[0], point_in_triangle[1])
+        return (point_in_triangle[0], point_in_triangle[1])
 
 
 @dataclass(frozen=True)

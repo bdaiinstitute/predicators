@@ -82,7 +82,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     del goal
 
     # NOTE: closer than move_to_view. Important for placing.
-    min_dist = 0.0
+    min_dist = 0.1
     max_dist = 0.8
 
     robot_obj = objs[0]
