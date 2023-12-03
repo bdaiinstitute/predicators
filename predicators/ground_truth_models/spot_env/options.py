@@ -338,14 +338,19 @@ def _place_object_on_top_policy(state: State, memory: Dict,
                                             z=surface_rel_pose.z + dz +
                                             surface_half_height)
 
-    # Now, convert the relative placement coordinates into the robot
-    # frame.
-    # Get the relative gaze target based on the new robot pose.
-    localizer.localize()
-    robot_pose = localizer.get_last_robot_pose()
-    # Transform this to the body frame.
-    place_rel_pos_body = robot_pose.inverse().transform_vec3(
-        place_rel_pos_world)
+    if not CFG.spot_dry_run:
+        assert robot is not None
+        assert localizer is not None
+        # Now, convert the relative placement coordinates into the robot
+        # frame.
+        # Get the relative gaze target based on the new robot pose.
+        localizer.localize()
+        robot_pose = localizer.get_last_robot_pose()
+        # Transform this to the body frame.
+        place_rel_pos_body = robot_pose.inverse().transform_vec3(
+            place_rel_pos_world)
+    else:
+        place_rel_pos_body = place_rel_pos_world
 
     return utils.create_spot_env_action(name, objects,
                                         _place_at_relative_position_and_stow,

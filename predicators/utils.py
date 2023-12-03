@@ -426,7 +426,7 @@ class LineSegment(_Geom2D):
                             rng: np.random.Generator) -> Tuple[float, float]:
         line_slope = (self.y2 - self.y1) / (self.x2 - self.x1)
         y_intercept = self.y2 - (line_slope * self.x2)
-        random_x_point = rng.random(self.x1, self.x2)
+        random_x_point = rng.uniform(self.x1, self.x2)
         random_y_point_on_line = line_slope * random_x_point + y_intercept
         assert self.contains_point(random_x_point, random_y_point_on_line)
         return (random_x_point, random_y_point_on_line)
@@ -454,8 +454,8 @@ class Circle(_Geom2D):
 
     def sample_random_point(self,
                             rng: np.random.Generator) -> Tuple[float, float]:
-        rand_mag = rng.random(0, self.radius)
-        rand_theta = rng.random(0, 2 * np.pi)
+        rand_mag = rng.uniform(0, self.radius)
+        rand_theta = rng.uniform(0, 2 * np.pi)
         x_point = self.x + rand_mag * np.cos(rand_theta)
         y_point = self.y + rand_mag * np.sin(rand_theta)
         assert self.contains_point(x_point, y_point)
@@ -596,8 +596,8 @@ class Rectangle(_Geom2D):
                                    np.sin(self.theta)],
                                   [-np.sin(self.theta),
                                    np.cos(self.theta)]])
-        rand_width = rng.random(0, self.width)
-        rand_height = rng.random(0, self.height)
+        rand_width = rng.uniform(0, self.width)
+        rand_height = rng.uniform(0, self.height)
         rx, ry = np.array([self.x + rand_width, self.y + rand_height
                            ]) @ rotate_matrix.T
         assert self.contains_point(rx, ry)
@@ -2092,7 +2092,7 @@ class RRT(Generic[_RRTState]):
         for _ in range(self._num_iters):
             # Sample the goal with a small probability, otherwise randomly
             # choose a point.
-            sample_goal = self._rng.random() < sample_goal_eps
+            sample_goal = self._rng.uniform() < sample_goal_eps
             samp = goal_sampler() if sample_goal else self._sample_fn(pt1)
             min_key = functools.partial(self._get_pt_dist_to_node, samp)
             nearest = min(nodes, key=min_key)
