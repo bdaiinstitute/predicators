@@ -74,7 +74,7 @@ def _place_at_relative_position_and_stow(
     # then stowing/moving the hand immediately after might cause
     # us to knock the object off the table.
     slightly_back_and_up_pose = math_helpers.SE3Pose(
-        x=rel_pose.x - 0.15,
+        x=rel_pose.x - 0.20,
         y=rel_pose.y,
         z=rel_pose.z + 0.1,
         rot=math_helpers.Quat.from_pitch(np.pi / 3))
@@ -313,7 +313,7 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     robot_obj_idx = 0
     surface_obj_idx = 2
 
-    robot, _, _ = get_robot()
+    robot, localizer, _ = get_robot()
 
     dx, dy, dz = params
 
@@ -333,14 +333,23 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     # The dz parameter is with respect to the top of the container.
     surface_half_height = state.get(surface_obj, "height") / 2
     surface_rel_pose = robot_pose.inverse() * surface_pose
-    place_rel_pos = math_helpers.Vec3(x=surface_rel_pose.x + dx,
-                                      y=surface_rel_pose.y + dy,
-                                      z=surface_rel_pose.z + dz +
-                                      surface_half_height)
+    place_rel_pos_world = math_helpers.Vec3(x=surface_rel_pose.x + dx,
+                                            y=surface_rel_pose.y + dy,
+                                            z=surface_rel_pose.z + dz +
+                                            surface_half_height)
+
+    # Now, convert the relative placement coordinates into the robot
+    # frame.
+    # Get the relative gaze target based on the new robot pose.
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    # Transform this to the body frame.
+    place_rel_pos_body = robot_pose.inverse().transform_vec3(
+        place_rel_pos_world)
 
     return utils.create_spot_env_action(name, objects,
                                         _place_at_relative_position_and_stow,
-                                        (robot, place_rel_pos))
+                                        (robot, place_rel_pos_body))
 
 
 def _drop_object_inside_policy(state: State, memory: Dict,
