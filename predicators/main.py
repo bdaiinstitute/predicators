@@ -203,6 +203,7 @@ def _run_pipeline(env: BaseEnv,
             num_online_transitions += sum(
                 len(result.actions) for result in interaction_results)
             total_query_cost += query_cost
+            # THIS IS A TEMPORARY COMMENT
             logging.info(f"Query cost incurred this cycle: {query_cost}")
             # We want to load iff:
             # - CFG.restart_learning is False
