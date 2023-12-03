@@ -18,7 +18,7 @@ class GlobalSettings:
     num_test_tasks = 50
     # Perform online learning for this many cycles or until this many
     # transitions have been collected, whichever happens first.
-    num_online_learning_cycles = 10
+    num_online_learning_cycles = 0
     online_learning_max_transitions = float("inf")
     # Maximum number of training tasks to give a demonstration for, if the
     # offline_data_method is demo-based.
