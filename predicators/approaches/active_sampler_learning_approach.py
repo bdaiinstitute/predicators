@@ -154,6 +154,27 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
         # Advance the competence models.
         for competence_model in self._competence_models.values():
             competence_model.advance_cycle()
+        # Sanity check that the ground op histories and sampler data are sync.
+        op_to_num_ground_op_hist: Dict[str, int] = {
+            n.name: 0
+            for n in self._sampler_data
+        }
+        for ground_op, examples in self._ground_op_hist.items():
+            num = len(examples)
+            name = ground_op.parent.name
+            try:
+                assert name in op_to_num_ground_op_hist
+            except:
+                import ipdb
+                ipdb.set_trace()
+            op_to_num_ground_op_hist[name] += num
+        for op, op_sampler_data in self._sampler_data.items():
+            try:
+                assert op_to_num_ground_op_hist[op.name] == len(
+                    op_sampler_data)
+            except:
+                import ipdb
+                ipdb.set_trace()
         # Save the things we need other than the NSRTs, which were already
         # saved in the above call to self._learn_nsrts()
         save_path = utils.get_approach_save_path_str()
