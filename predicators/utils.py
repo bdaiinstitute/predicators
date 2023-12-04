@@ -2106,7 +2106,7 @@ class RRT(Generic[_RRTState]):
         for _ in range(self._num_iters):
             # Sample the goal with a small probability, otherwise randomly
             # choose a point.
-            sample_goal = self._rng.uniform() < sample_goal_eps
+            sample_goal = self._rng.random() < sample_goal_eps
             samp = goal_sampler() if sample_goal else self._sample_fn(pt1)
             min_key = functools.partial(self._get_pt_dist_to_node, samp)
             nearest = min(nodes, key=min_key)
