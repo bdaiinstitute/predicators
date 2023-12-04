@@ -394,6 +394,7 @@ class _Geom2D(abc.ABC):
     def sample_random_point(self,
                             rng: np.random.Generator) -> Tuple[float, float]:
         """Samples a random point inside the 2D shape."""
+        raise NotImplementedError("Override me!")
 
     def intersects(self, other: _Geom2D) -> bool:
         """Checks if this shape intersects with another one."""
