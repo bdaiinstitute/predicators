@@ -224,6 +224,12 @@ def test_line_segment():
     assert not utils.geom2ds_intersect(seg1, seg3)
     assert not utils.geom2ds_intersect(seg2, seg3)
 
+    rng = np.random.default_rng(0)
+    for _ in range(10):
+        p1 = seg1.sample_random_point(rng)
+        assert seg1.contains_point(p1[0], p1[1])
+        plt.plot(p1[0], p1[1], 'bo')
+
     # Uncomment for debugging.
     # plt.savefig("/tmp/line_segment_unit_test.png")
 
@@ -247,10 +253,6 @@ def test_line_segment():
     seg1 = utils.LineSegment(1, 1, 3, 3)
     seg2 = utils.LineSegment(1, 1, 6.7, 7.4)
     assert not utils.geom2ds_intersect(seg1, seg2)
-
-    rng = np.random.default_rng(0)
-    p1 = seg1.sample_random_point(rng)
-    assert seg1.contains_point(p1[0], p1[1])
 
 
 def test_circle():
@@ -285,8 +287,10 @@ def test_circle():
     assert utils.geom2ds_intersect(circ2, circ3)
 
     rng = np.random.default_rng(0)
-    p3 = circ3.sample_random_point(rng)
-    assert circ3.contains_point(p3[0], p3[1])
+    for _ in range(10):
+        p3 = circ3.sample_random_point(rng)
+        assert circ3.contains_point(p3[0], p3[1])
+        plt.plot(p3[0], p3[1], 'bo')
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/circle_unit_test.png")
@@ -329,6 +333,7 @@ def test_triangle():
     for _ in range(10):
         p1 = tri1.sample_random_point(rng)
         assert tri1.contains_point(p1[0], p1[1])
+        plt.plot(p1[0], p1[1], 'bo')
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/triangle_unit_test.png")
@@ -409,11 +414,14 @@ def test_rectangle():
                                         width=2,
                                         height=4,
                                         rotation_about_center=0)
+    rect7.plot(ax, facecolor="grey")
     assert rect7.center == (1, 2)
 
     rng = np.random.default_rng(0)
-    p7 = rect7.sample_random_point(rng)
-    assert rect7.contains_point(p7[0], p7[1])
+    for _ in range(10):
+        p7 = rect7.sample_random_point(rng)
+        assert rect7.contains_point(p7[0], p7[1])
+        plt.plot(p7[0], p7[1], 'bo')
 
     # Uncomment for debugging.
     # plt.savefig("/tmp/rectangle_unit_test.png")
