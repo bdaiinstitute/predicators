@@ -127,6 +127,7 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
         save_path = utils.get_approach_load_path_str()
         with open(f"{save_path}_{online_learning_cycle}.DATA", "rb") as f:
             save_dict = pkl.load(f)
+        self._dataset = save_dict["dataset"]
         self._sampler_data = save_dict["sampler_data"]
         self._ground_op_hist = save_dict["ground_op_hist"]
         self._competence_models = save_dict["competence_models"]
@@ -162,19 +163,10 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
         for ground_op, examples in self._ground_op_hist.items():
             num = len(examples)
             name = ground_op.parent.name
-            try:
-                assert name in op_to_num_ground_op_hist
-            except:
-                import ipdb
-                ipdb.set_trace()
+            assert name in op_to_num_ground_op_hist
             op_to_num_ground_op_hist[name] += num
         for op, op_sampler_data in self._sampler_data.items():
-            try:
-                assert op_to_num_ground_op_hist[op.name] == len(
-                    op_sampler_data)
-            except:
-                import ipdb
-                ipdb.set_trace()
+            assert op_to_num_ground_op_hist[op.name] == len(op_sampler_data)
         # Save the things we need other than the NSRTs, which were already
         # saved in the above call to self._learn_nsrts()
         save_path = utils.get_approach_save_path_str()
@@ -188,6 +180,7 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
                     self._last_seen_segment_traj_idx,
                     "nsrt_to_explorer_sampler": self._nsrt_to_explorer_sampler,
                     "seen_train_task_idxs": self._seen_train_task_idxs,
+                    "dataset": self._dataset,
                     # We need to save train tasks because they get modified
                     # in the explorer. The original sin is that tasks are
                     # generated before reset with default init states, which
