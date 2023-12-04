@@ -61,6 +61,8 @@ static-object-features:
     width: 0.6
     flat_top_surface: 1
     placeable: 1  # true, can be placed
+    sticky-region-x: 0.0 # from the center
+    sticky-region-y: 0.0 # from the center
   floor:
     shape: 1
     height: 0.0001
