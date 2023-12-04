@@ -2084,7 +2084,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
     @property
     def types(self) -> Set[Type]:
-        return set(_ALL_TYPES)
+        return set(_ALL_TYPES) | set([_drafting_table_type])
 
     @classmethod
     def get_name(cls) -> str:
