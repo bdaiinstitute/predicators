@@ -192,7 +192,9 @@ class ActiveSamplerLearningApproach(OnlineNSRTLearningApproach):
                     # generated before reset with default init states, which
                     # are subsequently overwritten after reset is called.
                     "train_tasks": self._train_tasks,
-                    "online_learning_cycle": self._online_learning_cycle,
+                    # The online learning cycle is about to be updated, but
+                    # hasn't been yet, hence the + 1.
+                    "online_learning_cycle": self._online_learning_cycle + 1,
                 },
                 f)
 
