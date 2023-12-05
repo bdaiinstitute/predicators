@@ -1087,7 +1087,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InHandView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotHolding, [robot, obj]),
     }
     ignore_effs = set()
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
@@ -1107,6 +1108,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_On, [held, surface]),
         LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, held]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
@@ -1128,6 +1130,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
         LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, held]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
@@ -1152,7 +1155,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_On, [held, surface])
+        LiftedAtom(_On, [held, surface]),
+        LiftedAtom(_NotHolding, [robot, held]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
@@ -1174,6 +1178,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_NotBlocked, [blocked]),
         LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, blocker]),
     }
     del_effs = {
         LiftedAtom(_Blocking, [blocker, blocked]),
@@ -1226,6 +1231,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
         LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, container]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, container]),
@@ -1256,6 +1262,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, container]),
         LiftedAtom(_On, [container, surface]),
+        LiftedAtom(_NotHolding, [robot, container]),
     }
     ignore_effs = set()
     yield STRIPSOperator("PickCupToDumpBall", parameters, preconds, add_effs,
