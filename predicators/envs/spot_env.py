@@ -731,6 +731,13 @@ def _holding_classifier(state: State, objects: Sequence[Object]) -> bool:
     return state.get(obj, "held") > 0.5
 
 
+def _not_holding_classifier(state: State, objects: Sequence[Object]) -> bool:
+    _, obj = objects
+    if not obj.is_instance(_movable_object_type):
+        return True
+    return not _holding_classifier(state, objects)
+
+
 def _object_in_xy_classifier(state: State,
                              obj1: Object,
                              obj2: Object,
@@ -977,6 +984,8 @@ _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
+_NotHolding = Predicate("NotHolding", [_robot_type, _base_object_type],
+                        _not_holding_classifier)
 _InHandView = Predicate("InHandView", [_robot_type, _movable_object_type],
                         in_hand_view_classifier)
 _InView = Predicate("InView", [_robot_type, _movable_object_type],
@@ -1002,6 +1011,7 @@ _ALL_PREDICATES = {
     _NotInsideAnyContainer,
     _HandEmpty,
     _Holding,
+    _NotHolding,
     _InHandView,
     _InView,
     _Reachable,
@@ -1022,7 +1032,10 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _base_object_type)
     parameters = [robot, obj]
-    preconds = {LiftedAtom(_NotBlocked, [obj])}
+    preconds = {
+        LiftedAtom(_NotBlocked, [obj]),
+        LiftedAtom(_NotHolding, [robot, obj])
+    }
     add_effs = {LiftedAtom(_Reachable, [robot, obj])}
     del_effs: Set[LiftedAtom] = set()
     ignore_effs = {_Reachable, _InHandView, _InView}
@@ -1048,7 +1061,10 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
     preconds = {LiftedAtom(_NotBlocked, [obj])}
-    add_effs = {LiftedAtom(_InView, [robot, obj])}
+    add_effs = {
+        LiftedAtom(_InView, [robot, obj]),
+        LiftedAtom(_NotHolding, [robot, obj])
+    }
     del_effs = set()
     ignore_effs = {_Reachable, _InHandView, _InView}
     yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds,
