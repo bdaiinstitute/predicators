@@ -76,7 +76,7 @@ def test_active_sampler_learning_approach(model_name, right_targets, num_demo,
     approach.learn_from_interaction_results(interaction_results)
     approach.load(online_learning_cycle=0)
     with pytest.raises(FileNotFoundError):
-        approach.load(online_learning_cycle=1)
+        approach.load(online_learning_cycle=2)
     # Add some nontrivial ground operator history.
     nsrts = sorted(get_gt_nsrts(env.get_name(), env.predicates, options))
     objs = set(env.get_test_tasks()[0].task.init)

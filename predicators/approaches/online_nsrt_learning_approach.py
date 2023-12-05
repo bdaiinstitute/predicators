@@ -37,7 +37,7 @@ class OnlineNSRTLearningApproach(NSRTLearningApproach):
         super().__init__(initial_predicates, initial_options, types,
                          action_space, train_tasks)
         self._dataset = Dataset([])
-        self._online_learning_cycle = 0
+        self._online_learning_cycle = -1
         # Used for the novelty score function (in GLIB).
         self._novelty_counts: DefaultDict[FrozenSet[LiftedAtom], int] = \
             defaultdict(int)
