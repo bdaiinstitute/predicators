@@ -129,6 +129,7 @@ class ActiveSamplerExplorer(BaseExplorer):
 
             if using_random:
                 logging.info("[Explorer] Using random option policy.")
+                import ipdb; ipdb.set_trace()
                 return self._get_random_option(state)
 
             # Record if we've reached the assigned goal; can now practice.
