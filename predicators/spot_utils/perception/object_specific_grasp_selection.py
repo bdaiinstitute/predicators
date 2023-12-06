@@ -66,27 +66,44 @@ def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                          artifacts: Dict[str, Any], camera_name: str,
                          extra_info: Optional[Any]) -> Tuple[int, int]:
-    del rgbds
+    # del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[cup_obj][camera_name]
     except KeyError:
         raise ValueError(f"{cup_obj} not detected in {camera_name}")
     mask = seg_bb.mask
-    pixels_in_mask = np.where(mask)
-    # For this grasp selector, the extra info is just a boolean
-    # indicating whether the cup is on the floor (True)
-    # or on a table of some kind (False).
-    assert isinstance(extra_info, bool)
-    if extra_info:
-        # Select the first (left-most and top-most) pixel from the mask.
-        # This ensures we always make a grasp by the topmost surface.
-        return (pixels_in_mask[1][0], pixels_in_mask[0][0])
-    # If the cup is on a table of some kind, then select one of the
-    # leftmost pixels to grasp.
-    leftmost_pixel_idx = np.argmin(pixels_in_mask[1])
-    return (pixels_in_mask[1][leftmost_pixel_idx],
-            pixels_in_mask[0][leftmost_pixel_idx])
+
+    from scipy.ndimage import convolve
+    small_kernel = np.ones((3, 3))
+    large_kernel = np.ones((10, 10))
+    convolved_mask = convolve(mask.astype(np.uint8), small_kernel, mode="constant")
+    smoothed_mask = (convolved_mask > 0)
+    convolved_smoothed_mask = convolve(smoothed_mask.astype(np.uint8), large_kernel, mode="constant")
+    surrounded_mask = (convolved_smoothed_mask == convolved_smoothed_mask.max())
+    
+    # import imageio.v2 as iio
+    # iio.imsave("original.png", 255 * mask.astype(np.uint8))
+    # iio.imsave("smoothed.png", 255 * smoothed_mask.astype(np.uint8))
+    # iio.imsave("surrounded.png", 255 * surrounded_mask.astype(np.uint8))
+
+    pixels_in_mask = np.where(surrounded_mask)
+    
+    mask_size = len(pixels_in_mask[0])
+    percentile_idx = int(mask_size / 20)
+    idx = np.argsort(pixels_in_mask[0])[percentile_idx]
+    pixel = (pixels_in_mask[1][idx],
+            pixels_in_mask[0][idx])
+    
+    import cv2
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    return pixel
 
 
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
