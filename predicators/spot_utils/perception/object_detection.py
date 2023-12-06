@@ -399,16 +399,17 @@ def _get_pose_from_segmented_bounding_box(
     return world_frame_pose
 
 
-def get_grasp_pixel(rgbds: Dict[str,
-                                RGBDImageWithContext], artifacts: Dict[str,
-                                                                       Any],
-                    object_id: ObjectDetectionID, camera_name: str,
-                    rng: np.random.Generator) -> Tuple[int, int]:
+def get_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
+                    artifacts: Dict[str, Any],
+                    object_id: ObjectDetectionID,
+                    camera_name: str,
+                    rng: np.random.Generator,
+                    extra_info: Optional[Any] = None) -> Tuple[int, int]:
     """Select a pixel for grasping in the given camera image."""
 
     if object_id in OBJECT_SPECIFIC_GRASP_SELECTORS:
         selector = OBJECT_SPECIFIC_GRASP_SELECTORS[object_id]
-        return selector(rgbds, artifacts, camera_name)
+        return selector(rgbds, artifacts, camera_name, extra_info)
 
     pixel = get_random_mask_pixel_from_artifacts(artifacts, object_id,
                                                  camera_name, rng)

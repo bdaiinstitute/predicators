@@ -1,13 +1,13 @@
 """Ground-truth NSRTs for the PDDLEnv."""
 
-from typing import Dict, Sequence, Set
+from typing import Any, Dict, Optional, Sequence, Set
 
 import numpy as np
 from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.envs import get_or_create_env
-from predicators.envs.spot_env import SpotRearrangementEnv, \
+from predicators.envs.spot_env import SpotRearrangementEnv, _On, \
     get_detection_id_for_object
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
@@ -96,6 +96,7 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
                                   objs: Sequence[Object]) -> Array:
     del state, goal  # not used
     target_obj = objs[1]
+    surface_obj = objs[2]
     # Special case: if we're running dry, the image won't be used.
     # Randomly sample a pixel.
     if CFG.spot_run_dry:
@@ -117,8 +118,14 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
+        extra_info: Optional[Any] = None
+        # If we're trying to pick up the cup, then find out if it's
+        # on the floor or not, since this is necessary information
+        # for selecting the grasp pixel.
+        if target_obj.name == "cup":
+            extra_info = surface_obj.name == "floor"
         pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
-                                hand_camera, rng)
+                                hand_camera, rng, extra_info)
         if target_obj.name == "ball":
             rot_quat = math_helpers.Quat.from_pitch(np.pi / 2)
             rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
@@ -160,13 +167,6 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     dy = 0.0
     if len(objs) == 4 and objs[2].name == "cup":
         drop_height = 0.10
-        # We're assuming here that the most recent detection of the container
-        # was systematically wrong in the x direction, so we're compensating.
-        # The reason for this systematic error is that when the cup is lying
-        # flat on the table, the robot selects a point on its bottom as the
-        # pose of the cup. We instead want to place at the center of the cup.
-        dx = 0.10
-
     return np.array([dx, dy, drop_height])
 
 

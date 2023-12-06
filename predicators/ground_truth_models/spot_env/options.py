@@ -25,9 +25,9 @@ from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
-    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, get_relative_se2_from_se3, \
-    object_to_top_down_geom
+from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
+    DEFAULT_HAND_LOOK_DOWN_POSE, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, \
+    get_relative_se2_from_se3, object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
 
@@ -85,7 +85,7 @@ def _place_at_relative_position_and_stow(
 
 def _drop_and_stow(robot: Robot) -> None:
     # First, move the arm to a position from which the object will drop.
-    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_DOWN_POSE)
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_DROP_OBJECT_POSE)
     # Open the hand.
     open_gripper(robot)
     # Stow.

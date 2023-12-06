@@ -1,6 +1,6 @@
 """Object-specific grasp selectors."""
 
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -19,12 +19,12 @@ cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 
 
 def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
-                              artifacts: Dict[str, Any],
-                              camera_name: str) -> Tuple[int, int]:
+                              artifacts: Dict[str, Any], camera_name: str,
+                              extra_info: Optional[Any]) -> Tuple[int, int]:
     # This assumes that we have just navigated to the april tag and are now
     # looking down at the platform. We crop the top half of the image and
     # then use CV2 to find the blue handle inside of it.
-    del artifacts  # not used
+    del extra_info, artifacts  # not used
     rgb = rgbds[camera_name].rgb
     half_height = rgb.shape[0] // 2
 
@@ -47,9 +47,9 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 
 
 def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
-                          artifacts: Dict[str, Any],
-                          camera_name: str) -> Tuple[int, int]:
-    del rgbds
+                          artifacts: Dict[str, Any], camera_name: str,
+                          extra_info: Optional[Any]) -> Tuple[int, int]:
+    del rgbds, extra_info
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[ball_obj][camera_name]
@@ -64,29 +64,39 @@ def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 
 
 def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
-                         artifacts: Dict[str, Any],
-                         camera_name: str) -> Tuple[int, int]:
+                         artifacts: Dict[str, Any], camera_name: str,
+                         extra_info: Optional[Any]) -> Tuple[int, int]:
     del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[cup_obj][camera_name]
     except KeyError:
         raise ValueError(f"{cup_obj} not detected in {camera_name}")
-    # Select the first (left-most and top-most) pixel from the mask.
-    # This ensures we always make a grasp by the topmost surface.
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
-    return (pixels_in_mask[1][0], pixels_in_mask[0][0])
+    # For this grasp selector, the extra info is just a boolean
+    # indicating whether the cup is on the floor (True)
+    # or on a table of some kind (False).
+    assert isinstance(extra_info, bool)
+    if extra_info:
+        # Select the first (left-most and top-most) pixel from the mask.
+        # This ensures we always make a grasp by the topmost surface.
+        return (pixels_in_mask[1][0], pixels_in_mask[0][0])
+    # If the cup is on a table of some kind, then select one of the
+    # leftmost pixels to grasp.
+    leftmost_pixel_idx = np.argmin(pixels_in_mask[1])
+    return (pixels_in_mask[1][leftmost_pixel_idx],
+            pixels_in_mask[0][leftmost_pixel_idx])
 
 
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[
-    [Dict[str,
-          RGBDImageWithContext], Dict[str, Any], str], Tuple[int, int]]] = {
-              # Platform-specific grasp selection.
-              AprilTagObjectDetectionID(411): _get_platform_grasp_pixel,
-              # Ball-specific grasp selection.
-              ball_obj: _get_ball_grasp_pixel,
-              # Cup-specific grasp selection.
-              cup_obj: _get_cup_grasp_pixel
-          }
+    [Dict[str, RGBDImageWithContext], Dict[str, Any], str, Optional[Any]],
+    Tuple[int, int]]] = {
+        # Platform-specific grasp selection.
+        AprilTagObjectDetectionID(411): _get_platform_grasp_pixel,
+        # Ball-specific grasp selection.
+        ball_obj: _get_ball_grasp_pixel,
+        # Cup-specific grasp selection.
+        cup_obj: _get_cup_grasp_pixel
+    }
