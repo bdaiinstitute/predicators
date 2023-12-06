@@ -68,7 +68,7 @@ def test_active_sampler_explorer():
     assert all(v == [True] for v in ground_op_hist.values())
 
     # Cover case where we are practicing with an empty ground_op_hist.
-    # Should raise an exception.
+    # Should switch to random options.
     explorer = create_explorer(
         "active_sampler",
         env.predicates,
@@ -86,8 +86,9 @@ def test_active_sampler_explorer():
         pursue_task_goal_first=True)
     task_idx = 0
     policy, _ = explorer.get_exploration_strategy(task_idx, 500)
-    with pytest.raises(utils.RequestActPolicyFailure):
-        policy(state)
+    act = policy(state)
+    next_state = env.simulate(state, act)
+    _ = policy(next_state)
 
     # Cover case where the task isn't solved within the horizon.
     utils.reset_config({
@@ -307,7 +308,7 @@ def test_active_sampler_explorer():
         pursue_task_goal_first=True)
     policy, term_fn = explorer.get_exploration_strategy(task_idx, 500)
     state = task.init.copy()
-    for _ in range(5):
+    for _ in range(25):
         assert not term_fn(state)
         state = env.simulate(state, policy(state))
     assert len(ground_op_hist) > 0

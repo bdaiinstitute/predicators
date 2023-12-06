@@ -260,8 +260,16 @@ class ActiveSamplerExplorer(BaseExplorer):
                     break
                 # Terminate early if no goal could be found.
                 else:
-                    logging.info("[Explorer] TERMINATING! No reachable goal.")
-                    raise utils.RequestActPolicyFailure("No reachable goal.")
+                    # For spot environments, don't do random actions.
+                    if "spot" in CFG.env:  # pragma: no cover
+                        logging.info("[Explorer] TERMINATING EARLY!!! "
+                                     "No reachable goal found.")
+                        raise utils.RequestActPolicyFailure(
+                            "No reachable goal found.")
+                    logging.info("[Explorer] No reachable goal found. "
+                                 "Switching to random exploration.")
+                    using_random = True
+                    return self._get_random_option(state)
             # Query the current policy.
             assert current_policy is not None
             try:
