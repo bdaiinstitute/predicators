@@ -125,7 +125,7 @@ def _move_closer_and_drop_at_relative_position_and_look(
     dist_to_object = np.sqrt(rel_pose.x * rel_pose.x + rel_pose.y * rel_pose.y)
     # If we're too far from the target to place directly, then move closer
     # to it first. Move an absolute distance away from the given rel_pose.
-    target_distance = 0.7
+    target_distance = 0.85
     if dist_to_object > target_distance:
         rel_xy = np.array([rel_pose.x, rel_pose.y])
         unit_rel_xy = rel_xy / dist_to_object
