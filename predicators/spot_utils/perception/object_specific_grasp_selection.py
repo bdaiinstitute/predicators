@@ -69,8 +69,13 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                          camera_name: str) -> Tuple[int, int]:
     """There are two main ideas in this grasp selector:
 
-    1. We want to select a point on the object that is reasonably well-surrounded by other points. In other words, we shouldn't try to grasp the object near its edge, because that can lead to grasp failures in the case where there is slight noise in the mask.
-    2. We want to select a point that is towards the top of the cup. This part is specific to the cup and is due to us wanting to have a consistent grasp to prepare consistent placing.
+    1. We want to select a point on the object that is reasonably
+       well-surrounded by other points. In other words, we shouldn't
+       try to grasp the object near its edge, because that can lead
+       to grasp failures when there is slight noise in the mask.
+    2. We want to select a point that is towards the top of the cup.
+       This part is specific to the cup and is due to us wanting to
+       have a consistent grasp to prepare consistent placing.
     """
     del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
@@ -90,7 +95,8 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                                        mode="constant")
     surrounded_mask = (
         convolved_smoothed_mask == convolved_smoothed_mask.max())
-    # Finally, select a point in the upper percentile (towards the top center of the cup).
+    # Finally, select a point in the upper percentile (towards the
+    # top center of the cup).
     pixels_in_mask = np.where(surrounded_mask)
     percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
     idx = np.argsort(pixels_in_mask[0])[percentile_idx]
