@@ -1,6 +1,6 @@
 """Object-specific grasp selectors."""
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 from scipy.ndimage import convolve
