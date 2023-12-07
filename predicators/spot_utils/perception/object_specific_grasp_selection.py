@@ -77,7 +77,7 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
        This part is specific to the cup and is due to us wanting to
        have a consistent grasp to prepare consistent placing.
     """
-    del rgbds
+    # del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[cup_obj][camera_name]
@@ -95,12 +95,22 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                                        mode="constant")
     surrounded_mask = (
         convolved_smoothed_mask == convolved_smoothed_mask.max())
-    # Finally, select a point in the upper percentile (towards the
-    # top center of the cup).
+    # Finally, select a point on the right of the cup so that the robot
+    # grips with the finger outward.
     pixels_in_mask = np.where(surrounded_mask)
-    percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
-    idx = np.argsort(pixels_in_mask[0])[percentile_idx]
+    num_pixels = len(pixels_in_mask[1])
+    percentile_idx = num_pixels - num_pixels // 20  # 95th percentile
+    idx = np.argsort(pixels_in_mask[1])[percentile_idx]
     pixel = (pixels_in_mask[1][idx], pixels_in_mask[0][idx])
+
+    import cv2
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
     return pixel
 
 
