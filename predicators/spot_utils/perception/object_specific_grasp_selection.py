@@ -36,6 +36,32 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     return (x, y)
 
 
+def _get_movoroom_chair_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
+                                    artifacts: Dict[str, Any],
+                                    camera_name: str) -> Tuple[int, int]:
+    # This is a hack because the apriltag was too low on the chair, but 
+    # placing it higher would have cause the gripper to damage it quickly
+    
+    try:
+        april_detection = artifacts["april"][camera_name][AprilTagObjectDetectionID(11)]
+    except KeyError:
+        raise ValueError(f"{AprilTagObjectDetectionID(11)} not detected in {camera_name}")
+    pr, pc = april_detection.center
+    corners = april_detection.corners
+
+    r = pr
+    height = (corners[3][1] + corners[2][1]) / 2 - (corners[1][1] + corners[0][1]) / 2
+    c = pc - 3.5 * height
+
+    import cv2
+    rgb = rgbds[camera_name].rgb
+    cv2.circle(rgb, (int(r), int(c)), 5, (0, 255, 0), -1)
+    cv2.imshow('image', rgb)
+    cv2.waitKey(0)
+
+    return int(r), int(c)
+
+
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[
     [Dict[str,
@@ -43,4 +69,6 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[
               # Platform-specific grasp selection.
               AprilTagObjectDetectionID(411):
               _get_platform_grasp_pixel,
+              AprilTagObjectDetectionID(11):
+              _get_movoroom_chair_grasp_pixel,
           }

@@ -82,6 +82,8 @@ def _place_at_relative_position_and_stow(
     move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
     # Stow.
     stow_arm(robot)
+    # Take a couple of steps back to increase chances of seeing object
+    navigate_to_relative_pose(robot, math_helpers.SE2Pose(-0.5, 0.0, 0.0))
 
 
 def _drop_and_stow(robot: Robot) -> None:
@@ -213,17 +215,23 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
                                 hand_camera)
 
     # Grasp from the top-down.
-    grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    if "Top" in name:
+        grasp_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    elif "Side" in name:
+        grasp_rot = math_helpers.Quat.from_roll(np.pi / 2)
+    else:
+        raise NotImplementedError("Only Top and Side grasp are implemented")
     # If the target object is reasonably large, don't try to stow!
     target_obj_volume = state.get(target_obj, "height") * \
         state.get(target_obj, "length") * state.get(target_obj, "width")
     if target_obj_volume > CFG.spot_grasp_stow_volume_threshold:
         fn: Callable = grasp_at_pixel
+        fn_args = (robot, img, pixel, True, grasp_rot)
     else:
         fn = _grasp_at_pixel_and_stow
+        fn_args = (robot, img, pixel, grasp_rot)
 
-    return utils.create_spot_env_action(name, objects, fn,
-                                        (robot, img, pixel, grasp_rot))
+    return utils.create_spot_env_action(name, objects, fn, fn_args)
 
 
 ###############################################################################
@@ -277,6 +285,13 @@ def _pick_object_from_top_policy(state: State, memory: Dict,
                                  objects: Sequence[Object],
                                  params: Array) -> Action:
     name = "PickObjectFromTop"
+    target_obj_idx = 1
+    return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
+
+def _pick_object_from_side_policy(state: State, memory: Dict,
+                                  objects: Sequence[Object],
+                                  params:Array) -> Action:
+    name = "PickObjectFromSide"
     target_obj_idx = 1
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
 
@@ -466,6 +481,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "PickObjectFromTop": Box(0, 1, (0, )),
+    "PickObjectFromSide": Box(0, 1, (0, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
@@ -480,6 +496,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
+    "PickObjectFromSide": _pick_object_from_side_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
@@ -526,6 +543,7 @@ class SpotCubeEnvGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_soda_sweep_env",
             "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env",
+            "spot_cleanup_shelf_env",
         }
 
     @classmethod

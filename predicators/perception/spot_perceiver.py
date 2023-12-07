@@ -113,7 +113,10 @@ class SpotPerceiver(BasePerceiver):
                 self._held_object = None
                 # Check if the item we just placed is in view. It needs to
                 # be in view to assess whether it was placed correctly.
-                robot, obj = objects[:2]
+                if "drag" in controller_name.lower():
+                    robot, _, obj = objects[:3]
+                else:
+                    robot, obj = objects[:2]
                 state = self._create_state()
                 is_in_view = in_general_view_classifier(state, [robot, obj])
                 if not is_in_view:
@@ -301,6 +304,13 @@ class SpotPerceiver(BasePerceiver):
             On = pred_name_to_pred["On"]
             return {
                 GroundAtom(On, [brush, shelf]),
+            }
+        if goal_description == "clear the shelf":
+            cube = Object("cube", _movable_object_type)
+            shelf = Object("shelf", _immovable_object_type)
+            NotOn = pred_name_to_pred["NotOn"]
+            return {
+                GroundAtom(NotOn, [cube, shelf])
             }
         raise NotImplementedError("Unrecognized goal description")
 

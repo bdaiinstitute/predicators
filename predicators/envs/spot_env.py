@@ -825,6 +825,8 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
     return classification_val
 
+def _not_on_classifier(state: State, objects: Sequence[Object]) -> bool:
+    return not _on_classifier(state, objects)
 
 def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj1, obj2 = objects
@@ -1018,6 +1020,8 @@ _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
                 _on_classifier)
+_NotOn = Predicate("NotOn", [_movable_object_type, _base_object_type],
+                _not_on_classifier)
 _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _base_object_type],
@@ -1048,6 +1052,7 @@ _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
 _ALL_PREDICATES = {
     _NEq,
     _On,
+    _NotOn,
     _TopAbove,
     _Inside,
     _HandEmpty,
@@ -1125,6 +1130,30 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_Inside}
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
+
+
+    # PickObjectFromSide
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    surface = Variable("?surface", _base_object_type)
+    parameters = [robot, obj, surface]
+    preconds = {
+        LiftedAtom(_On, [obj, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj])
+    }
+    add_effs = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    del_effs = {
+        LiftedAtom(_On, [obj, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj])
+    }
+    ignore_effs = {_Inside}
+    yield STRIPSOperator("PickObjectFromSide", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+
 
     # PlaceObjectOnTop
     robot = Variable("?robot", _robot_type)
@@ -2089,8 +2118,9 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
 
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToViewObject",
+            "MoveToHandViewObject",
             "PickObjectFromTop",
+            "PickObjectFromSide",
             "PlaceObjectOnTop",
             "DragToUnblockObject",
         }
@@ -2100,28 +2130,35 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
     def get_name(cls) -> str:
         return "spot_cleanup_shelf_env"
 
+    @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         cube = Object("cube", _movable_object_type)
         cube_detection = AprilTagObjectDetectionID(12)
+        detection_id_to_obj[cube_detection] = cube
 
         shelf = Object("shelf", _immovable_object_type)
         shelf_detection = AprilTagObjectDetectionID(19)
+        detection_id_to_obj[shelf_detection] = shelf
 
         yoga_ball = Object("yoga_ball", _immovable_object_type)
         yoga_ball_detection = AprilTagObjectDetectionID(18)
+        detection_id_to_obj[yoga_ball_detection] = yoga_ball
 
         chair = Object("chair", _movable_object_type)
-        chair_detection = AprilTagObjectDetectionID(13)
+        # chair_detection = AprilTagObjectDetectionID(13)
+        chair_detection = AprilTagObjectDetectionID(11)
+        detection_id_to_obj[chair_detection] = chair
 
-        cabinet = Object("cabinet", _immovable_object_type)
-        cabinet_detection = AprilTagObjectDetectionID(11)
+        # cabinet = Object("cabinet", _immovable_object_type)
+        # cabinet_detection = AprilTagObjectDetectionID(11)
+        # detection_id_to_obj[cabinet_detection] = cabinet
 
         for obj, pose in get_known_immovable_objects().items():
             # Only keep the floor.
-            if obj.name == "floor":
+            if obj.name == "floor" or obj.name == "cabinet":
                 detection = KnownStaticObjectDetectionID(obj.name, pose=pose)
                 detection_id_to_obj[detection] = obj
 
@@ -2131,7 +2168,7 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
         return "clear the shelf"
 
     def _get_dry_task(self, train_or_test: str,
-                      task_idx: int) -> EnvironmentTask
+                      task_idx: int) -> EnvironmentTask:
         del train_or_test, task_idx # task always the same for this simple env
 
         # Create te objects and their initial poses
@@ -2154,10 +2191,12 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
         _EmptyFloor = Predicate("EmptyFloor", [], _empty_floor_classifier)
         return {
             _On,
+            _NotOn,
             _HandEmpty,
             _Holding,
             _Reachable,
             _InView,
+            _InHandView,
             _Blocking,
             _NotBlocked,
             _Stable,

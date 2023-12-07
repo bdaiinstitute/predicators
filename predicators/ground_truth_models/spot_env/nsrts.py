@@ -77,7 +77,7 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     del goal
 
     min_dist = 1.2
-    max_dist = 1.5
+    max_dist = 1.3
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
@@ -102,6 +102,12 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
 
 
 def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
+                                  rng: np.random.Generator,
+                                  objs: Sequence[Object]) -> Array:
+    # Not parameterized; may change in the future.
+    return null_sampler(state, goal, rng, objs)
+
+def _pick_object_from_side_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
                                   objs: Sequence[Object]) -> Array:
     # Not parameterized; may change in the future.
@@ -179,6 +185,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_soda_sweep_env",
             "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env",
+            "spot_cleanup_shelf_env",
         }
 
     @staticmethod
@@ -196,6 +203,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTop": _pick_object_from_top_sampler,
+            "PickObjectFromSide": _pick_object_from_side_sampler, 
             "PlaceObjectOnTop": _place_object_on_top_sampler,
             "DropObjectInside": _drop_object_inside_sampler,
             "DropObjectInsideContainerOnTop": _drop_object_inside_sampler,

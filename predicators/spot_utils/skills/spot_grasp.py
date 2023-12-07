@@ -89,6 +89,10 @@ def grasp_at_pixel(
                 manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
         ]:
             break
+        print(response)
+        print(manipulation_api_pb2.ManipulationFeedbackState.Name(
+                            response.current_state))
+        print()
     if (time.perf_counter() - start_time) > timeout:
         logging.warning("Timed out waiting for grasp to execute!")
 
