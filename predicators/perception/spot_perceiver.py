@@ -71,13 +71,13 @@ class SpotPerceiver(BasePerceiver):
             self._nonpercept_atoms = set()
             self._nonpercept_predicates = set()
             self._percept_predicates = self._curr_env.percept_predicates
-            self._prev_action = None
             self._held_object = None
             self._gripper_open_percentage = 0.0
             self._robot_pos = math_helpers.SE3Pose(0, 0, 0,
                                                    math_helpers.Quat())
             self._lost_objects = set()
             self._container_to_contained_objects = {}
+        self._prev_action = None  # already processed at the end of the cycle
         init_state = self._create_state()
         goal = self._create_goal(init_state, env_task.goal_description)
         return Task(init_state, goal)
