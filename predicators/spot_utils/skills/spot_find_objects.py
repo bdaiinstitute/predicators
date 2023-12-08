@@ -178,8 +178,7 @@ def find_objects(
         allowed_regions = get_allowed_map_regions()
         dist, yaw, _ = sample_random_nearby_point_to_move(
             robot_geom, collision_geoms, rng, 2.5, allowed_regions)
-        rel_pose = get_relative_se2_from_se3(spot_pose, spot_pose, dist,
-                                                yaw)
+        rel_pose = get_relative_se2_from_se3(spot_pose, spot_pose, dist, yaw)
         navigate_to_relative_pose(robot, rel_pose)
 
 
