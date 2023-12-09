@@ -16,7 +16,7 @@ from predicators.spot_utils.utils import load_spot_metadata
 from predicators.structs import Video
 
 
-def _main():
+def _main() -> None:
     """Loads the saved samplers."""
     # Parse & validate args
     args = utils.parse_args()
