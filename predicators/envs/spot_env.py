@@ -297,6 +297,12 @@ class SpotRearrangementEnv(BaseEnv):
                                                  robot_rel_se2_pose,
                                                  nonpercept_atoms)
 
+        if action_name == "PickAndDumpContainer":
+            _, container, _, obj_inside = action_objs
+            pixel = action_args[2]
+            return _dry_simulate_pick_and_dump_container(
+                obs, container, obj_inside, pixel, nonpercept_atoms)
+
         if action_name in ["find-objects", "stow-arm"]:
             return _dry_simulate_noop(obs, nonpercept_atoms)
 
@@ -1248,7 +1254,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
-    # PickCupToDumpBall
+    # PickAndDumpContainer
     robot = Variable("?robot", _robot_type)
     container = Variable("?container", _container_type)
     surface = Variable("?surface", _base_object_type)
@@ -1273,8 +1279,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, container]),
     }
     ignore_effs = set()
-    yield STRIPSOperator("PickCupToDumpBall", parameters, preconds, add_effs,
-                         del_effs, ignore_effs)
+    yield STRIPSOperator("PickAndDumpContainer", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
 
 
 ###############################################################################
@@ -1607,6 +1613,37 @@ def _dry_simulate_noop(last_obs: _SpotObservation,
     return next_obs
 
 
+def _dry_simulate_pick_and_dump_container(
+        last_obs: _SpotObservation, container: Object, obj_inside: Object,
+        pixel: Tuple[int, int],
+        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+
+    # First simulate picking the container.
+    obs = _dry_simulate_pick_from_top(last_obs, container, pixel,
+                                      nonpercept_atoms)
+    gripper_open_percentage = obs.gripper_open_percentage
+
+    # If the pick failed, finish.
+    if gripper_open_percentage < HANDEMPTY_GRIPPER_THRESHOLD:
+        return obs
+
+    # Picking succeeded; dump the object on the floor.
+    floor = next(o for o in last_obs.objects_in_view if o.name == "floor")
+
+    obs = _dry_simulate_place_on_top(obs, obj_inside, floor, nonpercept_atoms)
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=obs.objects_in_view,
+        objects_in_hand_view=obs.objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=obs.robot_pos,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
+    return next_obs
+
+
 ###############################################################################
 #                                Cube Table Env                               #
 ###############################################################################
@@ -1920,6 +1957,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "DragToUnblockObject",
             "SweepIntoContainer",
             "PrepareContainerForSweeping",
+            "PickAndDumpContainer",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -2109,7 +2147,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
-            "DropObjectInsideContainerOnTop", "PickCupToDumpBall"
+            "DropObjectInsideContainerOnTop", "PickAndDumpContainer"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 

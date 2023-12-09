@@ -299,7 +299,7 @@ def _dump_cup_policy(state: State, memory: Dict, objects: Sequence[Object],
                      params: Array) -> Action:
     # Same as PickObjectFromTop; just necessary to make options 1:1 with
     # operators.
-    name = "PickCupToDumpBall"
+    name = "PickAndDumpContainer"
     target_obj_idx = 1
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
 
@@ -510,7 +510,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectFromTop": Box(-np.inf, np.inf, (6, )),
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
-    "PickCupToDumpBall": Box(-np.inf, np.inf, (6, )),
+    "PickAndDumpContainer": Box(-np.inf, np.inf, (6, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
@@ -525,7 +525,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
-    "PickCupToDumpBall": _dump_cup_policy,
+    "PickAndDumpContainer": _dump_cup_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
