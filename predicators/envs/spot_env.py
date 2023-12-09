@@ -270,8 +270,13 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "PlaceObjectOnTop":
             _, held_obj, target_surface = action_objs
+            if len(action_args) == 1:
+                assert target_surface.name == "floor"
+                place_offset = math_helpers.Vec3(0.0, 0.0, 0.0)
+            else:
+                place_offset = action_args[1]
             return _dry_simulate_place_on_top(obs, held_obj, target_surface,
-                                              nonpercept_atoms)
+                                              place_offset, nonpercept_atoms)
 
         if action_name == "PrepareContainerForSweeping":
             _, container_obj, _, _ = action_objs
@@ -301,7 +306,8 @@ class SpotRearrangementEnv(BaseEnv):
             _, container, _, obj_inside = action_objs
             pixel = action_args[2]
             return _dry_simulate_pick_and_dump_container(
-                obs, container, obj_inside, pixel, nonpercept_atoms)
+                obs, container, obj_inside, pixel, nonpercept_atoms,
+                self._noise_rng)
 
         if action_name in ["find-objects", "stow-arm"]:
             return _dry_simulate_noop(obs, nonpercept_atoms)
@@ -1413,6 +1419,7 @@ def _dry_grasp_is_valid(target_obj: Object, target_pose: math_helpers.SE3Pose,
 
 def _dry_simulate_place_on_top(
         last_obs: _SpotObservation, held_obj: Object, target_surface: Object,
+        place_offset: math_helpers.Vec3,
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
 
     # Initialize values based on the last observation.
@@ -1420,17 +1427,15 @@ def _dry_simulate_place_on_top(
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
     robot_pose = last_obs.robot_pos
 
-    # NOTE: there is no randomness right now, since there's no
-    # randomness in the sampler. We can add some later. This is just
-    # a proof-of-concept for dry running spot environments.
-
     static_feats = load_spot_metadata()["static-object-features"]
     surface_height = static_feats[target_surface.name]["height"]
-    held_obj_height = static_feats[held_obj.name]["height"]
+    held_height = static_feats[held_obj.name]["height"]
     surface_pose = objects_in_view[target_surface]
-    x = surface_pose.x
-    y = surface_pose.y
-    z = surface_pose.z + surface_height / 2 + held_obj_height
+    place_pose = robot_pose.transform_vec3(place_offset)
+    x = place_pose.x
+    y = place_pose.y
+    # Place offset z ignored; gravity.
+    z = surface_pose.z + surface_height / 2 + held_height
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
 
@@ -1615,8 +1620,8 @@ def _dry_simulate_noop(last_obs: _SpotObservation,
 
 def _dry_simulate_pick_and_dump_container(
         last_obs: _SpotObservation, container: Object, obj_inside: Object,
-        pixel: Tuple[int, int],
-        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        pixel: Tuple[int, int], nonpercept_atoms: Set[GroundAtom],
+        rng: np.random.Generator) -> _SpotObservation:
 
     # First simulate picking the container.
     obs = _dry_simulate_pick_from_top(last_obs, container, pixel,
@@ -1630,7 +1635,11 @@ def _dry_simulate_pick_and_dump_container(
     # Picking succeeded; dump the object on the floor.
     floor = next(o for o in last_obs.objects_in_view if o.name == "floor")
 
-    obs = _dry_simulate_place_on_top(obs, obj_inside, floor, nonpercept_atoms)
+    # Randomize dropping in the area.
+    dx, dy = rng.uniform(-1.0, 1.0, size=2)
+    place_offset = math_helpers.Vec3(dx, dy, 0)
+    obs = _dry_simulate_place_on_top(obs, obj_inside, floor, place_offset,
+                                     nonpercept_atoms)
     next_obs = _SpotObservation(
         images={},
         objects_in_view=obs.objects_in_view,

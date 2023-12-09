@@ -6,6 +6,7 @@ from typing import List
 import dill as pkl
 import numpy as np
 import pytest
+from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.approaches import create_approach
@@ -148,6 +149,7 @@ def test_spot_soda_sweep_env_dry_run() -> None:
     place_plunger = PlaceObjectOnTop.ground([robot, plunger, floor])
     dump_bucket = PickAndDumpContainer.ground([robot, bucket, floor, soda_can])
     place_bucket = PlaceObjectOnTop.ground([robot, bucket, floor])
+    move_to_hand_view_soda = MoveToHandViewObject.ground([robot, soda_can])
     pick_soda = PickObjectFromTop.ground([robot, soda_can, floor])
     move_to_reach_table = MoveToReachObject.ground([robot, table])
     place_soda = PlaceObjectOnTop.ground([robot, soda_can, table])
@@ -169,18 +171,20 @@ def test_spot_soda_sweep_env_dry_run() -> None:
     state = _run_ground_nsrt(dump_bucket, state)
     state = _run_ground_nsrt(move_to_reach_floor, state)
     state = _run_ground_nsrt(place_bucket, state)
+    state = _run_ground_nsrt(move_to_hand_view_soda, state)
     state = _run_ground_nsrt(pick_soda, state)
     state = _run_ground_nsrt(move_to_reach_table, state)
     state = _run_ground_nsrt(place_soda, state)
     state = _run_ground_nsrt(move_to_hand_view_bucket, state)
     state = _run_ground_nsrt(pick_bucket, state)
     state = _run_ground_nsrt(prepare_bucket, state)
-    state = _run_ground_nsrt(pick_chair, state)
-    state = _run_ground_nsrt(drag_chair, state)
+    state = _run_ground_nsrt(move_to_hand_view_plunger, state)
     state = _run_ground_nsrt(pick_plunger, state)
+    state = _run_ground_nsrt(move_to_reach_soda, state)
     state = _run_ground_nsrt(sweep, state, assert_delete_effects=False)
     state = _run_ground_nsrt(move_to_reach_floor, state)
     state = _run_ground_nsrt(place_plunger, state)
+    state = _run_ground_nsrt(move_to_hand_view_bucket, state)
     _run_ground_nsrt(dump_bucket, state)
 
 
