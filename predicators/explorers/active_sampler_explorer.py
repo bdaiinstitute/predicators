@@ -23,6 +23,8 @@ from predicators.structs import NSRT, Action, DefaultState, \
     ExplorationStrategy, GroundAtom, NSRTSampler, ParameterizedOption, \
     Predicate, State, Task, Type, _GroundNSRT, _GroundSTRIPSOperator, \
     _Option
+from predicators.spot_utils.utils import _robot_type, _container_type
+from predicators.envs.spot_env import _drafting_table_type
 
 # Helper type to distinguish training tasks from replanning tasks.
 _TaskID = Tuple[str, int]
@@ -217,16 +219,24 @@ class ActiveSamplerExplorer(BaseExplorer):
 
                     def generate_goals() -> Iterator[Set[GroundAtom]]:
                         nonlocal next_practice_nsrt
-                        # Generate goals sorted by their descending score.
-                        for op in sorted(self._ground_op_hist,
-                                         key=self._score_ground_op,
-                                         reverse=True):
-                            nsrt = [
-                                n for n in self._nsrts if n.op == op.parent
-                            ][0]
-                            # NOTE: setting nonlocal variable.
-                            next_practice_nsrt = nsrt.ground(op.objects)
-                            yield next_practice_nsrt.preconditions
+                        task_init = self._train_tasks[0].init
+                        nsrt = [n for n in self._nsrts if "PlaceObjectOnTop" in n.op.name][0]
+                        robot_obj = task_init.get_objects(_robot_type)[0]
+                        cup_obj = task_init.get_objects(_container_type)[0]
+                        drafting_table_obj = task_init.get_objects(_drafting_table_type)[0]
+                        next_practice_nsrt = nsrt.ground([robot_obj, cup_obj, drafting_table_obj])
+                        yield next_practice_nsrt.preconditions
+
+                        # # Generate goals sorted by their descending score.
+                        # for op in sorted(self._ground_op_hist,
+                        #                  key=self._score_ground_op,
+                        #                  reverse=True):
+                        #     nsrt = [
+                        #         n for n in self._nsrts if n.op == op.parent
+                        #     ][0]
+                        #     # NOTE: setting nonlocal variable.
+                        #     next_practice_nsrt = nsrt.ground(op.objects)
+                        #     yield next_practice_nsrt.preconditions
 
                 # Try to plan to each goal until a task plan is found.
                 for goal in generate_goals():

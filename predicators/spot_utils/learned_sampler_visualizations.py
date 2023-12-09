@@ -79,7 +79,7 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List, num_samples
         ax.set_xlim(-drafting_table_wid/2 - 0.1, drafting_table_wid/2 + 0.1)
         ax.set_ylim(-drafting_table_len/2 - 0.1, drafting_table_len/2 + 0.1)
         img = utils.fig2data(fig, dpi=150)
-        imgs.append(img)        
+        imgs.append(img)
 
     return imgs
 
