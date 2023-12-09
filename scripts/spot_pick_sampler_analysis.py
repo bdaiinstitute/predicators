@@ -18,7 +18,7 @@ from predicators.ground_truth_models import get_gt_nsrts, get_gt_options
 from predicators.perception.spot_perceiver import SpotPerceiver
 from predicators.settings import CFG
 from predicators.structs import Array, EnvironmentTask, NSRTSampler, Object, \
-    ParameterizedOption, State, Video
+    ParameterizedOption, State, Video, Image
 
 
 def _main() -> None:
@@ -46,6 +46,13 @@ def _main() -> None:
     graspable_objs = {o for o in state if o.is_instance(_movable_object_type)}
     for obj in graspable_objs:
         print(f"Starting analysis for {obj.name}")
+        # Load the map and mask to put in the background of the plot.
+        obj_mask_filename = f"grasp_maps/{obj.name}-object.npy"
+        obj_mask_path = utils.get_env_asset_path(obj_mask_filename)
+        obj_mask = np.load(obj_mask_path)
+        grasp_map_filename = f"grasp_maps/{obj.name}-grasps.npy"
+        grasp_map_path = utils.get_env_asset_path(grasp_map_filename)
+        grasp_map = np.load(grasp_map_path)
         # Create the inputs to the NSRT / option.
         object_inputs = [robot, obj, surface]
         # Create candidate samplers.
@@ -62,7 +69,8 @@ def _main() -> None:
             try:
                 img = _run_one_cycle_analysis(online_learning_cycle, obj,
                                               state, option, object_inputs,
-                                              candidates, rng)
+                                              candidates,
+                                              obj_mask, grasp_map)
                 video_frames.append(img)
             except FileNotFoundError:
                 break
@@ -77,7 +85,7 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
                             param_option: ParameterizedOption,
                             object_inputs: List[Object],
                             candidates: List[Array],
-                            rng: np.random.Generator) -> Video:
+                            obj_mask: Image, grasp_map: Image) -> Video:
     option_name = param_option.name
     approach_save_path = utils.get_approach_save_path_str()
     save_path = f"{approach_save_path}_{option_name}_" + \
@@ -101,11 +109,15 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
 
     # Visualize the classifications.
     fig, ax = plt.subplots(1, 1)
+
+    plt.imshow(obj_mask, cmap="gray", vmin=0, vmax=1, alpha=0.5)
+    plt.imshow(grasp_map, cmap="RdYlGn", vmin=0, vmax=1, alpha=0.25)
+
     radius = 0.5
     for candidate, prediction in zip(candidates, predictions):
-        x, y = candidate[:2]
+        r, c = candidate[:2]
         color = cmap(norm(prediction))
-        circle = plt.Circle((x, y), radius, color=color, alpha=0.5)
+        circle = plt.Circle((c, r), radius, color=color, alpha=1.0)
         ax.add_patch(circle)
 
     plt.title(f"{target_object.name} Cycle {online_learning_cycle}")
