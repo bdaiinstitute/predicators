@@ -21,8 +21,9 @@ def _main():
     # Parse & validate args
     args = utils.parse_args()
     utils.update_config(args)
-    imgs = visualize_cup_table_place_samplers([10], 25)
-    for t, img in enumerate(imgs):
+    cycles_to_plot = [11]
+    imgs = visualize_cup_table_place_samplers(cycles_to_plot, 25)
+    for t, img in zip(cycles_to_plot, imgs):
         img_outfile = f"videos/cup_table_active_sampler_learning_cycle_{t}.png"
         imageio.imsave(img_outfile, img)
         print(f"Saved sampler analysis figure {img_outfile}.")
@@ -63,19 +64,20 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List, num_samples
         print(f"Loaded sampler classifier and data from {cls_save_path}.")
         assert len(classifier_data[0][0]) == 7
         table_id = classifier_data[0][0][1]
-        drop_height = classifier_data[0][0][-1]
-        for x in len_vals:
-            for y in wid_vals:
+        drop_height = 0.0 #classifier_data[0][0][-1]
+        for y in len_vals:
+            for x in wid_vals:
                 sampler_input = [1.0, table_id, sticky_region_x, sticky_region_y, x, y, drop_height]
                 score = classifier.predict_proba(np.array(sampler_input))
-                print(score)
+                import ipdb; ipdb.set_trace()
                 color = cmap(norm(score))
                 circle = plt.Circle((x, y),
                                     0.005,
                                     color=color,
                                     alpha=0.1)
                 ax.add_patch(circle)
-        plt.show()
+        ax.set_xlim(-drafting_table_wid/2 - 0.1, drafting_table_wid/2 + 0.1)
+        ax.set_ylim(-drafting_table_len/2 - 0.1, drafting_table_len/2 + 0.1)
         img = utils.fig2data(fig, dpi=150)
         imgs.append(img)        
 
