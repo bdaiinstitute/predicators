@@ -6,7 +6,6 @@ from typing import List
 import dill as pkl
 import numpy as np
 import pytest
-from bosdyn.client import math_helpers
 
 from predicators import utils
 from predicators.approaches import create_approach
@@ -120,7 +119,7 @@ def test_spot_soda_sweep_env_dry_run() -> None:
             action = option.policy(state)
             perceiver.update_perceiver_with_action(action)
             perceiver.step(obs)
-            return perceiver._create_state()
+            return perceiver._create_state()  # pylint: disable=protected-access
 
         return utils.run_ground_nsrt_with_assertions(
             ground_nsrt,
