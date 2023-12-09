@@ -367,8 +367,8 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                     ])
                 else:
                     sampler_input_lst.extend([0.0, 0.0])
-                # Samples are relative dx, dy, dz, and that's all that
-                # should be necessary for the classifier.
+                # Samples are relative dx, dy, dz, and we only need
+                # dx and dy for the table!
                 sampler_input_lst.extend(params[:2])
             else:
                 base_feat_names = [
