@@ -15,16 +15,16 @@ from gym.spaces import Box
 from predicators import utils
 from predicators.competence_models import SkillCompetenceModel, \
     create_competence_model
+from predicators.envs.spot_env import _drafting_table_type
 from predicators.explorers.base_explorer import BaseExplorer
 from predicators.planning import PlanningFailure, PlanningTimeout, \
     run_task_plan_once
 from predicators.settings import CFG
+from predicators.spot_utils.utils import _container_type, _robot_type
 from predicators.structs import NSRT, Action, DefaultState, \
     ExplorationStrategy, GroundAtom, NSRTSampler, ParameterizedOption, \
     Predicate, State, Task, Type, _GroundNSRT, _GroundSTRIPSOperator, \
     _Option
-from predicators.spot_utils.utils import _robot_type, _container_type
-from predicators.envs.spot_env import _drafting_table_type
 
 # Helper type to distinguish training tasks from replanning tasks.
 _TaskID = Tuple[str, int]
@@ -218,13 +218,17 @@ class ActiveSamplerExplorer(BaseExplorer):
                     logging.info("[Explorer] Pursuing NSRT preconditions")
 
                     def generate_goals() -> Iterator[Set[GroundAtom]]:
-                        nonlocal next_practice_nsrt
-                        task_init = self._train_tasks[0].init
-                        nsrt = [n for n in self._nsrts if "PlaceObjectOnTop" in n.op.name][0]
-                        robot_obj = task_init.get_objects(_robot_type)[0]
-                        cup_obj = task_init.get_objects(_container_type)[0]
-                        drafting_table_obj = task_init.get_objects(_drafting_table_type)[0]
-                        next_practice_nsrt = nsrt.ground([robot_obj, cup_obj, drafting_table_obj])
+                        nonlocal next_practice_nsrt, state
+                        nsrt = [
+                            n for n in self._nsrts
+                            if "PlaceObjectOnTop" in n.op.name
+                        ][0]
+                        robot_obj = state.get_objects(_robot_type)[0]
+                        cup_obj = state.get_objects(_container_type)[0]
+                        drafting_table_obj = state.get_objects(
+                            _drafting_table_type)[0]
+                        next_practice_nsrt = nsrt.ground(
+                            [robot_obj, cup_obj, drafting_table_obj])
                         yield next_practice_nsrt.preconditions
 
                         # # Generate goals sorted by their descending score.
