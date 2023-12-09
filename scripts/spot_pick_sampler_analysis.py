@@ -1,10 +1,9 @@
 """Analyze learned samplers for spot picking."""
 
 import os
-from typing import Any, List, Optional, Tuple
+from typing import Optional
 
 import dill as pkl
-import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colormaps
@@ -13,12 +12,11 @@ from matplotlib.colors import Normalize
 from predicators import utils
 from predicators.envs import create_new_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
-    _movable_object_type, _robot_type
-from predicators.ground_truth_models import get_gt_nsrts, get_gt_options
+    _movable_object_type
+from predicators.ground_truth_models import get_gt_options
 from predicators.perception.spot_perceiver import SpotPerceiver
 from predicators.settings import CFG
-from predicators.structs import Array, EnvironmentTask, NSRTSampler, Object, \
-    ParameterizedOption, State, Video, Image
+from predicators.structs import Image, Object, ParameterizedOption, State
 
 
 def _main() -> None:
@@ -28,24 +26,18 @@ def _main() -> None:
     utils.update_config(args)
     env = create_new_env(CFG.env, do_cache=True)
     assert isinstance(env, SpotRearrangementEnv)
-    rng = np.random.default_rng(CFG.seed)
     # Create an example state that includes the objects of interest. The actual
     # state should not be used.
     state = _create_example_state(env)
-    robot, = state.get_objects(_robot_type)
-    surface = state.get_objects(_movable_object_type)[0]  # shouldn't matter
     # Load the parameterized option of interest.
     skill_name = "PickObjectFromTop"
     options = get_gt_options(env.get_name())
     option = next(o for o in options if o.name == skill_name)
-    # Load the base sampler.
-    nsrts = get_gt_nsrts(env.get_name(), env.predicates, options)
-    nsrt = next(n for n in nsrts if n.name == skill_name)
-    base_sampler = nsrt._sampler
     # Create separate plots for each movable object in the environment.
     graspable_objs = {o for o in state if o.is_instance(_movable_object_type)}
     for obj in graspable_objs:
         print(f"Starting analysis for {obj.name}")
+        obj_id = state.get(obj, "object_id")
         # Load the map and mask to put in the background of the plot.
         obj_mask_filename = f"grasp_maps/{obj.name}-object.npy"
         obj_mask_path = utils.get_env_asset_path(obj_mask_filename)
@@ -53,14 +45,6 @@ def _main() -> None:
         grasp_map_filename = f"grasp_maps/{obj.name}-grasps.npy"
         grasp_map_path = utils.get_env_asset_path(grasp_map_filename)
         grasp_map = np.load(grasp_map_path)
-        # Create the inputs to the NSRT / option.
-        object_inputs = [robot, obj, surface]
-        # Create candidate samplers.
-        num_candidates = 100
-        candidates = [
-            base_sampler(state, set(), rng, object_inputs)
-            for _ in range(num_candidates)
-        ]
         # Set up videos.
         video_frames = []
         # Evaluate samplers for each learning cycle.
@@ -68,9 +52,8 @@ def _main() -> None:
         while True:
             try:
                 img = _run_one_cycle_analysis(online_learning_cycle, obj,
-                                              state, option, object_inputs,
-                                              candidates,
-                                              obj_mask, grasp_map)
+                                              obj_id, option, obj_mask,
+                                              grasp_map)
                 video_frames.append(img)
             except FileNotFoundError:
                 break
@@ -81,11 +64,9 @@ def _main() -> None:
 
 
 def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
-                            target_object: Object, example_state: State,
-                            param_option: ParameterizedOption,
-                            object_inputs: List[Object],
-                            candidates: List[Array],
-                            obj_mask: Image, grasp_map: Image) -> Video:
+                            target_object: Object, object_id: int,
+                            param_option: ParameterizedOption, obj_mask: Image,
+                            grasp_map: Image) -> Image:
     option_name = param_option.name
     approach_save_path = utils.get_approach_save_path_str()
     save_path = f"{approach_save_path}_{option_name}_" + \
@@ -95,16 +76,24 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
     with open(save_path, "rb") as f:
         classifier = pkl.load(f)
     print(f"Loaded sampler classifier from {save_path}.")
+    save_path = f"{approach_save_path}_{option_name}_" + \
+        f"{online_learning_cycle}.sampler_classifier_data"
+    if not os.path.exists(save_path):
+        raise FileNotFoundError(f"File does not exist: {save_path}")
+    with open(save_path, "rb") as f:
+        data = pkl.load(f)
+    print(f"Loaded sampler classifier training data from {save_path}.")
 
     cmap = colormaps.get_cmap('RdYlGn')
     norm = Normalize(vmin=0.0, vmax=1.0)
 
+    # Extract the candidates for this object.
+    candidates = [x for x in data[0] if int(x[1]) == object_id]
+
     # Classify the candidates.
     predictions = []
-    for candidate in candidates:
-        sampler_input = utils.construct_active_sampler_input(
-            example_state, object_inputs, candidate, param_option)
-        prediction = classifier.predict_proba(sampler_input)
+    for x in candidates:
+        prediction = classifier.predict_proba(x)
         predictions.append(prediction)
 
     # Visualize the classifications.
@@ -113,14 +102,14 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
     plt.imshow(obj_mask, cmap="gray", vmin=0, vmax=1, alpha=0.5)
     plt.imshow(grasp_map, cmap="RdYlGn", vmin=0, vmax=1, alpha=0.25)
 
-    radius = 0.5
+    radius = 1.0
     for candidate, prediction in zip(candidates, predictions):
-        r, c = candidate[:2]
+        r, c = candidate[2:4]
         color = cmap(norm(prediction))
         circle = plt.Circle((c, r), radius, color=color, alpha=1.0)
         ax.add_patch(circle)
 
-    plt.title(f"{target_object.name} Cycle {online_learning_cycle}")
+    plt.title(f"{target_object.name} cycle {online_learning_cycle}")
     plt.xlabel("x")
     plt.ylabel("y")
     plt.xlim((0, 100))
