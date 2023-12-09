@@ -97,23 +97,46 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
         predictions.append(prediction)
 
     # Visualize the classifications.
-    fig, ax = plt.subplots(1, 1)
-
-    plt.imshow(obj_mask, cmap="gray", vmin=0, vmax=1, alpha=0.5)
-    plt.imshow(grasp_map, cmap="RdYlGn", vmin=0, vmax=1, alpha=0.25)
+    fig, axes = plt.subplots(1, 2)
+    plt.suptitle(f"{target_object.name} cycle {online_learning_cycle}")
 
     radius = 1.0
+    for i, ax in enumerate(axes.flat):
+        ax.set_xlabel("x")
+        if i == 0:
+            ax.set_ylabel("y")
+        ax.set_xlim((0, 100))
+        ax.set_ylim((0, 100))
+
+        ax.imshow(obj_mask, cmap="gray", vmin=0, vmax=1, alpha=0.5)
+
+    ax = axes.flat[0]
+    ax.set_title("Ground Truth")
+    ax.imshow(grasp_map, cmap="RdYlGn", vmin=0, vmax=1, alpha=0.25)
     for candidate, prediction in zip(candidates, predictions):
         r, c = candidate[2:4]
         color = cmap(norm(prediction))
         circle = plt.Circle((c, r), radius, color=color, alpha=1.0)
         ax.add_patch(circle)
 
-    plt.title(f"{target_object.name} cycle {online_learning_cycle}")
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.xlim((0, 100))
-    plt.ylim((0, 100))
+    ax = axes.flat[1]
+    if candidates:
+        ax.set_title("Predictions")
+        predicted_grasp_map = np.zeros_like(grasp_map)
+        for r in range(predicted_grasp_map.shape[0]):
+            for c in range(predicted_grasp_map.shape[1]):
+                x = candidates[0].copy()
+                x[2] = r
+                x[3] = c
+                y = classifier.predict_proba(x)
+                predicted_grasp_map[r, c] = y
+        ax.imshow(predicted_grasp_map,
+                  cmap="RdYlGn",
+                  vmin=0,
+                  vmax=1,
+                  alpha=0.25)
+    else:
+        ax.set_title("Waiting for Data")
 
     return utils.fig2data(fig, dpi=150)
 
