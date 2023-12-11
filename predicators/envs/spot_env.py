@@ -309,6 +309,10 @@ class SpotRearrangementEnv(BaseEnv):
                 obs, container, obj_inside, pixel, nonpercept_atoms,
                 self._noise_rng)
 
+        if action_name == "DropNotPlaceableObject":
+            return _dry_simulate_drop_not_placeable_object(
+                obs, nonpercept_atoms)
+
         if action_name in ["find-objects", "stow-arm"]:
             return _dry_simulate_noop(obs, nonpercept_atoms)
 
@@ -766,6 +770,7 @@ def _object_in_xy_classifier(state: State,
 
     spot, = state.get_objects(_robot_type)
     if obj1.is_instance(_movable_object_type) and \
+        _is_placeable_classifier(state, [obj1]) and \
         _holding_classifier(state, [spot, obj1]):
         return False
 
@@ -979,6 +984,11 @@ def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
     return state.get(obj, "placeable") > 0.5
 
 
+def _is_not_placeable_classifier(state: State,
+                                 objects: Sequence[Object]) -> bool:
+    return not _is_not_placeable_classifier(state, objects)
+
+
 def _has_flat_top_surface_classifier(state: State,
                                      objects: Sequence[Object]) -> bool:
     obj, = objects
@@ -1019,6 +1029,8 @@ _ContainerReadyForSweeping = Predicate(
     _container_ready_for_sweeping_classifier)
 _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type],
                          _is_placeable_classifier)
+_IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type],
+                            _is_not_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
                                _has_flat_top_surface_classifier)
 _ALL_PREDICATES = {
@@ -1136,6 +1148,25 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = set()
     yield STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
+
+    # DropNotPlaceableObject
+    robot = Variable("?robot", _robot_type)
+    held = Variable("?held", _movable_object_type)
+    parameters = [robot, held]
+    preconds = {
+        LiftedAtom(_Holding, [robot, held]),
+        LiftedAtom(_IsNotPlaceable, [held]),
+    }
+    add_effs = {
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, held]),
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, held]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("DropNotPlaceableObject", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
 
     # DropObjectInside
     robot = Variable("?robot", _robot_type)
@@ -1599,6 +1630,28 @@ def _dry_simulate_sweep_into_container(
     return next_obs
 
 
+def _dry_simulate_drop_not_placeable_object(
+        last_obs: _SpotObservation,
+        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+    # Simply open the gripper.
+    gripper_open_percentage = 0.0
+
+    objects_in_view = last_obs.objects_in_view.copy()
+    objects_in_hand_view = set(last_obs.objects_in_hand_view)
+    robot_pose = last_obs.robot_pos
+    next_obs = _SpotObservation(
+        images={},
+        objects_in_view=objects_in_view,
+        objects_in_hand_view=objects_in_hand_view,
+        robot=last_obs.robot,
+        gripper_open_percentage=gripper_open_percentage,
+        robot_pos=robot_pose,
+        nonpercept_atoms=nonpercept_atoms,
+        nonpercept_predicates=last_obs.nonpercept_predicates,
+    )
+    return next_obs
+
+
 def _dry_simulate_noop(last_obs: _SpotObservation,
                        nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
     objects_in_view = last_obs.objects_in_view.copy()
@@ -1967,6 +2020,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "SweepIntoContainer",
             "PrepareContainerForSweeping",
             "PickAndDumpContainer",
+            "DropNotPlaceableObject",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 

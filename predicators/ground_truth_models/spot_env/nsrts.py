@@ -237,6 +237,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DragToUnblockObject": _drag_to_unblock_object_sampler,
             "SweepIntoContainer": _sweep_into_container_sampler,
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
+            "DropNotPlaceableObject": utils.null_sampler,
         }
 
         for strips_op in env.strips_operators:

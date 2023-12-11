@@ -382,6 +382,17 @@ def _drop_object_inside_policy(state: State, memory: Dict,
                                         (robot, place_rel_pos))
 
 
+def _drop_not_placeable_object_policy(state: State, memory: Dict,
+                                      objects: Sequence[Object],
+                                      params: Array) -> Action:
+    del state, memory, params  # not used
+
+    name = "DropNotPlaceableObject"
+    robot, _, _ = get_robot()
+
+    return utils.create_spot_env_action(name, objects, open_gripper, (robot, ))
+
+
 def _move_and_drop_object_inside_policy(state: State, memory: Dict,
                                         objects: Sequence[Object],
                                         params: Array) -> Action:
@@ -518,6 +529,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
+    "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
 }
 
 _OPERATOR_NAME_TO_POLICY = {
@@ -532,6 +544,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "DragToUnblockObject": _drag_to_unblock_object_policy,
     "SweepIntoContainer": _sweep_into_container_policy,
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
+    "DropNotPlaceableObject": _drop_not_placeable_object_policy,
 }
 
 
