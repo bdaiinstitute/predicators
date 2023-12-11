@@ -21,7 +21,7 @@ from predicators.structs import Action, GroundAtom, _GroundNSRT
 
 
 @pytest.mark.parametrize("env", ["spot_cube_env", "spot_soda_sweep_env"])
-def test_spot_env_dry_run(env) -> None:
+def test_spot_env_dry_run(env):
     """Dry run tests (do not require access to robot)."""
     utils.reset_config({
         "env": env,
@@ -55,7 +55,7 @@ def test_spot_env_dry_run(env) -> None:
     assert env.goal_reached()
 
 
-def test_spot_soda_sweep_env_dry_run() -> None:
+def test_spot_soda_sweep_env_dry_run():
     """Tests specific to the soda sweeping environment."""
     utils.reset_config({
         "env": "spot_soda_sweep_env",
