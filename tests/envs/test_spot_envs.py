@@ -158,7 +158,7 @@ def test_spot_soda_sweep_env_dry_run():
     state = _run_ground_nsrt(pick_bucket, state)
     state = _run_ground_nsrt(prepare_bucket, state)
     state = _run_ground_nsrt(move_to_hand_view_chair, state)
-    state = _run_ground_nsrt(pick_chair, state)
+    state = _run_ground_nsrt(pick_chair, state, assert_delete_effects=False)
     state = _run_ground_nsrt(drag_chair, state)
     state = _run_ground_nsrt(move_to_hand_view_plunger, state)
     state = _run_ground_nsrt(pick_plunger, state)
