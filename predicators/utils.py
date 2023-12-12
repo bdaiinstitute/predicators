@@ -652,12 +652,12 @@ class Rectangle(_Geom2D):
         #                          self.width - min_dist_from_edge)
         # rand_height = rng.uniform(min_dist_from_edge,
         #                           self.height - min_dist_from_edge)
-        
+
         rand_width = rng.choice((0, self.width))
         rand_height = rng.choice((0, self.height))
 
         # First rotate, then translate.
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1, 1)
         plt.xlim(self.x - 0.3, self.x + self.width + 0.3)
         plt.ylim(self.y - 0.3, self.y + self.height + 0.3)
         self.plot(ax)
@@ -666,9 +666,10 @@ class Rectangle(_Geom2D):
         x = rx + self.x
         y = ry + self.y
 
-        patch = patches.Circle((x, y), radius=0.008,
-                                   edgecolor='black',
-                                   facecolor='red')
+        patch = patches.Circle((x, y),
+                               radius=0.008,
+                               edgecolor='black',
+                               facecolor='red')
         ax.add_patch(patch)
         plt.show()
 

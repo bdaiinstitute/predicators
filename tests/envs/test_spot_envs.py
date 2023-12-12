@@ -461,7 +461,8 @@ def real_robot_drafting_table_placement_test() -> None:
         123,
         "spot_robot_ip":
         args["spot_robot_ip"],
-        "spot_graph_nav_map": args["spot_graph_nav_map"],
+        "spot_graph_nav_map":
+        args["spot_graph_nav_map"],
         "test_task_json_dir":
         args.get("test_task_json_dir", None),
     })
@@ -487,7 +488,8 @@ def real_robot_drafting_table_placement_test() -> None:
         ground_nsrts.extend(utils.all_ground_nsrts(nsrt, set(state)))
 
     # First, move to the drafting table.
-    move_to_drafting_table_nsrt = MoveToReachObject.ground((spot, drafting_table))
+    move_to_drafting_table_nsrt = MoveToReachObject.ground(
+        (spot, drafting_table))
     # Sample and run an option to move to the surface.
     option = move_to_drafting_table_nsrt.sample_option(state, set(), rng)
     assert option.initiable(state)
@@ -511,6 +513,7 @@ def real_robot_drafting_table_placement_test() -> None:
             state = perceiver.step(obs)
             if option.terminal(state):
                 break
+
 
 if __name__ == "__main__":
     # real_robot_cube_env_test()
