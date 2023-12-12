@@ -135,10 +135,15 @@ def _segment_with_spot_changes(
     if not opt_ts:
         return []
     start_t = min(opt_ts)
+    if ll_traj.is_demo:
+        is_demo = True
+        train_task_idx = ll_traj.train_task_idx
+    else:
+        is_demo = False
+        train_task_idx = None
     ll_traj = LowLevelTrajectory(ll_traj.states[start_t:],
-                                 ll_traj.actions[start_t:],
-                                 _is_demo=ll_traj.is_demo,
-                                 _train_task_idx=ll_traj.train_task_idx)
+                                 ll_traj.actions[start_t:], is_demo,
+                                 train_task_idx)
 
     def _switch_fn(t: int) -> bool:
         # Actions without options are "special". We include them in the options
