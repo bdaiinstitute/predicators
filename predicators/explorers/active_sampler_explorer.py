@@ -438,8 +438,6 @@ class ActiveSamplerExplorer(BaseExplorer):
             score = self._score_ground_op_planning_progress(ground_op)
             if CFG.active_sampler_explore_use_ucb_bonus:
                 score += bonus
-        if CFG.active_sampler_explore_task_strategy == "planning_progress":
-            score = self._score_ground_op_planning_progress(ground_op)
         elif CFG.active_sampler_explore_task_strategy == "success_rate":
             score = (1.0 - success_rate)
             if CFG.active_sampler_explore_use_ucb_bonus:
