@@ -11,7 +11,7 @@ from predicators import utils
 from predicators.approaches import create_approach
 from predicators.cogman import CogMan
 from predicators.envs import create_new_env
-from predicators.envs.spot_env import SpotCubeEnv, SpotBallAndCupStickyTableEnv
+from predicators.envs.spot_env import SpotBallAndCupStickyTableEnv, SpotCubeEnv
 from predicators.execution_monitoring import create_execution_monitor
 from predicators.ground_truth_models import get_gt_nsrts, get_gt_options
 from predicators.perception.spot_perceiver import SpotPerceiver
@@ -429,12 +429,11 @@ def real_robot_cube_env_test() -> None:
 
 
 def real_robot_drafting_table_placement_test() -> None:
-    """Another real robot test, not to be run by unit tests!
-    Mostly for debugging the place sampler on the drafting
-    table, which seems to be surprisingly biased to the left
-    side of the table. Note that this test doesn't assert anything:
-    a user must manually check that the agent is sampling a different
-    point on the surface every time.
+    """Another real robot test, not to be run by unit tests! Mostly for
+    debugging the place sampler on the drafting table, which seems to be
+    surprisingly biased to the left side of the table. Note that this test
+    doesn't assert anything: a user must manually check that the agent is
+    sampling a different point on the surface every time.
 
     Run this test by running the file directly, i.e.,
 
