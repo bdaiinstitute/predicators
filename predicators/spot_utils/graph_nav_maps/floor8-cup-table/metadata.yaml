@@ -40,11 +40,11 @@ known-immovable-objects:
     z: -0.5
   play_table:
     x: 3.2
-    y: 0.75
+    y: 0.6
     z: -0.1
   drafting_table:
     x: 2.5
-    y: 2.55
+    y: 2.7
     z: -0.25
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
