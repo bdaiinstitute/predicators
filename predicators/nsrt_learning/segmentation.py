@@ -131,7 +131,10 @@ def _segment_with_spot_changes(
     # Rare edge case: the trajectory starts with a special action, like "find".
     # In this case, just chop off the beginning of the trajectory until a non
     # special action is used.
-    start_t = [t for t, act in enumerate(ll_traj.actions) if act.has_option()]
+    opt_ts = [t for t, act in enumerate(ll_traj.actions) if act.has_option()]
+    if not opt_ts:
+        return []
+    start_t = min(opt_ts)
     ll_traj = LowLevelTrajectory(ll_traj.states[start_t:],
                                  ll_traj.actions[start_t:],
                                  _is_demo=ll_traj.is_demo,
