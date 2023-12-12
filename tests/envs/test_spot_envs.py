@@ -502,7 +502,7 @@ def real_robot_drafting_table_placement_test() -> None:
 
     # Now, sample a placement option multiple times and run it.
     place_on_table_nsrt = PlaceObjectOnTop.ground([spot, cup, drafting_table])
-    for i in range(10):
+    for _ in range(10):
         option = place_on_table_nsrt.sample_option(state, set(), rng)
         assert option.initiable(state)
         for _ in range(100):  # should terminate much earlier
@@ -515,5 +515,5 @@ def real_robot_drafting_table_placement_test() -> None:
 
 
 if __name__ == "__main__":
-    # real_robot_cube_env_test()
+    real_robot_cube_env_test()
     real_robot_drafting_table_placement_test()
