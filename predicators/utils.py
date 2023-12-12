@@ -406,7 +406,7 @@ class _Geom2D(abc.ABC):
     def sample_random_point(
             self,
             rng: np.random.Generator,
-            min_dist_from_edge: float = np.inf) -> Tuple[float, float]:
+            min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
         """Samples a random point inside the 2D shape."""
         raise NotImplementedError("Override me!")
 
@@ -426,6 +426,10 @@ class LineSegment(_Geom2D):
     def plot(self, ax: plt.Axes, **kwargs: Any) -> None:
         ax.plot([self.x1, self.x2], [self.y1, self.y2], **kwargs)
 
+    @staticmethod
+    def _dist(p: Tuple[float, float], q: Tuple[float, float]) -> float:
+        return np.sqrt((p[0] - q[0])**2 + (p[1] - q[1])**2)
+
     def contains_point(self, x: float, y: float) -> bool:
         # https://stackoverflow.com/questions/328107
         a = (self.x1, self.y1)
@@ -435,17 +439,14 @@ class LineSegment(_Geom2D):
         # if the distance from a to b is (approximately) equal to the distance
         # from a to c and the distance from c to b.
         eps = 1e-6
-
-        def _dist(p: Tuple[float, float], q: Tuple[float, float]) -> float:
-            return np.sqrt((p[0] - q[0])**2 + (p[1] - q[1])**2)
-
-        return -eps < _dist(a, c) + _dist(c, b) - _dist(a, b) < eps
+        return -eps < self._dist(a, c) + self._dist(c, b) - self._dist(a,
+                                                                       b) < eps
 
     def sample_random_point(
             self,
             rng: np.random.Generator,
-            min_dist_from_edge: float = np.inf) -> Tuple[float, float]:
-        assert np.isinf(min_dist_from_edge), "not yet implemented" + \
+            min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
+        assert min_dist_from_edge == 0.0, "not yet implemented" + \
             " non-infinite min_dist_from_edge"
         line_slope = (self.y2 - self.y1) / (self.x2 - self.x1)
         y_intercept = self.y2 - (line_slope * self.x2)
@@ -478,7 +479,7 @@ class Circle(_Geom2D):
     def sample_random_point(
             self,
             rng: np.random.Generator,
-            min_dist_from_edge: float = np.inf) -> Tuple[float, float]:
+            min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
         assert min_dist_from_edge < self.radius, "min_dist_from_edge is " + \
             "greater than radius"
         rand_mag = rng.uniform(0, self.radius - min_dist_from_edge)
@@ -529,9 +530,9 @@ class Triangle(_Geom2D):
     def sample_random_point(
             self,
             rng: np.random.Generator,
-            min_dist_from_edge: float = np.inf) -> Tuple[float, float]:
-        assert np.isinf(min_dist_from_edge), "not yet implemented" + \
-            " non-infinite min_dist_from_edge"
+            min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
+        assert min_dist_from_edge == 0.0, "not yet implemented" + \
+            " non-zero min_dist_from_edge"
         a = np.array([self.x2 - self.x1, self.y2 - self.y1])
         b = np.array([self.x3 - self.x1, self.y3 - self.y1])
         u1 = rng.uniform(0, 1)
@@ -643,30 +644,19 @@ class Rectangle(_Geom2D):
     def sample_random_point(
             self,
             rng: np.random.Generator,
-            min_dist_from_edge: float = np.inf) -> Tuple[float, float]:
+            min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
         assert min_dist_from_edge <= self.width / 2 and \
             min_dist_from_edge <= self.height / 2, \
                 "cannot achieve sample with min_dist_from_edge"
-
-        fig, ax = plt.subplots(1, 1)
-        self.plot(ax, color="blue")
-
         rand_width = rng.uniform(min_dist_from_edge,
-                                self.width - min_dist_from_edge)
+                                 self.width - min_dist_from_edge)
         rand_height = rng.uniform(min_dist_from_edge,
-                                self.height - min_dist_from_edge)
+                                  self.height - min_dist_from_edge)
         # First rotate, then translate.
         rx, ry = np.array([rand_width, rand_height]) @ self.rotation_matrix.T
         x = rx + self.x
         y = ry + self.y
         assert self.contains_point(x, y)
-        patch = patches.Circle((x, y), 0.01, edgecolor='black', facecolor='red')
-        ax.add_patch(patch)
-        ax.set_xlim(self.x - 0.3, self.x + self.width + 0.3)
-        ax.set_ylim(self.y - 0.3, self.y + self.height + 0.3)
-
-        plt.show()
-        
         return (x, y)
 
     def rotate_about_point(self, x: float, y: float, rot: float) -> Rectangle:
