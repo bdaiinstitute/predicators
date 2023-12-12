@@ -648,15 +648,31 @@ class Rectangle(_Geom2D):
         assert min_dist_from_edge <= self.width / 2 and \
             min_dist_from_edge <= self.height / 2, \
                 "cannot achieve sample with min_dist_from_edge"
-        rand_width = rng.uniform(min_dist_from_edge,
-                                 self.width - min_dist_from_edge)
-        rand_height = rng.uniform(min_dist_from_edge,
-                                  self.height - min_dist_from_edge)
+        # rand_width = rng.uniform(min_dist_from_edge,
+        #                          self.width - min_dist_from_edge)
+        # rand_height = rng.uniform(min_dist_from_edge,
+        #                           self.height - min_dist_from_edge)
+        
+        rand_width = rng.choice((0, self.width))
+        rand_height = rng.choice((0, self.height))
+
         # First rotate, then translate.
+        fig, ax = plt.subplots(1,1)
+        plt.xlim(self.x - 0.3, self.x + self.width + 0.3)
+        plt.ylim(self.y - 0.3, self.y + self.height + 0.3)
+        self.plot(ax)
+
         rx, ry = np.array([rand_width, rand_height]) @ self.rotation_matrix.T
         x = rx + self.x
         y = ry + self.y
-        assert self.contains_point(x, y)
+
+        patch = patches.Circle((x, y), radius=0.008,
+                                   edgecolor='black',
+                                   facecolor='red')
+        ax.add_patch(patch)
+        plt.show()
+
+        # assert self.contains_point(x, y)
         return (x, y)
 
     def rotate_about_point(self, x: float, y: float, rot: float) -> Rectangle:
