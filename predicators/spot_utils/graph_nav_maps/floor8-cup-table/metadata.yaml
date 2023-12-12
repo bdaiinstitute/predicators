@@ -50,7 +50,7 @@ known-immovable-objects:
 static-object-features:
   play_table:
     shape: 1  # cuboid
-    height: 0.54
+    height: 0.45
     length: 0.8
     width: 0.45
     flat_top_surface: 1
