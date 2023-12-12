@@ -128,6 +128,15 @@ def _segment_with_spot_changes(
         ll_traj: LowLevelTrajectory, predicates: Set[Predicate],
         atom_seq: List[Set[GroundAtom]]) -> List[Segment]:  # pragma: no cover
 
+    # Rare edge case: the trajectory starts with a special action, like "find".
+    # In this case, just chop off the beginning of the trajectory until a non
+    # special action is used.
+    start_t = [t for t, act in enumerate(ll_traj.actions) if act.has_option()]
+    ll_traj = LowLevelTrajectory(ll_traj.states[start_t:],
+                                 ll_traj.actions[start_t:],
+                                 _is_demo=ll_traj.is_demo,
+                                 _train_task_idx=ll_traj.train_task_idx)
+
     def _switch_fn(t: int) -> bool:
         # Actions without options are "special". We include them in the options
         # that came before them. For example, if an object gets lost during
