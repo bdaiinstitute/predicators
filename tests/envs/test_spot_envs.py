@@ -476,7 +476,7 @@ def real_robot_drafting_table_placement_test() -> None:
     obs = env.reset("test", 0)
     perceiver.reset(task)
     assert len(obs.objects_in_view) == 5
-    ball, cup, drafting_table, floor, play_table = sorted(obs.objects_in_view)
+    _, cup, drafting_table, _, _ = sorted(obs.objects_in_view)
     state = perceiver.step(obs)
     spot = next(o for o in state if o.type.name == "robot")
     nsrt_name_to_nsrt = {n.name: n for n in nsrts}
