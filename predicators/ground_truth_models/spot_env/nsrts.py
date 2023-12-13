@@ -1,4 +1,4 @@
-"""Ground-truth NSRTs for the PDDLEnv."""
+"""Ground-truth NSRTs for the spot environments."""
 
 from typing import Dict, Sequence, Set
 
