@@ -4,7 +4,6 @@ import logging
 import time
 from typing import Optional, Tuple
 
-import numpy as np
 from bosdyn.api import geometry_pb2, manipulation_api_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import VISION_FRAME_NAME, \

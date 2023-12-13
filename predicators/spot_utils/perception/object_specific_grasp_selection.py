@@ -126,7 +126,8 @@ def _get_cup_grasp_pixel(
     dx = pixel[0] - center_pixel[0]
     angle = np.arctan2(dx, -dy)
 
-    # Uncomment for debugging.
+    del rgbds  # not used, except for debugging
+    # Uncomment for debugging. Make sure also to not del rgbds (above).
     # import cv2
     # rgbd = rgbds[camera_name]
     # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
