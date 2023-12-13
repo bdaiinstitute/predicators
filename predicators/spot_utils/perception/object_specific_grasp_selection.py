@@ -77,7 +77,6 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
        This part is specific to the cup and is due to us wanting to
        have a consistent grasp to prepare consistent placing.
     """
-    del rgbds
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[cup_obj][camera_name]
@@ -98,7 +97,10 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
     pixels_in_mask = np.where(surrounded_mask)
 
     # Randomly select whether to grasp on the right or the top.
-    grasp_modality = rng.choice(["right", "top"])
+    
+    # grasp_modality = rng.choice(["right", "top"])
+    grasp_modality = "right"
+    
     if grasp_modality == "top":
         # Select a pixel near the top of the ring.
         percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
@@ -111,6 +113,27 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
         idx = np.argsort(pixels_in_mask[1])[percentile_idx]
 
     pixel = (pixels_in_mask[1][idx], pixels_in_mask[0][idx])
+
+    center = np.mean(pixels_in_mask, axis=1)
+    center_pixel = (int(center[1]), int(center[0]))
+
+    dy = pixel[1] - center_pixel[1]
+    dx = pixel[0] - center_pixel[0]
+
+    print("dy:", dy)
+    print("dx:", dx)
+    print("Angle:", np.arctan2(dx, -dy))
+
+    import cv2
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
+    cv2.arrowedLine(bgr, center_pixel, (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0), 5)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
     return pixel
 
 

@@ -15,6 +15,7 @@ from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_state
+import numpy as np
 
 
 def grasp_at_pixel(
@@ -23,7 +24,7 @@ def grasp_at_pixel(
     pixel: Tuple[int, int],
     grasp_rot: Optional[math_helpers.Quat] = None,
     move_while_grasping: bool = True,
-    rot_thresh: float = 0.17,
+    rot_thresh: float = np.pi / 4,  # TODO 0.17
     timeout: float = 20.0,
 ) -> None:
     """Grasp an object at a specified pixel in the RGBD image, which should be

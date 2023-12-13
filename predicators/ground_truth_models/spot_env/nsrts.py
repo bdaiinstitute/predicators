@@ -130,6 +130,13 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         if target_obj.name == "ball":
             rot_quat = math_helpers.Quat.from_pitch(np.pi / 2)
             rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
+        elif target_obj.name == "cup":
+            # TODO this is a hardcoded right grasp (?)
+            angle = float(input("Input angle: "))
+            yaw = math_helpers.Quat.from_yaw(-angle)
+            pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+            rot_quat = yaw * pitch
+            rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)            
         else:
             rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
         params_tuple = pixel + rot_quat_tuple
