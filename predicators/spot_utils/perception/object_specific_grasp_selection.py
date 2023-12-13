@@ -21,11 +21,11 @@ cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 
 def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                               artifacts: Dict[str, Any],
-                              camera_name: str) -> Tuple[int, int]:
+                              camera_name: str, rng: np.random.Generator) -> Tuple[int, int]:
     # This assumes that we have just navigated to the april tag and are now
     # looking down at the platform. We crop the top half of the image and
     # then use CV2 to find the blue handle inside of it.
-    del artifacts  # not used
+    del artifacts, rng  # not used
     rgb = rgbds[camera_name].rgb
     half_height = rgb.shape[0] // 2
 
@@ -49,8 +49,8 @@ def _get_platform_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 
 def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                           artifacts: Dict[str, Any],
-                          camera_name: str) -> Tuple[int, int]:
-    del rgbds
+                          camera_name: str, rng: np.random.Generator) -> Tuple[int, int]:
+    del rgbds, rng
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[ball_obj][camera_name]
@@ -66,7 +66,7 @@ def _get_ball_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 
 def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                          artifacts: Dict[str, Any],
-                         camera_name: str) -> Tuple[int, int]:
+                         camera_name: str, rng: np.random.Generator) -> Tuple[int, int]:
     """There are two main ideas in this grasp selector:
 
     1. We want to select a point on the object that is reasonably
@@ -95,11 +95,20 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
                                        mode="constant")
     surrounded_mask = (
         convolved_smoothed_mask == convolved_smoothed_mask.max())
-    # Finally, select a point in the upper percentile (towards the
-    # right center of the cup).
     pixels_in_mask = np.where(surrounded_mask)
-    percentile_idx = int(len(pixels_in_mask[0]) / 1.0526)  # 95th percentile
-    idx = np.argsort(pixels_in_mask[1])[percentile_idx]
+
+    # Randomly select whether to grasp on the right or the top.
+    grasp_modality = rng.choice(["right", "top"])    
+    if grasp_modality == "top":
+        # Select a pixel near the top of the ring.
+        percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
+        idx = np.argsort(pixels_in_mask[0])[percentile_idx]
+    else:
+        # Finally, select a point in the upper percentile (towards the
+        # right center of the cup).
+        percentile_idx = int(len(pixels_in_mask[0]) / 1.0526)  # 95th percentile
+        idx = np.argsort(pixels_in_mask[1])[percentile_idx]
+ 
     pixel = (pixels_in_mask[1][idx], pixels_in_mask[0][idx])
     return pixel
 
@@ -107,7 +116,7 @@ def _get_cup_grasp_pixel(rgbds: Dict[str, RGBDImageWithContext],
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[
     [Dict[str,
-          RGBDImageWithContext], Dict[str, Any], str], Tuple[int, int]]] = {
+          RGBDImageWithContext], Dict[str, Any], str, np.random.Generator], Tuple[int, int]]] = {
               # Platform-specific grasp selection.
               AprilTagObjectDetectionID(411): _get_platform_grasp_pixel,
               # Ball-specific grasp selection.
