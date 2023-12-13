@@ -126,17 +126,18 @@ def _get_cup_grasp_pixel(
     dx = pixel[0] - center_pixel[0]
     angle = np.arctan2(dx, -dy)
 
-    import cv2
-    rgbd = rgbds[camera_name]
-    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
-    cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
-    cv2.arrowedLine(bgr, center_pixel,
-                    (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
-                    5)
-    cv2.imshow("Selected grasp", bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # Uncomment for debugging.
+    # import cv2
+    # rgbd = rgbds[camera_name]
+    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
+    # cv2.arrowedLine(bgr, center_pixel,
+    #                 (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
+    #                 5)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     yaw = math_helpers.Quat.from_yaw(-angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
