@@ -2644,6 +2644,23 @@ def compute_necessary_atoms_seq(
         necessary_atoms_seq = [set(necessary_image)] + necessary_atoms_seq
     return necessary_atoms_seq
 
+def trim_skeleton_to_necessary_atoms(
+        skeleton: List[_GroundNSRT], necessary_atoms_seq: List[Set[GroundAtom]]
+    ) -> Tuple[List[_GroundNSRT], List[Set[GroundAtom]]]:
+   
+    new_skeleton: List[_GroundNSRT] = []
+    new_necessary_atoms_seq: List[_GroundNSRT] = [set(necessary_atoms_seq[-1])]
+    necessary_image = set(necessary_atoms_seq[-1])
+    for t in range(len(necessary_atoms_seq) - 2, -1, -1):
+        curr_nsrt = skeleton[t]
+        if any(atom in necessary_image for atom in curr_nsrt.add_effects):
+            necessary_image -= set(curr_nsrt.add_effects)
+            necessary_image |= set(curr_nsrt.preconditions)
+            new_skeleton = [curr_nsrt] + new_skeleton
+            new_necessary_atoms_seq = [set(necessary_image)] + new_necessary_atoms_seq
+    return new_skeleton, new_necessary_atoms_seq
+
+
 
 def get_successors_from_ground_ops(
         atoms: Set[GroundAtom],

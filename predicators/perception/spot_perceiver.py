@@ -312,6 +312,11 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(NotOn, [cube, shelf])
             }
+        if goal_description == "pick and place the block":
+            cube = Object("cube", _movable_object_type)
+            table_2 = Object("table_2", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            return {GroundAtom(On, [cube, table_2])}
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,

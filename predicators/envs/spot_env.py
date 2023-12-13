@@ -996,9 +996,6 @@ def _container_ready_for_sweeping_classifier(
 
     return target_bottom > container_top
 
-def _stable_surface_classifier(state: State, objects: Sequence[Object]) -> bool:
-    pass
-
 def _empty_classifier(state: State, objects: Sequence[Object]) -> bool:
     pass
 
@@ -1014,6 +1011,17 @@ def _has_flat_top_surface_classifier(state: State,
                                      objects: Sequence[Object]) -> bool:
     obj, = objects
     return state.get(obj, "flat_top_surface") > 0.5
+
+
+def _too_high_classifier(state: State, objects: Sequence[Object]) -> bool:
+    robot, obj = objects
+    robot_z = state.get(robot, "z")
+    obj_z = state.get(obj, "z")
+
+    return not _holding_classifier(state, objects) and (obj_z - robot_z > 0.35)
+
+def _not_too_high_classifier(state: State, objects: Sequence[Object]) -> bool:
+    return not _holding_classifier(state, objects) and not _too_high_classifier(state, objects)
 
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
@@ -1049,6 +1057,11 @@ _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type],
                          _is_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
                                _has_flat_top_surface_classifier)
+_TooHigh = Predicate("TooHigh", [_robot_type, _movable_object_type],
+                     _too_high_classifier)
+_NotTooHigh = Predicate("NotTooHigh", [_robot_type, _movable_object_type],
+                        _not_too_high_classifier)
+
 _ALL_PREDICATES = {
     _NEq,
     _On,
@@ -1075,7 +1088,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
 
     # MoveToReachObject
     robot = Variable("?robot", _robot_type)
-    obj = Variable("?object", _base_object_type)
+    obj = Variable("?object", _immovable_object_type)#_base_object_type)
     parameters = [robot, obj]
     preconds = {LiftedAtom(_NotBlocked, [obj])}
     add_effs = {LiftedAtom(_Reachable, [robot, obj])}
@@ -1112,15 +1125,17 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     # PickObjectFromTop
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
-    surface = Variable("?surface", _base_object_type)
+    surface = Variable("?surface", _immovable_object_type)#_base_object_type)
     parameters = [robot, obj, surface]
     preconds = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InHandView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotTooHigh, [robot, obj])
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
+        LiftedAtom(_NotOn, [obj, surface]),
     }
     del_effs = {
         LiftedAtom(_On, [obj, surface]),
@@ -1135,20 +1150,23 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     # PickObjectFromSide
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
-    surface = Variable("?surface", _base_object_type)
+    surface = Variable("?surface", _immovable_object_type)#_base_object_type)
     parameters = [robot, obj, surface]
     preconds = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InHandView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_TooHigh, [robot, obj])
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
+        LiftedAtom(_NotOn, [obj, surface]),
     }
     del_effs = {
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_InHandView, [robot, obj])
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_TooHigh, [robot, obj]),
     }
     ignore_effs = {_Inside}
     yield STRIPSOperator("PickObjectFromSide", parameters, preconds, add_effs,
@@ -1169,6 +1187,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {
         LiftedAtom(_On, [held, surface]),
         LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotTooHigh, [robot, held])
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
@@ -1225,7 +1244,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
 
     # DragToUnblockObject
     robot = Variable("?robot", _robot_type)
-    blocked = Variable("?blocked", _base_object_type)
+    blocked = Variable("?blocked", _immovable_object_type)# _base_object_type)
     blocker = Variable("?blocker", _movable_object_type)
     parameters = [robot, blocked, blocker]
     preconds = {
@@ -1604,7 +1623,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         cube = Object("cube", _movable_object_type)
-        cube_detection = AprilTagObjectDetectionID(12)
+        cube_detection = AprilTagObjectDetectionID(14)
 
         smooth_table = Object("smooth_table", _immovable_object_type)
         smooth_table_detection = AprilTagObjectDetectionID(19)
@@ -2136,7 +2155,7 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         cube = Object("cube", _movable_object_type)
-        cube_detection = AprilTagObjectDetectionID(12)
+        cube_detection = AprilTagObjectDetectionID(14)
         detection_id_to_obj[cube_detection] = cube
 
         shelf = Object("shelf", _immovable_object_type)
@@ -2186,7 +2205,6 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
 
     @property
     def predicates(self) -> Set[Predicate]:
-        _Stable = Predicate("Stable", [_base_object_type], _stable_surface_classifier)
         _Empty = Predicate("Empty", [_base_object_type], _empty_classifier)
         _EmptyFloor = Predicate("EmptyFloor", [], _empty_floor_classifier)
         return {
@@ -2199,9 +2217,11 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
             _InHandView,
             _Blocking,
             _NotBlocked,
-            _Stable,
+            _HasFlatTopSurface,
             _Empty,
             _EmptyFloor,
+            _TooHigh,
+            _NotTooHigh,            
         }
 
     @property
@@ -2213,3 +2233,94 @@ class SpotCleanupShelfEnv(SpotRearrangementEnv):
     def goal_predicates(self) -> Set[Predicate]:
         return self.predicates
 
+class SpotPickAndPlaceEnv(SpotRearrangementEnv):
+    """An environment for just picking a block from one table
+    and placing it on another. Used to collect one demo for 
+    precondition learning in another env."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop"
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_pickplace_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        
+        cube = Object("cube", _movable_object_type)
+        cube_detection = AprilTagObjectDetectionID(12)
+        detection_id_to_obj[cube_detection] = cube
+
+        table_1 = Object("table_1", _immovable_object_type)
+        table_1_detection = AprilTagObjectDetectionID(11)
+        detection_id_to_obj[table_1_detection] = table_1
+
+        table_2 = Object("table_2", _immovable_object_type)
+        table_2_detection = AprilTagObjectDetectionID(13)
+        detection_id_to_obj[table_2_detection] = table_2
+        
+        for obj, pose in get_known_immovable_objects().items():
+            # Only keep the floor.
+            if obj.name == "floor":
+                detection = KnownStaticObjectDetectionID(obj.name, pose=pose)
+                detection_id_to_obj[detection] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "pick and place the block"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    @property
+    def types(self) -> Set[Type]:
+        return {_robot_type,
+                _base_object_type,
+                _movable_object_type,
+                _immovable_object_type,
+        }
+    
+    @property
+    def predicates(self) -> Set[Predicate]:
+        _Empty = Predicate("Empty", [_base_object_type], _empty_classifier)
+        _EmptyFloor = Predicate("EmptyFloor", [], _empty_floor_classifier)
+        return {
+            _On,
+            _NotOn,
+            _HandEmpty,
+            _Holding,
+            _Reachable,
+            _InView,
+            _InHandView,
+            _Blocking,
+            _NotBlocked,
+            _HasFlatTopSurface,
+            _Empty,
+            _EmptyFloor,
+            _TooHigh,
+            _NotTooHigh,
+        }
+
+    @property
+    def percept_predicates(self) -> Set[Predicate]:
+        """The predicates that are NOT stored in the simulator state."""
+        return self.predicates
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates

@@ -52,6 +52,8 @@ def _extract_oracle_samplers(
     given a random sampler. If a ground truth operator has no given
     operator match, a warning is generated.
     """
+
+
     env = get_or_create_env(CFG.env)
     env_options = get_gt_options(env.get_name())
     # We don't need to match ground truth NSRTs with no continuous
@@ -62,11 +64,21 @@ def _extract_oracle_samplers(
         if nsrt.option.params_space.shape != (0, )
     }
     assert len(strips_ops) == len(option_specs)
+
     # Initialize all samplers to random.
     samplers: List[NSRTSampler] = [
         _RandomSampler(param_option).sampler
         for param_option, _ in option_specs
     ]
+
+    ##############
+    # Make this more specialized: just get a sampler if the option matches
+    for nsrt in gt_nsrts:
+        for idx, (param_option, _) in enumerate(option_specs):
+            if nsrt.option == param_option:
+                samplers[idx] = nsrt.sampler
+    ##############
+
     # Go through the ground truth NSRTs. For each one, if we find a
     # matching to a given operator, extract the NSRT's sampler.
     for nsrt in gt_nsrts:

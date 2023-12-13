@@ -186,6 +186,7 @@ class SpotCubeEnvGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env",
             "spot_cleanup_shelf_env",
+            "spot_pickplace_env",
         }
 
     @staticmethod

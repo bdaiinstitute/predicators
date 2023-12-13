@@ -2,79 +2,55 @@
 spot-home-pose:
   x: 2.960
   y: -1.236
-  angle: -1.57
+  angle: -2.36 # -1.57
 april-tag-offsets:
-  tag-18:   # yoga ball
+  tag-11:   # table_1
     x: 0
-    y: -0.3
+    y: 0
+    z: -0.1
+  tag-12:   # cube
+    x: 0
+    y: 0
     z: 0
-  tag-19:   # table
-    x: 0
-    y: -0.3
-    z: -0.2
-  tag-20:   # cube
-    x: 0
-    y: -0.02
-    z: 0
+  tag-13:   # table_2
+    x: -0.4
+    y: 0
+    z: -0.1
 allowed-regions:
   main-rooom:
-    - [4.5, -2.3]
-    - [1.9, -3.2]
-    - [2.1, -3]
-    - [3.9, -0.]
+    - [0.8, -4.5]
+    - [3.939, -1.820]
+    - [3.199, -0.788]
+    - [1.586, -0.345]
 known-immovable-objects:
   floor:
     x: 0.0
     y: 0.0
     z: -0.5
-  white-table:
-    x: 3.2
-    y: 0.5
-    z: -0.1
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
-  smooth_table:
+  table_1:
     shape: 1  # cuboid
-    height: 0.7 # 0.52
-    length: 1.2 # 0.51
-    width: 0.7 # 0.51
-  sticky_table:
-    shape: 2  # cylinder
-    height: 0.6
-    length: 0.6
-    width: 0.7
+    height: 0.7 
+    length: 1.2 
+    width: 0.7 
+    flat_top_surface: 1
   cube:
-    shape: 1  # cuboid
-    height: 0.12 #0.083
-    length: 0.09 # 0.083
-    width: 0.05 # 0.083
-  plunger:
-    shape: 1  # cuboid
+    shape: 1
     height: 0.1
-    length: 0.1
-    width: 0.1
-  soda_can:
-    shape: 2
-    height: 0.114
-    length: 0.065
-    width: 0.065
+    length: 0.12
+    width: 0.03
+    placeable: 1
+  table_2:
+    shape: 1
+    height: 0.7
+    length: 0.7
+    width: 0.4
+    flat_top_surface: 1
   floor:
     shape: 1
     height: 0.0001
     length: 10000000  # effectively infinite
     width: 10000000
-  white-table:
-    shape: 1
-    height: 0.74
-    length: 1.07
-    width: 0.51
-  bucket:
-    shape: 2
-    height: 0.4
-    width: 0.23
-    length: 0.23
-  chair:
-    shape: 2
-    height: 0.8
-    length: 0.5
-    width: 0.5
+    flat_top_surface: 1
+  

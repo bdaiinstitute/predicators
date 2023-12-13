@@ -986,6 +986,7 @@ def generate_sas_file_for_fd(
     cmd_str = (f"{timeout_cmd} {timeout} {exec_str} {alias_flag} "
                f"--sas-file {sas_file} {dom_file} {prob_file}")
     subprocess.getoutput(cmd_str)
+    print(dom_file, prob_file, sas_file)
     return sas_file
 
 
@@ -1060,8 +1061,8 @@ def fd_plan_from_sas_file(
     metrics: Metrics = defaultdict(float)
     num_nodes_expanded = re.findall(r"Expanded (\d+) state", output)
     num_nodes_created = re.findall(r"Evaluated (\d+) state", output)
-    assert len(num_nodes_expanded) == 1
-    assert len(num_nodes_created) == 1
+    assert len(num_nodes_expanded) == 1, output
+    assert len(num_nodes_created) == 1, output
     metrics["num_nodes_expanded"] = float(num_nodes_expanded[0])
     metrics["num_nodes_created"] = float(num_nodes_created[0])
     # Extract the skeleton from the output and compute the atoms_sequence.
