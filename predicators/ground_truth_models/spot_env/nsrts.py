@@ -125,20 +125,13 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
-        pixel = get_grasp_pixel(rgbds, artifacts, target_detection_id,
-                                hand_camera, rng)
-        if target_obj.name == "ball":
-            rot_quat = math_helpers.Quat.from_pitch(np.pi / 2)
-            rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
-        elif target_obj.name == "cup":
-            # TODO this is a hardcoded right grasp (?)
-            angle = float(input("Input angle: "))
-            yaw = math_helpers.Quat.from_yaw(-angle)
-            pitch = math_helpers.Quat.from_pitch(np.pi / 2)
-            rot_quat = yaw * pitch
-            rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)            
-        else:
+        pixel, rot_quat = get_grasp_pixel(rgbds, artifacts,
+                                          target_detection_id, hand_camera,
+                                          rng)
+        if rot_quat is None:
             rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
+        else:
+            rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
         params_tuple = pixel + rot_quat_tuple
 
     return np.array(params_tuple)

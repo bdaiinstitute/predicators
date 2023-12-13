@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Optional, Tuple
 
+import numpy as np
 from bosdyn.api import geometry_pb2, manipulation_api_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import VISION_FRAME_NAME, \
@@ -15,7 +16,6 @@ from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_state
-import numpy as np
 
 
 def grasp_at_pixel(
@@ -23,8 +23,8 @@ def grasp_at_pixel(
     rgbd: RGBDImageWithContext,
     pixel: Tuple[int, int],
     grasp_rot: Optional[math_helpers.Quat] = None,
+    rot_thresh: float = 0.17,
     move_while_grasping: bool = True,
-    rot_thresh: float = np.pi / 4,  # TODO 0.17
     timeout: float = 20.0,
 ) -> None:
     """Grasp an object at a specified pixel in the RGBD image, which should be
