@@ -38,12 +38,12 @@ known-immovable-objects:
     x: 1.84
     y: 0.85
     z: -0.5
-  play_table:
-    x: 3.2
-    y: 0.15
-    z: -0.25
+  # play_table:
+  #   x: 3.2
+  #   y: 0.15
+  #   z: -0.25
   drafting_table:
-    x: 2.5
+    x: 2.4
     y: 2.7
     z: -0.25
     yaw: 0.2
