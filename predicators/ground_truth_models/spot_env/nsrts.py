@@ -152,14 +152,14 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         # It may be okay to change these values, but one needs to be careful!
         assert abs(state.get(surf_to_place_on, "x") - 2.4) < 1e-3
         assert abs(state.get(surf_to_place_on, "y") - 2.7) < 1e-3
-        dy = rng.uniform(0.05, 0.15)
+        dy = rng.uniform(0.05, 0.1)
     else:
         dy = rand_y - state.get(surf_to_place_on, "y")
     dz = 0.15
     # If we're placing the cup, we want to reduce the z
     # height for placing so the cup rests stably.
     if len(objs) == 3 and objs[1].name == "cup":
-        dz = 0.08
+        dz = 0.05
     return np.array([dx, dy, dz])
 
 
