@@ -46,7 +46,7 @@ known-immovable-objects:
     x: 2.4
     y: 2.7
     z: -0.25
-    yaw: 0.2
+    yaw: 0.1
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
   # play_table:

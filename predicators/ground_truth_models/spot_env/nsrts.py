@@ -153,6 +153,7 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         assert abs(state.get(surf_to_place_on, "x") - 2.4) < 1e-3
         assert abs(state.get(surf_to_place_on, "y") - 2.7) < 1e-3
         dy = rng.uniform(0.05, 0.1)
+        print("DY:", dy)
     else:
         dy = rand_y - state.get(surf_to_place_on, "y")
     dz = 0.1
