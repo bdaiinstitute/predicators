@@ -152,7 +152,7 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         # It may be okay to change these values, but one needs to be careful!
         assert abs(state.get(surf_to_place_on, "x") - 2.4) < 1e-3
         assert abs(state.get(surf_to_place_on, "y") - 2.7) < 1e-3
-        dy = rng.uniform(0.1, 0.2)
+        dy = rng.uniform(0.05, 0.15)
     else:
         dy = rand_y - state.get(surf_to_place_on, "y")
     dz = 0.15
