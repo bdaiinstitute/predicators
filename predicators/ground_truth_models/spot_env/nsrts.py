@@ -144,14 +144,22 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
     del goal
     surf_to_place_on = objs[2]
     surf_geom = object_to_top_down_geom(surf_to_place_on, state)
-    rand_x, rand_y = surf_geom.sample_random_point(rng, 0.08)
+    rand_x, rand_y = surf_geom.sample_random_point(rng, 0.04)
     dx = rand_x - state.get(surf_to_place_on, "x")
-    dy = rand_y - state.get(surf_to_place_on, "y")
+    if surf_to_place_on.name == "drafting_table":
+        # For placing on the table, bias towards the top.
+        # This makes a strong assumption about the world frame.
+        assert state.get(surf_to_place_on, "width") > \
+            state.get(surf_to_place_on, "length") and \
+            abs(state.get(surf_to_place_on, "yaw")) < 1
+        dy = rng.uniform(0.1, 0.2)
+    else:
+        dy = rand_y - state.get(surf_to_place_on, "y")
     dz = 0.15
     # If we're placing the cup, we want to reduce the z
     # height for placing so the cup rests stably.
     if len(objs) == 3 and objs[1].name == "cup":
-        dz = 0.0
+        dz = 0.08
     return np.array([dx, dy, dz])
 
 
