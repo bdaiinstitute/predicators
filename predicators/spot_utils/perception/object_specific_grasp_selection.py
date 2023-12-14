@@ -103,14 +103,20 @@ def _get_cup_grasp_pixel(
         convolved_smoothed_mask == convolved_smoothed_mask.max())
     pixels_in_mask = np.where(surrounded_mask)
 
-    # Randomly select whether to grasp on the right or the top.
-    grasp_modality = rng.choice(["right", "top"])
+    # Randomly select whether to grasp on the right, left, or top.
+    grasp_modality = rng.choice(["right", "left", "top"])
 
     if grasp_modality == "top":
         # Select a pixel near the top of the ring.
         percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
         idx = np.argsort(pixels_in_mask[0])[percentile_idx]
+    elif grasp_modality == "left":
+        # Finally, select a point in the upper percentile (towards the
+        # right center of the cup).
+        percentile_idx = int(len(pixels_in_mask[0]) / 20)  # 5th percentile
+        idx = np.argsort(pixels_in_mask[1])[percentile_idx]
     else:
+        assert grasp_modality == "right"
         # Finally, select a point in the upper percentile (towards the
         # right center of the cup).
         percentile_idx = int(len(pixels_in_mask[0]) /
