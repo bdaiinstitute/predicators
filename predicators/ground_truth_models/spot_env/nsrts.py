@@ -150,7 +150,7 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         # For placing on the table, bias towards the top.
         # This makes a strong assumption about the world frame.
         assert state.get(surf_to_place_on, "width") > \
-            state.get(surf_to_place_on, "length"):
+            state.get(surf_to_place_on, "length")
         dy = rng.uniform(0.1, 0.2)
     else:
         dy = rand_y - state.get(surf_to_place_on, "y")
