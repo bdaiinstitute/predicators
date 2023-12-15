@@ -69,26 +69,35 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
                             grasp_map: Image) -> Image:
     option_name = param_option.name
     approach_save_path = utils.get_approach_save_path_str()
-    save_path = f"{approach_save_path}_{option_name}_" + \
-        f"{online_learning_cycle}.sampler_classifier"
-    if not os.path.exists(save_path):
+    save_path = f"{approach_save_path}_{option_name}_{online_learning_cycle}"
+    if CFG.active_sampler_learning_object_specific_samplers:
+        suffix = f"(robot:robot, {target_object}, floor:immovable)"
+        save_path = f"{save_path}_{suffix}"
+    classifier_save_path = f"{save_path}.sampler_classifier"
+    if not os.path.exists(classifier_save_path):
         raise FileNotFoundError
-    with open(save_path, "rb") as f:
+    with open(classifier_save_path, "rb") as f:
         classifier = pkl.load(f)
-    print(f"Loaded sampler classifier from {save_path}.")
-    save_path = f"{approach_save_path}_{option_name}_" + \
-        f"{online_learning_cycle}.sampler_classifier_data"
-    if not os.path.exists(save_path):
-        raise FileNotFoundError(f"File does not exist: {save_path}")
-    with open(save_path, "rb") as f:
+    print(f"Loaded sampler classifier from {classifier_save_path}.")
+    data_save_path = f"{save_path}.sampler_classifier_data"
+    if not os.path.exists(data_save_path):
+        raise FileNotFoundError(f"File does not exist: {data_save_path}")
+    with open(data_save_path, "rb") as f:
         data = pkl.load(f)
-    print(f"Loaded sampler classifier training data from {save_path}.")
+    print(f"Loaded sampler classifier training data from {data_save_path}.")
 
     cmap = colormaps.get_cmap('RdYlGn')
     norm = Normalize(vmin=0.0, vmax=1.0)
 
     # Extract the candidates for this object.
-    candidates = [x for x in data[0] if int(x[1]) == object_id]
+    if not CFG.active_sampler_learning_object_specific_samplers:
+        candidates = [x for x in data[0] if int(x[1]) == object_id]
+        r_idx = 2
+        c_idx = 3
+    else:
+        candidates = [x for x in data[0]]
+        r_idx = 1
+        c_idx = 2
 
     # Classify the candidates.
     predictions = []
@@ -114,7 +123,8 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
     ax.set_title("Ground Truth")
     ax.imshow(grasp_map, cmap="RdYlGn", vmin=0, vmax=1, alpha=0.25)
     for candidate, prediction in zip(candidates, predictions):
-        r, c = candidate[2:4]
+        r = candidate[r_idx]
+        c = candidate[c_idx]
         color = cmap(norm(prediction))
         circle = plt.Circle((c, r), radius, color=color, alpha=1.0)
         ax.add_patch(circle)
@@ -126,8 +136,8 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
         for r in range(predicted_grasp_map.shape[0]):
             for c in range(predicted_grasp_map.shape[1]):
                 x = candidates[0].copy()
-                x[2] = r
-                x[3] = c
+                x[r_idx] = r
+                x[c_idx] = c
                 y = classifier.predict_proba(x)
                 predicted_grasp_map[r, c] = y
         ax.imshow(predicted_grasp_map,
