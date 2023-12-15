@@ -357,9 +357,9 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                     sampler_input_lst.append(object_id)
                 sampler_input_lst.extend(params)
             elif "Place" in param_option.name and "OnTop" in param_option.name:
+                surface_obj = objects[2]
                 if not CFG.active_sampler_learning_object_specific_samplers:
                     held_obj = objects[1]
-                    surface_obj = objects[2]
                     sampler_input_lst.append(state.get(held_obj, "object_id"))
                     sampler_input_lst.append(
                         state.get(surface_obj, "object_id"))
