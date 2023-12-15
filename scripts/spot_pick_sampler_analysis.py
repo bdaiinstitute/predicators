@@ -81,7 +81,7 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
             if not CFG.active_sampler_learning_object_specific_samplers:
                 candidates = [x for x in data[0] if int(x[1]) == object_id]
             else:
-                candidates = [x for x in data[0]]
+                candidates = list(data[0])
     else:
         candidates = []
 
