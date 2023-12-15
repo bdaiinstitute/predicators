@@ -351,18 +351,15 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
             if "Sweep" in param_option.name:
                 sampler_input_lst.extend(params)
             elif "Pick" in param_option.name:
-                if not CFG.active_sampler_learning_object_specific_samplers:
-                    target_obj = objects[1]
-                    object_id = state.get(target_obj, "object_id")
-                    sampler_input_lst.append(object_id)
+                target_obj = objects[1]
+                object_id = state.get(target_obj, "object_id")
+                sampler_input_lst.append(object_id)
                 sampler_input_lst.extend(params)
             elif "Place" in param_option.name and "OnTop" in param_option.name:
+                held_obj = objects[1]
                 surface_obj = objects[2]
-                if not CFG.active_sampler_learning_object_specific_samplers:
-                    held_obj = objects[1]
-                    sampler_input_lst.append(state.get(held_obj, "object_id"))
-                    sampler_input_lst.append(
-                        state.get(surface_obj, "object_id"))
+                sampler_input_lst.extend([state.get(held_obj, "object_id")])
+                sampler_input_lst.extend([state.get(surface_obj, "object_id")])
                 if surface_obj.type.name == "drafting_table":
                     sampler_input_lst.extend([
                         state.get(surface_obj, "sticky-region-x"),
@@ -375,20 +372,9 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 sampler_input_lst.extend(params[:2])
             else:
                 base_feat_names = [
-                    "x",
-                    "y",
-                    "z",
-                    "qw",
-                    "qx",
-                    "qy",
-                    "qz",
-                    "shape",
-                    "height",
-                    "width",
-                    "length",
+                    "x", "y", "z", "qw", "qx", "qy", "qz", "shape", "height",
+                    "width", "length", "object_id"
                 ]
-                if not CFG.active_sampler_learning_object_specific_samplers:
-                    base_feat_names.append("object_id")
                 for obj in objects:
                     if obj.type.name == "robot":
                         sampler_input_lst.extend(state[obj])
@@ -462,6 +448,15 @@ class LineSegment(_Geom2D):
             min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
         assert min_dist_from_edge == 0.0, "not yet implemented" + \
             " non-infinite min_dist_from_edge"
+        line_slope = (self.y2 - self.y1) / (self.x2 - self.x1)
+        y_intercept = self.y2 - (line_slope * self.x2)
+        random_x_point = rng.uniform(self.x1, self.x2)
+        random_y_point_on_line = line_slope * random_x_point + y_intercept
+        assert self.contains_point(random_x_point, random_y_point_on_line)
+        return (random_x_point, random_y_point_on_line)
+
+    def sample_random_point(self,
+                            rng: np.random.Generator) -> Tuple[float, float]:
         line_slope = (self.y2 - self.y1) / (self.x2 - self.x1)
         y_intercept = self.y2 - (line_slope * self.x2)
         random_x_point = rng.uniform(self.x1, self.x2)
