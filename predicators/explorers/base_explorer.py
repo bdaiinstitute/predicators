@@ -99,7 +99,7 @@ class BaseExplorer(abc.ABC):
             logging.info(
                 "[Explorer Spot Wrapper] Giving control to base policy."
             )  # pragma: no cover
-            return policy(state)
+            return policy(state) # pragma: no cover
 
         # Terminate after the given number of steps.
         remaining_steps = self._max_steps_before_termination
