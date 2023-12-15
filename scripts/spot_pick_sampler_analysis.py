@@ -48,16 +48,10 @@ def _main() -> None:
         # Set up videos.
         video_frames = []
         # Evaluate samplers for each learning cycle.
-        online_learning_cycle = 0
-        while True:
-            try:
-                img = _run_one_cycle_analysis(online_learning_cycle, obj,
-                                              obj_id, option, obj_mask,
-                                              grasp_map)
-                video_frames.append(img)
-            except FileNotFoundError:
-                break
-            online_learning_cycle += 1
+        for online_learning_cycle in range(CFG.num_online_learning_cycles):
+            img = _run_one_cycle_analysis(online_learning_cycle, obj, obj_id,
+                                          option, obj_mask, grasp_map)
+            video_frames.append(img)
         # Save the videos.
         video_outfile = f"spot_pick_sampler_learning_{obj.name}.mp4"
         utils.save_video(video_outfile, video_frames)
@@ -74,28 +68,30 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
         suffix = f"(robot:robot, {target_object}, floor:immovable)"
         save_path = f"{save_path}_{suffix}"
     classifier_save_path = f"{save_path}.sampler_classifier"
-    if not os.path.exists(classifier_save_path):
-        raise FileNotFoundError
-    with open(classifier_save_path, "rb") as f:
-        classifier = pkl.load(f)
-    print(f"Loaded sampler classifier from {classifier_save_path}.")
+    if os.path.exists(classifier_save_path):
+        with open(classifier_save_path, "rb") as f:
+            classifier = pkl.load(f)
+        print(f"Loaded sampler classifier from {classifier_save_path}.")
     data_save_path = f"{save_path}.sampler_classifier_data"
-    if not os.path.exists(data_save_path):
-        raise FileNotFoundError(f"File does not exist: {data_save_path}")
-    with open(data_save_path, "rb") as f:
-        data = pkl.load(f)
-    print(f"Loaded sampler classifier training data from {data_save_path}.")
+    if os.path.exists(data_save_path):
+        with open(data_save_path, "rb") as f:
+            data = pkl.load(f)
+            print(f"Loaded classifier training data from {data_save_path}.")
+            # Extract the candidates for this object.
+            if not CFG.active_sampler_learning_object_specific_samplers:
+                candidates = [x for x in data[0] if int(x[1]) == object_id]
+            else:
+                candidates = [x for x in data[0]]
+    else:
+        candidates = []
 
     cmap = colormaps.get_cmap('RdYlGn')
     norm = Normalize(vmin=0.0, vmax=1.0)
 
-    # Extract the candidates for this object.
     if not CFG.active_sampler_learning_object_specific_samplers:
-        candidates = [x for x in data[0] if int(x[1]) == object_id]
         r_idx = 2
         c_idx = 3
     else:
-        candidates = [x for x in data[0]]
         r_idx = 1
         c_idx = 2
 
