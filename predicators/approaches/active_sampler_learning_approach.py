@@ -486,9 +486,8 @@ class _ClassifierEnsembleWrappedSamplerLearner(_WrappedSamplerLearner):
         classifier.fit(X_arr_classifier, y_arr_classifier)
 
         # Save the sampler classifier for external analysis.
-        approach_save_path = utils.get_approach_save_path_str()
-        save_path = f"{approach_save_path}_{nsrt.name}_" + \
-            f"{self._online_learning_cycle}.sampler_classifier"
+        save_id = self._get_save_id(nsrt.name)
+        save_path = f"{save_id}.sampler_classifier"
         with open(save_path, "wb") as f:
             pkl.dump(classifier, f)
         logging.info(f"Saved sampler classifier to {save_path}.")
@@ -549,9 +548,8 @@ class _FittedQWrappedSamplerLearner(_WrappedSamplerLearner):
         # Run regression.
         regressor = self._fit_regressor(regressor_data)
         # Save the sampler regressor for external analysis.
-        approach_save_path = utils.get_approach_save_path_str()
-        save_path = f"{approach_save_path}_{nsrt.name}_" + \
-            f"{self._online_learning_cycle}.sampler_regressor"
+        save_id = self._get_save_id(nsrt.name)
+        save_path = f"{save_id}.sampler_regressor"
         with open(save_path, "wb") as f:
             pkl.dump(regressor, f)
         logging.info(f"Saved sampler regressor to {save_path}.")
