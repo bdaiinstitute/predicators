@@ -125,6 +125,9 @@ def _get_cup_grasp_pixel(
     dy = pixel[1] - center_pixel[1]
     dx = pixel[0] - center_pixel[0]
     angle = np.arctan2(dx, -dy)
+    roll = math_helpers.Quat.from_roll(angle)  # NOTE: (njk) used to be - angle
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    rot_quat = pitch * roll  # NOTE: order is super important here!
 
     del rgbds  # not used, except for debugging
     # Uncomment for debugging. Make sure also to not del rgbds (above).
@@ -139,10 +142,6 @@ def _get_cup_grasp_pixel(
     # cv2.imshow("Selected grasp", bgr)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-
-    yaw = math_helpers.Quat.from_yaw(-angle)
-    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
-    rot_quat = yaw * pitch
 
     return pixel, rot_quat
 
