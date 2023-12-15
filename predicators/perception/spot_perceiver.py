@@ -173,7 +173,8 @@ class SpotPerceiver(BasePerceiver):
         self._known_object_poses.update(observation.objects_in_view)
         self._objects_in_view = set(observation.objects_in_view)
         self._objects_in_hand_view = observation.objects_in_hand_view
-        self._objects_in_any_view_except_back = observation.objects_in_any_view_except_back
+        self._objects_in_any_view_except_back = \
+            observation.objects_in_any_view_except_back
         self._nonpercept_atoms = observation.nonpercept_atoms
         self._nonpercept_predicates = observation.nonpercept_predicates
         self._gripper_open_percentage = observation.gripper_open_percentage
