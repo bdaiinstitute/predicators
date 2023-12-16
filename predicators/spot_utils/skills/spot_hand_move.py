@@ -139,9 +139,8 @@ if __name__ == "__main__":
             math_helpers.Quat.from_roll(np.pi / 2))
 
         print(
-            "Moving to a pose that looks down and rotates the gripper to the " +
-            "right."
-        )
+            "Moving to a pose that looks down and rotates the gripper to the "
+            + "right.")
         move_hand_to_relative_pose(robot, looking_down_and_rotated_right_pose)
         input("Press enter when ready to move on")
 

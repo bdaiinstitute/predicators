@@ -98,10 +98,7 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
         # Plot sampled data
         for y in len_vals:
             for x in wid_vals:
-                sampler_input = [
-                    1.0, sticky_region_x,
-                    sticky_region_y, x, y
-                ]
+                sampler_input = [1.0, sticky_region_x, sticky_region_y, x, y]
                 score = classifier.predict_proba(np.array(sampler_input))
                 color = cmap(norm(score))
                 circle = plt.Circle((x, y), 0.015, color=color, alpha=0.1)
