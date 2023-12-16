@@ -67,7 +67,8 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
         table_geom.plot(gt_ax, **{'fill': None, 'alpha': 1})
         table_geom.plot(sampled_ax, **{'fill': None, 'alpha': 1})
         option_name = "PlaceObjectOnTop"
-        option_args = "(robot:robot, cup:container, drafting_table:drafting_table)"
+        option_args = "(robot:robot, cup:container, " + \
+            "drafting_table:drafting_table)"
         approach_save_path = utils.get_approach_save_path_str()
         cls_save_path = f"{approach_save_path}_{option_name}_" + \
             f"{online_learning_cycle}_{option_args}.sampler_classifier"
