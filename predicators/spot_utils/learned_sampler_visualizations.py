@@ -21,7 +21,7 @@ def _main() -> None:
     # Parse & validate args
     args = utils.parse_args()
     utils.update_config(args)
-    cycles_to_plot = [0, 1, 2, 3, 4]
+    cycles_to_plot = [0, 1, 2, 3, 4, 5]
     imgs = visualize_cup_table_place_samplers(cycles_to_plot, 25)
     for t, img in zip(cycles_to_plot, imgs):
         img_outfile = f"videos/cup_table_active_sampler_learning_cycle_{t}.png"
@@ -35,8 +35,6 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
     different online learning cycles."""
     assert CFG.env == "spot_ball_and_cup_sticky_table_env"
     assert CFG.active_sampler_learning_feature_selection == "oracle"
-    cup_obj_idx = 1.0
-    table_obj_idx = 2.0
     cmap = colormaps.get_cmap('RdYlGn')
     norm = Normalize(vmin=0.0, vmax=1.0)
     drafting_table_feats = load_spot_metadata(
@@ -69,38 +67,39 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
         table_geom.plot(gt_ax, **{'fill': None, 'alpha': 1})
         table_geom.plot(sampled_ax, **{'fill': None, 'alpha': 1})
         option_name = "PlaceObjectOnTop"
+        option_args = "(robot:robot, cup:container, drafting_table:drafting_table)"
         approach_save_path = utils.get_approach_save_path_str()
         cls_save_path = f"{approach_save_path}_{option_name}_" + \
-            f"{online_learning_cycle}.sampler_classifier"
+            f"{online_learning_cycle}_{option_args}.sampler_classifier"
         cls_data_save_path = f"{approach_save_path}_{option_name}_" + \
-            f"{online_learning_cycle}.sampler_classifier_data"
+            f"{online_learning_cycle}_{option_args}.sampler_classifier_data"
         if not os.path.exists(cls_save_path) or not os.path.exists(
                 cls_data_save_path):
-            raise FileNotFoundError
+            print(f"Didn't find data for cycle {online_learning_cycle}")
+            continue
         with open(cls_save_path, "rb") as f:
             classifier = pkl.load(f)
         with open(cls_data_save_path, "rb") as f:
             classifier_data = pkl.load(f)
         print(f"Loaded sampler classifier and data from {cls_save_path}.")
-        assert len(classifier_data[0][0]) == 7
+        assert len(classifier_data[0][0]) == 5
 
         # Plot actual training data.
         for i in range(len(classifier_data[0])):
             datapoint = classifier_data[0][i]
             correctness = classifier_data[1][i]
-            if datapoint[1] == cup_obj_idx and datapoint[2] == table_obj_idx:
-                color = cmap(norm(correctness))
-                circle = plt.Circle((datapoint[5], datapoint[6]),
-                                    0.009,
-                                    color=color,
-                                    alpha=0.9)
-                gt_ax.add_patch(circle)
+            color = cmap(norm(correctness))
+            circle = plt.Circle((datapoint[3], datapoint[4]),
+                                0.009,
+                                color=color,
+                                alpha=0.9)
+            gt_ax.add_patch(circle)
 
         # Plot sampled data
         for y in len_vals:
             for x in wid_vals:
                 sampler_input = [
-                    1.0, cup_obj_idx, table_obj_idx, sticky_region_x,
+                    1.0, sticky_region_x,
                     sticky_region_y, x, y
                 ]
                 score = classifier.predict_proba(np.array(sampler_input))
