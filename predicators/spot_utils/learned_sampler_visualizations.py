@@ -21,7 +21,7 @@ def _main() -> None:
     # Parse & validate args
     args = utils.parse_args()
     utils.update_config(args)
-    cycles_to_plot = [0, 1, 2, 3, 4, 5]
+    cycles_to_plot = [0, 1, 2, 3, 4]
     imgs = visualize_cup_table_place_samplers(cycles_to_plot, 25)
     for t, img in zip(cycles_to_plot, imgs):
         img_outfile = f"videos/cup_table_active_sampler_learning_cycle_{t}.png"
@@ -62,6 +62,8 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
                             drafting_table_wid / 2 + 0.1)
         sampled_ax.set_ylim(-drafting_table_len / 2 - 0.1,
                             drafting_table_len / 2 + 0.1)
+        gt_ax.set_aspect('equal', adjustable='box')
+        sampled_ax.set_aspect('equal', adjustable='box')
         table_geom = utils.Rectangle.from_center(0.0, 0.0, drafting_table_wid,
                                                  drafting_table_len, 0.0)
         table_geom.plot(gt_ax, **{'fill': None, 'alpha': 1})
