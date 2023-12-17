@@ -54,8 +54,7 @@ def _create_image(data: Dict,
 
         obj_str = ", ".join([o.name for o in skill.objects])
         skill_title = f"{skill.name}({obj_str})"
-        if skill_title in _SKILL_NAME_REPLACEMENTS:
-            skill_title = _SKILL_NAME_REPLACEMENTS[skill_title]
+        skill_title = _SKILL_NAME_REPLACEMENTS.get(skill_title, skill_title)
         title_kwargs = {}
         if (skill.name, skill.objects) == practice_id:
             title_kwargs["fontweight"] = "bold"
@@ -101,8 +100,7 @@ def _main() -> None:
     # Create the video.
     print("Creating the video...")
     clips = []
-    for i, (timestamp, duration) in enumerate(zip(sorted_timestamps,
-                                                  durations)):
+    for (timestamp, duration) in zip(sorted_timestamps, durations):
         image = timestamp_to_image[timestamp]
         clip = ImageClip(image, duration=duration)
         clips.append(clip)
