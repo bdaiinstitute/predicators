@@ -65,7 +65,9 @@ def _get_ball_grasp_pixel(
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
     pixel = (pixels_in_mask[1][-1], pixels_in_mask[0][-1])
-    return pixel, None
+    # Force a forward top-down grasp.
+    rot_quat = math_helpers.Quat.from_pitch(np.pi / 2)
+    return pixel, rot_quat
 
 
 def _get_cup_grasp_pixel(
