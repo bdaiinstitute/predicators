@@ -18,10 +18,6 @@ ENVS:
       active_sampler_learning_object_specific_samplers: True
 ARGS:
   - "debug"
-  # TODO remove!!
-  - "load_data"
-  - "load_approach"
-  - "restart_learning"
 FLAGS:
   strips_learner: "oracle"
   sampler_learner: "oracle"
@@ -49,7 +45,5 @@ FLAGS:
   num_online_learning_cycles: 100
   sesame_task_planner: "fdopt-costs"
   sesame_grounder: "fd_translator"
-  # TODO remove!!
-  skip_until_cycle: 4
-START_SEED: 124
+START_SEED: 123
 NUM_SEEDS: 1
