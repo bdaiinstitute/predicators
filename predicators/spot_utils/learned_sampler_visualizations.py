@@ -87,8 +87,6 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
         print(f"Loaded sampler classifier and data from {cls_save_path}.")
         assert len(classifier_data[0][0]) == 5
 
-        import ipdb; ipdb.set_trace()
-
         # Plot actual training data.
         for i in range(len(classifier_data[0])):
             datapoint = classifier_data[0][i]

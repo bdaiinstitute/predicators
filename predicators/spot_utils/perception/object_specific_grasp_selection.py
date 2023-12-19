@@ -68,7 +68,7 @@ def _get_ball_grasp_pixel(
     # Force a forward top-down grasp.
     roll = math_helpers.Quat.from_roll(np.pi / 2)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
-    return pixel, pitch * roll # NOTE: order is super important here!
+    return pixel, pitch * roll  # NOTE: order is super important here!
 
 
 def _get_cup_grasp_pixel(
