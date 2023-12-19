@@ -73,9 +73,9 @@ def visualize_cup_table_place_samplers(online_learning_cycles: List,
             "drafting_table:drafting_table)"
         save_path = f"{CFG.approach_dir}/{CFG.experiment_id}_{option_name}"
         cls_save_path = save_path + \
-            f"{online_learning_cycle}_{option_args}.sampler_classifier"
+            f"_{online_learning_cycle}_{option_args}.sampler_classifier"
         cls_data_save_path = save_path + \
-            f"{online_learning_cycle}_{option_args}.sampler_classifier_data"
+            f"_{online_learning_cycle}_{option_args}.sampler_classifier_data"
         if not os.path.exists(cls_save_path) or not os.path.exists(
                 cls_data_save_path):
             print(f"Didn't find data for cycle {online_learning_cycle}")
