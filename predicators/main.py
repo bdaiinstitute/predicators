@@ -207,12 +207,12 @@ def _run_pipeline(env: BaseEnv,
                 logging.info("Getting interaction requests...")
                 if num_online_transitions >= CFG.online_learning_max_transitions:
                     logging.info("Reached online_learning_max_transitions, "
-                                "terminating")
+                                 "terminating")
                     break
                 interaction_requests = cogman.get_interaction_requests()
                 if not interaction_requests:
                     logging.info("Did not receive any interaction requests, "
-                                "terminating")
+                                 "terminating")
                     break  # agent doesn't want to learn anything more; terminate
                 interaction_results, query_cost = _generate_interaction_results(
                     cogman, env, teacher, interaction_requests, i)
