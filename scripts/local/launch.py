@@ -25,7 +25,7 @@ def _main() -> None:
     # Warning.
     while True:
         res = input("WARNING: your saved data and approaches are about to be "
-                    "permanently erased. Do you want to continue? [y/n]")
+                    "permanently erased. Do you want to continue? [y/n]\n")
         if res == "y":
             break
         if res == "n":
