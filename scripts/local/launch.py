@@ -22,10 +22,7 @@ def _main() -> None:
     parser.add_argument("--config", required=True, type=str)
     parser.add_argument("--branch", type=str, default=DEFAULT_BRANCH)
     args = parser.parse_args()
-    # Prepare the repo.
-    for cmd in get_cmds_to_prep_repo(args.branch):
-        subprocess.run(cmd, shell=True, check=False)
-    # Create the run commands.
+    # Warning.
     while True:
         res = input("WARNING: your saved data and approaches are about to be "
                     "permanently erased. Do you want to continue? [y/n]")
@@ -33,6 +30,10 @@ def _main() -> None:
             break
         if res == "n":
             sys.exit(0)
+    # Prepare the repo.
+    for cmd in get_cmds_to_prep_repo(args.branch):
+        subprocess.run(cmd, shell=True, check=False)
+    # Create the run commands.
     cmds = []
     for cfg in generate_run_configs(args.config):
         cmd_flags = config_to_cmd_flags(cfg)
