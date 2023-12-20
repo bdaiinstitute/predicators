@@ -68,6 +68,16 @@ def _get_ball_grasp_pixel(
     # Force a forward top-down grasp.
     roll = math_helpers.Quat.from_roll(np.pi / 2)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+
+    # # Uncomment for debugging. Make sure also to not del rgbds (above).
+    # import cv2
+    # rgbd = rgbds[camera_name]
+    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
     return pixel, pitch * roll  # NOTE: order is super important here!
 
 
