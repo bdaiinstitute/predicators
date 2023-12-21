@@ -3,6 +3,7 @@
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
+import scipy
 from bosdyn.client import math_helpers
 from scipy.ndimage import convolve
 
@@ -115,7 +116,32 @@ def _get_cup_grasp_pixel(
     pixels_in_mask = np.where(surrounded_mask)
 
     # Randomly select whether to grasp on the right or the top.
-    grasp_modality = rng.choice(["right", "top"])
+    # grasp_modality = rng.choice(["left", "right"])
+    # # First, select a pixel near the bottom of the ring.
+    # percentile_idx = int(len(pixels_in_mask[0]) * 0.05)  # 50th percentile
+    # bottom_pixel_val = pixels_in_mask[0][np.argsort(
+    #     pixels_in_mask[0])[percentile_idx]]
+    # if grasp_modality == "left":
+    #     # Select a pixel near the left
+    #     percentile_idx = int(len(pixels_in_mask[1]) / 20)  # 5th percentile
+    #     side_pixel_val = pixels_in_mask[1][np.argsort(
+    #         pixels_in_mask[1])[percentile_idx]]
+    # else:
+    #     # Finally, select a point in the upper percentile (towards the
+    #     # right center of the cup).
+    #     percentile_idx = int(len(pixels_in_mask[1]) /
+    #                          1.0526)  # 95th percentile
+    #     side_pixel_val = pixels_in_mask[1][np.argsort(
+    #         pixels_in_mask[1])[percentile_idx]]
+    # print(f"Picking grasp on {grasp_modality} side of ring.")
+    # mask_pixel_array = np.dstack(pixels_in_mask)[0]
+    # idx_of_bottom_side_pixel = scipy.spatial.distance.cdist(
+    #     mask_pixel_array, np.array([[bottom_pixel_val,
+    #                                  side_pixel_val]])).argmin()
+    # pixel = (pixels_in_mask[1][idx_of_bottom_side_pixel],
+    #          pixels_in_mask[0][idx_of_bottom_side_pixel])
+    # grasp_modality = rng.choice(["right", "top"])
+    grasp_modality = "top"
 
     if grasp_modality == "top":
         # Select a pixel near the top of the ring.
@@ -139,20 +165,21 @@ def _get_cup_grasp_pixel(
     roll = math_helpers.Quat.from_roll(angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     rot_quat = pitch * roll  # NOTE: order is super important here!
+    print(angle)
 
-    del rgbds  # not used, except for debugging
+    # del rgbds  # not used, except for debugging
     # Uncomment for debugging. Make sure also to not del rgbds (above).
-    # import cv2
-    # rgbd = rgbds[camera_name]
-    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
-    # cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
-    # cv2.arrowedLine(bgr, center_pixel,
-    #                 (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
-    #                 5)
-    # cv2.imshow("Selected grasp", bgr)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    import cv2
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
+    cv2.arrowedLine(bgr, center_pixel,
+                    (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
+                    5)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     return pixel, rot_quat
 
