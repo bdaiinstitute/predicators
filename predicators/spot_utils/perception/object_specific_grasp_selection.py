@@ -165,7 +165,6 @@ def _get_cup_grasp_pixel(
     roll = math_helpers.Quat.from_roll(angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     rot_quat = pitch * roll  # NOTE: order is super important here!
-    print(angle)
 
     del rgbds  # not used, except for debugging
     # Uncomment for debugging. Make sure also to not del rgbds (above).
