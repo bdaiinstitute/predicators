@@ -25,12 +25,16 @@ def grasp_at_pixel(
     rot_thresh: float = 0.17,
     move_while_grasping: bool = True,
     timeout: float = 20.0,
+    retry_with_no_constraints: bool = False
 ) -> None:
     """Grasp an object at a specified pixel in the RGBD image, which should be
     from the hand camera and should be up to date with the robot's state.
 
     The `move_while_grasping` param dictates whether we're allowing the
     robot to automatically move its feet while grasping or not.
+
+    The `retry_with_no_constraints` dictates whether after failing to grasp we
+    try again but with all constraints on the grasp removed.
     """
     assert rgbd.camera_name == "hand_color_image"
 
@@ -93,7 +97,6 @@ def grasp_at_pixel(
     if (time.perf_counter() - start_time) > timeout:
         logging.warning("Timed out waiting for grasp to execute!")
 
-    # TODO: consider using this if it's useful.
     if response.current_state in [manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_NO_SOLUTION, manipulation_api_pb2.MANIP_STATE_GRASP_FAILED]:
         grasp = manipulation_api_pb2.PickObjectInImage(
         pixel_xy=pick_vec,

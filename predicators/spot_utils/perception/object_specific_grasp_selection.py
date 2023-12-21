@@ -140,8 +140,8 @@ def _get_cup_grasp_pixel(
     #                                  side_pixel_val]])).argmin()
     # pixel = (pixels_in_mask[1][idx_of_bottom_side_pixel],
     #          pixels_in_mask[0][idx_of_bottom_side_pixel])
-    # grasp_modality = rng.choice(["right", "top"])
-    grasp_modality = "top"
+
+    grasp_modality = rng.choice(["right", "top"])
 
     if grasp_modality == "top":
         # Select a pixel near the top of the ring.
@@ -167,19 +167,19 @@ def _get_cup_grasp_pixel(
     rot_quat = pitch * roll  # NOTE: order is super important here!
     print(angle)
 
-    # del rgbds  # not used, except for debugging
+    del rgbds  # not used, except for debugging
     # Uncomment for debugging. Make sure also to not del rgbds (above).
-    import cv2
-    rgbd = rgbds[camera_name]
-    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
-    cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
-    cv2.arrowedLine(bgr, center_pixel,
-                    (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
-                    5)
-    cv2.imshow("Selected grasp", bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # import cv2
+    # rgbd = rgbds[camera_name]
+    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.circle(bgr, center_pixel, 5, (255, 0, 0), -1)
+    # cv2.arrowedLine(bgr, center_pixel,
+    #                 (center_pixel[0] + dx, center_pixel[1] + dy), (255, 0, 0),
+    #                 5)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     return pixel, rot_quat
 
