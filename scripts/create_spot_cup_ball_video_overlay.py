@@ -16,20 +16,38 @@ from predicators.structs import Image, _GroundSTRIPSOperator
 matplotlib.rcParams.update({'font.size': 18})
 
 _SKILL_NAME_REPLACEMENTS = {
-    "MoveToHandViewObject(robot, ball)": "MoveToView\n(robot, ball)",
-    "MoveToHandViewObject(robot, cup)": "MoveToView\n(robot, ring)",
-    "MoveToReachObject(robot, drafting_table)": "MoveToReach\n(robot, table)",
-    "PickObjectFromTop(robot, ball, cup)": "Pick\n(robot, ball, ring)",
-    "PickObjectFromTop(robot, ball, floor)": "Pick\n(robot, ball, floor)",
-    "PlaceObjectOnTop(robot, ball, drafting_table)":
-    "Place\n(robot, ball, table)",
+    "MoveToHandViewObject(robot, ball)": "MoveToView\n(ball)",
+    "MoveToHandViewObject(robot, cup)": "MoveToView\n(ring)",
+    "MoveToReachObject(robot, drafting_table)": "MoveToReach\n(table)",
+    "PickObjectFromTop(robot, ball, cup)": "Pick\n(ball, ring)",
+    "PickObjectFromTop(robot, ball, floor)": "Pick\n(ball, floor)",
+    "PlaceObjectOnTop(robot, ball, drafting_table)": "Place\n(ball, table)",
+    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, cup, table)",
+    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, cup, table)",
+    "MoveToBodyViewObject(robot, cup)": "MoveToView\n(cup)",
+    "MoveToReachObject(robot, floor)": "MoveToReach\n(floor)",
+    "PickAndDumpContainer(robot, cup, drafting_table, ball)": "Dump\n(cup, table, ball)",
+    "PickAndDumpContainer(robot, cup, floor, ball)": "Dump\n(cup, floor, ball)",
+    "PickObjectFromTop(robot, cup, ball)": "Pick\n(cup, ball)",
+    "PickObjectFromTop(robot, cup, drafting_table)": "Pick\n(cup, table)",
+    "PickObjectFromTop(robot, cup, floor)": "Pick\n(cup, floor)",
+    "PlaceObjectOnTop(robot, ball, floor)": "Place\n(ball, floor)",
+    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(cup, floor)",
+    "PlaceObjectOnTop(robot, cup, drafting_table)": "Place\n(cup, table)",
+    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(cup, floor)",
 }
+
+def _skill_to_str(skill: _GroundSTRIPSOperator) -> str:
+    obj_str = ", ".join([o.name for o in skill.objects])
+    skill_title = f"{skill.name}({obj_str})"
+    return _SKILL_NAME_REPLACEMENTS.get(skill_title, skill_title)
 
 
 def _create_image(data: Dict,
                   known_skills: Set[_GroundSTRIPSOperator]) -> Image:
+    
     competence_models = data["competence_models"]
-    sorted_skills = sorted(known_skills)
+    sorted_skills = sorted(known_skills, key=_skill_to_str)
     practice_nsrt = data["next_practice_nsrt"]
     if practice_nsrt:
         practice_id = (practice_nsrt.name, practice_nsrt.objects)
@@ -37,12 +55,13 @@ def _create_image(data: Dict,
         practice_id = None
 
     scale = 3
-    fig, axes = plt.subplots(1,
-                             len(sorted_skills),
-                             figsize=(scale * len(sorted_skills), scale))
+    assert len(sorted_skills) % 2 == 0
+    fig, axes = plt.subplots(2,
+                             len(sorted_skills) // 2,
+                             figsize=(scale * len(sorted_skills) / 2, 2 * scale))
     bar_colors = ['tab:red', 'tab:blue']
 
-    for i, (skill, ax) in enumerate(zip(sorted_skills, axes.flat)):
+    for (skill, ax) in zip(sorted_skills, axes.flat):
         if skill not in competence_models:
             competence_model = OptimisticSkillCompetenceModel("default")
         else:
@@ -52,17 +71,15 @@ def _create_image(data: Dict,
             competence_model.predict_competence(1),
         ]
 
-        obj_str = ", ".join([o.name for o in skill.objects])
-        skill_title = f"{skill.name}({obj_str})"
-        skill_title = _SKILL_NAME_REPLACEMENTS.get(skill_title, skill_title)
+        skill_title = _skill_to_str(skill)
         title_kwargs = {}
         if (skill.name, skill.objects) == practice_id:
             title_kwargs["fontweight"] = "bold"
         ax.set_title(skill_title, **title_kwargs)
         ax.bar(["Current", "Extrap"], values, color=bar_colors)
-        if i == 0:
-            ax.set_ylabel("Competence")
-
+        ax.set_ylim(-0.1, 1.1)
+    
+    fig.supylabel("Competence")
     plt.tight_layout()
     img = utils.fig2data(fig, dpi=150)
     plt.close()
