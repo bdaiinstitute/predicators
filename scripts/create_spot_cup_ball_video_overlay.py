@@ -32,19 +32,19 @@ _SKILL_NAME_REPLACEMENTS = {
     "PickObjectFromTop(robot, ball, cup)": "Pick\n(ball, ring)",
     "PickObjectFromTop(robot, ball, floor)": "Pick\n(ball, floor)",
     "PlaceObjectOnTop(robot, ball, drafting_table)": "Place\n(ball, table)",
-    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, cup, table)",
-    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, cup, table)",
-    "MoveToBodyViewObject(robot, cup)": "MoveToView\n(cup)",
+    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, ring, table)",
+    "DropObjectInsideContainerOnTop(robot, ball, cup, drafting_table)": "DropInside\n(ball, ring, table)",
+    "MoveToBodyViewObject(robot, cup)": "MoveToView\n(ring)",
     "MoveToReachObject(robot, floor)": "MoveToReach\n(floor)",
-    "PickAndDumpContainer(robot, cup, drafting_table, ball)": "Dump\n(cup, table, ball)",
-    "PickAndDumpContainer(robot, cup, floor, ball)": "Dump\n(cup, floor, ball)",
-    "PickObjectFromTop(robot, cup, ball)": "Pick\n(cup, ball)",
-    "PickObjectFromTop(robot, cup, drafting_table)": "Pick\n(cup, table)",
-    "PickObjectFromTop(robot, cup, floor)": "Pick\n(cup, floor)",
+    "PickAndDumpContainer(robot, cup, drafting_table, ball)": "Dump\n(ring, table, ball)",
+    "PickAndDumpContainer(robot, cup, floor, ball)": "Dump\n(ring, floor, ball)",
+    "PickObjectFromTop(robot, cup, ball)": "Pick\n(ring, ball)",
+    "PickObjectFromTop(robot, cup, drafting_table)": "Pick\n(ring, table)",
+    "PickObjectFromTop(robot, cup, floor)": "Pick\n(ring, floor)",
     "PlaceObjectOnTop(robot, ball, floor)": "Place\n(ball, floor)",
-    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(cup, floor)",
-    "PlaceObjectOnTop(robot, cup, drafting_table)": "Place\n(cup, table)",
-    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(cup, floor)",
+    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(ring, floor)",
+    "PlaceObjectOnTop(robot, cup, drafting_table)": "Place\n(ring, table)",
+    "PlaceObjectOnTop(robot, cup, floor)": "Place\n(ring, floor)",
 }
 
 def _skill_to_str(skill: _GroundSTRIPSOperator) -> str:
@@ -87,8 +87,8 @@ def _create_image(data: Dict,
 
         skill_title = _skill_to_str(skill)
         title_kwargs = {}
-        if (skill.name, skill.objects) == practice_id:
-            title_kwargs["fontweight"] = "bold"
+        # if (skill.name, skill.objects) == practice_id:
+        #     title_kwargs["fontweight"] = "bold"
         ax.set_title(skill_title, **title_kwargs)
         ax.bar(["Current", "Extrap"], values, color=bar_colors, hatch=hatches)
         ax.set_ylim(-0.1, 1.1)
