@@ -117,7 +117,7 @@ class ActiveSamplerExplorer(BaseExplorer):
         policy, termination_fn = super().get_exploration_strategy(
             train_task_idx, timeout)
 
-        self._logger.info("***** New Exploration Strategy Created *****")
+        self._log("***** New Exploration Strategy Created *****")
 
         def wrapped_termination_fn(state: State) -> bool:
             terminate = termination_fn(state)
