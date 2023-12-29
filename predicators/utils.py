@@ -349,7 +349,13 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 sampler_input_lst.extend(params)
         elif "spot" in CFG.env:  # pragma: no cover
             if "Sweep" in param_option.name:
-                sampler_input_lst.extend(params)
+                _, _, target, _, container = objects
+                target_pose = get_se3_pose_from_state(state, target)
+                container_pose = get_se3_pose_from_state(state, container)
+                param_x, param_y = params
+                sampler_input_lst.extend([target_pose.x, target_pose.y,
+                                          container_pose.x, container_pose.y,
+                                          param_x, param_y])
             elif "Pick" in param_option.name:
                 if not CFG.active_sampler_learning_object_specific_samplers:
                     target_obj = objects[1]
