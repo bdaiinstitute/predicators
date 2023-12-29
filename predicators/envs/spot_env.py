@@ -288,13 +288,13 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "SweepIntoContainer":
             _, _, target, _, container = action_objs
-            _, _, sweep_start_dx, sweep_start_dy = action_args
+            _, _, sweep_dx, sweep_dy = action_args
             return _dry_simulate_sweep_into_container(obs,
                                                       target,
                                                       container,
                                                       nonpercept_atoms,
-                                                      start_dx=sweep_start_dx,
-                                                      start_dy=sweep_start_dy,
+                                                      dx=sweep_dx,
+                                                      dy=sweep_dy,
                                                       rng=self._noise_rng)
 
         if action_name == "DragToUnblockObject":
@@ -1548,6 +1548,7 @@ def _dry_simulate_drag_to_unblock(
     z = old_held_pose.z
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
+    objects_in_any_view_except_back.add(held_obj)
 
     # Gripper is now empty.
     gripper_open_percentage = 0.0
@@ -1596,6 +1597,7 @@ def _dry_simulate_prepare_container_for_sweeping(
     z = floor_pose.z + container_height / 2
     container_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[container_obj] = container_pose
+    objects_in_any_view_except_back.add(container_obj)
 
     # Gripper is now empty.
     gripper_open_percentage = 0.0
@@ -1618,7 +1620,7 @@ def _dry_simulate_prepare_container_for_sweeping(
 
 def _dry_simulate_sweep_into_container(
         last_obs: _SpotObservation, swept_obj: Object, container: Object,
-        nonpercept_atoms: Set[GroundAtom], start_dx: float, start_dy: float,
+        nonpercept_atoms: Set[GroundAtom], dx: float, dy: float,
         rng: np.random.Generator) -> _SpotObservation:
 
     # Initialize values based on the last observation.

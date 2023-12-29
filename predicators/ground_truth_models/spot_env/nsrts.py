@@ -197,8 +197,8 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
     dx = container_pose.x - target_pose.x
     dy = container_pose.y - target_pose.y
     if not CFG.spot_use_perfect_samplers:
-        dx = dx + rng.uniform(-0.5, 0.5)
-        dy = dy + rng.uniform(-0.5, 0.5)
+        dx = dx + rng.uniform(-0.1, 0.1)
+        dy = dy + rng.uniform(-0.25, 0.25)
     return np.array([dx, dy])
 
 

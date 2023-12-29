@@ -476,25 +476,27 @@ def _sweep_into_container_policy(state: State, memory: Dict,
 
     robot, _, _ = get_robot()
 
-    start_dx, start_dy = params
+    sweep_move_dx, sweep_move_dy= params
 
-    robot_obj = objects[robot_obj_idx]
-    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+    # TODO need to fix this on real robot
+    sweep_start_pose = None
+    # robot_obj = objects[robot_obj_idx]
+    # robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
 
-    target_obj = objects[target_obj_idx]
-    target_pose = utils.get_se3_pose_from_state(state, target_obj)
-    start_dz = 0.0
-    start_x = target_pose.x - robot_pose.x + start_dx
-    start_y = target_pose.y - robot_pose.y + start_dy
-    start_z = target_pose.z - robot_pose.z + start_dz
-    sweep_start_pose = math_helpers.SE3Pose(x=start_x,
-                                            y=start_y,
-                                            z=start_z,
-                                            rot=math_helpers.Quat.from_yaw(
-                                                -np.pi / 2))
-    # Calculate the yaw and distance for the sweep.
-    sweep_move_dx = start_dx
-    sweep_move_dy = -(2 * start_dy)
+    # target_obj = objects[target_obj_idx]
+    # target_pose = utils.get_se3_pose_from_state(state, target_obj)
+    # start_dz = 0.0
+    # start_x = target_pose.x - robot_pose.x + start_dx
+    # start_y = target_pose.y - robot_pose.y + start_dy
+    # start_z = target_pose.z - robot_pose.z + start_dz
+    # sweep_start_pose = math_helpers.SE3Pose(x=start_x,
+    #                                         y=start_y,
+    #                                         z=start_z,
+    #                                         rot=math_helpers.Quat.from_yaw(
+    #                                             -np.pi / 2))
+    # # Calculate the yaw and distance for the sweep.
+    # sweep_move_dx = start_dx
+    # sweep_move_dy = -(2 * start_dy)
 
     # Execute the sweep.
     return utils.create_spot_env_action(
