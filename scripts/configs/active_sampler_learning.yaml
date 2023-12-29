@@ -96,6 +96,7 @@ ENVS:
       spot_run_dry: True
       perceiver: spot_perceiver
       approach_wrapper: spot_wrapper
+      segmenter: "spot"
       active_sampler_learning_explore_pursue_goal_interval: 3
       active_sampler_learning_init_cycles_to_pursue_goal: 5
   # regional_bumpy_cover:
