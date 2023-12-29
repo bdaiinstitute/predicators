@@ -96,20 +96,18 @@ class ActiveSamplerExplorer(BaseExplorer):
         logger_name = f"{utils.get_config_path_str()}-explore"
         self._logger = logging.getLogger(logger_name)
         # Only create the logger once.
-        if not self._logger.hasHandlers():
+        if not self._logger.handlers:
             self._logger.setLevel(logging.DEBUG)
             os.makedirs(CFG.log_dir, exist_ok=True)
             fh = logging.FileHandler(f"{CFG.log_dir}/{logger_name}.log")
             fh.setLevel(logging.DEBUG)
             self._logger.addHandler(fh)
 
-
     @classmethod
     def get_name(cls) -> str:
         return "active_sampler"
 
     def _log(self, msg: str) -> None:
-        logging.info(msg)
         self._logger.info(msg)
 
     def get_exploration_strategy(self, train_task_idx: int,
