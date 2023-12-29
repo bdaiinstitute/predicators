@@ -348,7 +348,7 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                     sampler_input_lst.extend(state[obj])
                 sampler_input_lst.extend(params)
         elif "spot" in CFG.env:  # pragma: no cover
-            if "Sweep" in param_option.name:
+            if "SweepIntoContainer" in param_option.name:
                 _, _, target, _, container = objects
                 target_pose = get_se3_pose_from_state(state, target)
                 container_pose = get_se3_pose_from_state(state, container)
