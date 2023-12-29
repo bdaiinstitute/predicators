@@ -471,8 +471,9 @@ class ActiveSamplerExplorer(BaseExplorer):
                 score += bonus
         elif CFG.active_sampler_explore_task_strategy == "competence_gradient":
             model = self._competence_models[ground_op]
-            extrap = model.predict_competence(CFG.skill_competence_model_lookahead)
-            competence = model.get_current_competence()            
+            extrap = model.predict_competence(
+                CFG.skill_competence_model_lookahead)
+            competence = model.get_current_competence()
             score = competence - extrap
             if CFG.active_sampler_explore_use_ucb_bonus:
                 score += bonus
