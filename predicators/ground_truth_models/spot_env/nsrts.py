@@ -189,12 +189,16 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
 def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
                                   objs: Sequence[Object]) -> Array:
-    # Parameters are start dx, start dy.
-    # NOTE: these parameters may change (need to experiment on robot).
-    del state, goal, objs
-    if CFG.spot_use_perfect_samplers:
-        return np.array([0.0, 0.25])
-    dx, dy = rng.uniform(-0.5, 0.5, size=2)
+    # Parameters are dx, dy for the swept object.
+    del goal
+    _, _, target, _, container = objs
+    target_pose = utils.get_se3_pose_from_state(state, target)
+    container_pose = utils.get_se3_pose_from_state(state, container)
+    dx = container_pose.x - target_pose.x
+    dy = container_pose.y - target_pose.y
+    if not CFG.spot_use_perfect_samplers:
+        dx = dx + rng.uniform(-0.5, 0.5)
+        dy = dy + rng.uniform(-0.5, 0.5)
     return np.array([dx, dy])
 
 

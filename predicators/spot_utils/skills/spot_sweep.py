@@ -12,6 +12,7 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
           move_dy: float) -> None:
     """Sweep in the xy plane, starting at the start pose and then moving."""
+    assert False, "Need to update the params here to be consistent with sim"
     # First, move the hand to the start pose.
     move_hand_to_relative_pose(robot, sweep_start_pose)
     # Calculate the end pose.

@@ -1633,14 +1633,17 @@ def _dry_simulate_sweep_into_container(
     swept_obj_height = static_feats[swept_obj.name]["height"]
     container_pose = objects_in_view[container]
     container_radius = static_feats[container.name]["width"] / 2
+    container_geom = utils.Circle(container_pose.x, container_pose.y, container_radius)
     swept_obj_radius = static_feats[container.name]["width"] / 2
+    swept_obj_pose = objects_in_view[swept_obj]
 
-    # NOTE: this may change soon to be more physically realistic.
-    # If the sweep parameters are close enough to optimal, the object should
-    # end up in the container.
-    optimal_dx, optimal_dy = 0.0, -0.5
-    thresh = 1.0
-    if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
+    # The dx, dy is with respect to the object that's being swept. Use it
+    # to calculate the final position of the swept object, then check whether
+    # that position is inside the container.
+    swept_final_x = swept_obj_pose.x + dx
+    swept_final_y = swept_obj_pose.y + dy
+
+    if container_geom.contains_point(swept_final_x, swept_final_y):
         x = container_pose.x
         y = container_pose.y
         z = container_pose.z + swept_obj_height / 2
