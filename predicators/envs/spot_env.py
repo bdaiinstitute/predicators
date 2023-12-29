@@ -2116,7 +2116,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
-        del train_or_test, task_idx  # randomization coming later
+        rng = self._train_rng if train_or_test == "train" else self._test_rng
 
         # Create the objects and their initial poses.
         objects_in_view: Dict[Object, math_helpers.SE3Pose] = {}
@@ -2139,8 +2139,9 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         table_y = known_immovables["white-table"]["y"]
 
         soda_can = Object("soda_can", _movable_object_type)
-        x = table_x
-        y = table_y - table_length / 2.25 + soda_can_length
+        x = table_x + rng.uniform(-0.05, 0.05)
+        y = table_y - table_length / 2.25 + soda_can_length + \
+            rng.uniform(-0.05, 0.05)
         z = floor_z + table_height + soda_can_height / 2
         soda_can_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[soda_can] = soda_can_pose
