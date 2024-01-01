@@ -3,6 +3,7 @@
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 from bosdyn.client import math_helpers
 from scipy.ndimage import convolve
 
@@ -19,7 +20,7 @@ ball_prompt = "/".join([
 ball_obj = LanguageObjectDetectionID(ball_prompt)
 cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 brush_prompt = "/".join(
-    ["scrubbing brush", "hammer"]
+    ["scrubbing brush", "hammer", "mop", "giant white toothbrush"]
 )
 brush_obj = LanguageObjectDetectionID(brush_prompt)
 
@@ -50,7 +51,6 @@ def _get_platform_grasp_pixel(
     x = cropped_x
     y = cropped_y + half_height
 
-    # NOTE: I think x and y might be flipped here, but need to test.
     return (x, y), None
 
 
@@ -187,49 +187,55 @@ def _get_brush_grasp_pixel(
                                          min_component_size=10)
     if centroid is None:
         raise RuntimeError("Could not find grasp for brush from image.")
-    selected_pixel = (centroid[1], centroid[0])
-
-
-    import dill as pkl
-    with open("debug.pkl", "wb") as f:
-        pkl.dump({
-            "rgb": rgbds[camera_name].rgb,
-            "mask": mask,
-            "selected_pixel": selected_pixel,
-        }, f)
-
-
-    def calculate_sum(arr, center, angle):
-        y, x = np.ogrid[:arr.shape[0], :arr.shape[1]]
-        mask = (y - center[0]) * np.cos(angle) - (x - center[1]) * np.sin(angle) > 0
-        return np.sum(arr[mask])
+    selected_pixel = (centroid[0], centroid[1])
+    
+    # Determine the rotation by considering a discrete number of possible
+    # rolls and selecting the one that maximizes the number of mask pixels to
+    # the right-hand-side of the grasp.
+    
+    # This part was extremely annoying to implement. If issues come up
+    # again, it's helpful to dump these things and analyze separately.
+    # import dill as pkl
+    # with open("debug.pkl", "wb") as f:
+    #     pkl.dump({
+    #         "rgb": rgbds[camera_name].rgb,
+    #         "mask": mask,
+    #         "selected_pixel": selected_pixel,
+    #     }, f)
 
     num_angle_candidates = 16
     max_sum = -1
     best_angle = None
 
+    def _calculate_sum(arr: NDArray, center: Tuple[int, int], angle: float) -> float:
+        y, x = np.ogrid[:arr.shape[0], :arr.shape[1]]
+        mask = (y - center[1]) * np.cos(angle) - (x - center[0]) * np.sin(angle) > 0
+        return np.sum(arr[mask])
+
     for i in range(num_angle_candidates):
         angle = 2 * np.pi * i / num_angle_candidates
-        current_sum = calculate_sum(mask, selected_pixel, angle)
+        current_sum = _calculate_sum(mask, selected_pixel, angle)
 
         if current_sum > max_sum:
             max_sum = current_sum
             best_angle = angle
+    
+    dy = int(50 * np.sin(best_angle))
+    dx = int(50 * np.cos(best_angle))
+    final_angle = np.arctan2(dx, -dy)
 
     # Uncomment for debugging.
     import cv2
-    dx = int(50 * np.sin(best_angle))
-    dy = int(50 * np.cos(best_angle))
     bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, (selected_pixel[1], selected_pixel[0]), 5, (0, 255, 0), -1)
-    cv2.arrowedLine(bgr, (selected_pixel[1], selected_pixel[0]),
-                    (selected_pixel[1] + dy, selected_pixel[0] + dx), (255, 0, 0),
+    cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
+    cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
+                    (selected_pixel[0] + dx, selected_pixel[1] + dy), (255, 0, 0),
                     5)
     cv2.imshow("Selected grasp", bgr)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-    roll = math_helpers.Quat.from_roll(best_angle)
+    roll = math_helpers.Quat.from_roll(final_angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     rot_quat = pitch * roll  # NOTE: order is super important here!
     return selected_pixel, rot_quat
