@@ -2089,7 +2089,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[soda_can_detection] = soda_can
 
         brush = Object("brush", _movable_object_type)
-        language_id = "white stick/white pipe/white drumstick/brush"
+        language_id = "white stick/white pipe/white drumstick/scrubbing brush"
         brush_detection = LanguageObjectDetectionID(language_id)
         detection_id_to_obj[brush_detection] = brush
 
