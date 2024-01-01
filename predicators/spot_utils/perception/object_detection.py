@@ -450,8 +450,7 @@ def get_random_mask_pixel_from_artifacts(
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
     mask_idx = rng.choice(len(pixels_in_mask))
-    pixel_tuple = (pixels_in_mask[1][mask_idx],
-                   pixels_in_mask[0][mask_idx])
+    pixel_tuple = (pixels_in_mask[1][mask_idx], pixels_in_mask[0][mask_idx])
     # Uncomment to plot the grasp pixel being selected!
     rgb_img = artifacts["language"]["rgbds"][camera_name].rgb
     _, axes = plt.subplots()
