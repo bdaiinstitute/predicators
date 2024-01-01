@@ -24,6 +24,8 @@ from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
+from predicators.spot_utils.perception.object_specific_grasp_selection import \
+    brush_prompt
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -39,7 +41,6 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, verify_estop
-from predicators.spot_utils.perception.object_specific_grasp_selection import brush_prompt
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable

@@ -142,8 +142,7 @@ def test_spot_soda_sweep_env_dry_run():
     move_to_hand_view_brush = MoveToHandViewObject.ground([robot, brush])
     pick_brush = PickObjectFromTop.ground([robot, brush, floor])
     move_to_reach_soda = MoveToReachObject.ground([robot, soda_can])
-    sweep = SweepIntoContainer.ground(
-        [robot, brush, soda_can, table, bucket])
+    sweep = SweepIntoContainer.ground([robot, brush, soda_can, table, bucket])
     move_to_reach_floor = MoveToReachObject.ground([robot, floor])
     place_brush = PlaceObjectOnTop.ground([robot, brush, floor])
     dump_bucket = PickAndDumpContainer.ground([robot, bucket, floor, soda_can])
