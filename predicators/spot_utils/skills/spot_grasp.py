@@ -17,16 +17,14 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_state
 
 
-def grasp_at_pixel(
-    robot: Robot,
-    rgbd: RGBDImageWithContext,
-    pixel: Tuple[int, int],
-    grasp_rot: Optional[math_helpers.Quat] = None,
-    rot_thresh: float = 0.17,
-    move_while_grasping: bool = True,
-    timeout: float = 20.0,
-    retry_with_no_constraints: bool = False
-) -> None:
+def grasp_at_pixel(robot: Robot,
+                   rgbd: RGBDImageWithContext,
+                   pixel: Tuple[int, int],
+                   grasp_rot: Optional[math_helpers.Quat] = None,
+                   rot_thresh: float = 0.17,
+                   move_while_grasping: bool = True,
+                   timeout: float = 20.0,
+                   retry_with_no_constraints: bool = False) -> None:
     """Grasp an object at a specified pixel in the RGBD image, which should be
     from the hand camera and should be up to date with the robot's state.
 
@@ -97,13 +95,16 @@ def grasp_at_pixel(
     if (time.perf_counter() - start_time) > timeout:
         logging.warning("Timed out waiting for grasp to execute!")
 
-    if response.current_state in [manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_NO_SOLUTION, manipulation_api_pb2.MANIP_STATE_GRASP_FAILED]:
+    if response.current_state in [
+            manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_NO_SOLUTION,
+            manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
+    ]:
         grasp = manipulation_api_pb2.PickObjectInImage(
-        pixel_xy=pick_vec,
-        transforms_snapshot_for_camera=rgbd.transforms_snapshot,
-        frame_name_image_sensor=rgbd.frame_name_image_sensor,
-        camera_model=rgbd.camera_model,
-        walk_gaze_mode=1)
+            pixel_xy=pick_vec,
+            transforms_snapshot_for_camera=rgbd.transforms_snapshot,
+            frame_name_image_sensor=rgbd.frame_name_image_sensor,
+            camera_model=rgbd.camera_model,
+            walk_gaze_mode=1)
         grasp_request = manipulation_api_pb2.ManipulationApiRequest(
             pick_object_in_image=grasp)
         cmd_response = manipulation_client.manipulation_api_command(
