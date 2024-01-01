@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
         # Move to in front of the soda can.
         stow_arm(robot)
-        pre_sweep_nav_distance = 1.0
+        pre_sweep_nav_distance = 0.65
         home_pose = get_spot_home_pose()
         pre_sweep_nav_angle = home_pose.angle - np.pi
         localizer.localize()
@@ -117,17 +117,18 @@ if __name__ == "__main__":
 
         # Calculate sweep parameters.
         robot_pose = localizer.get_last_robot_pose()
+        soda_rel_pose = robot_pose.inverse() * soda_pose
         start_dx = 0.0
-        start_dy = 0.25
+        start_dy = 0.5
         start_dz = 0.0
-        start_x = soda_pose.x - robot_pose.x + start_dx
-        start_y = soda_pose.y - robot_pose.y + start_dy
-        start_z = soda_pose.z - robot_pose.z + start_dz
+        start_x = soda_rel_pose.x + start_dx
+        start_y = soda_rel_pose.y + start_dy
+        start_z = soda_rel_pose.z + start_dz
+        rot = math_helpers.Quat.from_pitch(np.pi / 2)
         sweep_start_pose = math_helpers.SE3Pose(x=start_x,
                                                 y=start_y,
                                                 z=start_z,
-                                                rot=math_helpers.Quat.from_yaw(
-                                                    -np.pi / 2))
+                                                rot=rot)
         # Calculate the yaw and distance for the sweep.
         sweep_move_dx = 0.0
         sweep_move_dy = -0.5
