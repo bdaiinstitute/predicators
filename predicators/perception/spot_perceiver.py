@@ -301,12 +301,12 @@ class SpotPerceiver(BasePerceiver):
             robot = Object("robot", _robot_type)
             can = Object("soda_can", _movable_object_type)
             bucket = Object("bucket", _container_type)
-            plunger = Object("plunger", _movable_object_type)
+            brush = Object("brush", _movable_object_type)
             Inside = pred_name_to_pred["Inside"]
             Holding = pred_name_to_pred["Holding"]
             return {
                 GroundAtom(Inside, [can, bucket]),
-                GroundAtom(Holding, [robot, plunger])
+                GroundAtom(Holding, [robot, brush])
             }
         if goal_description == "put the ball on the table":
             ball = Object("ball", _movable_object_type)
