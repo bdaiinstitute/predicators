@@ -248,8 +248,6 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
     # but for the ball, use a strict constraint.
     if target_obj.name == "ball":
         thresh = 0.17
-    elif target_obj.name == "brush":
-        thresh = 0.1
     else:
         thresh = np.pi / 4
 

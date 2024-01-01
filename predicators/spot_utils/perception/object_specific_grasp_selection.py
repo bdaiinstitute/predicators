@@ -194,14 +194,14 @@ def _get_brush_grasp_pixel(
 
     # This part was extremely annoying to implement. If issues come up
     # again, it's helpful to dump these things and analyze separately.
-    import dill as pkl
-    with open("debug.pkl", "wb") as f:
-        pkl.dump(
-            {
-                "rgb": rgbds[camera_name].rgb,
-                "mask": mask,
-                "selected_pixel": selected_pixel,
-            }, f)
+    # import dill as pkl
+    # with open("debug.pkl", "wb") as f:
+    #     pkl.dump(
+    #         {
+    #             "rgb": rgbds[camera_name].rgb,
+    #             "mask": mask,
+    #             "selected_pixel": selected_pixel,
+    #         }, f)
 
     # First find an angle that aligns with the handle of the brush.
     def _count_pixels_on_line(arr: NDArray, center: Tuple[int, int],
@@ -219,8 +219,8 @@ def _get_brush_grasp_pixel(
     fn = lambda angle: _count_pixels_on_line(mask, selected_pixel, angle)
     aligned_angle = max(candidates, key=fn)
 
-    # Now select among the two options based on which side has more pixels, which
-    # is assumed to the side with the head of the brush.
+    # Now select among the two options based on which side has more pixels,
+    # which is assumed to the side with the head of the brush.
     def _count_pixels_on_right(arr: NDArray, center: Tuple[int, int],
                                angle: float) -> float:
         y, x = np.ogrid[:arr.shape[0], :arr.shape[1]]
@@ -237,15 +237,15 @@ def _get_brush_grasp_pixel(
     final_angle = np.arctan2(dx, -dy)
 
     # Uncomment for debugging.
-    import cv2
-    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
-    cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
-                    (selected_pixel[0] + dx, selected_pixel[1] + dy),
-                    (255, 0, 0), 5)
-    cv2.imshow("Selected grasp", bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # import cv2
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
+    # cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
+    #                 (selected_pixel[0] + dx, selected_pixel[1] + dy),
+    #                 (255, 0, 0), 5)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     roll = math_helpers.Quat.from_roll(final_angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
