@@ -23,6 +23,15 @@ known-immovable-objects:
     x: 1.332
     y: 0.373
     z: -0.5
+  black_table:
+    x: 1.6
+    y: -1.1
+    z: -0.1
+  shelf1:
+    x: 4.0
+    y: -2.0
+    z: 0.05
+    yaw: -0.7
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
   floor:
@@ -37,4 +46,33 @@ static-object-features:
     length: 0.065
     width: 0.065
     placeable: 1
-
+  brush:
+    shape: 1
+    height: 0.05
+    length: 0.5
+    width: 0.05
+    placeable: 1
+  bucket:
+    shape: 2
+    height: 0.4
+    width: 0.23
+    length: 0.23
+    placeable: 1
+  chair:
+    shape: 2
+    height: 0.8
+    length: 0.5
+    width: 0.5
+    placeable: 0  # false, can't be placed
+  black_table:
+    shape: 1
+    height: 0.7
+    length: 0.45
+    width: 0.55
+    flat_top_surface: 1
+  shelf1:
+    shape: 1
+    height: 0.1
+    length: 0.4
+    width: 0.2
+    flat_top_surface: 0
