@@ -229,7 +229,7 @@ def _get_brush_grasp_pixel(
         return np.sum(arr[mask])
 
     candidates = [aligned_angle + np.pi / 2, aligned_angle - np.pi / 2]
-    fn = lambda angle: _count_pixels_on_line(mask, selected_pixel, angle)
+    fn = lambda angle: _count_pixels_on_right(mask, selected_pixel, angle)
     best_angle = max(candidates, key=fn)
 
     dy = int(50 * np.sin(best_angle))
