@@ -39,6 +39,7 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, verify_estop
+from predicators.spot_utils.perception.object_specific_grasp_selection import brush_prompt
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -2089,8 +2090,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[soda_can_detection] = soda_can
 
         brush = Object("brush", _movable_object_type)
-        language_id = "white stick/white pipe/white drumstick/scrubbing brush"
-        brush_detection = LanguageObjectDetectionID(language_id)
+        brush_detection = LanguageObjectDetectionID(brush_prompt)
         detection_id_to_obj[brush_detection] = brush
 
         chair = Object("chair", _movable_object_type)

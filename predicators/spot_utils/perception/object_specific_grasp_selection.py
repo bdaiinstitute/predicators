@@ -18,6 +18,13 @@ ball_prompt = "/".join([
 ])
 ball_obj = LanguageObjectDetectionID(ball_prompt)
 cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
+brush_prompt = "/".join([
+    "white stick",
+    "white pipe",
+    "white drumstick",
+    "scrubbing brush"
+])
+brush_obj = LanguageObjectDetectionID(brush_prompt)
 
 
 def _get_platform_grasp_pixel(
@@ -147,6 +154,40 @@ def _get_cup_grasp_pixel(
     return pixel, rot_quat
 
 
+def _get_brush_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    """Grasp at the blue tape, i.e., blue pixels in the mask of the brush.
+
+    Also, use the head of the brush to determine the grasp orientation. Grasp
+    at a "9 o-clock" angle, if grasping toward the brush head is "12 o-clock",
+    so that when the robot picks up the brush, the head is on the right.
+    """
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[brush_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{brush_obj} not detected in {camera_name}")
+    mask = seg_bb.mask
+    # Start by denoising the mask, "filling in" small gaps in it.
+    convolved_mask = convolve(mask.astype(np.uint8),
+                              np.ones((3, 3)),
+                              mode="constant")
+    smoothed_mask = (convolved_mask > 0)
+    # Get copy of image with just the mask pixels in it.
+    isolated_rgb = rgbds[camera_name].rgb.copy()
+    isolated_rgb[~smoothed_mask] = 0
+    # Look for blue pixels in the isolated rgb.
+    lo, hi = ((0, 130, 130), (130, 255, 255))
+    centroid = find_color_based_centroid(isolated_rgb, lo, hi, min_component_size=50)
+    if centroid is None:
+        raise RuntimeError("Could not find grasp for brush from image.")
+    x, y = centroid
+    # TODO handle grasp rotation as described above
+    return (x, y), None
+
+
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     Dict[str, RGBDImageWithContext], Dict[str, Any], str, np.random.Generator
@@ -156,5 +197,8 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # Ball-specific grasp selection.
     ball_obj: _get_ball_grasp_pixel,
     # Cup-specific grasp selection.
-    cup_obj: _get_cup_grasp_pixel
+    cup_obj: _get_cup_grasp_pixel,
+    # Brush-specific grasp selcetion.
+    brush_obj: _get_brush_grasp_pixel,
+
 }
