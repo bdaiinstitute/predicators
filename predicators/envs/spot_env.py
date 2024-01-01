@@ -2088,9 +2088,10 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         soda_can_detection = LanguageObjectDetectionID("soda can")
         detection_id_to_obj[soda_can_detection] = soda_can
 
-        plunger = Object("plunger", _movable_object_type)
-        plunger_detection = LanguageObjectDetectionID("wood black plunger")
-        detection_id_to_obj[plunger_detection] = plunger
+        brush = Object("brush", _movable_object_type)
+        language_id = "white stick/white pipe/white sweeper/white brush"
+        brush_detection = LanguageObjectDetectionID(language_id)
+        detection_id_to_obj[brush_detection] = brush
 
         chair = Object("chair", _movable_object_type)
         chair_detection = LanguageObjectDetectionID("chair")
@@ -2117,7 +2118,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         objects_in_view: Dict[Object, math_helpers.SE3Pose] = {}
 
         # Make up some poses for the objects, with the soda can starting on the
-        # table, and the bucket, chair, and plunger starting on the floor.
+        # table, and the bucket, chair, and brush starting on the floor.
         metadata = load_spot_metadata()
         static_object_feats = metadata["static-object-features"]
         known_immovables = metadata["known-immovable-objects"]
@@ -2125,7 +2126,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         table_length = static_object_feats["white-table"]["length"]
         soda_can_height = static_object_feats["soda_can"]["height"]
         soda_can_length = static_object_feats["soda_can"]["length"]
-        plunger_height = static_object_feats["plunger"]["height"]
+        brush_height = static_object_feats["brush"]["height"]
         chair_height = static_object_feats["chair"]["height"]
         chair_width = static_object_feats["chair"]["width"]
         bucket_height = static_object_feats["bucket"]["height"]
@@ -2140,12 +2141,12 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         soda_can_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[soda_can] = soda_can_pose
 
-        plunger = Object("plunger", _movable_object_type)
+        brush = Object("brush", _movable_object_type)
         x = table_x
         y = self.render_y_ub - (self.render_y_ub - self.render_y_lb) / 5
-        z = floor_z + plunger_height / 2
-        plunger_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
-        objects_in_view[plunger] = plunger_pose
+        z = floor_z + brush_height / 2
+        brush_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[brush] = brush_pose
 
         chair = Object("chair", _movable_object_type)
         x = soda_can_pose.x - 1.5 * chair_width

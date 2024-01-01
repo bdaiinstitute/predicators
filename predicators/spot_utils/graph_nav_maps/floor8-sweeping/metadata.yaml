@@ -31,3 +31,10 @@ static-object-features:
     length: 10000000  # effectively infinite
     width: 10000000
     flat_top_surface: 0
+  soda_can:
+    shape: 2
+    height: 0.114
+    length: 0.065
+    width: 0.065
+    placeable: 1
+
