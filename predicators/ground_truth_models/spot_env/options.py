@@ -252,8 +252,10 @@ def _grasp_policy(name: str, target_obj_idx: int, state: State, memory: Dict,
         thresh = np.pi / 4
 
     # Retry a grasp if a failure occurs!
+    retry_with_no_constraints = target_obj.name != "brush"
+
     return utils.create_spot_env_action(
-        name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0, True))
+        name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0, retry_with_no_constraints))
 
 
 ###############################################################################
