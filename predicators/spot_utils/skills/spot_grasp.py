@@ -95,10 +95,11 @@ def grasp_at_pixel(robot: Robot,
     if (time.perf_counter() - start_time) > timeout:
         logging.warning("Timed out waiting for grasp to execute!")
 
+    # Retry grasping with no constraints if the corresponding arg is true.
     if response.current_state in [
             manipulation_api_pb2.MANIP_STATE_GRASP_PLANNING_NO_SOLUTION,
             manipulation_api_pb2.MANIP_STATE_GRASP_FAILED
-    ]:
+    ] and retry_with_no_constraints:
         grasp = manipulation_api_pb2.PickObjectInImage(
             pixel_xy=pick_vec,
             transforms_snapshot_for_camera=rgbd.transforms_snapshot,
@@ -110,7 +111,8 @@ def grasp_at_pixel(robot: Robot,
         cmd_response = manipulation_client.manipulation_api_command(
             manipulation_api_request=grasp_request)
         while (time.perf_counter() - start_time) <= timeout:
-            feedback_request = manipulation_api_pb2.ManipulationApiFeedbackRequest(
+            feedback_request = manipulation_api_pb2.\
+                ManipulationApiFeedbackRequest(
                 manipulation_cmd_id=cmd_response.manipulation_cmd_id)
             response = manipulation_client.manipulation_api_feedback_command(
                 manipulation_api_feedback_request=feedback_request)
