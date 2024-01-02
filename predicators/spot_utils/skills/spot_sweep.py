@@ -12,7 +12,16 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
           move_dy: float) -> None:
     """Sweep in the xy plane, starting at the start pose and then moving."""
-    # First, move the hand to the start pose.
+    # Move first in the y direction (perpendicular to robot body) to avoid
+    # knocking the target object over.
+    sweep_start_y_move = math_helpers.SE3Pose(
+        x=0.5,  # sensible default
+        y=sweep_start_pose.y,
+        z=0.25,  # sensible default
+        rot=math_helpers.Quat(),
+    )
+    move_hand_to_relative_pose(robot, sweep_start_y_move)
+    # Now move the remaining way to the start pose.
     move_hand_to_relative_pose(robot, sweep_start_pose)
     # Calculate the end pose.
     relative_hand_move = math_helpers.SE3Pose(x=move_dx,
@@ -124,7 +133,9 @@ if __name__ == "__main__":
         start_x = soda_rel_pose.x + start_dx
         start_y = soda_rel_pose.y + start_dy
         start_z = soda_rel_pose.z + start_dz
-        rot = math_helpers.Quat.from_pitch(np.pi / 2)
+        pitch =  math_helpers.Quat.from_pitch(np.pi / 2 + np.pi / 6)
+        yaw =  math_helpers.Quat.from_yaw(np.pi / 4)
+        rot = pitch * yaw
         sweep_start_pose = math_helpers.SE3Pose(x=start_x,
                                                 y=start_y,
                                                 z=start_z,

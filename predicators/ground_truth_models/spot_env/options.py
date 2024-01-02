@@ -494,7 +494,9 @@ def _sweep_into_container_policy(state: State, memory: Dict,
     start_x = target_rel_pose.x + start_dx
     start_y = target_rel_pose.y + start_dy
     start_z = target_rel_pose.z
-    rot = math_helpers.Quat.from_pitch(np.pi / 2)
+    pitch =  math_helpers.Quat.from_pitch(np.pi / 2 + np.pi / 6)
+    yaw =  math_helpers.Quat.from_yaw(np.pi / 4)
+    rot = pitch * yaw
     sweep_start_pose = math_helpers.SE3Pose(x=start_x,
                                             y=start_y,
                                             z=start_z,
