@@ -203,14 +203,23 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
                               rng: np.random.Generator,
                               objs: Sequence[Object]) -> Array:
     # Parameters are dx, dy, yaw w.r.t. the target object.
-    del state, goal, objs, rng  # randomization coming soon
+    del goal, rng  # randomization coming soon
+    _, _, target, _ = objs
+    target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
 
     # Currently assume that the robot is facing the surface in its home pose.
     # Soon, we will change this to actually sample angles of approach and do
     # collision detection.
     home_pose = get_spot_home_pose()
+    home_xy = np.array([home_pose.x, home_pose.y])
 
-    return np.array([-0.8, -0.4, home_pose.angle])
+    robot_to_target = np.subtract(target_xy, home_xy)
+    robot_to_target = robot_to_target / np.linalg.norm(robot_to_target)
+    other_axis = np.array([robot_to_target[1], -robot_to_target[0]])
+    change_basis = np.transpose([robot_to_target, other_axis])
+    dx, dy = np.dot(change_basis, (0.8, 0.4))
+
+    return np.array([dx, dy, home_pose.angle])
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
