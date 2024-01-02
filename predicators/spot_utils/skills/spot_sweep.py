@@ -133,8 +133,8 @@ if __name__ == "__main__":
         start_x = soda_rel_pose.x + start_dx
         start_y = soda_rel_pose.y + start_dy
         start_z = soda_rel_pose.z + start_dz
-        pitch =  math_helpers.Quat.from_pitch(np.pi / 2 + np.pi / 6)
-        yaw =  math_helpers.Quat.from_yaw(np.pi / 4)
+        pitch = math_helpers.Quat.from_pitch(np.pi / 2 + np.pi / 6)
+        yaw = math_helpers.Quat.from_yaw(np.pi / 4)
         rot = pitch * yaw
         sweep_start_pose = math_helpers.SE3Pose(x=start_x,
                                                 y=start_y,

@@ -29,6 +29,11 @@ class RGBDImageWithContext:
         """The image rotated to be upright."""
         return ndimage.rotate(self.rgb, self.image_rot, reshape=False)
 
+    @property
+    def rotated_depth(self) -> NDArray[np.uint8]:
+        """The depth rotated to be upright."""
+        return ndimage.rotate(self.depth, self.image_rot, reshape=False)
+
 
 @dataclass(frozen=True)
 class ObjectDetectionID:

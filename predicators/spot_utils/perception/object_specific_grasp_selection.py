@@ -22,6 +22,7 @@ cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 brush_prompt = "/".join(
     ["scrubbing brush", "hammer", "mop", "giant white toothbrush"])
 brush_obj = LanguageObjectDetectionID(brush_prompt)
+bucket_obj = LanguageObjectDetectionID("bucket")
 
 
 def _get_platform_grasp_pixel(
@@ -253,6 +254,68 @@ def _get_brush_grasp_pixel(
     return selected_pixel, rot_quat
 
 
+def _get_bucket_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    """Select a blue pixel on the rim of the bucket to grasp."""
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[bucket_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{bucket_obj} not detected in {camera_name}")
+
+    mask = seg_bb.mask
+    rgbd = rgbds[camera_name]
+
+    # Helpful to dump these things and analyze separately.
+    # import dill as pkl
+    # with open("debug.pkl", "wb") as f:
+    #     pkl.dump(
+    #         {
+    #             "rgbd": rgbd,
+    #             "mask": mask,
+    #         }, f)
+
+    # Look for blue pixels in the isolated rgb.
+    # Start by denoising the mask, "filling in" small gaps in it.
+    convolved_mask = convolve(mask.astype(np.uint8),
+                              np.ones((3, 3)),
+                              mode="constant")
+    smoothed_mask = (convolved_mask > 0)
+    # Get copy of image with just the mask pixels in it.
+    isolated_rgb = rgbd.rgb.copy()
+    isolated_rgb[~smoothed_mask] = 0
+    lo, hi = ((0, 0, 130), (130, 255, 255))
+    centroid = find_color_based_centroid(isolated_rgb,
+                                         lo,
+                                         hi,
+                                         min_component_size=10)
+    # This can happen sometimes if the rim of the bucket is separated from the
+    # body of the bucket. If that happens, just pick the center top pixel in
+    # the mask, which should be the rim.
+    if centroid is None:
+        mask_args = np.argwhere(mask)
+        mask_min_c = min(mask_args[:, 1])
+        mask_max_c = max(mask_args[:, 1])
+        c_len = mask_max_c - mask_min_c
+        middle_c = mask_min_c + c_len // 2
+        min_r = min([r for r, c in mask_args if c == middle_c])
+        selected_pixel = (middle_c, min_r)
+    else:
+        selected_pixel = (centroid[0], centroid[1])
+
+    # Uncomment for debugging.
+    # import cv2
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    return selected_pixel, None
+
+
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.
 OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     Dict[str, RGBDImageWithContext], Dict[str, Any], str, np.random.Generator
@@ -263,6 +326,8 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     ball_obj: _get_ball_grasp_pixel,
     # Cup-specific grasp selection.
     cup_obj: _get_cup_grasp_pixel,
-    # Brush-specific grasp selcetion.
+    # Brush-specific grasp selection.
     brush_obj: _get_brush_grasp_pixel,
+    # Bucket-specific grasp selection.
+    bucket_obj: _get_bucket_grasp_pixel,
 }
