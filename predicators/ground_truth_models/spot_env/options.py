@@ -531,6 +531,25 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
                                         (robot, localizer, absolute_move_pose))
 
 
+
+def _move_to_ready_sweep_policy(state: State, memory: Dict,
+                                     objects: Sequence[Object],
+                                     params: Array) -> Action:
+    del params, memory  # not used
+    
+    name = "MoveToReadySweep"
+    import ipdb; ipdb.set_trace()
+
+    
+
+    distance_param_idx = 0
+    yaw_param_idx = 1
+    robot_obj_idx = 0
+    target_obj_idx = 1
+    do_gaze = True
+    return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
+                                  robot_obj_idx, target_obj_idx, do_gaze,
+                                  state, memory, objects, params)
 ###############################################################################
 #                       Parameterized option factory                          #
 ###############################################################################
@@ -553,6 +572,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "SweepIntoContainer": Box(-np.inf, np.inf, (2, )),  # rel dx, dy
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
+    "MoveToReadySweep":  Box(0, 1, (0, )),  # empty
 }
 
 _OPERATOR_NAME_TO_POLICY = {
@@ -568,6 +588,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "SweepIntoContainer": _sweep_into_container_policy,
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
+    "MoveToReadySweep":  _move_to_ready_sweep_policy,
+    
 }
 
 

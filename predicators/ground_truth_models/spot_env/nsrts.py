@@ -251,6 +251,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "SweepIntoContainer": _sweep_into_container_sampler,
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
+            "MoveToReadySweep": utils.null_sampler,
         }
 
         for strips_op in env.strips_operators:

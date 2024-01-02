@@ -1018,6 +1018,29 @@ def _has_flat_top_surface_classifier(state: State,
     return state.get(obj, "flat_top_surface") > 0.5
 
 
+def _robot_ready_for_sweeping_classifier(state: State, objects: Sequence[Object]) -> bool:
+    if len(set(objects)) != len(objects):
+        return False
+    
+    # The robot, target, and container should create a right triangle.
+    # This is very approximate.
+    robot, container, target = objects
+    
+    robot_xy = np.array([state.get(robot, "x"), state.get(robot, "y")])
+    target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
+    cont_xy = np.array([state.get(container, "x"), state.get(container, "y")])
+
+    robot_to_target = target_xy - robot_xy
+    target_to_cont = cont_xy - target_xy
+
+    robot_to_target_unit = robot_to_target / np.linalg.norm(robot_to_target)
+    target_to_cont_unit = target_to_cont / np.linalg.norm(target_to_cont)
+    angle_cos = np.dot(robot_to_target_unit, target_to_cont_unit)
+
+    return angle_cos < 0
+
+
+
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
@@ -1056,6 +1079,7 @@ _IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type],
                             _is_not_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
                                _has_flat_top_surface_classifier)
+_RobotReadyForSweeping = Predicate("RobotReadyForSweeping", [_robot_type, _container_type, _movable_object_type], _robot_ready_for_sweeping_classifier)
 _ALL_PREDICATES = {
     _NEq,
     _On,
@@ -1073,6 +1097,7 @@ _ALL_PREDICATES = {
     _ContainerReadyForSweeping,
     _IsPlaceable,
     _HasFlatTopSurface,
+    _RobotReadyForSweeping,
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1091,7 +1116,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     add_effs = {LiftedAtom(_Reachable, [robot, obj])}
     del_effs: Set[LiftedAtom] = set()
-    ignore_effs = {_Reachable, _InHandView, _InView}
+    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     yield STRIPSOperator("MoveToReachObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -1105,7 +1130,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
-    ignore_effs = {_Reachable, _InHandView, _InView}
+    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
@@ -1121,7 +1146,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_InView, [robot, obj]),
     }
     del_effs = set()
-    ignore_effs = {_Reachable, _InHandView, _InView}
+    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
@@ -1258,8 +1283,24 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
-    ignore_effs = {_InHandView, _Reachable}
+    ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping}
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+    
+    # MoveToReadySweep
+    robot = Variable("?robot", _robot_type)
+    target = Variable("?target", _movable_object_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, target, container]
+    preconds = {
+       LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+    }
+    add_effs = {
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target]),
+    }
+    del_effs = set()
+    ignore_effs = {_Reachable, _InView, _InHandView}
+    yield STRIPSOperator("MoveToReadySweep", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # SweepIntoContainer
@@ -1273,7 +1314,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotBlocked, [target]),
         LiftedAtom(_Holding, [robot, sweeper]),
         LiftedAtom(_On, [target, surface]),
-        LiftedAtom(_Reachable, [robot, target]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
         LiftedAtom(_IsPlaceable, [target]),
         LiftedAtom(_HasFlatTopSurface, [surface]),
@@ -1284,6 +1325,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_On, [target, surface]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target]),
         LiftedAtom(_Reachable, [robot, target]),
         LiftedAtom(_NotInsideAnyContainer, [target])
     }
@@ -1310,7 +1352,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     del_effs = {
         LiftedAtom(_Holding, [robot, container]),
     }
-    ignore_effs = {_Reachable, _InHandView}
+    ignore_effs = {_Reachable, _InHandView, _RobotReadyForSweeping}
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
@@ -2074,6 +2116,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "PrepareContainerForSweeping",
             "PickAndDumpContainer",
             "DropNotPlaceableObject",
+            "MoveToReadySweep",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -2087,7 +2130,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         soda_can = Object("soda_can", _movable_object_type)
-        soda_can_detection = LanguageObjectDetectionID("soda can")
+        soda_prompt = "soda can/aluminum can/orange can"
+        soda_can_detection = LanguageObjectDetectionID(soda_prompt)
         detection_id_to_obj[soda_can_detection] = soda_can
 
         brush = Object("brush", _movable_object_type)
