@@ -1018,14 +1018,15 @@ def _has_flat_top_surface_classifier(state: State,
     return state.get(obj, "flat_top_surface") > 0.5
 
 
-def _robot_ready_for_sweeping_classifier(state: State, objects: Sequence[Object]) -> bool:
+def _robot_ready_for_sweeping_classifier(state: State,
+                                         objects: Sequence[Object]) -> bool:
     if len(set(objects)) != len(objects):
         return False
-    
+
     # The robot, target, and container should create a right triangle.
     # This is very approximate.
     robot, container, target = objects
-    
+
     robot_xy = np.array([state.get(robot, "x"), state.get(robot, "y")])
     target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
     cont_xy = np.array([state.get(container, "x"), state.get(container, "y")])
@@ -1038,7 +1039,6 @@ def _robot_ready_for_sweeping_classifier(state: State, objects: Sequence[Object]
     angle_cos = np.dot(robot_to_target_unit, target_to_cont_unit)
 
     return angle_cos < 0
-
 
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
@@ -1079,7 +1079,10 @@ _IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type],
                             _is_not_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
                                _has_flat_top_surface_classifier)
-_RobotReadyForSweeping = Predicate("RobotReadyForSweeping", [_robot_type, _container_type, _movable_object_type], _robot_ready_for_sweeping_classifier)
+_RobotReadyForSweeping = Predicate(
+    "RobotReadyForSweeping",
+    [_robot_type, _container_type, _movable_object_type],
+    _robot_ready_for_sweeping_classifier)
 _ALL_PREDICATES = {
     _NEq,
     _On,
@@ -1286,14 +1289,14 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping}
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
-    
+
     # MoveToReadySweep
     robot = Variable("?robot", _robot_type)
     target = Variable("?target", _movable_object_type)
     container = Variable("?container", _container_type)
     parameters = [robot, target, container]
     preconds = {
-       LiftedAtom(_ContainerReadyForSweeping, [container, target]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target]),
     }
     add_effs = {
         LiftedAtom(_RobotReadyForSweeping, [robot, container, target]),
