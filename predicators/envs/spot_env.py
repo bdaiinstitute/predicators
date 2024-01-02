@@ -1292,9 +1292,9 @@ def _create_operators() -> Iterator[STRIPSOperator]:
 
     # MoveToReadySweep
     robot = Variable("?robot", _robot_type)
-    target = Variable("?target", _movable_object_type)
     container = Variable("?container", _container_type)
-    parameters = [robot, target, container]
+    target = Variable("?target", _movable_object_type)
+    parameters = [robot, container, target]
     preconds = {
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
     }

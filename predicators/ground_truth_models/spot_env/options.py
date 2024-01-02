@@ -540,12 +540,12 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     _, container, target = objects
     target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
     cont_xy = np.array([state.get(container, "x"), state.get(container, "y")])
-    dx, dy = cont_xy - target_xy
+    dx, dy = target_xy - cont_xy
     cont_target_yaw = np.arctan2(dy, dx)
     yaw = cont_target_yaw + np.pi / 2
 
     # Make up new params.
-    distance = 0.5
+    distance = 0.8
     params = np.array([distance, yaw])
     distance_param_idx = 0
     yaw_param_idx = 1
