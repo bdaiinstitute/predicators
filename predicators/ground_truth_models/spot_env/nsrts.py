@@ -215,7 +215,7 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
 
     robot_to_target = np.subtract(target_xy, home_xy)
     robot_to_target = robot_to_target / np.linalg.norm(robot_to_target)
-    other_axis = np.array([robot_to_target[1], -robot_to_target[0]])
+    other_axis = np.array([-robot_to_target[1], robot_to_target[0]])
     change_basis = np.transpose([robot_to_target, other_axis])
     dx, dy = np.dot(change_basis, (0.8, 0.4))
 

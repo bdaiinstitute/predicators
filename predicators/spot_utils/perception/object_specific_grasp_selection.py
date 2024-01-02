@@ -258,7 +258,8 @@ def _get_bucket_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
-    """Select a blue pixel on the rim of the bucket to grasp."""
+    """Select a blue pixel on the rim of the bucket to grasp.
+    """
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[bucket_obj][camera_name]
