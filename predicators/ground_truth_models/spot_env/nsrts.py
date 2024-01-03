@@ -19,6 +19,7 @@ from predicators.spot_utils.utils import get_allowed_map_regions, \
     sample_move_offset_from_target, spot_pose_to_geom2d
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
+from predicators.spot_utils.utils import load_spot_metadata
 
 
 def _move_offset_sampler(state: State, robot_obj: Object,
@@ -202,24 +203,10 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
 def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
                               rng: np.random.Generator,
                               objs: Sequence[Object]) -> Array:
-    # Parameters are dx, dy, yaw w.r.t. the target object.
-    del goal, rng  # randomization coming soon
-    _, _, target, _ = objs
-    target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
-
-    # Currently assume that the robot is facing the surface in its home pose.
-    # Soon, we will change this to actually sample angles of approach and do
-    # collision detection.
-    home_pose = get_spot_home_pose()
-    home_xy = np.array([home_pose.x, home_pose.y])
-
-    robot_to_target = np.subtract(target_xy, home_xy)
-    robot_to_target = robot_to_target / np.linalg.norm(robot_to_target)
-    other_axis = np.array([-robot_to_target[1], robot_to_target[0]])
-    change_basis = np.transpose([robot_to_target, other_axis])
-    dx, dy = np.dot(change_basis, (0.8, 0.4))
-
-    return np.array([dx, dy, home_pose.angle])
+    # Parameters are dx, dy, yaw w.r.t. the surface.
+    del state, goal, rng, objs  # randomization coming soon
+    param_dict = load_spot_metadata()["prepare_container_relative_xy"]
+    return np.array([param_dict["dx"], param_dict["dy"], param_dict["angle"]])
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):

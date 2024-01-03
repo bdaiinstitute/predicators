@@ -517,7 +517,7 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
     del memory  # not used
 
     name = "PrepareContainerForSweeping"
-    target_obj_idx = 2
+    target_obj_idx = 3  # the surface
 
     robot, localizer, _ = get_robot()
 
