@@ -123,10 +123,7 @@ class SpotPerceiver(BasePerceiver):
                 self._held_object = None
                 # Check if the item we just placed is in view. It needs to
                 # be in view to assess whether it was placed correctly.
-                if "drag" in controller_name.lower():
-                    robot, _, obj = objects[:3]
-                else:
-                    robot, obj = objects[:2]
+                robot, obj = objects[:2]
                 state = self._create_state()
                 is_in_view = in_general_view_classifier(state, [robot, obj])
                 if not is_in_view:
@@ -251,18 +248,17 @@ class SpotPerceiver(BasePerceiver):
         }
 
         # Uncomment for debugging.
-        # TODO comment back out
-        logging.info("Percept state:")
-        logging.info(percept_state.pretty_str())
-        logging.info("Percept atoms:")
-        atom_str = "\n".join(
-            map(
-                str,
-                sorted(utils.abstract(percept_state,
-                                      self._percept_predicates))))
-        logging.info(atom_str)
-        logging.info("Simulator state:")
-        logging.info(simulator_state)
+        # logging.info("Percept state:")
+        # logging.info(percept_state.pretty_str())
+        # logging.info("Percept atoms:")
+        # atom_str = "\n".join(
+        #     map(
+        #         str,
+        #         sorted(utils.abstract(percept_state,
+        #                               self._percept_predicates))))
+        # logging.info(atom_str)
+        # logging.info("Simulator state:")
+        # logging.info(simulator_state)
 
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
