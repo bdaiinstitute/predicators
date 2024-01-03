@@ -709,9 +709,15 @@ class SpotRearrangementEnv(BaseEnv):
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
     ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        """Override to have the hand look down at the table at first."""
+        """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
+        hand_pose = math_helpers.SE3Pose(x=0.80,
+                                         y=0.0,
+                                         z=0.75,
+                                         rot=math_helpers.Quat.from_pitch(
+                                             np.pi / 4))
+        move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
             self._robot, self._localizer, detection_ids)
         if CFG.spot_render_perception_outputs:
@@ -2081,19 +2087,6 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
     def _generate_goal_description(self) -> GoalDescription:
         return "put the soda in the bucket"
 
-    def _run_init_search_for_objects(
-        self, detection_ids: Set[ObjectDetectionID]
-    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        """Override to move the hand up so it can easily see when the ball is
-        on top of a table."""
-        hand_pose = math_helpers.SE3Pose(x=0.80,
-                                         y=0.0,
-                                         z=0.75,
-                                         rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 4))
-        move_hand_to_relative_pose(self._robot, hand_pose)
-        return super()._run_init_search_for_objects(detection_ids)
-
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
@@ -2327,19 +2320,6 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
     @classmethod
     def get_name(cls) -> str:
         return "spot_ball_and_cup_sticky_table_env"
-
-    def _run_init_search_for_objects(
-        self, detection_ids: Set[ObjectDetectionID]
-    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
-        """Override to move the hand up so it can easily see when the ball is
-        on top of a table."""
-        hand_pose = math_helpers.SE3Pose(x=0.80,
-                                         y=0.0,
-                                         z=0.75,
-                                         rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 4))
-        move_hand_to_relative_pose(self._robot, hand_pose)
-        return super()._run_init_search_for_objects(detection_ids)
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
