@@ -316,6 +316,11 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "DropNotPlaceableObject":
             return _dry_simulate_drop_not_placeable_object(
                 obs, nonpercept_atoms)
+        
+        if action_name == "MoveToReadySweep":
+            robot_rel_se2_pose = action_args[1]
+            return _dry_simulate_move_to_reach_obj(obs, robot_rel_se2_pose,
+                                                   nonpercept_atoms)
 
         if action_name in ["find-objects", "stow-arm"]:
             return _dry_simulate_noop(obs, nonpercept_atoms)
