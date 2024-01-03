@@ -240,7 +240,7 @@ def _get_brush_grasp_pixel(
     # Uncomment for debugging.
     # import cv2
     # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
+    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
     # cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
     #                 (selected_pixel[0] + dx, selected_pixel[1] + dy),
     #                 (255, 0, 0), 5)
@@ -258,8 +258,7 @@ def _get_bucket_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
-    """Select a blue pixel on the rim of the bucket to grasp.
-    """
+    """Select a blue pixel on the rim of the bucket to grasp."""
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[bucket_obj][camera_name]
@@ -309,7 +308,7 @@ def _get_bucket_grasp_pixel(
     # Uncomment for debugging.
     # import cv2
     # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, (selected_pixel[0], selected_pixel[1]), 5, (0, 255, 0), -1)
+    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
     # cv2.imshow("Selected grasp", bgr)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()

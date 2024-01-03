@@ -15,11 +15,11 @@ from predicators.spot_utils.perception.object_detection import \
 from predicators.spot_utils.perception.spot_cameras import \
     get_last_captured_images
 from predicators.spot_utils.utils import get_allowed_map_regions, \
-    get_collision_geoms_for_nav, get_spot_home_pose, object_to_top_down_geom, \
-    sample_move_offset_from_target, spot_pose_to_geom2d
+    get_collision_geoms_for_nav, get_spot_home_pose, load_spot_metadata, \
+    object_to_top_down_geom, sample_move_offset_from_target, \
+    spot_pose_to_geom2d
 from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
     ParameterizedOption, Predicate, State, Type
-from predicators.spot_utils.utils import load_spot_metadata
 
 
 def _move_offset_sampler(state: State, robot_obj: Object,
