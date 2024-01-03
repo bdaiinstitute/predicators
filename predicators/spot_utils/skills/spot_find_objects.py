@@ -87,12 +87,12 @@ def _find_objects_with_choreographed_moves(
         return all_detections, all_artifacts
 
     # Fail. Analyze the RGBDs if you want (by uncommenting here).
-    import imageio.v2 as iio
-    for i, rgbds in enumerate(all_rgbds):
-        for camera, rgbd in rgbds.items():
-            path = f"init_search_for_objects_angle{i}_{camera}.png"
-            iio.imsave(path, rgbd.rgb)
-            print(f"Wrote out to {path}.")
+    # import imageio.v2 as iio
+    # for i, rgbds in enumerate(all_rgbds):
+    #     for camera, rgbd in rgbds.items():
+    #         path = f"init_search_for_objects_angle{i}_{camera}.png"
+    #         iio.imsave(path, rgbd.rgb)
+    #         print(f"Wrote out to {path}.")
 
     remaining_object_ids = set(object_ids) - set(all_detections)
     raise RuntimeError(f"Could not find objects: {remaining_object_ids}")

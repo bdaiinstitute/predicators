@@ -259,6 +259,8 @@ def _get_bucket_grasp_pixel(
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
     """Select a blue pixel on the rim of the bucket to grasp."""
+    del rng  # not used
+
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[bucket_obj][camera_name]
@@ -300,7 +302,7 @@ def _get_bucket_grasp_pixel(
         mask_max_c = max(mask_args[:, 1])
         c_len = mask_max_c - mask_min_c
         middle_c = mask_min_c + c_len // 2
-        min_r = min([r for r, c in mask_args if c == middle_c])
+        min_r = min(r for r, c in mask_args if c == middle_c)
         selected_pixel = (middle_c, min_r)
     else:
         selected_pixel = (centroid[0], centroid[1])
