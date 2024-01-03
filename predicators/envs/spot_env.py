@@ -2170,8 +2170,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         metadata = load_spot_metadata()
         static_object_feats = metadata["static-object-features"]
         known_immovables = metadata["known-immovable-objects"]
-        table_height = static_object_feats["white-table"]["height"]
-        table_length = static_object_feats["white-table"]["length"]
+        table_height = static_object_feats["black_table"]["height"]
+        table_length = static_object_feats["black_table"]["length"]
         soda_can_height = static_object_feats["soda_can"]["height"]
         soda_can_length = static_object_feats["soda_can"]["length"]
         brush_height = static_object_feats["brush"]["height"]
@@ -2179,8 +2179,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         chair_width = static_object_feats["chair"]["width"]
         bucket_height = static_object_feats["bucket"]["height"]
         floor_z = known_immovables["floor"]["z"]
-        table_x = known_immovables["white-table"]["x"]
-        table_y = known_immovables["white-table"]["y"]
+        table_x = known_immovables["black_table"]["x"]
+        table_y = known_immovables["black_table"]["y"]
 
         soda_can = Object("soda_can", _movable_object_type)
         x = table_x

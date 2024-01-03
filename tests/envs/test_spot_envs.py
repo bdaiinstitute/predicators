@@ -32,6 +32,7 @@ def test_spot_env_dry_run(env):
         "spot_run_dry": True,
         "bilevel_plan_without_sim": True,
         "spot_use_perfect_samplers": True,
+
     })
     env = create_new_env(env)
     perceiver = SpotPerceiver()
@@ -104,7 +105,7 @@ def test_spot_soda_sweep_env_dry_run():
     brush = obj_name_to_obj["brush"]
     soda_can = obj_name_to_obj["soda_can"]
     chair = obj_name_to_obj["chair"]
-    table = obj_name_to_obj["white-table"]
+    table = obj_name_to_obj["black_table"]
     floor = obj_name_to_obj["floor"]
 
     def _run_ground_nsrt(ground_nsrt,
