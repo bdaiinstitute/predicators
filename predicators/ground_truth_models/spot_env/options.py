@@ -570,9 +570,10 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
     "PickObjectFromTop": Box(-np.inf, np.inf, (6, )),
-    # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
-    # then grasp is unconstrained
+    # same as PickObjectFromTop
     "PickAndDumpContainer": Box(-np.inf, np.inf, (6, )),
+    # same as PickObjectFromTop
+    "PickObjectToDrag": Box(-np.inf, np.inf, (6, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
@@ -589,6 +590,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
+    "PickObjectToDrag": _pick_object_from_top_policy,
     "PickAndDumpContainer": _dump_cup_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,

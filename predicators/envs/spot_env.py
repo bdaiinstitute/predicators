@@ -267,6 +267,12 @@ class SpotRearrangementEnv(BaseEnv):
             return _dry_simulate_pick_from_top(obs, target_obj, pixel,
                                                nonpercept_atoms)
 
+        if action_name == "PickObjectToDrag":
+            _, target_obj = action_objs
+            pixel = action_args[2]
+            return _dry_simulate_pick_from_top(obs, target_obj, pixel,
+                                               nonpercept_atoms)
+
         if action_name == "MoveToReachObject":
             robot_rel_se2_pose = action_args[1]
             return _dry_simulate_move_to_reach_obj(obs, robot_rel_se2_pose,
@@ -316,7 +322,7 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "DropNotPlaceableObject":
             return _dry_simulate_drop_not_placeable_object(
                 obs, nonpercept_atoms)
-        
+
         if action_name == "MoveToReadySweep":
             robot_rel_se2_pose = action_args[1]
             return _dry_simulate_move_to_reach_obj(obs, robot_rel_se2_pose,
@@ -968,8 +974,8 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     blocked_x = state.get(blocked_obj, "x")
     blocked_y = state.get(blocked_obj, "y")
 
-    blocked_robot_line = utils.LineSegment(robot_x, robot_y,
-                                           blocked_x, blocked_y)
+    blocked_robot_line = utils.LineSegment(robot_x, robot_y, blocked_x,
+                                           blocked_y)
 
     # Don't put the blocker on the robot, even if it's held, because we don't
     # want to consider the blocker to be unblocked until it's actually moved
@@ -1176,7 +1182,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_On, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj]),
-        LiftedAtom(_NotInsideAnyContainer, [obj])
+        LiftedAtom(_NotInsideAnyContainer, [obj]),
+        LiftedAtom(_IsPlaceable, [obj]),
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
@@ -1189,6 +1196,28 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     ignore_effs = set()
     yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+
+    # PickObjectToDrag
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_IsNotPlaceable, [obj]),
+    }
+    add_effs = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    # Importantly, does not include On as a delete effect.
+    del_effs = {
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotHolding, [robot, obj]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PickObjectToDrag", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # PlaceObjectOnTop
@@ -2057,6 +2086,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
             "PlaceObjectOnTop",
             "DropObjectInside",
             "DragToUnblockObject",
+            "PickObjectToDrag",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -2121,6 +2151,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "PickAndDumpContainer",
             "DropNotPlaceableObject",
             "MoveToReadySweep",
+            "PickObjectToDrag",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
