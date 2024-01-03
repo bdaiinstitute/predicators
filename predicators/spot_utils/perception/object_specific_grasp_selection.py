@@ -195,14 +195,14 @@ def _get_brush_grasp_pixel(
 
     # This part was extremely annoying to implement. If issues come up
     # again, it's helpful to dump these things and analyze separately.
-    # import dill as pkl
-    # with open("debug.pkl", "wb") as f:
-    #     pkl.dump(
-    #         {
-    #             "rgb": rgbds[camera_name].rgb,
-    #             "mask": mask,
-    #             "selected_pixel": selected_pixel,
-    #         }, f)
+    import dill as pkl
+    with open("debug-brush-grasp.pkl", "wb") as f:
+        pkl.dump(
+            {
+                "rgb": rgbds[camera_name].rgb,
+                "mask": mask,
+                "selected_pixel": selected_pixel,
+            }, f)
 
     # First find an angle that aligns with the handle of the brush.
     def _count_pixels_on_line(arr: NDArray, center: Tuple[int, int],

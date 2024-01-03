@@ -32,6 +32,7 @@ def test_spot_env_dry_run(env):
         "spot_run_dry": True,
         "bilevel_plan_without_sim": True,
         "spot_use_perfect_samplers": True,
+        "spot_graph_nav_map": "floor8-v2",
     })
     env = create_new_env(env)
     perceiver = SpotPerceiver()
@@ -66,6 +67,7 @@ def test_spot_soda_sweep_env_dry_run():
         "spot_run_dry": True,
         "bilevel_plan_without_sim": True,
         "spot_use_perfect_samplers": True,
+        "spot_graph_nav_map": "floor8-v2",
     })
     env = create_new_env(CFG.env)
     perceiver = SpotPerceiver()
@@ -89,6 +91,7 @@ def test_spot_soda_sweep_env_dry_run():
     MoveToReachObject = nsrt_name_to_nsrt["MoveToReachObject"]
     MoveToHandViewObject = nsrt_name_to_nsrt["MoveToHandViewObject"]
     PickObjectFromTop = nsrt_name_to_nsrt["PickObjectFromTop"]
+    PickObjectToDrag = nsrt_name_to_nsrt["PickObjectToDrag"]
     PlaceObjectOnTop = nsrt_name_to_nsrt["PlaceObjectOnTop"]
     DragToUnblockObject = nsrt_name_to_nsrt["DragToUnblockObject"]
     SweepIntoContainer = nsrt_name_to_nsrt["SweepIntoContainer"]
@@ -119,6 +122,14 @@ def test_spot_soda_sweep_env_dry_run():
             action = option.policy(state)
             perceiver.update_perceiver_with_action(action)
             perceiver.step(obs)
+
+            # Uncomment for debugging. Also add "render_state_dpi": 150.
+            # imgs = perceiver.render_mental_images(obs, env_task)
+            # import cv2
+            # cv2.imshow("Mental image", imgs[0])
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+
             return perceiver._create_state()  # pylint: disable=protected-access
 
         return utils.run_ground_nsrt_with_assertions(
@@ -137,7 +148,7 @@ def test_spot_soda_sweep_env_dry_run():
     prepare_bucket = PrepareContainerForSweeping.ground(
         [robot, bucket, soda_can, table])
     move_to_hand_view_chair = MoveToHandViewObject.ground([robot, chair])
-    pick_chair = PickObjectFromTop.ground([robot, chair, floor])
+    pick_chair = PickObjectToDrag.ground([robot, chair])
     drag_chair = DragToUnblockObject.ground([robot, chair, soda_can])
     move_to_hand_view_brush = MoveToHandViewObject.ground([robot, brush])
     pick_brush = PickObjectFromTop.ground([robot, brush, floor])

@@ -2229,8 +2229,8 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         objects_in_view[brush] = brush_pose
 
         chair = Object("chair", _movable_object_type)
-        x = soda_can_pose.x - 1.5 * chair_width
-        y = soda_can_pose.y
+        x = table_x - 1.5 * chair_width
+        y = table_y
         z = floor_z + chair_height / 2
         chair_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[chair] = chair_pose

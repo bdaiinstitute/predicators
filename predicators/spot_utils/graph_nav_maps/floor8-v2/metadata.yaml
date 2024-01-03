@@ -120,5 +120,5 @@ static-object-features:
 # (in the table frame) for the robot before placing the container.
 prepare_container_relative_xy:
   dx: -0.8
-  dy: -0.4
+  dy: -0.8
   angle: 0.0
