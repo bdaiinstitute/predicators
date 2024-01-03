@@ -960,24 +960,27 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
         _holding_classifier(state, [spot, blocked_obj]):
         return False
 
-    # Draw a line between blocked and the robot’s home pose.
+    # Draw a line between blocked and the robot’s current pose.
     # Check if blocker intersects that line.
-    robot_home_pose = get_spot_home_pose()
-    robot_home_x = robot_home_pose.x
-    robot_home_y = robot_home_pose.y
+    robot_x = state.get(spot, "x")
+    robot_y = state.get(spot, "y")
 
     blocked_x = state.get(blocked_obj, "x")
     blocked_y = state.get(blocked_obj, "y")
 
-    blocked_robot_line = utils.LineSegment(robot_home_x, robot_home_y,
+    blocked_robot_line = utils.LineSegment(robot_x, robot_y,
                                            blocked_x, blocked_y)
 
     # Don't put the blocker on the robot, even if it's held, because we don't
     # want to consider the blocker to be unblocked until it's actually moved
     # out of the way and released by the robot. Otherwise the robot might just
-    # pick something up and put it back down, thinking it's unblocked.
+    # pick something up and put it back down, thinking it's unblocked. Also,
+    # use a relatively large size buffer so that we're conservative in terms
+    # of what's blocking versus not blocking.
+    size_buffer = 0.25
     blocker_geom = object_to_top_down_geom(blocker_obj,
                                            state,
+                                           size_buffer=size_buffer,
                                            put_on_robot_if_held=False)
 
     return blocker_geom.intersects(blocked_robot_line)
