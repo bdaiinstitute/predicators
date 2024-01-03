@@ -314,6 +314,14 @@ def _pick_object_from_top_policy(state: State, memory: Dict,
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
 
 
+def _pick_object_to_drag_policy(state: State, memory: Dict,
+                                objects: Sequence[Object],
+                                params: Array) -> Action:
+    name = "PickObjectToDrag"
+    target_obj_idx = 1
+    return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
+
+
 def _dump_cup_policy(state: State, memory: Dict, objects: Sequence[Object],
                      params: Array) -> Action:
     # Same as PickObjectFromTop; just necessary to make options 1:1 with
@@ -585,12 +593,14 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
 }
 
+# NOTE: the policies MUST be unique because they output actions with extra info
+# that includes the name of the operators.
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
-    "PickObjectToDrag": _pick_object_from_top_policy,
+    "PickObjectToDrag": _pick_object_to_drag_policy,
     "PickAndDumpContainer": _dump_cup_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
