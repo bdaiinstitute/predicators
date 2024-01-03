@@ -115,7 +115,7 @@ def test_spot_soda_sweep_env_dry_run():
                          override_params=None,
                          assert_add_effects=True,
                          assert_delete_effects=True):
-        
+
         def obs_to_state(obs):
             option = ground_nsrt.sample_option(state, set(), rng)
             assert option.initiable(state)

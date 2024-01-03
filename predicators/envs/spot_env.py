@@ -925,7 +925,7 @@ def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
     angle_between_robot_and_obj = np.arccos(
         np.clip(np.dot(forward_unit, spot_to_obj_unit), -1, 1))
     is_yaw_near = abs(angle_between_robot_and_obj) < _REACHABLE_YAW_THRESHOLD
-    
+
     return is_xy_near and is_yaw_near
 
 
