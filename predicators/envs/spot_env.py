@@ -25,7 +25,7 @@ from predicators.spot_utils.perception.object_detection import \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
-    brush_prompt
+    brush_prompt, bucket_prompt
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -2219,7 +2219,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[soda_can_detection] = soda_can
 
         yogurt = Object("yogurt", _movable_object_type)
-        yogurt_prompt = "white plastic yogurt cup"
+        yogurt_prompt = "small white plastic yogurt cup"
         yogurt_detection = LanguageObjectDetectionID(yogurt_prompt)
         detection_id_to_obj[yogurt_detection] = yogurt
 
@@ -2232,7 +2232,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[chair_detection] = chair
 
         bucket = Object("bucket", _container_type)
-        bucket_detection = LanguageObjectDetectionID("bucket")
+        bucket_detection = LanguageObjectDetectionID(bucket_prompt)
         detection_id_to_obj[bucket_detection] = bucket
 
         for obj, pose in get_known_immovable_objects().items():
