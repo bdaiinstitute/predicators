@@ -1368,8 +1368,9 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, sweeper]),
         LiftedAtom(_On, [target1, surface]),
         LiftedAtom(_On, [target2, surface]),
+        # Arbitrarily pick one of the targets to be the one ready for sweeping,
+        # to prevent the robot 'moving to get ready for sweeping' twice.
         LiftedAtom(_RobotReadyForSweeping, [robot, container, target1]),
-        LiftedAtom(_RobotReadyForSweeping, [robot, container, target2]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target1]),
         LiftedAtom(_ContainerReadyForSweeping, [container, target2]),
         LiftedAtom(_IsPlaceable, [target1]),
@@ -2218,7 +2219,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[soda_can_detection] = soda_can
 
         yogurt = Object("yogurt", _movable_object_type)
-        yogurt_prompt = "yogurt container/yogurt cup/white plastic cup"
+        yogurt_prompt = "white plastic yogurt cup"
         yogurt_detection = LanguageObjectDetectionID(yogurt_prompt)
         detection_id_to_obj[yogurt_detection] = yogurt
 
