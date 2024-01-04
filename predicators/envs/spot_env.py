@@ -305,6 +305,11 @@ class SpotRearrangementEnv(BaseEnv):
                                                       start_dy=sweep_start_dy,
                                                       rng=self._noise_rng)
 
+        if action_name == "SweepTwoObjectsIntoContainer":
+            # TODO
+            import ipdb
+            ipdb.set_trace()
+
         if action_name == "DragToUnblockObject":
             _, blocker, _ = action_objs
             _, robot_rel_se2_pose = action_args
@@ -1349,6 +1354,48 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("MoveToReadySweep", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
+    # SweepTwoObjectsIntoContainer
+    robot = Variable("?robot", _robot_type)
+    sweeper = Variable("?sweeper", _movable_object_type)
+    target1 = Variable("?target1", _movable_object_type)
+    target2 = Variable("?target2", _movable_object_type)
+    surface = Variable("?surface", _immovable_object_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, sweeper, target1, target2, surface, container]
+    preconds = {
+        LiftedAtom(_NotBlocked, [target1]),
+        LiftedAtom(_NotBlocked, [target2]),
+        LiftedAtom(_Holding, [robot, sweeper]),
+        LiftedAtom(_On, [target1, surface]),
+        LiftedAtom(_On, [target2, surface]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target1]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target2]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target1]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target2]),
+        LiftedAtom(_IsPlaceable, [target1]),
+        LiftedAtom(_IsPlaceable, [target2]),
+        LiftedAtom(_HasFlatTopSurface, [surface]),
+    }
+    add_effs = {
+        LiftedAtom(_Inside, [target1, container]),
+        LiftedAtom(_Inside, [target2, container]),
+    }
+    del_effs = {
+        LiftedAtom(_On, [target1, surface]),
+        LiftedAtom(_On, [target2, surface]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target1]),
+        LiftedAtom(_ContainerReadyForSweeping, [container, target2]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target1]),
+        LiftedAtom(_RobotReadyForSweeping, [robot, container, target2]),
+        LiftedAtom(_Reachable, [robot, target1]),
+        LiftedAtom(_Reachable, [robot, target2]),
+        LiftedAtom(_NotInsideAnyContainer, [target1]),
+        LiftedAtom(_NotInsideAnyContainer, [target2]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("SweepTwoObjectsIntoContainer", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+
     # SweepIntoContainer
     robot = Variable("?robot", _robot_type)
     sweeper = Variable("?sweeper", _movable_object_type)
@@ -2147,6 +2194,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
             "PlaceObjectOnTop",
             "DragToUnblockObject",
             "SweepIntoContainer",
+            "SweepTwoObjectsIntoContainer",
             "PrepareContainerForSweeping",
             "PickAndDumpContainer",
             "DropNotPlaceableObject",

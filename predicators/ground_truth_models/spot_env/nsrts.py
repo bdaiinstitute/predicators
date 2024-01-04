@@ -245,6 +245,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DropObjectInsideContainerOnTop": _drop_object_inside_sampler,
             "DragToUnblockObject": _drag_to_unblock_object_sampler,
             "SweepIntoContainer": _sweep_into_container_sampler,
+            "SweepTwoObjectsIntoContainer": _sweep_into_container_sampler,
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
