@@ -2169,6 +2169,11 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         soda_can_detection = LanguageObjectDetectionID(soda_prompt)
         detection_id_to_obj[soda_can_detection] = soda_can
 
+        yogurt = Object("yogurt", _movable_object_type)
+        yogurt_prompt = "yogurt container/yogurt cup/white plastic cup"
+        yogurt_detection = LanguageObjectDetectionID(yogurt_prompt)
+        detection_id_to_obj[yogurt_detection] = yogurt
+
         brush = Object("brush", _movable_object_type)
         brush_detection = LanguageObjectDetectionID(brush_prompt)
         detection_id_to_obj[brush_detection] = brush

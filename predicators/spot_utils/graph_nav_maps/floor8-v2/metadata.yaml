@@ -79,6 +79,11 @@ static-object-features:
     length: 0.065
     width: 0.065
     placeable: 1
+  yogurt:
+    shape: 2
+    height: 0.08
+    length: 0.1
+    width: 0.1
   floor:
     shape: 1
     height: 0.0001
