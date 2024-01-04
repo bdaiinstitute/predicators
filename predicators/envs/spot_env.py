@@ -297,8 +297,7 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "SweepIntoContainer":
             _, _, target, _, container = action_objs
             _, _, sweep_start_dx, sweep_start_dy = action_args
-            return _dry_simulate_sweep_into_container(obs,
-                                                      target,
+            return _dry_simulate_sweep_into_container(obs, {target},
                                                       container,
                                                       nonpercept_atoms,
                                                       start_dx=sweep_start_dx,
@@ -306,9 +305,14 @@ class SpotRearrangementEnv(BaseEnv):
                                                       rng=self._noise_rng)
 
         if action_name == "SweepTwoObjectsIntoContainer":
-            # TODO
-            import ipdb
-            ipdb.set_trace()
+            _, _, target1, target2, _, container = action_objs
+            _, _, sweep_start_dx, sweep_start_dy = action_args
+            return _dry_simulate_sweep_into_container(obs, {target1, target2},
+                                                      container,
+                                                      nonpercept_atoms,
+                                                      start_dx=sweep_start_dx,
+                                                      start_dy=sweep_start_dy,
+                                                      rng=self._noise_rng)
 
         if action_name == "DragToUnblockObject":
             _, blocker, _ = action_objs
@@ -1755,7 +1759,7 @@ def _dry_simulate_prepare_container_for_sweeping(
 
 
 def _dry_simulate_sweep_into_container(
-        last_obs: _SpotObservation, swept_obj: Object, container: Object,
+        last_obs: _SpotObservation, swept_objs: Set[Object], container: Object,
         nonpercept_atoms: Set[GroundAtom], start_dx: float, start_dy: float,
         rng: np.random.Generator) -> _SpotObservation:
 
@@ -1768,32 +1772,33 @@ def _dry_simulate_sweep_into_container(
     gripper_open_percentage = last_obs.gripper_open_percentage
 
     static_feats = load_spot_metadata()["static-object-features"]
-    swept_obj_height = static_feats[swept_obj.name]["height"]
     container_pose = objects_in_view[container]
     container_radius = static_feats[container.name]["width"] / 2
-    swept_obj_radius = static_feats[container.name]["width"] / 2
 
     # NOTE: this may change soon to be more physically realistic.
     # If the sweep parameters are close enough to optimal, the object should
     # end up in the container.
     optimal_dx, optimal_dy = 0.0, -0.5
     thresh = 1.0
-    if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
-        x = container_pose.x
-        y = container_pose.y
-        z = container_pose.z + swept_obj_height / 2
-    # Otherwise, the object fails randomly somewhere around the container.
-    else:
-        angle = rng.uniform(0, 2 * np.pi)
-        distance = (container_radius + swept_obj_radius) * rng.uniform(
-            1.25, 1.5)
-        dx = distance * np.cos(angle)
-        dy = distance * np.sin(angle)
-        x = container_pose.x + dx
-        y = container_pose.y + dy
-        z = container_pose.z
-    swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
-    objects_in_view[swept_obj] = swept_obj_pose
+    for swept_obj in swept_objs:
+        swept_obj_height = static_feats[swept_obj.name]["height"]
+        swept_obj_radius = static_feats[swept_obj.name]["width"] / 2
+        if abs(start_dx - optimal_dx) + abs(start_dy - optimal_dy) < thresh:
+            x = container_pose.x
+            y = container_pose.y
+            z = container_pose.z + swept_obj_height / 2
+        # Otherwise, the object fails randomly somewhere around the container.
+        else:
+            angle = rng.uniform(0, 2 * np.pi)
+            distance = (container_radius + swept_obj_radius) * rng.uniform(
+                1.25, 1.5)
+            dx = distance * np.cos(angle)
+            dy = distance * np.sin(angle)
+            x = container_pose.x + dx
+            y = container_pose.y + dy
+            z = container_pose.z
+        swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        objects_in_view[swept_obj] = swept_obj_pose
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
@@ -2260,6 +2265,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         table_length = static_object_feats["black_table"]["length"]
         soda_can_height = static_object_feats["soda_can"]["height"]
         soda_can_length = static_object_feats["soda_can"]["length"]
+        yogurt_height = static_object_feats["yogurt"]["height"]
         brush_height = static_object_feats["brush"]["height"]
         chair_height = static_object_feats["chair"]["height"]
         chair_width = static_object_feats["chair"]["width"]
@@ -2274,6 +2280,13 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         z = floor_z + table_height + soda_can_height / 2
         soda_can_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         objects_in_view[soda_can] = soda_can_pose
+
+        yogurt = Object("yogurt", _movable_object_type)
+        z = floor_z + table_height + yogurt_height / 2
+        yogurt_pose = math_helpers.SE3Pose(soda_can_pose.x,
+                                           soda_can_pose.y + 0.1, z,
+                                           math_helpers.Quat())
+        objects_in_view[yogurt] = yogurt_pose
 
         brush = Object("brush", _movable_object_type)
         x = table_x
