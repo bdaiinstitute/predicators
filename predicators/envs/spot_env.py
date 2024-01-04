@@ -2241,7 +2241,7 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the soda in the bucket and hold the brush"
+        return "get the soda and yogurt in the bucket"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
