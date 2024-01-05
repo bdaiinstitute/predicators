@@ -290,7 +290,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
                                             rot=rot)
     # Calculate the yaw and distance for the sweep.
     sweep_move_dx = -start_dx
-    sweep_move_dy = -start_dy
+    sweep_move_dy = -2 * start_dy
     sweep_move_dz = -3 * start_dz
 
     # Execute the sweep.
