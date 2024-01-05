@@ -194,7 +194,7 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
     # NOTE: these parameters may change (need to experiment on robot).
     del state, goal, objs
     if CFG.spot_use_perfect_samplers:
-        return np.array([0.0, 0.4, 0.3])
+        return np.array([0.0, 0.4, 0.2])
     dx, dy, dz = rng.uniform(-0.5, 0.5, size=3)
     return np.array([dx, dy, dz])
 
