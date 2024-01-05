@@ -163,7 +163,7 @@ def _get_brush_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
-    """Grasp at the yellow pixels in the mask of the brush.
+    """Grasp at the blue tape, i.e., blue pixels in the mask of the brush.
 
     Also, use the head of the brush to determine the grasp orientation.
     Grasp at a "9 o-clock" angle, if grasping toward the brush head is
@@ -187,8 +187,8 @@ def _get_brush_grasp_pixel(
     # Get copy of image with just the mask pixels in it.
     isolated_rgb = rgb.copy()
     isolated_rgb[~mask] = 0
-    # Look for yellow pixels in the isolated rgb.
-    lo, hi = ((180, 180, 0), (255, 255, 130))
+    # Look for blue pixels in the isolated rgb.
+    lo, hi = ((0, 130, 180), (130, 255, 255))
     centroid = find_color_based_centroid(isolated_rgb,
                                          lo,
                                          hi,
@@ -203,14 +203,14 @@ def _get_brush_grasp_pixel(
 
     # This part was extremely annoying to implement. If issues come up
     # again, it's helpful to dump these things and analyze separately.
-    import dill as pkl
-    with open("debug-brush-grasp.pkl", "wb") as f:
-        pkl.dump(
-            {
-                "rgb": rgbds[camera_name].rgb,
-                "mask": mask,
-                "selected_pixel": selected_pixel,
-            }, f)
+    # import dill as pkl
+    # with open("debug-brush-grasp.pkl", "wb") as f:
+    #     pkl.dump(
+    #         {
+    #             "rgb": rgbds[camera_name].rgb,
+    #             "mask": mask,
+    #             "selected_pixel": selected_pixel,
+    #         }, f)
 
     # Crop using the original mask, but then recompute the mask using color
     # because sometimes the top head of the brush gets cut off.

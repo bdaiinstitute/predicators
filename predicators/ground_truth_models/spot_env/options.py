@@ -589,7 +589,7 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     yaw = cont_target_yaw + np.pi / 2
 
     # Make up new params.
-    distance = 0.7
+    distance = 0.8
     params = np.array([distance, yaw])
     distance_param_idx = 0
     yaw_param_idx = 1
