@@ -6,7 +6,8 @@ from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
-from predicators.spot_utils.skills.spot_navigation import navigate_to_relative_pose
+from predicators.spot_utils.skills.spot_navigation import \
+    navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 
 
