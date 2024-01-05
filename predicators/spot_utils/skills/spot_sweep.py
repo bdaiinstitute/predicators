@@ -158,7 +158,7 @@ if __name__ == "__main__":
                                                 rot=rot)
         # Calculate the yaw and distance for the sweep.
         sweep_move_dx = -start_dx
-        sweep_move_dy = start_dy
+        sweep_move_dy = -start_dy
         sweep_move_dz = -3 * start_dz
 
         # Execute the sweep.
