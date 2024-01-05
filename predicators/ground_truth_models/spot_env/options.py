@@ -567,7 +567,7 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
     # Place in front.
     place_rel_pose = math_helpers.SE3Pose(x=1.25,
                                           y=0.0,
-                                          z=container_z,
+                                          z=container_z - 0.05,
                                           rot=math_helpers.Quat())
 
     return utils.create_spot_env_action(
