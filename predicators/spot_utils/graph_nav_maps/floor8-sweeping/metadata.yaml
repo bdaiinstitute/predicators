@@ -57,6 +57,7 @@ static-object-features:
     length: 0.5
     width: 0.05
     placeable: 1
+    is_sweeper: 1
   bucket:
     shape: 1
     height: 0.05

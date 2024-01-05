@@ -1041,6 +1041,11 @@ def _is_not_placeable_classifier(state: State,
     return not _is_not_placeable_classifier(state, objects)
 
 
+def _is_sweeper_classifier(state: State, objects: Sequence[Object]) -> bool:
+    obj, = objects
+    return state.get(obj, "is_sweeper") > 0.5
+
+
 def _has_flat_top_surface_classifier(state: State,
                                      objects: Sequence[Object]) -> bool:
     obj, = objects
@@ -1106,6 +1111,8 @@ _ContainerReadyForSweeping = Predicate(
     _container_ready_for_sweeping_classifier)
 _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type],
                          _is_placeable_classifier)
+_IsSweeper = Predicate("IsSweeper", [_movable_object_type],
+                         _is_sweeper_classifier)
 _IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type],
                             _is_not_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
@@ -1130,8 +1137,10 @@ _ALL_PREDICATES = {
     _NotBlocked,
     _ContainerReadyForSweeping,
     _IsPlaceable,
+    _IsSweeper,
     _HasFlatTopSurface,
     _RobotReadyForSweeping,
+    
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1382,6 +1391,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_IsPlaceable, [target1]),
         LiftedAtom(_IsPlaceable, [target2]),
         LiftedAtom(_HasFlatTopSurface, [surface]),
+        LiftedAtom(_IsSweeper, [sweeper]),
     }
     add_effs = {
         LiftedAtom(_Inside, [target1, container]),
@@ -1418,6 +1428,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
         LiftedAtom(_IsPlaceable, [target]),
         LiftedAtom(_HasFlatTopSurface, [surface]),
+        LiftedAtom(_IsSweeper, [sweeper]),
     }
     add_effs = {
         LiftedAtom(_Inside, [target, container]),
