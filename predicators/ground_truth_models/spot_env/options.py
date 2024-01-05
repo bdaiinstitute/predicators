@@ -171,10 +171,18 @@ def _move_to_absolute_pose_and_place_push_stow(
     move_hand_to_relative_pose(robot, push_rel_pose)
     # Open the gripper.
     open_gripper(robot)
-    # Move the gripper slightly up and back toward the place rel pose.
+    # Move the gripper slightly up to avoid collisions with the container.
+    dz = 0.2
+    slightly_back_and_up_pose = math_helpers.SE3Pose(x=push_rel_pose.x,
+                                                     y=push_rel_pose.y,
+                                                     z=push_rel_pose.z + dz,
+                                                     rot=push_rel_pose.rot)
+    move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
+    # Move the gripper back toward above the place rel pose to avoid collisions
+    # with the surface.
     slightly_back_and_up_pose = math_helpers.SE3Pose(x=place_rel_pose.x,
                                                      y=place_rel_pose.y,
-                                                     z=place_rel_pose.z + 0.1,
+                                                     z=place_rel_pose.z + dz,
                                                      rot=place_rel_pose.rot)
     move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
     # Stow.
