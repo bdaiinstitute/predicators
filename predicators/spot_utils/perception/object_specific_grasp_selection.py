@@ -163,7 +163,7 @@ def _get_brush_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
-    """Grasp at the blue tape, i.e., blue pixels in the mask of the brush.
+    """Grasp at the yellow pixels in the mask of the brush.
 
     Also, use the head of the brush to determine the grasp orientation.
     Grasp at a "9 o-clock" angle, if grasping toward the brush head is
@@ -187,8 +187,8 @@ def _get_brush_grasp_pixel(
     # Get copy of image with just the mask pixels in it.
     isolated_rgb = rgb.copy()
     isolated_rgb[~mask] = 0
-    # Look for blue pixels in the isolated rgb.
-    lo, hi = ((0, 130, 180), (130, 255, 255))
+    # Look for yellow pixels in the isolated rgb.
+    lo, hi = ((180, 180, 0), (255, 255, 130))
     centroid = find_color_based_centroid(isolated_rgb,
                                          lo,
                                          hi,
@@ -203,14 +203,14 @@ def _get_brush_grasp_pixel(
 
     # This part was extremely annoying to implement. If issues come up
     # again, it's helpful to dump these things and analyze separately.
-    # import dill as pkl
-    # with open("debug-brush-grasp.pkl", "wb") as f:
-    #     pkl.dump(
-    #         {
-    #             "rgb": rgbds[camera_name].rgb,
-    #             "mask": mask,
-    #             "selected_pixel": selected_pixel,
-    #         }, f)
+    import dill as pkl
+    with open("debug-brush-grasp.pkl", "wb") as f:
+        pkl.dump(
+            {
+                "rgb": rgbds[camera_name].rgb,
+                "mask": mask,
+                "selected_pixel": selected_pixel,
+            }, f)
 
     # Crop using the original mask, but then recompute the mask using color
     # because sometimes the top head of the brush gets cut off.
@@ -265,14 +265,14 @@ def _get_brush_grasp_pixel(
     final_angle = np.arctan2(dx, -dy)
 
     # Uncomment for debugging.
-    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
-    # cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
-    #                 (selected_pixel[0] + dx, selected_pixel[1] + dy),
-    #                 (255, 0, 0), 5)
-    # cv2.imshow("Selected grasp", bgr)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
+                    (selected_pixel[0] + dx, selected_pixel[1] + dy),
+                    (255, 0, 0), 5)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     roll = math_helpers.Quat.from_roll(final_angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)

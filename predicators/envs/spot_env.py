@@ -1067,7 +1067,9 @@ def _robot_ready_for_sweeping_classifier(state: State,
     target_to_cont_unit = target_to_cont / np.linalg.norm(target_to_cont)
     angle_cos = np.dot(robot_to_target_unit, target_to_cont_unit)
 
-    return angle_cos < 0
+    threshold = 0.1  # exact would be 0
+
+    return angle_cos < threshold
 
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
