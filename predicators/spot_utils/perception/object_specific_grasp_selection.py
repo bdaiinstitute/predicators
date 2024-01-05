@@ -265,14 +265,14 @@ def _get_brush_grasp_pixel(
     final_angle = np.arctan2(dx, -dy)
 
     # Uncomment for debugging.
-    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
-    cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
-                    (selected_pixel[0] + dx, selected_pixel[1] + dy),
-                    (255, 0, 0), 5)
-    cv2.imshow("Selected grasp", bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    # cv2.arrowedLine(bgr, (selected_pixel[0], selected_pixel[1]),
+    #                 (selected_pixel[0] + dx, selected_pixel[1] + dy),
+    #                 (255, 0, 0), 5)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     roll = math_helpers.Quat.from_roll(final_angle)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)

@@ -15,7 +15,7 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     # Move first in the yz direction (perpendicular to robot body) to avoid
     # knocking the target object over.
     sweep_start_y_move = math_helpers.SE3Pose(
-        x=0.3,  # sensible default
+        x=0.4,  # sensible default
         y=sweep_start_pose.y,
         z=sweep_start_pose.z,
         rot=math_helpers.Quat(),
