@@ -290,7 +290,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "PrepareContainerForSweeping":
             _, container_obj, _, _ = action_objs
-            _, _, new_robot_se2_pose, _ = action_args
+            _, _, new_robot_se2_pose, _, _ = action_args
             return _dry_simulate_prepare_container_for_sweeping(
                 obs, container_obj, new_robot_se2_pose, nonpercept_atoms)
 
