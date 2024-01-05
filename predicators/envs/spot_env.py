@@ -296,7 +296,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "SweepIntoContainer":
             _, _, target, _, container = action_objs
-            _, _, sweep_start_dx, sweep_start_dy = action_args
+            _, _, sweep_start_dx, sweep_start_dy, _ = action_args
             return _dry_simulate_sweep_into_container(obs, {target},
                                                       container,
                                                       nonpercept_atoms,
