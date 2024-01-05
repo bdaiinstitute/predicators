@@ -621,9 +621,6 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     cont_target_yaw = np.arctan2(dy, dx)
     yaw = cont_target_yaw + np.pi / 2
 
-    # TODO remove
-    print(f"DEBUG: {cont_target_yaw=}", cont_target_yaw)
-
     # Make up new params.
     distance = 0.8
     params = np.array([distance, yaw])
