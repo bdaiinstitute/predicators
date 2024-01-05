@@ -1112,7 +1112,7 @@ _ContainerReadyForSweeping = Predicate(
 _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type],
                          _is_placeable_classifier)
 _IsSweeper = Predicate("IsSweeper", [_movable_object_type],
-                         _is_sweeper_classifier)
+                       _is_sweeper_classifier)
 _IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type],
                             _is_not_placeable_classifier)
 _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
@@ -1140,7 +1140,6 @@ _ALL_PREDICATES = {
     _IsSweeper,
     _HasFlatTopSurface,
     _RobotReadyForSweeping,
-    
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 

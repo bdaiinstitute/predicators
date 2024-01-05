@@ -158,13 +158,32 @@ def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     stow_arm(robot)
 
 
-def _move_to_absolute_pose_and_place_stow(
+def _move_to_absolute_pose_and_place_push_stow(
         robot: Robot, localizer: SpotLocalizer,
         absolute_pose: math_helpers.SE2Pose,
-        place_rel_pose: math_helpers.SE3Pose) -> None:
+        place_rel_pose: math_helpers.SE3Pose,
+        push_rel_pose: math_helpers.SE3Pose) -> None:
     # Move to the absolute pose.
     navigate_to_absolute_pose(robot, localizer, absolute_pose)
-    _place_at_relative_position_and_stow(robot, place_rel_pose)
+    # Execute first place.
+    move_hand_to_relative_pose(robot, place_rel_pose)
+    # Push.
+    move_hand_to_relative_pose(robot, push_rel_pose)
+    # Open the gripper.
+    open_gripper(robot)
+    # Move the gripper slightly up and back toward the place rel pose.
+    slightly_back_and_up_pose = math_helpers.SE3Pose(x=place_rel_pose.x,
+                                                     y=place_rel_pose.y,
+                                                     z=place_rel_pose.z + 0.1,
+                                                     rot=place_rel_pose.rot)
+    move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
+    # Stow.
+    stow_arm(robot)
+
+
+def _open_and_close_gripper(robot: Robot) -> None:
+    open_gripper(robot)
+    close_gripper(robot)
 
 
 ###############################################################################
@@ -459,7 +478,8 @@ def _drop_not_placeable_object_policy(state: State, memory: Dict,
     name = "DropNotPlaceableObject"
     robot, _, _ = get_robot()
 
-    return utils.create_spot_env_action(name, objects, open_gripper, (robot, ))
+    return utils.create_spot_env_action(name, objects, _open_and_close_gripper,
+                                        (robot, ))
 
 
 def _move_and_drop_object_inside_policy(state: State, memory: Dict,
@@ -563,14 +583,21 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
                                               target_pose.y + dy, dyaw)
 
     # Place in front.
+    rot = math_helpers.Quat.from_pitch(np.pi / 2)
     place_rel_pose = math_helpers.SE3Pose(x=1.25,
                                           y=0.0,
-                                          z=container_z - 0.05,
-                                          rot=math_helpers.Quat())
+                                          z=container_z - 0.15,
+                                          rot=rot)
+
+    # Push towards the target a little bit after placing.
+    push_rel_pose = math_helpers.SE3Pose(x=place_rel_pose.x,
+                                         y=place_rel_pose.y + 0.2,
+                                         z=place_rel_pose.z,
+                                         rot=place_rel_pose.rot)
 
     return utils.create_spot_env_action(
-        name, objects, _move_to_absolute_pose_and_place_stow,
-        (robot, localizer, absolute_move_pose, place_rel_pose))
+        name, objects, _move_to_absolute_pose_and_place_push_stow,
+        (robot, localizer, absolute_move_pose, place_rel_pose, push_rel_pose))
 
 
 def _move_to_ready_sweep_policy(state: State, memory: Dict,
