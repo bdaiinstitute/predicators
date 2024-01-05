@@ -156,8 +156,6 @@ def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
     # Stow the arm.
     stow_arm(robot)
-    # Move backward to avoid hitting the chair subsequently.
-    navigate_to_relative_pose(robot, math_helpers.SE2Pose(0.0, -0.5, 0.0))
 
 
 def _move_to_absolute_pose_and_place_stow(
