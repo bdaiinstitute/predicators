@@ -659,7 +659,7 @@ if __name__ == "__main__":
     TEST_APRIL_TAG_ID = 408
     TEST_LANGUAGE_DESCRIPTIONS = [
         "small purple cup/empty yogurt container",
-        "bag of chips/green bag of food"
+        "bag of chips/popcorn bag/yellow bag of food"
     ]
 
     def _run_manual_test() -> None:
