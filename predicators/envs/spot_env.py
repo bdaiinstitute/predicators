@@ -2303,9 +2303,8 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
 
         chips = Object("chips", _movable_object_type)
         z = floor_z + table_height + chips_height / 2
-        chips_pose = math_helpers.SE3Pose(yogurt_pose.x,
-                                          yogurt_pose.y + 0.1, z,
-                                          math_helpers.Quat())
+        chips_pose = math_helpers.SE3Pose(yogurt_pose.x, yogurt_pose.y + 0.1,
+                                          z, math_helpers.Quat())
         objects_in_view[chips] = chips_pose
 
         brush = Object("brush", _movable_object_type)
