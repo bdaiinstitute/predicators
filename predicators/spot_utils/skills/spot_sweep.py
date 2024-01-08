@@ -43,6 +43,15 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     move_hand_to_relative_pose(robot, sweep_end_pose, duration=4.0)
     # Stow arm.
     stow_arm(robot)
+    # Back up a little bit so that we can see the result of sweeping.
+    # NOTE: this is unfortunately world-frame specific because I'm too dumb to
+    # figure out how to do this properly.
+    body_rel_pose = math_helpers.SE2Pose(
+        x=-0.1,
+        y=-0.3,
+        angle=0.0,
+    )
+    navigate_to_relative_pose(robot, body_rel_pose)
 
 
 if __name__ == "__main__":
