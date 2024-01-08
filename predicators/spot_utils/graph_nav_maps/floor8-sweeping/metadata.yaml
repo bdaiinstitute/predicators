@@ -84,9 +84,9 @@ static-object-features:
     z: -0.1  # the chair can move in the x/y plane only
   black_table:
     shape: 1
-    height: 0.7
-    length: 0.45
-    width: 0.55
+    height: 0.3
+    length: 0.4
+    width: 0.6
     flat_top_surface: 1
   shelf1:
     shape: 1
