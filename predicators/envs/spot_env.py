@@ -2231,14 +2231,19 @@ class SpotSodaSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
         soda_can = Object("soda_can", _movable_object_type)
-        soda_prompt = "soda can/aluminum can/orange can/beer can"
+        # TODO rename variables
+        soda_prompt = "/".join([
+            "small purple cup",
+            "empty yogurt container",
+        ])
         soda_can_detection = LanguageObjectDetectionID(soda_prompt)
         detection_id_to_obj[soda_can_detection] = soda_can
 
         chips = Object("chips", _movable_object_type)
         chips_prompt = "/".join([
             "bag of chips",
-            "green food bag",
+            "popcorn bag",
+            "yellow bag of food",
         ])
         chips_detection = LanguageObjectDetectionID(chips_prompt)
         detection_id_to_obj[chips_detection] = chips
