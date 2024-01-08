@@ -816,4 +816,4 @@ if __name__ == "__main__":
                                 no_detections_outfile)
 
     _run_manual_test()
-    # _run_pythonic_bowl_test()
+    _run_pythonic_bowl_test()
