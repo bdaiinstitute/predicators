@@ -764,13 +764,14 @@ class SpotRearrangementEnv(BaseEnv):
 
 ## Constants
 HANDEMPTY_GRIPPER_THRESHOLD = 2.5  # made public for use in perceiver
-_ONTOP_Z_THRESHOLD = 0.25
-_INSIDE_Z_THRESHOLD = 0.25
+_ONTOP_Z_THRESHOLD = 0.4
+_INSIDE_Z_THRESHOLD = 0.4
 _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
-_CONTAINER_SWEEP_XY_BUFFER = 1.5
+_CONTAINER_SWEEP_XY_BUFFER = 1.0
+_CONTAINER_SWEEP_Z_BUFFER = 2.5
 
 ## Types
 _ALL_TYPES = {
@@ -1028,7 +1029,7 @@ def _container_ready_for_sweeping_classifier(
     container_half_height = state.get(container, "height") / 2
     container_top = container_z + container_half_height
 
-    return target_bottom > container_top
+    return target_bottom + _CONTAINER_SWEEP_Z_BUFFER > container_top
 
 
 def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
