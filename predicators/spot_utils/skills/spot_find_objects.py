@@ -23,6 +23,18 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     sample_random_nearby_point_to_move, spot_pose_to_geom2d
 from predicators.structs import State
 
+# Convenient type alias.
+_DetectionOutput = Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]
+
+
+class _ObjectDetectionFailure(RuntimeError):
+    """Raised when object detection fails to find some object, but includes
+    the object detections that were found."""
+
+    def __init__(self, message: str, detections: _DetectionOutput) -> None:
+        super().__init__(message)
+        self.detections = detections
+
 
 def _find_objects_with_choreographed_moves(
     robot: Robot,
@@ -31,7 +43,7 @@ def _find_objects_with_choreographed_moves(
     relative_base_moves: Sequence[math_helpers.SE2Pose],
     relative_hand_moves: Optional[Sequence[math_helpers.SE3Pose]] = None,
     open_and_close_gripper: bool = True,
-) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
+) -> _DetectionOutput:
     """Helper for object search with hard-coded relative moves."""
 
     if relative_hand_moves is not None:
@@ -95,7 +107,8 @@ def _find_objects_with_choreographed_moves(
     #         print(f"Wrote out to {path}.")
 
     remaining_object_ids = set(object_ids) - set(all_detections)
-    raise RuntimeError(f"Could not find objects: {remaining_object_ids}")
+    raise _ObjectDetectionFailure(f"Could not find objects: {remaining_object_ids}",
+                                  (all_detections, all_artifacts))
 
 
 def init_search_for_objects(
@@ -104,7 +117,7 @@ def init_search_for_objects(
     object_ids: Collection[ObjectDetectionID],
     num_spins: int = 8,
     relative_hand_moves: Optional[List[math_helpers.SE3Pose]] = None,
-) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
+) -> _DetectionOutput:
     """Spin around in place looking for objects.
 
     Raise a RuntimeError if an object can't be found after spinning.
@@ -202,7 +215,7 @@ if __name__ == "__main__":
 
     from predicators.settings import CFG
     from predicators.spot_utils.perception.object_detection import \
-        AprilTagObjectDetectionID
+        LanguageObjectDetectionID
     from predicators.spot_utils.utils import get_graph_nav_dir, verify_estop
 
     def _run_manual_test() -> None:
@@ -228,23 +241,20 @@ if __name__ == "__main__":
         assert path.exists()
         localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 
-        object_ids = [
-            # Table.
-            AprilTagObjectDetectionID(408),
-            # Table.
-            AprilTagObjectDetectionID(409),
-            # Cube.
-            AprilTagObjectDetectionID(410),
+        language_ids = [
+            "small purple cup/empty yogurt container",
+            "bag of chips/popcorn bag/yellow bag of food",
         ]
+        object_ids = [LanguageObjectDetectionID(i) for i in language_ids]
 
         # Test running the initial search for objects.
-        input("Set up initial object search test")
-        init_search_for_objects(robot, localizer, object_ids)
+        # TODO comment back
+        # input("Set up initial object search test")
+        # init_search_for_objects(robot, localizer, object_ids)
 
         # Test finding a lost object.
         input("Set up finding lost object test")
-        cube = object_ids[2]
 
-        step_back_to_find_objects(robot, localizer, {cube})
+        step_back_to_find_objects(robot, localizer, object_ids)
 
     _run_manual_test()
