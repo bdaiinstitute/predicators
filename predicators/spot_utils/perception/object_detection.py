@@ -16,6 +16,7 @@ are currently detected. Rotations should be ignored.
 
 import io
 import logging
+from functools import partial
 from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 
@@ -209,11 +210,16 @@ def detect_objects_from_language(
 
     # Convert the image detections into pose detections. Use the best scoring
     # image for which a pose can be successfully extracted.
+
+    def _get_detection_score(img_detections: Dict[str, SegmentedBoundingBox],
+                             camera: str) -> float:
+        return img_detections[camera].score
+
     detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
     for obj_id, img_detections in object_id_to_img_detections.items():
         # Consider detections from best (highest) to worst score.
         for camera in sorted(img_detections,
-                             key=lambda c: img_detections[c].score,
+                             key=partial(_get_detection_score, img_detections),
                              reverse=True):
             seg_bb = img_detections[camera]
             rgbd = rgbds[camera]
