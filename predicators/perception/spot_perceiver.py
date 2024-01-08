@@ -130,6 +130,21 @@ class SpotPerceiver(BasePerceiver):
                     # We lost the object!
                     logging.info("[Perceiver] Object was lost!")
                     self._lost_objects.add(obj)
+            elif any(n in controller_name.lower()
+                     for n in ["sweepintocontainer", "sweeptwoobjects"]):
+                robot = objects[0]
+                state = self._create_state()
+                if controller_name.lower() == "sweepintocontainer":
+                    objs = {objects[2]}
+                else:
+                    assert controller_name.lower().startswith("sweeptwoobject")
+                    objs = {objects[2], objects[3]}
+                for o in objs:
+                    is_in_view = in_general_view_classifier(state, [robot, o])
+                    if not is_in_view:
+                        # We lost the object!
+                        logging.info("[Perceiver] Object was lost!")
+                        self._lost_objects.add(o)
             else:
                 # Ensure the held object is reset if the hand is empty.
                 prev_held_object = self._held_object
