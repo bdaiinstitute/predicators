@@ -1455,6 +1455,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, container]),
         LiftedAtom(_On, [target, surface]),
         LiftedAtom(_TopAbove, [surface, container]),
+        LiftedAtom(_NEq, [surface, container]),
     }
     add_effs = {
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
