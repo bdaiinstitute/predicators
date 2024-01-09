@@ -22,7 +22,7 @@ ENVS:
       spot_robot_ip: "10.0.1.3"  # ethernet
       perceiver: "spot_perceiver"
       execution_monitor: "expected_atoms"
-      spot_graph_nav_map: "floor8-sweep"
+      spot_graph_nav_map: "floor8-sweeping"
       spot_render_perception_outputs: True  # TODO turn back
       active_sampler_learning_object_specific_samplers: True
 ARGS:
