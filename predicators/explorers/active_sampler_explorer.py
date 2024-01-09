@@ -131,9 +131,7 @@ class ActiveSamplerExplorer(BaseExplorer):
                                   timeout: int) -> ExplorationStrategy:
 
         assigned_task = self._train_tasks[train_task_idx]
-        # TODO
-        assigned_task_finished = True
-        # assigned_task_finished = not self._pursue_task_goal_first
+        assigned_task_finished = not self._pursue_task_goal_first
         assigned_task_horizon = CFG.horizon
         current_policy: Optional[Callable[[State], _Option]] = None
         next_practice_nsrt: Optional[_GroundNSRT] = None
