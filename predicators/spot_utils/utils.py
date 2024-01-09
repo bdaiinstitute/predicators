@@ -92,7 +92,7 @@ def get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
     excluded_objects = ["robot", "floor", "brush", "yogurt", "chips"]
     collision_geoms = []
     for obj in set(state):
-        if obj.type.name not in excluded_objects:
+        if obj.name not in excluded_objects:
             if obj.type == _movable_object_type:
                 if state.get(obj, "held") > 0.5:
                     continue
