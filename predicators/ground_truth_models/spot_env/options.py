@@ -6,6 +6,7 @@ import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 from gym.spaces import Box
+import time
 
 from predicators import utils
 from predicators.envs import get_or_create_env
@@ -70,8 +71,15 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    retry_with_no_constraints=retry_grasp_after_fail)
     # Dump.
     if do_dump:
+        # Rotate to the left.
+        angle = np.pi / 2
+        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, angle))
+        # Move the hand to execute the dump.
         move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_OBJECT_POSE)
+        time.sleep(1.0)
         move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_OBJECT_POSE)
+        # Rotate back to where we started.
+        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, -angle))
     # Stow.
     if do_stow:
         stow_arm(robot)
