@@ -1,12 +1,12 @@
 """Ground-truth options for Spot environments."""
 
+import time
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 from gym.spaces import Box
-import time
 
 from predicators import utils
 from predicators.envs import get_or_create_env
@@ -27,9 +27,9 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
-    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_OBJECT_POSE, \
-    DEFAULT_HAND_PRE_DUMP_OBJECT_POSE, get_relative_se2_from_se3, \
-    object_to_top_down_geom
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_POSE, \
+    DEFAULT_HAND_PRE_DUMP_LIFT_POSE, DEFAULT_HAND_PRE_DUMP_POSE, \
+    get_relative_se2_from_se3, object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
 
@@ -71,13 +71,15 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    retry_with_no_constraints=retry_grasp_after_fail)
     # Dump.
     if do_dump:
+        # Lift the grasped object up high enough that it doesn't collide.
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
         # Rotate to the left.
         angle = np.pi / 2
         navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, angle))
         # Move the hand to execute the dump.
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_OBJECT_POSE)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
         time.sleep(1.0)
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_OBJECT_POSE)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
         # Rotate back to where we started.
         navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, -angle))
     # Stow.

@@ -23,8 +23,8 @@ from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
 
 def _move_offset_sampler(state: State, robot_obj: Object,
                          obj_to_nav_to: Object, rng: np.random.Generator,
-                         min_dist: float, max_dist: float,
-                         min_angle: float, max_angle: float) -> Array:
+                         min_dist: float, max_dist: float, min_angle: float,
+                         max_angle: float) -> Array:
     """Called by all the different movement samplers."""
     obj_to_nav_to_pos = (state.get(obj_to_nav_to,
                                    "x"), state.get(obj_to_nav_to, "y"))
