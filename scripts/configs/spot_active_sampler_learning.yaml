@@ -27,6 +27,7 @@ ENVS:
       active_sampler_learning_object_specific_samplers: True
 ARGS:
   - "debug"
+  - "make_cogman_videos"  # TODO turn off
 FLAGS:
   strips_learner: "oracle"
   sampler_learner: "oracle"
