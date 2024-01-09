@@ -65,7 +65,7 @@ static-object-features:
     height: 0.05
     width: 0.3
     length: 0.4
-    placeable: 1
+    placeable: 0  # don't place it on top of arbitrary surfaces
     is_sweeper: 0
     # Important for TopAbove that the bucket appears to always be on the ground
     z: -0.45
