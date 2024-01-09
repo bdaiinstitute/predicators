@@ -337,7 +337,9 @@ def sample_move_offset_from_target(
     min_distance: float,
     max_distance: float,
     allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
-    max_samples: int = 1000
+    max_samples: int = 1000,
+    min_angle: float = -np.pi,
+    max_angle: float = np.pi,
 ) -> Tuple[float, float, Rectangle]:
     """Sampler for navigating to a target object.
 
@@ -346,7 +348,7 @@ def sample_move_offset_from_target(
     """
     for _ in range(max_samples):
         distance = rng.uniform(min_distance, max_distance)
-        angle = rng.uniform(-np.pi, np.pi)
+        angle = rng.uniform(min_angle, max_angle)
         dx = np.cos(angle) * distance
         dy = np.sin(angle) * distance
         x = target_origin[0] + dx
