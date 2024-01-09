@@ -1039,7 +1039,7 @@ def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
 
 def _is_not_placeable_classifier(state: State,
                                  objects: Sequence[Object]) -> bool:
-    return not _is_not_placeable_classifier(state, objects)
+    return not _is_placeable_classifier(state, objects)
 
 
 def _is_sweeper_classifier(state: State, objects: Sequence[Object]) -> bool:
