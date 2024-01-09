@@ -1138,6 +1138,7 @@ _ALL_PREDICATES = {
     _NotBlocked,
     _ContainerReadyForSweeping,
     _IsPlaceable,
+    _IsNotPlaceable,
     _IsSweeper,
     _HasFlatTopSurface,
     _RobotReadyForSweeping,

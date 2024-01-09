@@ -321,14 +321,20 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(Holding, [robot, brush])
             }
         if goal_description == "sweep the objects into the bucket":
-            robot = Object("robot", _robot_type)
+            # TODO switch back
             yogurt = Object("yogurt", _movable_object_type)
             chips = Object("chips", _movable_object_type)
             bucket = Object("bucket", _container_type)
-            Inside = pred_name_to_pred["Inside"]
+            # Inside = pred_name_to_pred["Inside"]
+            # return {
+            #     GroundAtom(Inside, [yogurt, bucket]),
+            #     GroundAtom(Inside, [chips, bucket]),
+            # }
+            On = pred_name_to_pred["On"]
+            table = Object("black_table", _immovable_object_type)
             return {
-                GroundAtom(Inside, [yogurt, bucket]),
-                GroundAtom(Inside, [chips, bucket]),
+                GroundAtom(On, [yogurt, table]),
+                GroundAtom(On, [chips, table]),
             }
         if goal_description == "put the ball on the table":
             ball = Object("ball", _movable_object_type)
