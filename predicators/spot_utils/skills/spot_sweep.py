@@ -44,8 +44,8 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     # Stow arm.
     stow_arm(robot)
     # Back up a little bit so that we can see the result of sweeping.
-    # NOTE: this is unfortunately world-frame specific because I'm too dumb to
-    # figure out how to do this properly.
+    # NOTE: this assumes that sweeping is done to the right side of the robot,
+    # which is an assumption we could remove later.
     body_rel_pose = math_helpers.SE2Pose(
         x=-0.1,
         y=-0.3,
