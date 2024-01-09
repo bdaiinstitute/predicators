@@ -770,8 +770,7 @@ _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
-_CONTAINER_SWEEP_XY_BUFFER = 1.0
-_CONTAINER_SWEEP_Z_BUFFER = 2.5
+_CONTAINER_SWEEP_READY_BUFFER = 0.25
 
 ## Types
 _ALL_TYPES = {
@@ -1011,25 +1010,46 @@ def _not_blocked_classifier(state: State, objects: Sequence[Object]) -> bool:
     return True
 
 
+def _get_highest_surface_object_is_on(obj: Object,
+                                      state: State) -> Optional[Object]:
+    highest_surface: Optional[Object] = None
+    highest_surface_z = -np.inf
+    for other_obj in state.get_objects(_immovable_object_type):
+        if _on_classifier(state, [obj, other_obj]):
+            other_obj_z = state.get(other_obj, "z")
+            if other_obj_z > highest_surface_z:
+                highest_surface_z = other_obj_z
+                highest_surface = other_obj
+    return highest_surface
+
+
 def _container_ready_for_sweeping_classifier(
         state: State, objects: Sequence[Object]) -> bool:
     container, target = objects
 
-    # Container is adjacent in xy to target.
-    if not _object_in_xy_classifier(
-            state, target, container, buffer=_CONTAINER_SWEEP_XY_BUFFER):
+    # Compute the expected x, y position based on the parameters for placing
+    # next to the object that the target is on.
+    surface = _get_highest_surface_object_is_on(target, state)
+    if surface is None:
         return False
 
-    # Container is below target.
-    target_z = state.get(target, "z")
-    target_half_height = state.get(target, "height") / 2
-    target_bottom = target_z - target_half_height
+    surface_x = state.get(surface, "x")
+    surface_y = state.get(surface, "y")
 
-    container_z = state.get(container, "z")
-    container_half_height = state.get(container, "height") / 2
-    container_top = container_z + container_half_height
+    # This is the location for spot to go to before placing. We need to convert
+    # it into an expected location for the container.
+    param_dict = load_spot_metadata()["prepare_container_relative_xy"]
+    dx, dy, angle = param_dict["dx"], param_dict["dy"], param_dict["angle"]
+    place_distance = 0.65
+    expected_x = surface_x + dx + place_distance * np.cos(angle)
+    expected_y = surface_y + dy + place_distance * np.sin(angle)
 
-    return target_bottom + _CONTAINER_SWEEP_Z_BUFFER > container_top
+    container_x = state.get(container, "x")
+    container_y = state.get(container, "y")
+
+    return np.sqrt(
+        (expected_x - container_x)**2 +
+        (expected_y - container_y)**2) <= _CONTAINER_SWEEP_READY_BUFFER
 
 
 def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
