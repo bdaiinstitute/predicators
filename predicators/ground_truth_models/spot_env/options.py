@@ -26,8 +26,8 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
-    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_PRE_DUMP_OBJECT_POSE, \
-    DEFAULT_HAND_POST_DUMP_OBJECT_POSE, get_relative_se2_from_se3, \
+    DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_OBJECT_POSE, \
+    DEFAULT_HAND_PRE_DUMP_OBJECT_POSE, get_relative_se2_from_se3, \
     object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
