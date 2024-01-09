@@ -449,7 +449,6 @@ class ActiveSamplerExplorer(BaseExplorer):
             o: -np.log(m.get_current_competence())
             for o, m in self._competence_models.items()
         }
-        import ipdb; ipdb.set_trace()
         # Set large horizon for planning here because we don't want to error
         # out due to plan exceeding horizon here.
         plan, atoms_seq, _ = run_task_plan_once(
