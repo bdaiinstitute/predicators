@@ -87,11 +87,12 @@ def get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
     """Get all relevant collision geometries for navigating."""
     # We want to consider collisions with all objects that:
     # (1) aren't the robot
-    # (2) aren't the floor
+    # (2) aren't in an excluded object list defined below
     # (3) aren't being currently held.
+    excluded_objects = ["robot", "floor", "brush", "yogurt", "chips"]
     collision_geoms = []
     for obj in set(state):
-        if obj.type.name != "robot" and obj.name != "floor":
+        if obj.type.name not in excluded_objects:
             if obj.type == _movable_object_type:
                 if state.get(obj, "held") > 0.5:
                     continue
