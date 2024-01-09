@@ -281,7 +281,8 @@ def _grasp_policy(name: str,
     target_obj_volume = state.get(target_obj, "height") * \
         state.get(target_obj, "length") * state.get(target_obj, "width")
 
-    do_stow = not do_dump and target_obj_volume < CFG.spot_grasp_stow_volume_threshold
+    do_stow = not do_dump and \
+        target_obj_volume < CFG.spot_grasp_stow_volume_threshold
     fn = _grasp_at_pixel_and_maybe_stow_or_dump
 
     # Use a relatively forgiving threshold for grasp constraints in general,
