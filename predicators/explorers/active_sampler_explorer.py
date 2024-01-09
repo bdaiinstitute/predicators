@@ -131,7 +131,9 @@ class ActiveSamplerExplorer(BaseExplorer):
                                   timeout: int) -> ExplorationStrategy:
 
         assigned_task = self._train_tasks[train_task_idx]
-        assigned_task_finished = not self._pursue_task_goal_first
+        # TODO
+        assigned_task_finished = True
+        # assigned_task_finished = not self._pursue_task_goal_first
         assigned_task_horizon = CFG.horizon
         current_policy: Optional[Callable[[State], _Option]] = None
         next_practice_nsrt: Optional[_GroundNSRT] = None
@@ -471,27 +473,31 @@ class ActiveSamplerExplorer(BaseExplorer):
         num_tries = len(history)
         success_rate = sum(history) / num_tries
         total_trials = sum(len(h) for h in self._ground_op_hist.values())
-        # UCB-like bonus.
-        c = CFG.active_sampler_explore_bonus
-        bonus = c * np.sqrt(np.log(total_trials) / num_tries)
-        if CFG.active_sampler_explore_task_strategy == "planning_progress":
-            score = self._score_ground_op_planning_progress(ground_op)
-            if not np.isinf(score):
-                logging.info(f"[Explorer]   Base score: {score}")
-                logging.info(f"[Explorer]   UCB bonus: {bonus}")
-            if CFG.active_sampler_explore_use_ucb_bonus:
-                score += bonus
-        elif CFG.active_sampler_explore_task_strategy == "success_rate":
-            score = (1.0 - success_rate)
-            if CFG.active_sampler_explore_use_ucb_bonus:
-                score += bonus
-        elif CFG.active_sampler_explore_task_strategy == "random":
-            # Random scores baseline.
-            score = self._rng.uniform()
-        else:
-            raise NotImplementedError(
-                "Unrecognized explore task strategy: "
-                f"{CFG.active_sampler_explore_task_strategy}")
+
+        # TODO
+        score = 1.0 if "sweeptwo" in ground_op.name.lower() else -np.inf
+
+        # # UCB-like bonus.
+        # c = CFG.active_sampler_explore_bonus
+        # bonus = c * np.sqrt(np.log(total_trials) / num_tries)
+        # if CFG.active_sampler_explore_task_strategy == "planning_progress":
+        #     score = self._score_ground_op_planning_progress(ground_op)
+        #     if not np.isinf(score):
+        #         logging.info(f"[Explorer]   Base score: {score}")
+        #         logging.info(f"[Explorer]   UCB bonus: {bonus}")
+        #     if CFG.active_sampler_explore_use_ucb_bonus:
+        #         score += bonus
+        # elif CFG.active_sampler_explore_task_strategy == "success_rate":
+        #     score = (1.0 - success_rate)
+        #     if CFG.active_sampler_explore_use_ucb_bonus:
+        #         score += bonus
+        # elif CFG.active_sampler_explore_task_strategy == "random":
+        #     # Random scores baseline.
+        #     score = self._rng.uniform()
+        # else:
+        #     raise NotImplementedError(
+        #         "Unrecognized explore task strategy: "
+        #         f"{CFG.active_sampler_explore_task_strategy}")
         # Break ties randomly.
         return (score, self._rng.uniform())
 

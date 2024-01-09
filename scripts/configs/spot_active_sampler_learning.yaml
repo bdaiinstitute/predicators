@@ -7,14 +7,23 @@ APPROACHES:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
 ENVS:
-  spot_ball_and_cup_sticky_table_env:
-    NAME: "spot_ball_and_cup_sticky_table_env"
+  # spot_ball_and_cup_sticky_table_env:
+  #   NAME: "spot_ball_and_cup_sticky_table_env"
+  #   FLAGS:
+  #     spot_robot_ip: "10.17.30.21"  # Donner
+  #     perceiver: "spot_perceiver"
+  #     execution_monitor: "expected_atoms"
+  #     spot_graph_nav_map: "floor8-cup-table"
+  #     spot_render_perception_outputs: False
+  #     active_sampler_learning_object_specific_samplers: True
+  spot_main_sweep_env:
+    NAME: "spot_main_sweep_env"
     FLAGS:
-      spot_robot_ip: "10.17.30.21"  # Donner
+      spot_robot_ip: "10.0.1.3"  # ethernet
       perceiver: "spot_perceiver"
       execution_monitor: "expected_atoms"
-      spot_graph_nav_map: "floor8-cup-table"
-      spot_render_perception_outputs: False
+      spot_graph_nav_map: "floor8-sweep"
+      spot_render_perception_outputs: True  # TODO turn back
       active_sampler_learning_object_specific_samplers: True
 ARGS:
   - "debug"
