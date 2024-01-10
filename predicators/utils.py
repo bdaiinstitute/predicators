@@ -295,6 +295,7 @@ def wait_for_any_button_press(msg: str) -> None:  # pragma: no cover
     curses.noecho()
     stdscr.addstr(msg)
     stdscr.getkey()
+    curses.flushinp()
     curses.endwin()
 
 

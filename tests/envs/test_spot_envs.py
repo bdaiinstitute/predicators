@@ -567,7 +567,7 @@ def real_robot_sweeping_nsrt_test() -> None:
     state = perceiver.step(obs)
     spot = next(o for o in state if o.type.name == "robot")
     nsrt_name_to_nsrt = {n.name: n for n in nsrts}
-    MoveToReachObject = nsrt_name_to_nsrt["MoveToReachObject"]
+    MoveToReadySweep = nsrt_name_to_nsrt["MoveToReadySweep"]
     SweepTwoObjectsIntoContainer = \
         nsrt_name_to_nsrt["SweepTwoObjectsIntoContainer"]
 
@@ -578,8 +578,6 @@ def real_robot_sweeping_nsrt_test() -> None:
                                           rot=math_helpers.Quat.from_yaw(
                                               -np.pi / 2))
     move_hand_to_relative_pose(robot, hand_side_pose)
-
-    # Ask for the brush.
     open_gripper(robot)
     # Press any key, instead of just enter. Useful for remote control.
     msg = "Put the brush in the robot's gripper, then press any key"
@@ -587,29 +585,21 @@ def real_robot_sweeping_nsrt_test() -> None:
     close_gripper(robot)
     stow_arm(robot)
 
-    # Move to the table.
-    move_to_table_nsrt = MoveToReachObject.ground((spot, table))
-    # Sample and run an option to move to the surface.
-    option = move_to_table_nsrt.sample_option(state, set(), rng)
-    assert option.initiable(state)
-    action = option.policy(state)
-    obs = env.step(action)
-    perceiver.update_perceiver_with_action(action)
-    state = perceiver.step(obs)
-    assert option.terminal(state)
-
     # Sweep several times.
+    move_nsrt = MoveToReadySweep.ground((spot, container, yogurt))
     sweep_nsrt = SweepTwoObjectsIntoContainer.ground(
-        [spot, brush, yogurt, chips, table, container])
+        (spot, brush, yogurt, chips, table, container))
     for _ in range(10):
         utils.wait_for_any_button_press("Press any button to execute a sweep.")
-        option = sweep_nsrt.sample_option(state, set(), rng)
-        assert option.initiable(state)
-        action = option.policy(state)
-        obs = env.step(action)
-        perceiver.update_perceiver_with_action(action)
-        state = perceiver.step(obs)
-        assert option.terminal(state)
+        move_option = move_nsrt.sample_option(state, set(), rng)
+        sweep_option = sweep_nsrt.sample_option(state, set(), rng)
+        for option in [move_option, sweep_option]:
+            assert option.initiable(state)
+            action = option.policy(state)
+            obs = env.step(action)
+            perceiver.update_perceiver_with_action(action)
+            state = perceiver.step(obs)
+            assert option.terminal(state)
 
 
 if __name__ == "__main__":
