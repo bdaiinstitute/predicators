@@ -360,8 +360,8 @@ def _get_mask_center_grasp_pixel(
                                                       RGBDImageWithContext],
     artifacts: Dict[str, Any], camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
-    """Select a pixel that's as close to the center of the mask, while still
-    being in the mask, as possible."""
+    """Select a pixel that's as close to the center of the mask as possible,
+    while still being in the mask."""
     del rgbds, rng
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
