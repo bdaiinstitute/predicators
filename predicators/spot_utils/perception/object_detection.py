@@ -449,15 +449,15 @@ def get_random_mask_pixel_from_artifacts(
     mask_idx = rng.choice(len(pixels_in_mask))
     pixel_tuple = (pixels_in_mask[1][mask_idx], pixels_in_mask[0][mask_idx])
     # Uncomment to plot the grasp pixel being selected!
-    rgb_img = artifacts["language"]["rgbds"][camera_name].rgb
-    _, axes = plt.subplots()
-    axes.imshow(rgb_img)
-    axes.add_patch(
-        plt.Rectangle((pixel_tuple[0], pixel_tuple[1]), 5, 5, color='red'))
-    plt.tight_layout()
-    outdir = Path(CFG.spot_perception_outdir)
-    plt.savefig(outdir / "grasp_pixel.png", dpi=300)
-    plt.close()
+    # rgb_img = artifacts["language"]["rgbds"][camera_name].rgb
+    # _, axes = plt.subplots()
+    # axes.imshow(rgb_img)
+    # axes.add_patch(
+    #     plt.Rectangle((pixel_tuple[0], pixel_tuple[1]), 5, 5, color='red'))
+    # plt.tight_layout()
+    # outdir = Path(CFG.spot_perception_outdir)
+    # plt.savefig(outdir / "grasp_pixel.png", dpi=300)
+    # plt.close()
     return pixel_tuple
 
 

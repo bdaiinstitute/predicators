@@ -362,7 +362,7 @@ def _get_mask_center_grasp_pixel(
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
     """Select a pixel that's as close to the center of the mask as possible,
     while still being in the mask."""
-    del rgbds, rng
+    del rng
     detections = artifacts["language"]["object_id_to_img_detections"]
     try:
         seg_bb = detections[detect_id][camera_name]
@@ -376,8 +376,17 @@ def _get_mask_center_grasp_pixel(
     idxs = list(range(len(candidates)))
     best_idx = min(idxs, key=lambda i: dist_to_center[i])
     best_r, best_c = candidates[best_idx]
-    pixel = (best_c, best_r)
-    return pixel, None
+    selected_pixel = (best_c, best_r)
+
+    del rgbds
+    # Uncomment for debugging.
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    return selected_pixel, None
 
 
 # Maps an object ID to a function from rgbds, artifacts and camera to pixel.

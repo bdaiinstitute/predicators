@@ -2220,7 +2220,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             "DropNotPlaceableObject",
             "MoveToReadySweep",
             "PickObjectToDrag",
-            "DropObjectInsideContainerOnTop",
+            "DropObjectInside",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
