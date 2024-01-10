@@ -320,9 +320,8 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
 
     # Execute the sweep.
     return utils.create_spot_env_action(
-        name, objects, sweep,
-        (robot, sweep_start_pose, sweep_move_dx, sweep_move_dy, sweep_move_dz,
-         duration))
+        name, objects, sweep, (robot, sweep_start_pose, sweep_move_dx,
+                               sweep_move_dy, sweep_move_dz, duration))
 
 
 ###############################################################################
