@@ -1,13 +1,11 @@
 """Test cases for the Spot Env environments."""
 
-import curses
 import tempfile
 from typing import List
 
 import dill as pkl
 import numpy as np
 from bosdyn.client import math_helpers
-from bosdyn.client.sdk import Robot
 
 from predicators import utils
 from predicators.approaches import create_approach
@@ -21,8 +19,7 @@ from predicators.perception.spot_perceiver import SpotPerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     move_hand_to_relative_pose, open_gripper
-from predicators.spot_utils.skills.spot_navigation import go_home, \
-    navigate_to_relative_pose
+from predicators.spot_utils.skills.spot_navigation import go_home
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.structs import Action, GroundAtom, _GroundNSRT
 
@@ -543,22 +540,12 @@ def real_robot_sweeping_nsrt_test() -> None:
                             seed_required=False,
                             approach_required=False)
     utils.reset_config({
-        "env":
-        "spot_main_sweep_env",
-        "approach":
-        "spot_wrapper[oracle]",
-        "num_train_tasks":
-        0,
-        "num_test_tasks":
-        1,
-        "seed":
-        123,
-        "spot_robot_ip":
-        args["spot_robot_ip"],
-        "spot_graph_nav_map":
-        args["spot_graph_nav_map"],
-        "test_task_json_dir":
-        args.get("test_task_json_dir", None),
+        "env": "spot_main_sweep_env",
+        "approach": "spot_wrapper[oracle]",
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "seed": 123,
+        "spot_robot_ip": args["spot_robot_ip"],
     })
     rng = np.random.default_rng(123)
     env = SpotMainSweepEnv()
@@ -596,11 +583,7 @@ def real_robot_sweeping_nsrt_test() -> None:
     open_gripper(robot)
     # Press any key, instead of just enter. Useful for remote control.
     msg = "Put the brush in the robot's gripper, then press any key"
-    stdscr = curses.initscr()
-    curses.noecho()
-    stdscr.addstr(msg)
-    stdscr.getkey()
-    curses.endwin()
+    utils.wait_for_any_button_press(msg)
     close_gripper(robot)
     stow_arm(robot)
 
@@ -619,7 +602,7 @@ def real_robot_sweeping_nsrt_test() -> None:
     sweep_nsrt = SweepTwoObjectsIntoContainer.ground(
         [spot, brush, yogurt, chips, table, container])
     for _ in range(10):
-        input("Press enter to execute a sweep.")
+        utils.wait_for_any_button_press("Press any button to execute a sweep.")
         option = sweep_nsrt.sample_option(state, set(), rng)
         assert option.initiable(state)
         action = option.policy(state)

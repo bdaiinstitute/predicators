@@ -65,8 +65,6 @@ if __name__ == "__main__":
     # forward. The robot should then brush the soda can to the right.
 
     # pylint: disable=ungrouped-imports
-    import curses
-
     from bosdyn.client import create_standard_sdk
     from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
     from bosdyn.client.util import authenticate
@@ -130,11 +128,7 @@ if __name__ == "__main__":
         open_gripper(robot)
         # Press any key, instead of just enter. Useful for remote control.
         msg = "Put the brush in the robot's gripper, then press any key"
-        stdscr = curses.initscr()
-        curses.noecho()
-        stdscr.addstr(msg)
-        stdscr.getkey()
-        curses.endwin()
+        utils.wait_for_any_button_press(msg)
         close_gripper(robot)
 
         # Move to in front of the soda can.
