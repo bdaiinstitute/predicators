@@ -738,7 +738,10 @@ class SpotRearrangementEnv(BaseEnv):
                                              np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
-            self._robot, self._localizer, detection_ids)
+            self._robot,
+            self._localizer,
+            detection_ids,
+            allowed_regions=self._allowed_regions)
         if CFG.spot_render_perception_outputs:
             outdir = Path(CFG.spot_perception_outdir)
             time_str = time.strftime("%Y%m%d-%H%M%S")
