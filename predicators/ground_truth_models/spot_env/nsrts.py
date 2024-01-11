@@ -1,13 +1,14 @@
 """Ground-truth NSRTs for the spot environments."""
 
-from typing import Dict, Sequence, Set
+from typing import Dict, Sequence, Set, Tuple
 
 import numpy as np
 
 from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
-    get_detection_id_for_object
+    _container_ready_for_sweeping_classifier, _container_type, \
+    _immovable_object_type, _on_classifier, get_detection_id_for_object
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
@@ -63,11 +64,7 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle = -np.pi
-    max_angle = np.pi
-    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
-    if obj_to_nav_to.name in angle_bounds:
-        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
@@ -85,11 +82,7 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle = -np.pi
-    max_angle = np.pi
-    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
-    if obj_to_nav_to.name in angle_bounds:
-        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
@@ -108,14 +101,32 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle = -np.pi
-    max_angle = np.pi
-    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
-    if obj_to_nav_to.name in angle_bounds:
-        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
+
+
+def _get_approach_angle_bounds(obj: Object,
+                               state: State) -> Tuple[float, float]:
+    """Helper for move samplers."""
+    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
+    if obj.name in angle_bounds:
+        return angle_bounds[obj.name]
+    # Mega-hack for when the container is next to something with angle bounds,
+    # i.e., it is ready to sweep.
+    if obj.is_instance(_container_type):
+        for candidate_surface in state.get_objects(_immovable_object_type):
+            if candidate_surface.name not in angle_bounds:
+                continue
+            for target_obj in state:
+                if not _on_classifier(state, [target_obj, candidate_surface]):
+                    continue
+                if _container_ready_for_sweeping_classifier(
+                        state, [obj, target_obj]):
+                    return angle_bounds[candidate_surface.name]
+    # Default to all possible approach angles.
+    return (-np.pi, np.pi)
 
 
 def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
