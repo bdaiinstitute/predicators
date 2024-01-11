@@ -320,11 +320,9 @@ class SpotRearrangementEnv(BaseEnv):
                                                  nonpercept_atoms)
 
         if action_name in ["PickAndDumpCup", "PickAndDumpContainer"]:
-            _, container, _, obj_inside = action_objs
-            pixel = action_args[2]
+            _, _, _, obj_inside = action_objs
             return _dry_simulate_pick_and_dump_container(
-                obs, container, obj_inside, pixel, nonpercept_atoms,
-                self._noise_rng)
+                obs, obj_inside, nonpercept_atoms, self._noise_rng)
 
         if action_name == "DropNotPlaceableObject":
             return _dry_simulate_drop_not_placeable_object(
@@ -1514,8 +1512,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, container]),
     }
     ignore_effs = set()
-    yield STRIPSOperator("PickAndDumpCup", parameters, preconds,
-                                      add_effs, del_effs, ignore_effs)
+    yield STRIPSOperator("PickAndDumpCup", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
 
     # PickAndDumpContainer (puts the container back down)
     robot = Variable("?robot", _robot_type)
@@ -1530,17 +1528,13 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, container])
     }
-    add_effs = {
-        LiftedAtom(_NotInsideAnyContainer, [obj_inside])
-    }
+    add_effs = {LiftedAtom(_NotInsideAnyContainer, [obj_inside])}
     del_effs = {
         LiftedAtom(_Inside, [obj_inside, container]),
-        LiftedAtom(_InHandView, [robot, container]),
-        LiftedAtom(_On, [container, surface]),
     }
     ignore_effs = set()
     yield STRIPSOperator("PickAndDumpContainer", parameters, preconds,
-                                      add_effs, del_effs, ignore_effs)
+                         add_effs, del_effs, ignore_effs)
 
 
 ###############################################################################
@@ -1923,18 +1917,9 @@ def _dry_simulate_noop(last_obs: _SpotObservation,
 
 
 def _dry_simulate_pick_and_dump_container(
-        last_obs: _SpotObservation, container: Object, obj_inside: Object,
-        pixel: Tuple[int, int], nonpercept_atoms: Set[GroundAtom],
+        last_obs: _SpotObservation, obj_inside: Object,
+        nonpercept_atoms: Set[GroundAtom],
         rng: np.random.Generator) -> _SpotObservation:
-
-    # First simulate picking the container.
-    obs = _dry_simulate_pick_from_top(last_obs, container, pixel,
-                                      nonpercept_atoms)
-    gripper_open_percentage = obs.gripper_open_percentage
-
-    # If the pick failed, finish.
-    if gripper_open_percentage < HANDEMPTY_GRIPPER_THRESHOLD:
-        return obs
 
     # Picking succeeded; dump the object on the floor.
     floor = next(o for o in last_obs.objects_in_view if o.name == "floor")
@@ -1942,7 +1927,7 @@ def _dry_simulate_pick_and_dump_container(
     # Randomize dropping in the area.
     dx, dy = rng.uniform(-1.0, 1.0, size=2)
     place_offset = math_helpers.Vec3(dx, dy, 0)
-    obs = _dry_simulate_place_on_top(obs, obj_inside, floor, place_offset,
+    obs = _dry_simulate_place_on_top(last_obs, obj_inside, floor, place_offset,
                                      nonpercept_atoms)
     next_obs = _SpotObservation(
         images={},
@@ -1950,7 +1935,7 @@ def _dry_simulate_pick_and_dump_container(
         objects_in_hand_view=obs.objects_in_hand_view,
         objects_in_any_view_except_back=obs.objects_in_any_view_except_back,
         robot=last_obs.robot,
-        gripper_open_percentage=gripper_open_percentage,
+        gripper_open_percentage=obs.gripper_open_percentage,
         robot_pos=obs.robot_pos,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
