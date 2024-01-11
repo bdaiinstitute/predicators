@@ -23,7 +23,8 @@ from predicators.structs import NSRT, Array, GroundAtom, NSRTSampler, Object, \
 
 def _move_offset_sampler(state: State, robot_obj: Object,
                          obj_to_nav_to: Object, rng: np.random.Generator,
-                         min_dist: float, max_dist: float) -> Array:
+                         min_dist: float, max_dist: float, min_angle: float,
+                         max_angle: float) -> Array:
     """Called by all the different movement samplers."""
     obj_to_nav_to_pos = (state.get(obj_to_nav_to,
                                    "x"), state.get(obj_to_nav_to, "y"))
@@ -40,6 +41,8 @@ def _move_offset_sampler(state: State, robot_obj: Object,
             min_distance=min_dist,
             max_distance=max_dist,
             allowed_regions=convex_hulls,
+            min_angle=min_angle,
+            max_angle=max_angle,
         )
     # Rare sampling failures.
     except RuntimeError:  # pragma: no cover
@@ -59,8 +62,15 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
+
+    min_angle = -np.pi
+    max_angle = np.pi
+    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
+    if obj_to_nav_to.name in angle_bounds:
+        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
-                                max_dist)
+                                max_dist, min_angle, max_angle)
 
 
 def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
@@ -75,8 +85,14 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
+    min_angle = -np.pi
+    max_angle = np.pi
+    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
+    if obj_to_nav_to.name in angle_bounds:
+        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
-                                max_dist)
+                                max_dist, min_angle, max_angle)
 
 
 def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
@@ -91,8 +107,15 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
+
+    min_angle = -np.pi
+    max_angle = np.pi
+    angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
+    if obj_to_nav_to.name in angle_bounds:
+        min_angle, max_angle = angle_bounds[obj_to_nav_to.name]
+
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
-                                max_dist)
+                                max_dist, min_angle, max_angle)
 
 
 def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
@@ -239,6 +262,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTop": _pick_object_from_top_sampler,
             "PickObjectToDrag": _pick_object_from_top_sampler,
+            "PickAndDumpCup": _pick_object_from_top_sampler,
             "PickAndDumpContainer": _pick_object_from_top_sampler,
             "PlaceObjectOnTop": _place_object_on_top_sampler,
             "DropObjectInside": _drop_object_inside_sampler,

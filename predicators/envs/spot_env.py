@@ -321,7 +321,7 @@ class SpotRearrangementEnv(BaseEnv):
                                                  robot_rel_se2_pose,
                                                  nonpercept_atoms)
 
-        if action_name == "PickAndDumpContainer":
+        if action_name in ["PickAndDumpCup", "PickAndDumpContainer"]:
             _, container, _, obj_inside = action_objs
             pixel = action_args[2]
             return _dry_simulate_pick_and_dump_container(
@@ -1060,7 +1060,7 @@ def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
 
 def _is_not_placeable_classifier(state: State,
                                  objects: Sequence[Object]) -> bool:
-    return not _is_not_placeable_classifier(state, objects)
+    return not _is_placeable_classifier(state, objects)
 
 
 def _is_sweeper_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1147,6 +1147,7 @@ _ALL_PREDICATES = {
     _NotBlocked,
     _ContainerReadyForSweeping,
     _IsPlaceable,
+    _IsNotPlaceable,
     _IsSweeper,
     _HasFlatTopSurface,
     _RobotReadyForSweeping,
@@ -1463,6 +1464,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, container]),
         LiftedAtom(_On, [target, surface]),
         LiftedAtom(_TopAbove, [surface, container]),
+        LiftedAtom(_NEq, [surface, container]),
     }
     add_effs = {
         LiftedAtom(_ContainerReadyForSweeping, [container, target]),
@@ -1476,7 +1478,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
-    # PickAndDumpContainer
+    # PickAndDumpCup
     robot = Variable("?robot", _robot_type)
     container = Variable("?container", _container_type)
     surface = Variable("?surface", _base_object_type)
@@ -1501,8 +1503,17 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, container]),
     }
     ignore_effs = set()
-    yield STRIPSOperator("PickAndDumpContainer", parameters, preconds,
-                         add_effs, del_effs, ignore_effs)
+    pick_and_dump_op = STRIPSOperator("PickAndDumpCup", parameters, preconds,
+                                      add_effs, del_effs, ignore_effs)
+    yield pick_and_dump_op
+
+    # PickAndDumpContainer (same as above, but with different option)
+    yield STRIPSOperator("PickAndDumpContainer",
+                         list(pick_and_dump_op.parameters),
+                         set(pick_and_dump_op.preconditions),
+                         set(pick_and_dump_op.add_effects),
+                         set(pick_and_dump_op.delete_effects),
+                         set(pick_and_dump_op.ignore_effects))
 
 
 ###############################################################################
@@ -2438,7 +2449,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
             "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
-            "DropObjectInsideContainerOnTop", "PickAndDumpContainer"
+            "DropObjectInsideContainerOnTop", "PickAndDumpCup"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
