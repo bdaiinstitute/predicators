@@ -110,13 +110,14 @@ def _get_approach_angle_bounds(obj: Object,
                                state: State) -> Tuple[float, float]:
     """Helper for move samplers."""
     angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
-    if obj.name in angle_bounds:
-        return angle_bounds[obj.name]
     # Mega-hack for when the container is next to something with angle bounds,
     # i.e., it is ready to sweep.
     surface = _get_sweeping_surface_for_container(obj, state)
     if surface is not None and surface.name in angle_bounds:
         return angle_bounds[surface.name]
+    # Look for hard-coded angle bounds.
+    if obj.name in angle_bounds:
+        return angle_bounds[obj.name]
     # Default to all possible approach angles.
     return (-np.pi, np.pi)
 
