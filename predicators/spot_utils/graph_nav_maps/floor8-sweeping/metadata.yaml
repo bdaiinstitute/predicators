@@ -103,4 +103,3 @@ prepare_container_relative_xy:
 # Helpful for static objects that are up against a wall, for example.
 approach_angle_bounds:
   black_table: [1.56, 1.58]  # about pi / 2
-  bucket: [1.56, 1.58]  # about pi / 2
