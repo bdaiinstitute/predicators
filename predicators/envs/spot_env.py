@@ -1086,6 +1086,19 @@ def _robot_ready_for_sweeping_classifier(state: State,
     return np.allclose(expected_xy, target_xy, atol=_ROBOT_SWEEP_READY_TOL)
 
 
+def _get_sweeping_surface_for_container(container: Object,
+                                        state: State) -> Optional[Object]:
+    if container.is_instance(_container_type):
+        for candidate_surface in state.get_objects(_immovable_object_type):
+            for target_obj in state.get_objects(_movable_object_type):
+                if not _on_classifier(state, [target_obj, candidate_surface]):
+                    continue
+                if _container_ready_for_sweeping_classifier(
+                        state, [container, target_obj]):
+                    return candidate_surface
+    return None
+
+
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
@@ -1501,17 +1514,33 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, container]),
     }
     ignore_effs = set()
-    pick_and_dump_op = STRIPSOperator("PickAndDumpCup", parameters, preconds,
+    yield STRIPSOperator("PickAndDumpCup", parameters, preconds,
                                       add_effs, del_effs, ignore_effs)
-    yield pick_and_dump_op
 
-    # PickAndDumpContainer (same as above, but with different option)
-    yield STRIPSOperator("PickAndDumpContainer",
-                         list(pick_and_dump_op.parameters),
-                         set(pick_and_dump_op.preconditions),
-                         set(pick_and_dump_op.add_effects),
-                         set(pick_and_dump_op.delete_effects),
-                         set(pick_and_dump_op.ignore_effects))
+    # PickAndDumpContainer (puts the container back down)
+    robot = Variable("?robot", _robot_type)
+    container = Variable("?container", _container_type)
+    surface = Variable("?surface", _base_object_type)
+    obj_inside = Variable("?object", _movable_object_type)
+    parameters = [robot, container, surface, obj_inside]
+    preconds = {
+        LiftedAtom(_On, [container, surface]),
+        LiftedAtom(_Inside, [obj_inside, container]),
+        LiftedAtom(_On, [obj_inside, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, container])
+    }
+    add_effs = {
+        LiftedAtom(_NotInsideAnyContainer, [obj_inside])
+    }
+    del_effs = {
+        LiftedAtom(_Inside, [obj_inside, container]),
+        LiftedAtom(_InHandView, [robot, container]),
+        LiftedAtom(_On, [container, surface]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PickAndDumpContainer", parameters, preconds,
+                                      add_effs, del_effs, ignore_effs)
 
 
 ###############################################################################

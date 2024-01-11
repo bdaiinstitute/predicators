@@ -10,7 +10,8 @@ from gym.spaces import Box
 
 from predicators import utils
 from predicators.envs import get_or_create_env
-from predicators.envs.spot_env import SpotRearrangementEnv, get_robot
+from predicators.envs.spot_env import SpotRearrangementEnv, \
+    _get_sweeping_surface_for_container, get_robot
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
@@ -29,7 +30,7 @@ from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_POSE, \
     DEFAULT_HAND_PRE_DUMP_LIFT_POSE, DEFAULT_HAND_PRE_DUMP_POSE, \
-    get_relative_se2_from_se3, object_to_top_down_geom
+    get_relative_se2_from_se3, load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, State, Type
 
@@ -423,14 +424,40 @@ def _pick_and_dump_container_policy(state: State, memory: Dict,
                                     params: Array) -> Action:
     # Pick up the container and then move the and forward and backward.
     name = "PickAndDumpContainer"
+    robot_obj_idx = 0
     target_obj_idx = 1
-    return _grasp_policy(name,
-                         target_obj_idx,
-                         state,
-                         memory,
-                         objects,
-                         params,
-                         do_dump=True)
+    grasp_action = _grasp_policy(name,
+                                 target_obj_idx,
+                                 state,
+                                 memory,
+                                 objects,
+                                 params,
+                                 do_dump=True)
+
+    # If the container starts out next to a surface while ready for sweeping,
+    # put it back.
+    robot = objects[robot_obj_idx]
+    container = objects[target_obj_idx]
+    surface = _get_sweeping_surface_for_container(container, state)
+    if surface is None:
+        return grasp_action
+    param_dict = load_spot_metadata()["prepare_container_relative_xy"]
+    prep_params = np.array(
+        [param_dict["dx"], param_dict["dy"], param_dict["angle"]])
+    prep_objects = [robot, container, surface, surface]
+    prep_sweep_action = _prepare_container_for_sweeping_policy(
+        state, memory, prep_objects, prep_params)
+
+    # Chain the actions.
+    actions = [grasp_action, prep_sweep_action]
+
+    def _fn() -> None:
+        for action in actions:
+            assert isinstance(action.extra_info, (list, tuple))
+            _, _, action_fn, action_fn_args = action.extra_info
+            action_fn(*action_fn_args)
+
+    return utils.create_spot_env_action(name, objects, _fn, tuple())
 
 
 def _place_object_on_top_policy(state: State, memory: Dict,

@@ -7,9 +7,7 @@ import numpy as np
 from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
-    _container_ready_for_sweeping_classifier, _container_type, \
-    _immovable_object_type, _movable_object_type, _on_classifier, \
-    get_detection_id_for_object
+    _get_sweeping_surface_for_container, get_detection_id_for_object
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
@@ -116,16 +114,9 @@ def _get_approach_angle_bounds(obj: Object,
         return angle_bounds[obj.name]
     # Mega-hack for when the container is next to something with angle bounds,
     # i.e., it is ready to sweep.
-    if obj.is_instance(_container_type):
-        for candidate_surface in state.get_objects(_immovable_object_type):
-            if candidate_surface.name not in angle_bounds:
-                continue
-            for target_obj in state.get_objects(_movable_object_type):
-                if not _on_classifier(state, [target_obj, candidate_surface]):
-                    continue
-                if _container_ready_for_sweeping_classifier(
-                        state, [obj, target_obj]):
-                    return angle_bounds[candidate_surface.name]
+    surface = _get_sweeping_surface_for_container(obj, state)
+    if surface is not None and surface.name in angle_bounds:
+        return angle_bounds[surface.name]
     # Default to all possible approach angles.
     return (-np.pi, np.pi)
 
