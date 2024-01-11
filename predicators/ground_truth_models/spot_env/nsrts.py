@@ -8,7 +8,8 @@ from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
     _container_ready_for_sweeping_classifier, _container_type, \
-    _immovable_object_type, _on_classifier, get_detection_id_for_object
+    _immovable_object_type, _movable_object_type, _on_classifier, \
+    get_detection_id_for_object
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
@@ -64,7 +65,7 @@ def _move_to_body_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
+    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
@@ -82,7 +83,7 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
+    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
@@ -101,7 +102,7 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle, max_angle =_get_approach_angle_bounds(obj_to_nav_to, state)
+    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
@@ -119,7 +120,7 @@ def _get_approach_angle_bounds(obj: Object,
         for candidate_surface in state.get_objects(_immovable_object_type):
             if candidate_surface.name not in angle_bounds:
                 continue
-            for target_obj in state:
+            for target_obj in state.get_objects(_movable_object_type):
                 if not _on_classifier(state, [target_obj, candidate_surface]):
                     continue
                 if _container_ready_for_sweeping_classifier(
