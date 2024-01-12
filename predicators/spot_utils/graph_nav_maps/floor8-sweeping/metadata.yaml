@@ -2,7 +2,7 @@
 ---
 spot-home-pose:
   x: 1.332
-  y: -0.25
+  y: -0.5
   angle: -1.45769
 april-tag-offsets: []
 # Allowed regions. Each region is defined by a set of points
@@ -20,7 +20,7 @@ allowed-regions:
 known-immovable-objects:
   floor:
     x: 1.332
-    y: 0.373
+    y: -0.5
     z: -0.5
   black_table:
     x: 1.6
