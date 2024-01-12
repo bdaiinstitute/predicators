@@ -1,8 +1,8 @@
 """Interface for finding objects by moving around and running detection."""
 
+import time
 from typing import Any, Collection, Dict, List, Optional, Sequence, Tuple
 
-import time
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.lease import LeaseClient
