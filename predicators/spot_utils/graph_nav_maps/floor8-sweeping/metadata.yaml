@@ -2,7 +2,7 @@
 ---
 spot-home-pose:
   x: 1.332
-  y: -0.75
+  y: -0.5
   angle: -1.45769
 april-tag-offsets: []
 # Allowed regions. Each region is defined by a set of points

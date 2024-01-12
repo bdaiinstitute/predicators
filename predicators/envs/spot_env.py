@@ -751,7 +751,7 @@ class SpotRearrangementEnv(BaseEnv):
                                          y=0.0,
                                          z=0.75,
                                          rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 4))
+                                             np.pi / 3))
         move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
             self._robot,
