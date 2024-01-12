@@ -918,23 +918,18 @@ def _not_inside_any_container_classifier(state: State,
 
 
 def _fits_inside_classifier(state: State, objects: Sequence[Object]) -> bool:
-    # Create a hypothetical state where the contained object is positioned
-    # perfectly inside the container object and see whether Inside holds.
-    obj, container = objects
-    new_state = state.copy()
-    container_pose = utils.get_se3_pose_from_state(state, container)
-    del state  # be careful not to change
-    # Calculate the z pose using the object's height.
-    static_feats = load_spot_metadata()["static-object-features"]
-    height = static_feats[obj.name]["height"]
-    new_state.set(obj, "x", container_pose.x)
-    new_state.set(obj, "y", container_pose.y)
-    new_state.set(obj, "z", container_pose.z + height / 2)
-    new_state.set(obj, "qw", container_pose.rot.w)
-    new_state.set(obj, "qx", container_pose.rot.x)
-    new_state.set(obj, "qy", container_pose.rot.y)
-    new_state.set(obj, "qz", container_pose.rot.z)
-    return _inside_classifier(new_state, [obj, container])
+    # Just look in the xy plane and use a conservative approximation.
+    contained, container = objects
+    obj_to_circle: Dict[Object, utils.Circle] = {}
+    for obj in objects:
+        obj_geom = object_to_top_down_geom(obj, state)
+        if isinstance(obj_geom, utils.Rectangle):
+            obj_geom = obj_geom.circumscribed_circle
+        assert isinstance(obj_geom, utils.Circle)
+        obj_to_circle[obj] = obj_geom
+    contained_circle = obj_to_circle[contained]
+    container_circle = obj_to_circle[container]
+    return contained_circle.radius < container_circle.radius
 
 
 def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
