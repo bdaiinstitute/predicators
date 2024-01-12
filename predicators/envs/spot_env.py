@@ -207,7 +207,6 @@ class SpotRearrangementEnv(BaseEnv):
         # parts of the state during execution.
         self._strips_operators: Set[STRIPSOperator] = set()
         self._current_task_goal_reached = False
-        self._last_action: Optional[Action] = None
 
         # Create constant objects.
         self._spot_object = Object("robot", _robot_type)
@@ -372,14 +371,12 @@ class SpotRearrangementEnv(BaseEnv):
                                     f"was encountered. Trying again.\n{e}")
         self._current_observation = self._current_task.init_obs
         self._current_task_goal_reached = False
-        self._last_action = None
         return self._current_task.init_obs
 
     def step(self, action: Action) -> Observation:
         """Override step() because simulate() is not implemented."""
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, action_fn, action_fn_args = action.extra_info
-        self._last_action = action
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
@@ -800,7 +797,7 @@ class SpotRearrangementEnv(BaseEnv):
                                          y=0.0,
                                          z=0.75,
                                          rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 3))
+                                             np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
             self._robot,
@@ -842,7 +839,7 @@ _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
-_CONTAINER_SWEEP_READY_BUFFER = 0.5
+_CONTAINER_SWEEP_READY_BUFFER = 0.25
 _ROBOT_SWEEP_READY_TOL = 0.25
 
 ## Types
@@ -964,6 +961,21 @@ def _not_inside_any_container_classifier(state: State,
         if _inside_classifier(state, [obj_in, container]):
             return False
     return True
+
+
+def _fits_inside_classifier(state: State, objects: Sequence[Object]) -> bool:
+    # Just look in the xy plane and use a conservative approximation.
+    contained, container = objects
+    obj_to_circle: Dict[Object, utils.Circle] = {}
+    for obj in objects:
+        obj_geom = object_to_top_down_geom(obj, state)
+        if isinstance(obj_geom, utils.Rectangle):
+            obj_geom = obj_geom.circumscribed_circle
+        assert isinstance(obj_geom, utils.Circle)
+        obj_to_circle[obj] = obj_geom
+    contained_circle = obj_to_circle[contained]
+    container_circle = obj_to_circle[container]
+    return contained_circle.radius < container_circle.radius
 
 
 def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1096,9 +1108,15 @@ def _get_highest_surface_object_is_on(obj: Object,
     return highest_surface
 
 
-def _container_adjacent_to_surface_for_sweeping(container: Object,
-                                                surface: Object,
-                                                state: State) -> bool:
+def _container_ready_for_sweeping_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    container, target = objects
+
+    # Compute the expected x, y position based on the parameters for placing
+    # next to the object that the target is on.
+    surface = _get_highest_surface_object_is_on(target, state)
+    if surface is None:
+        return False
 
     surface_x = state.get(surface, "x")
     surface_y = state.get(surface, "y")
@@ -1117,19 +1135,6 @@ def _container_adjacent_to_surface_for_sweeping(container: Object,
     return np.sqrt(
         (expected_x - container_x)**2 +
         (expected_y - container_y)**2) <= _CONTAINER_SWEEP_READY_BUFFER
-
-
-def _container_ready_for_sweeping_classifier(
-        state: State, objects: Sequence[Object]) -> bool:
-    container, target = objects
-
-    # Compute the expected x, y position based on the parameters for placing
-    # next to the object that the target is on.
-    surface = _get_highest_surface_object_is_on(target, state)
-    if surface is None:
-        return False
-    return _container_adjacent_to_surface_for_sweeping(container, surface,
-                                                       state)
 
 
 def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1170,10 +1175,13 @@ def _robot_ready_for_sweeping_classifier(state: State,
 def _get_sweeping_surface_for_container(container: Object,
                                         state: State) -> Optional[Object]:
     if container.is_instance(_container_type):
-        for surface in state.get_objects(_immovable_object_type):
-            if _container_adjacent_to_surface_for_sweeping(
-                    container, surface, state):
-                return surface
+        for candidate_surface in state.get_objects(_immovable_object_type):
+            for target_obj in state.get_objects(_movable_object_type):
+                if not _on_classifier(state, [target_obj, candidate_surface]):
+                    continue
+                if _container_ready_for_sweeping_classifier(
+                        state, [container, target_obj]):
+                    return candidate_surface
     return None
 
 
@@ -1185,6 +1193,8 @@ _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _container_type],
                     _inside_classifier)
+_FitsInside = Predicate("FitsInside", [_movable_object_type, _container_type],
+                        _fits_inside_classifier)
 # NOTE: use this predicate instead if you want to disable inside checking.
 _FakeInside = Predicate(_Inside.name, _Inside.types,
                         _create_dummy_predicate_classifier(_Inside))
@@ -1226,6 +1236,7 @@ _ALL_PREDICATES = {
     _TopAbove,
     _Inside,
     _NotInsideAnyContainer,
+    _FitsInside,
     _HandEmpty,
     _Holding,
     _NotHolding,
@@ -1390,6 +1401,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, held]),
         LiftedAtom(_Reachable, [robot, container]),
         LiftedAtom(_IsPlaceable, [held]),
+        LiftedAtom(_FitsInside, [held, container]),
     }
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
@@ -1421,6 +1433,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_On, [held, surface]),
         LiftedAtom(_NotHolding, [robot, held]),
+        LiftedAtom(_FitsInside, [held, container]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
