@@ -588,6 +588,7 @@ class SpotRearrangementEnv(BaseEnv):
                                 z=swept_object_z,
                                 rot=container_pose.rot)
                             all_objects_in_view[swept_object] = swept_pose
+                            objects_in_any_view_except_back.add(swept_object)
                             break
                         if response == "n":
                             break
