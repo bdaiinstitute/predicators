@@ -1190,6 +1190,7 @@ _ALL_PREDICATES = {
     _TopAbove,
     _Inside,
     _NotInsideAnyContainer,
+    _FitsInside,
     _HandEmpty,
     _Holding,
     _NotHolding,
