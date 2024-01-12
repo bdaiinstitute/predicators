@@ -569,14 +569,15 @@ class SpotRearrangementEnv(BaseEnv):
             static_feats = load_spot_metadata()["static-object-features"]
             for swept_object in swept_objects:
                 if swept_object not in all_objects_in_view:
+                    assert container is not None
+                    assert container in all_objects_in_view
                     while True:
-                        msg = (f"{swept_object.name} not seen after sweeping."
-                               "Was it swept into the container? [y/n]")
+                        msg = (f"\nATTENTION! The {swept_object.name} was not "
+                               "seen after sweeping. Is it now in the "
+                               f"{container.name}? [y/n]\n")
                         response = utils.prompt_user(msg)
                         if response == "y":
                             # Update the pose to be inside the container.
-                            assert container is not None
-                            assert container in all_objects_in_view
                             container_pose = all_objects_in_view[container]
                             # Calculate the z pose of the swept object.
                             height = static_feats[swept_object.name]["height"]
@@ -587,7 +588,8 @@ class SpotRearrangementEnv(BaseEnv):
                                 z=swept_object_z,
                                 rot=container_pose.rot)
                             all_objects_in_view[swept_object] = swept_pose
-                        elif response == "n":
+                            break
+                        if response == "n":
                             break
 
         # Prepare the non-percepts.
