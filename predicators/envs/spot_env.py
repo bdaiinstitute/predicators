@@ -296,7 +296,8 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "DropObjectInside":
             _, held_obj, container_obj = action_objs
             drop_offset = action_args[1]
-            return _dry_simulate_drop_inside(obs, held_obj, container_obj, drop_offset, nonpercept_atoms)
+            return _dry_simulate_drop_inside(obs, held_obj, container_obj,
+                                             drop_offset, nonpercept_atoms)
 
         if action_name == "PrepareContainerForSweeping":
             _, container_obj, _, _ = action_objs
@@ -1769,7 +1770,7 @@ def _dry_simulate_drop_inside(
     x = drop_pose.x
     y = drop_pose.y
     # Drop offset z ignored; gravity.
-    z =  container_pose.z - container_height / 2
+    z = container_pose.z - container_height / 2
     held_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
     objects_in_view[held_obj] = held_obj_pose
 
