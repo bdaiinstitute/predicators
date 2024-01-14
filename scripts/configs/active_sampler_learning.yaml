@@ -75,6 +75,7 @@ ENVS:
       spot_run_dry: True
       perceiver: spot_perceiver
       approach_wrapper: spot_wrapper
+      segmenter: spot
 ARGS: []
 FLAGS:
   num_test_tasks: 10
