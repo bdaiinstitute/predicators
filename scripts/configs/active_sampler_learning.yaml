@@ -72,6 +72,7 @@ ENVS:
       horizon: 15
       active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
+      active_sampler_learning_init_cycles_to_pursue_goal: 5
       spot_run_dry: True
       perceiver: spot_perceiver
       approach_wrapper: spot_wrapper
@@ -87,6 +88,7 @@ ENVS:
       horizon: 15
       active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
+      active_sampler_learning_init_cycles_to_pursue_goal: 5
       spot_run_dry: True
       perceiver: spot_perceiver
       approach_wrapper: spot_wrapper
