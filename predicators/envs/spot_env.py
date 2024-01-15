@@ -1500,7 +1500,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     robot = Variable("?robot", _robot_type)
     target = Variable("?target", _movable_object_type)
     container = Variable("?container", _container_type)
-    surface = Variable("?surface", _base_object_type)
+    surface = Variable("?surface", _immovable_object_type)
     parameters = [robot, container, target, surface]
     preconds = {
         LiftedAtom(_Holding, [robot, container]),
