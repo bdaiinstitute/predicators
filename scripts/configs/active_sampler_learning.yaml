@@ -97,4 +97,4 @@ FLAGS:
   active_sampler_learning_n_iter_no_change: 5000
   spot_graph_nav_map: "floor8-sweeping"
 START_SEED: 456
-NUM_SEEDS: 10
+NUM_SEEDS: 1

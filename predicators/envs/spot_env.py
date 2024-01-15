@@ -2556,10 +2556,11 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             chair_z = floor_z + chair_height / 2
             obj_to_xyz[chair] = (chair_x, chair_y, chair_z)
 
-            # Bucket.
+            # Bucket. Note that this starts already next to the table
+            # to be conducive to sweeping.
             bucket = Object("bucket", _container_type)
-            bucket_x = robot_pose.x - 0.25
-            bucket_y = robot_pose.y - 0.5
+            bucket_x = table_x - 0.6
+            bucket_y = table_y - 0.15
             bucket_z = floor_z + bucket_height / 2
             obj_to_xyz[bucket] = (bucket_x, bucket_y, bucket_z)
 
