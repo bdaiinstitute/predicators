@@ -1473,10 +1473,10 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, blocker]),
     }
     del_effs = {
-        LiftedAtom(_Blocking, [blocker, blocked]),
+        # LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
-    ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping}
+    ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping, _Blocking}
     yield STRIPSOperator("DragToUnblockObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
@@ -1505,8 +1505,9 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     container = Variable("?container", _container_type)
     parameters = [robot, sweeper, target1, target2, surface, container]
     preconds = {
+        # Arbitrarily pick one of the targets to be the one not blocked,
+        # to prevent the robot 'dragging to unblock' twice.
         LiftedAtom(_NotBlocked, [target1]),
-        LiftedAtom(_NotBlocked, [target2]),
         LiftedAtom(_Holding, [robot, sweeper]),
         LiftedAtom(_On, [target1, surface]),
         LiftedAtom(_On, [target2, surface]),
