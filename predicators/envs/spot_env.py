@@ -2072,8 +2072,8 @@ def _dry_simulate_pick_and_dump_container(
     # Picking succeeded; dump the object on the floor.
     floor = next(o for o in last_obs.objects_in_view if o.name == "floor")
 
-    # Randomize dropping in the area.
-    dx, dy = rng.uniform(-1.0, 1.0, size=2)
+    # Randomize dropping on the floor.
+    dx, dy = rng.uniform(-0.5, 0.5, size=2)
     place_offset = math_helpers.Vec3(dx, dy, 0)
     obs = _dry_simulate_place_on_top(last_obs, obj_inside, floor, place_offset,
                                      nonpercept_atoms)
@@ -2525,7 +2525,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
 
             # Chips.
             chips = Object("chips", _movable_object_type)
-            chips_x = yogurt_x + 0.1
+            chips_x = yogurt_x + 0.3
             chips_y = yogurt_y
             chips_z = floor_z + table_height + chips_height / 2
             obj_to_xyz[chips] = (chips_x, chips_y, chips_z)

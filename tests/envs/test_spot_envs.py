@@ -1,11 +1,11 @@
 """Test cases for the Spot Env environments."""
 
+import pytest
 import tempfile
 from typing import List
 
 import dill as pkl
 import numpy as np
-import pytest
 from bosdyn.client import math_helpers
 
 from predicators import utils
@@ -74,6 +74,8 @@ def test_spot_main_sweep_env_dry_run(graph_nav_map):
         "spot_use_perfect_samplers": True,
         "spot_graph_nav_map": graph_nav_map,
     })
+    # Need to flush cache due to cached graph nav map.
+    utils.flush_cache()
     env = create_new_env(CFG.env)
     perceiver = SpotPerceiver()
     execution_monitor = create_execution_monitor("expected_atoms")
