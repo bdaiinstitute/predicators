@@ -384,6 +384,13 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                 # Samples are relative dx, dy, dz, and we only need
                 # dx and dy for the table!
                 sampler_input_lst.extend(params[:2])
+            elif param_option.name.startswith("DropObjectInside") and \
+                len(objects) == 3:
+                if not CFG.active_sampler_learning_object_specific_samplers:
+                    target_obj = objects[2]
+                    object_id = state.get(target_obj, "object_id")
+                    sampler_input_lst.append(object_id)
+                sampler_input_lst.extend(params)
             else:
                 base_feat_names = [
                     "x",
