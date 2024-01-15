@@ -130,8 +130,7 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
     # Randomly sample a pixel.
     if CFG.spot_run_dry:
         # Load the object mask.
-        # TODO!!
-        if True: #CFG.spot_use_perfect_samplers:
+        if CFG.spot_use_perfect_samplers:
             obj_mask_filename = f"grasp_maps/{target_obj.name}-grasps.npy"
         else:
             obj_mask_filename = f"grasp_maps/{target_obj.name}-object.npy"
