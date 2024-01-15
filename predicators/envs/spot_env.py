@@ -1845,8 +1845,6 @@ def _dry_simulate_drop_inside(
     container_height = static_feats[container_obj.name]["height"]
     container_pose = objects_in_view[container_obj]
     drop_pose = robot_pose.transform_vec3(drop_offset)
-    # TODO remove
-    print(f"DROP POSE: {drop_pose=}")
     x = drop_pose.x
     y = drop_pose.y
     # Drop offset z ignored; gravity.
