@@ -76,6 +76,7 @@ ENVS:
       perceiver: spot_perceiver
       approach_wrapper: spot_wrapper
       segmenter: spot
+      active_sampler_learning_explore_pursue_goal_interval: 1
 ARGS: []
 FLAGS:
   num_test_tasks: 10
