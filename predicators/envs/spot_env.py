@@ -1473,7 +1473,6 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, blocker]),
     }
     del_effs = {
-        # LiftedAtom(_Blocking, [blocker, blocked]),
         LiftedAtom(_Holding, [robot, blocker]),
     }
     ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping, _Blocking}
