@@ -6,62 +6,62 @@ APPROACHES:
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
-  task_repeat_explore:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "active_sampler"
-      active_sampler_explore_task_strategy: "task_repeat"
-  success_rate_explore_ucb:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "active_sampler"
-      active_sampler_explore_task_strategy: "success_rate"
-      active_sampler_explore_use_ucb_bonus: False
-  success_rate_explore_no_ucb:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "active_sampler"
-      active_sampler_explore_task_strategy: "success_rate"
-      active_sampler_explore_use_ucb_bonus: False
-  random_score_explore:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "active_sampler"
-      active_sampler_explore_task_strategy: "random"
-  random_nsrts_explore:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "random_nsrts"
-  maple_q:
-    NAME: "maple_q"
-    FLAGS:
-      explorer: "maple_q"
-      mlp_regressor_max_itr: 100000
-      active_sampler_learning_batch_size: 1024
+  # task_repeat_explore:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "active_sampler"
+  #     active_sampler_explore_task_strategy: "task_repeat"
+  # success_rate_explore_ucb:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "active_sampler"
+  #     active_sampler_explore_task_strategy: "success_rate"
+  #     active_sampler_explore_use_ucb_bonus: False
+  # success_rate_explore_no_ucb:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "active_sampler"
+  #     active_sampler_explore_task_strategy: "success_rate"
+  #     active_sampler_explore_use_ucb_bonus: False
+  # random_score_explore:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "active_sampler"
+  #     active_sampler_explore_task_strategy: "random"
+  # random_nsrts_explore:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "random_nsrts"
+  # maple_q:
+  #   NAME: "maple_q"
+  #   FLAGS:
+  #     explorer: "maple_q"
+  #     mlp_regressor_max_itr: 100000
+  #     active_sampler_learning_batch_size: 1024
 ENVS:
-  grid_row:
-    NAME: "grid_row"
-    FLAGS:
-      max_num_steps_interaction_request: 150
-      active_sampler_learning_explore_length_base: 100000  # effectively disable
-      active_sampler_learning_feature_selection: all
-      active_sampler_learning_explore_pursue_goal_interval: 1
-  ball_and_cup_sticky_table:
-    NAME: "ball_and_cup_sticky_table"
-    FLAGS:
-      sticky_table_place_smooth_fall_prob: 1.00
-      sticky_table_place_sticky_fall_prob: 0.00
-      sticky_table_pick_success_prob: 1.0
-      sticky_table_num_sticky_tables: 1
-      sticky_table_num_tables: 5
-      sticky_table_place_ball_fall_prob: 1.00
-      active_sampler_learning_explore_length_base: 25
-      active_sampler_learning_exploration_epsilon: 0.5
-      skill_competence_model_optimistic_recency_size: 2
-      skill_competence_model_optimistic_window_size: 2
-      horizon: 8
-      active_sampler_learning_explore_length_base: 100000  # effectively disable
-      active_sampler_learning_feature_selection: oracle
+  # grid_row:
+  #   NAME: "grid_row"
+  #   FLAGS:
+  #     max_num_steps_interaction_request: 150
+  #     active_sampler_learning_explore_length_base: 100000  # effectively disable
+  #     active_sampler_learning_feature_selection: all
+  #     active_sampler_learning_explore_pursue_goal_interval: 1
+  # ball_and_cup_sticky_table:
+  #   NAME: "ball_and_cup_sticky_table"
+  #   FLAGS:
+  #     sticky_table_place_smooth_fall_prob: 1.00
+  #     sticky_table_place_sticky_fall_prob: 0.00
+  #     sticky_table_pick_success_prob: 1.0
+  #     sticky_table_num_sticky_tables: 1
+  #     sticky_table_num_tables: 5
+  #     sticky_table_place_ball_fall_prob: 1.00
+  #     active_sampler_learning_explore_length_base: 25
+  #     active_sampler_learning_exploration_epsilon: 0.5
+  #     skill_competence_model_optimistic_recency_size: 2
+  #     skill_competence_model_optimistic_window_size: 2
+  #     horizon: 8
+  #     active_sampler_learning_explore_length_base: 100000  # effectively disable
+  #     active_sampler_learning_feature_selection: oracle
   spot_sweeping_sim:
     NAME: "spot_main_sweep_env"
     FLAGS:
