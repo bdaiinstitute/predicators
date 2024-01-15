@@ -69,6 +69,7 @@ ENVS:
       active_sampler_learning_exploration_epsilon: 0.5
       skill_competence_model_optimistic_recency_size: 2
       skill_competence_model_optimistic_window_size: 2
+      active_sampler_learning_init_cycles_to_pursue_goal: 5
       horizon: 15
       active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
