@@ -2007,7 +2007,9 @@ def _dry_simulate_sweep_into_container(
             y = container_pose.y + dy
             z = container_pose.z
         swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
+        # We want to make sure the object(s) don't get lost after sweeping!
         objects_in_view[swept_obj] = swept_obj_pose
+        objects_in_any_view_except_back.add(swept_obj)
 
     # Finalize the next observation.
     next_obs = _SpotObservation(
