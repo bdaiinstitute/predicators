@@ -92,13 +92,15 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
     fig, axes = plt.subplots(1, 2)
     plt.suptitle(f"{target_object.name} cycle {online_learning_cycle}")
 
-    radius = 0.05
+    radius = 0.01
+    min_x, max_x, pad_x = -0.4, 0.4, 0.01
+    min_y, max_y, pad_y = -0.4, 0.4, 0.01
     for i, ax in enumerate(axes.flat):
         ax.set_xlabel("x")
         if i == 0:
             ax.set_ylabel("y")
-        ax.set_xlim((-1, 1))
-        ax.set_ylim((-1, 1))
+        ax.set_xlim((min_x - pad_x, max_x + pad_x))
+        ax.set_ylim((min_y - pad_y, max_y + pad_y))
 
     ax = axes.flat[0]
     ax.set_title("Data")
@@ -113,8 +115,8 @@ def _run_one_cycle_analysis(online_learning_cycle: Optional[int],
     if candidates:
         size = 25
         ax.set_title("Predictions")
-        for r in np.linspace(-1, 1, num=size):
-            for c in np.linspace(-1, 1, num=size):
+        for r in np.linspace(min_y, max_y, num=size):
+            for c in np.linspace(min_x, max_x, num=size):
                 x = candidates[0].copy()
                 x[r_idx] = r
                 x[c_idx] = c
