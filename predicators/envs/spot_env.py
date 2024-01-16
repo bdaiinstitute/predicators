@@ -976,15 +976,17 @@ def _not_inside_any_container_classifier(state: State,
 def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
     # Just look in the xy plane and use a conservative approximation.
     contained, container = objects
-    obj_to_circle: Dict[Object, utils.Circle] = {}
+    obj_to_radius: Dict[Object, float] = {}
     for obj in objects:
         obj_geom = object_to_top_down_geom(obj, state)
         if isinstance(obj_geom, utils.Rectangle):
-            obj_geom = obj_geom.circumscribed_circle
-        assert isinstance(obj_geom, utils.Circle)
-        obj_to_circle[obj] = obj_geom
-    contained_radius = obj_to_circle[contained].radius
-    container_radius = obj_to_circle[container].radius
+            radius = min(obj_geom.width / 2, obj_geom.height / 2)
+        else:
+            assert isinstance(obj_geom, utils.Circle)
+            radius = obj_geom.radius
+        obj_to_radius[obj] = radius
+    contained_radius = obj_to_radius[contained]
+    container_radius = obj_to_radius[container]
     return contained_radius + _FITS_IN_XY_BUFFER < container_radius
 
 
