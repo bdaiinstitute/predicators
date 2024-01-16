@@ -64,12 +64,12 @@ class MapleQApproach(OnlineNSRTLearningApproach):
     def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
 
         def _option_policy(state: State) -> _Option:
-            if len(self._q_function._ordered_ground_nsrts) == 0:
+            if len(self._q_function._ordered_ground_nsrts) == 0:  # pragma: no cover  # pylint: disable=protected-access
                 # In spot envs, all the train tasks are empty,
                 # and so the ground nsrts will be empty as well.
                 assert "spot" in CFG.env
                 self._set_grounding_from_state(state)
-                assert len(self._q_function._ordered_ground_nsrts) > 0
+                assert len(self._q_function._ordered_ground_nsrts) > 0  # pylint: disable=protected-access
             return self._q_function.get_option(
                 state,
                 task.goal,
@@ -79,7 +79,8 @@ class MapleQApproach(OnlineNSRTLearningApproach):
         return utils.option_policy_to_policy(
             _option_policy, max_option_steps=CFG.max_num_steps_option_rollout)
 
-    def _set_grounding_from_state(self, state: State) -> None:
+    def _set_grounding_from_state(self,
+                                  state: State) -> None:  # pragma: no cover
         """Helper method to setup the MAPLE-Q network in the situation where
         all the training tasks are empty originally.
 
@@ -91,7 +92,7 @@ class MapleQApproach(OnlineNSRTLearningApproach):
                 all_objects = set(state)
                 all_ground_nsrts.update(
                     utils.all_ground_nsrts(nsrt, all_objects))
-        elif CFG.sesame_grounder == "fd_translator":  # pragma: no cover
+        elif CFG.sesame_grounder == "fd_translator":
             all_objects = set(state)
             curr_task_types = {o.type for o in state}
             # Ensure we crawl the type hierarchy to find all
@@ -113,7 +114,7 @@ class MapleQApproach(OnlineNSRTLearningApproach):
                         self._nsrts, all_objects,
                         self._get_current_predicates(), curr_task_types,
                         curr_init_atoms, task.goal))
-        else:  # pragma: no cover
+        else:
             raise ValueError(
                 f"Unrecognized sesame_grounder: {CFG.sesame_grounder}")
         goals = [t.goal for t in self._train_tasks]

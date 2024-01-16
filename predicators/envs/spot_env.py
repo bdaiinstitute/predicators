@@ -1218,6 +1218,7 @@ def _robot_ready_for_sweeping_classifier(state: State,
 
 def _is_semantically_greater_than_classifier(
         state: State, objects: Sequence[Object]) -> bool:
+    del state  # unused
     obj1, obj2 = objects
     # Check if the name of object 1 is greater (in a Pythonic sense) than
     # that of object 2.
@@ -1283,7 +1284,7 @@ _IsSemanticallyGreaterThan = Predicate(
     "_IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
 _ALL_PREDICATES = {
-    _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInside,
+    _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
