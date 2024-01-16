@@ -1187,6 +1187,11 @@ def _robot_ready_for_sweeping_classifier(state: State,
     target_xy = np.array([state.get(target, "x"), state.get(target, "y")])
     return np.allclose(expected_xy, target_xy, atol=_ROBOT_SWEEP_READY_TOL)
 
+def _is_semantically_greater_than_classifier(state: State, objects: Sequence[Object]) -> bool:
+    obj1, obj2 = objects
+    # Check if the name of object 1 is greater (in a Pythonic sense) than
+    # that of object 2.
+    return obj1.name > obj2.name
 
 def _get_sweeping_surface_for_container(container: Object,
                                         state: State) -> Optional[Object]:
@@ -1243,6 +1248,9 @@ _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type],
 _RobotReadyForSweeping = Predicate("RobotReadyForSweeping",
                                    [_robot_type, _movable_object_type],
                                    _robot_ready_for_sweeping_classifier)
+_IsSemanticallyGreaterThan = Predicate("_IsSemanticallyGreaterThan",
+                                   [_base_object_type, _base_object_type],
+                                   _is_semantically_greater_than_classifier)
 _ALL_PREDICATES = {
     _NEq,
     _On,
@@ -1264,6 +1272,7 @@ _ALL_PREDICATES = {
     _IsSweeper,
     _HasFlatTopSurface,
     _RobotReadyForSweeping,
+    _IsSemanticallyGreaterThan
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1510,6 +1519,10 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, sweeper]),
         LiftedAtom(_On, [target1, surface]),
         LiftedAtom(_On, [target2, surface]),
+        # This `IsSemanticallyGreaterThan` predicate just serves to
+        # provide a canonical grounding for this operator (we don't want
+        # Sweep(yogurt, chips) to be separate from Sweep(chips, yogurt)).
+        LiftedAtom(_IsSemanticallyGreaterThan, target1, target2),
         # Arbitrarily pick one of the targets to be the one ready for sweeping,
         # to prevent the robot 'moving to get ready for sweeping' twice.
         LiftedAtom(_RobotReadyForSweeping, [robot, target1]),
