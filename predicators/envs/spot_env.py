@@ -2033,13 +2033,17 @@ def _dry_simulate_sweep_into_container(
         # Otherwise, the object fails randomly somewhere around the container.
         else:
             angle = rng.uniform(0, 2 * np.pi)
-            distance = (container_radius + swept_obj_radius) * rng.uniform(
-                1.25, 1.5)
+            distance = (container_radius + swept_obj_radius) + rng.uniform(
+                1.1 * _INSIDE_SURFACE_BUFFER, 2 * _INSIDE_SURFACE_BUFFER)
             dx = distance * np.cos(angle)
             dy = distance * np.sin(angle)
             x = container_pose.x + dx
             y = container_pose.y + dy
             z = container_pose.z
+            dist_to_container = (dx ** 2 + dy ** 2) ** 0.5
+            assert dist_to_container > (container_radius + _INSIDE_SURFACE_BUFFER)
+            logging.info("BAD SWEEP SAMPLE!")
+
         swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
         # We want to make sure the object(s) don't get lost after sweeping!
         objects_in_view[swept_obj] = swept_obj_pose
