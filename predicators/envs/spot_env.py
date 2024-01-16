@@ -218,6 +218,9 @@ class SpotRearrangementEnv(BaseEnv):
         # For object detection.
         self._allowed_regions: Collection[Delaunay] = get_allowed_map_regions()
 
+        # Used for the move-related hacks in step().
+        self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
         """Expose the STRIPSOperators for use by oracles."""
@@ -453,17 +456,36 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            # Very hacky optimization to force hand viewing to work.
-            if action_name == "MoveToHandViewObject":
+            # Very hacky optimization to force viewing/reaching to work.
+            if action_name in [
+                    "MoveToHandViewObject", "MoveToBodyViewObject",
+                    "MoveToReachObject"
+            ]:
                 _, target_obj = action_objs
-                if target_obj not in next_obs.objects_in_hand_view:
-                    logging.warning(f"WARNING: retrying {action_name} "
-                                    f"because {target_obj} was not seen.")
+                # Retry if each of the types of moving failed in their own way.
+                if action_name == "MoveToHandViewObject":
+                    need_retry = target_obj not in \
+                        next_obs.objects_in_hand_view
+                elif action_name == "MoveToBodyViewObject":
+                    need_retry = target_obj not in \
+                        next_obs.objects_in_any_view_except_back
+                else:
+                    assert action_name == "MoveToReachObject"
+                    obj_pose = self._last_known_object_poses[target_obj]
+                    obj_position = math_helpers.Vec3(x=obj_pose.x,
+                                                     y=obj_pose.y,
+                                                     z=obj_pose.z)
+                    need_retry = not _obj_reachable_from_spot_pose(
+                        next_obs.robot_pos, obj_position)
+                if need_retry:
+                    logging.warning(f"WARNING: retrying {action_name} because"
+                                    f"{target_obj} was not seen/reached.")
                     # Do a small random movement to get a new view.
-                    robot, _, localizer, gaze_target = action_fn_args
+                    assert isinstance(action_fn_args[1], math_helpers.SE2Pose)
                     angle = self._noise_rng.uniform(-np.pi / 6, np.pi / 6)
                     rel_pose = math_helpers.SE2Pose(0, 0, angle)
-                    new_action_args = (robot, rel_pose, localizer, gaze_target)
+                    new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
+                        action_fn_args[2:]
                     new_action = utils.create_spot_env_action(
                         action_name,
                         action_objs,
@@ -542,6 +564,7 @@ class SpotRearrangementEnv(BaseEnv):
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in all_detections.items()
         }
+        self._last_known_object_poses.update(all_objects_in_view)
         objects_in_hand_view = set(self._detection_id_to_obj[det_id]
                                    for det_id in hand_detections)
         objects_in_any_view_except_back = set(
@@ -791,6 +814,7 @@ class SpotRearrangementEnv(BaseEnv):
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
         }
+        self._last_known_object_poses.update(obj_to_se3_pose)
         return obj_to_se3_pose
 
     def _run_init_search_for_objects(
@@ -843,6 +867,7 @@ _ONTOP_Z_THRESHOLD = 0.4
 _INSIDE_Z_THRESHOLD = 0.4
 _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
+_FITS_IN_XY_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.5
@@ -969,19 +994,25 @@ def _not_inside_any_container_classifier(state: State,
     return True
 
 
-def _fits_inside_classifier(state: State, objects: Sequence[Object]) -> bool:
+def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
     # Just look in the xy plane and use a conservative approximation.
     contained, container = objects
-    obj_to_circle: Dict[Object, utils.Circle] = {}
+    obj_to_radius: Dict[Object, float] = {}
     for obj in objects:
         obj_geom = object_to_top_down_geom(obj, state)
         if isinstance(obj_geom, utils.Rectangle):
-            obj_geom = obj_geom.circumscribed_circle
-        assert isinstance(obj_geom, utils.Circle)
-        obj_to_circle[obj] = obj_geom
-    contained_circle = obj_to_circle[contained]
-    container_circle = obj_to_circle[container]
-    return contained_circle.radius < container_circle.radius
+            if obj is contained:
+                radius = max(obj_geom.width / 2, obj_geom.height / 2)
+            else:
+                assert obj is container
+                radius = min(obj_geom.width / 2, obj_geom.height / 2)
+        else:
+            assert isinstance(obj_geom, utils.Circle)
+            radius = obj_geom.radius
+        obj_to_radius[obj] = radius
+    contained_radius = obj_to_radius[contained]
+    container_radius = obj_to_radius[container]
+    return contained_radius + _FITS_IN_XY_BUFFER < container_radius
 
 
 def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -997,36 +1028,36 @@ def in_general_view_classifier(state: State,
     return state.get(tool, "in_view") > 0.5
 
 
-def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
-    spot, obj = objects
-    spot_pose = [
-        state.get(spot, "x"),
-        state.get(spot, "y"),
-        state.get(spot, "z"),
-        state.get(spot, "qw"),
-        state.get(spot, "qx"),
-        state.get(spot, "qy"),
-        state.get(spot, "qz")
-    ]
-    obj_pose = [state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z")]
+def _obj_reachable_from_spot_pose(spot_pose: math_helpers.SE3Pose,
+                                  obj_position: math_helpers.Vec3) -> bool:
     is_xy_near = np.sqrt(
-        (spot_pose[0] - obj_pose[0])**2 +
-        (spot_pose[1] - obj_pose[1])**2) <= _REACHABLE_THRESHOLD
+        (spot_pose.x - obj_position.x)**2 +
+        (spot_pose.y - obj_position.y)**2) <= _REACHABLE_THRESHOLD
 
     # Compute angle between spot's forward direction and the line from
     # spot to the object.
-    spot_yaw = math_helpers.SE3Pose(
-        spot_pose[0], spot_pose[1], spot_pose[2],
-        math_helpers.Quat(spot_pose[3], spot_pose[4], spot_pose[5],
-                          spot_pose[6])).get_closest_se2_transform().angle
+    spot_yaw = spot_pose.get_closest_se2_transform().angle
     forward_unit = [np.cos(spot_yaw), np.sin(spot_yaw)]
-    spot_to_obj = np.subtract(obj_pose[:2], spot_pose[:2])
+    spot_xy = np.array([spot_pose.x, spot_pose.y])
+    obj_xy = np.array([obj_position.x, obj_position.y])
+    spot_to_obj = np.subtract(obj_xy, spot_xy)
     spot_to_obj_unit = spot_to_obj / np.linalg.norm(spot_to_obj)
     angle_between_robot_and_obj = np.arccos(
         np.clip(np.dot(forward_unit, spot_to_obj_unit), -1, 1))
     is_yaw_near = abs(angle_between_robot_and_obj) < _REACHABLE_YAW_THRESHOLD
 
     return is_xy_near and is_yaw_near
+
+
+def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
+    spot, obj = objects
+    spot_pose = utils.get_se3_pose_from_state(state, spot)
+    obj_position = math_helpers.Vec3(
+        x=state.get(obj, "x"),
+        y=state.get(obj, "y"),
+        z=state.get(obj, "z"),
+    )
+    return _obj_reachable_from_spot_pose(spot_pose, obj_position)
 
 
 def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1211,8 +1242,8 @@ _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
 _Inside = Predicate("Inside", [_movable_object_type, _container_type],
                     _inside_classifier)
-_FitsInside = Predicate("FitsInside", [_movable_object_type, _container_type],
-                        _fits_inside_classifier)
+_FitsInXY = Predicate("FitsInXY", [_movable_object_type, _base_object_type],
+                      _fits_in_xy_classifier)
 # NOTE: use this predicate instead if you want to disable inside checking.
 _FakeInside = Predicate(_Inside.name, _Inside.types,
                         _create_dummy_predicate_classifier(_Inside))
@@ -1368,6 +1399,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NEq, [held, surface]),
         LiftedAtom(_IsPlaceable, [held]),
         LiftedAtom(_HasFlatTopSurface, [surface]),
+        LiftedAtom(_FitsInXY, [held, surface]),
     }
     add_effs = {
         LiftedAtom(_On, [held, surface]),
@@ -1409,7 +1441,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_Holding, [robot, held]),
         LiftedAtom(_Reachable, [robot, container]),
         LiftedAtom(_IsPlaceable, [held]),
-        LiftedAtom(_FitsInside, [held, container]),
+        LiftedAtom(_FitsInXY, [held, container]),
     }
     add_effs = {
         LiftedAtom(_Inside, [held, container]),
@@ -1441,7 +1473,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_On, [held, surface]),
         LiftedAtom(_NotHolding, [robot, held]),
-        LiftedAtom(_FitsInside, [held, container]),
+        LiftedAtom(_FitsInXY, [held, container]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, held]),
