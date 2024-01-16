@@ -86,14 +86,16 @@ PLOT_GROUPS = {
             lambda v: "grid_row-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-task_repeat_explore" in v)),
-        ("Fail Focus Non-UCB", "brown", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "grid_row-success_rate_explore_no_ucb" in v)),
-        ("Fail Focus UCB", "red", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-competence_gradient" in v)),
+        ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-success_rate_explore_ucb" in v)),
         ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-random_score_explore" in v)),
         ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-random_nsrts_explore" in v)),
+        ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-skill_diversity" in v)),
         ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-maple_q" in v)),
     ],
@@ -102,14 +104,16 @@ PLOT_GROUPS = {
             lambda v: "sticky_table-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-task_repeat_explore" in v)),
-        ("Fail Focus Non-UCB", "brown", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "sticky_table-success_rate_explore_no_ucb" in v)),
-        ("Fail Focus UCB", "red", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "sticky_table-competence_gradient" in v)),
+        ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-success_rate_explore_ucb" in v)),
         ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-random_score_explore" in v)),
         ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-random_nsrts_explore" in v)),
+        ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "sticky_table-skill_diversity" in v)),
         ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-maple_q" in v)),
     ],
@@ -118,14 +122,16 @@ PLOT_GROUPS = {
             lambda v: "spot_sweeping_sim-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-task_repeat_explore" in v)),
-        ("Fail Focus Non-UCB", "brown", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "spot_sweeping_sim-success_rate_explore_no_ucb" in v)),
-        ("Fail Focus UCB", "red", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-competence_gradient" in v)),
+        ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-success_rate_explore_ucb" in v)),
         ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
-            lambda v: "spot_sweeping_sim-random_score_explore" in v)),
+            lambda v: "spot_sweeping_simrandom_score_explore" in v)),
         ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-random_nsrts_explore" in v)),
+        ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-skill_diversity" in v)),
         ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-maple_q" in v)),
     ],
