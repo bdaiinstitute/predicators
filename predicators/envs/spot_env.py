@@ -1033,7 +1033,7 @@ def _obj_reachable_from_spot_pose(spot_pose: math_helpers.SE3Pose,
     # spot to the object.
     spot_yaw = spot_pose.get_closest_se2_transform().angle
     forward_unit = [np.cos(spot_yaw), np.sin(spot_yaw)]
-    spot_xy = np.array(spot_pose.x, spot_pose.y)
+    spot_xy = np.array([spot_pose.x, spot_pose.y])
     obj_xy = np.array([obj_position.x, obj_position.y])
     spot_to_obj = np.subtract(obj_xy, spot_xy)
     spot_to_obj_unit = spot_to_obj / np.linalg.norm(spot_to_obj)
