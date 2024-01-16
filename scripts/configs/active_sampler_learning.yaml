@@ -37,9 +37,6 @@ APPROACHES:
   #   NAME: "active_sampler_learning"
   #   FLAGS:
   #     explorer: "random_nsrts"
-  # NOTE: maple_q has to be run separately for the spot
-  # environments because one of the flags needs to be
-  # commented out.
   maple_q:
     NAME: "maple_q"
     FLAGS:
@@ -83,9 +80,6 @@ ENVS:
       active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
       perceiver: spot_perceiver
-      # IMPORTANT: Comment out the below line when running the
-      # MAPLE-Q experiments
-      # approach_wrapper: spot_wrapper
       segmenter: spot
       active_sampler_learning_explore_pursue_goal_interval: 1
       max_num_steps_interaction_request: 200
