@@ -459,7 +459,7 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            # Very hacky optimization to force viewing to work.
+            # Very hacky optimization to force viewing/reaching to work.
             if action_name in [
                     "MoveToHandViewObject", "MoveToBodyViewObject",
                     "MoveToReachObject"
@@ -478,11 +478,11 @@ class SpotRearrangementEnv(BaseEnv):
                     obj_position = math_helpers.Vec3(x=obj_pose.x,
                                                      y=obj_pose.y,
                                                      z=obj_pose.z)
-                    need_retry = _obj_reachable_from_spot_pose(
+                    need_retry = not _obj_reachable_from_spot_pose(
                         next_obs.robot_pos, obj_position)
                 if need_retry:
-                    logging.warning(f"WARNING: retrying {action_name} "
-                                    f"because {target_obj} was not seen.")
+                    logging.warning(f"WARNING: retrying {action_name} because"
+                                    f"{target_obj} was not seen/reached.")
                     # Do a small random movement to get a new view.
                     assert isinstance(action_fn_args[1], math_helpers.SE2Pose)
                     angle = self._noise_rng.uniform(-np.pi / 6, np.pi / 6)
