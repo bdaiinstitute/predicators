@@ -817,6 +817,7 @@ class SpotRearrangementEnv(BaseEnv):
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
         }
+        self._last_known_object_poses.update(obj_to_se3_pose)
         return obj_to_se3_pose
 
     def _run_init_search_for_objects(
