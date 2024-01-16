@@ -846,6 +846,7 @@ _ONTOP_Z_THRESHOLD = 0.4
 _INSIDE_Z_THRESHOLD = 0.4
 _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
+_FITS_IN_XY_BUFFER = 0.1
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.5
@@ -982,9 +983,9 @@ def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
             obj_geom = obj_geom.circumscribed_circle
         assert isinstance(obj_geom, utils.Circle)
         obj_to_circle[obj] = obj_geom
-    contained_circle = obj_to_circle[contained]
-    container_circle = obj_to_circle[container]
-    return contained_circle.radius < container_circle.radius
+    contained_radius = obj_to_circle[contained].radius
+    container_radius = obj_to_circle[container].radius
+    return contained_radius + _FITS_IN_XY_BUFFER < container_radius
 
 
 def in_hand_view_classifier(state: State, objects: Sequence[Object]) -> bool:
