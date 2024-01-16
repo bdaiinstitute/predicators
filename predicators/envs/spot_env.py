@@ -2024,7 +2024,7 @@ def _dry_simulate_sweep_into_container(
 
     # If the sweep parameters are close enough to optimal, the object should
     # end up in the container.
-    optimal_duration = 4.0
+    optimal_duration = 3.0
     thresh = 0.5
     for swept_obj in swept_objs:
         swept_obj_height = static_feats[swept_obj.name]["height"]
