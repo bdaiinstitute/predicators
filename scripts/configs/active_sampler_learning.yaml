@@ -79,6 +79,7 @@ ENVS:
       active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
+      approach_wrapper: spot_wrapper
       perceiver: spot_perceiver
       segmenter: spot
       active_sampler_learning_explore_pursue_goal_interval: 1
@@ -97,8 +98,6 @@ ENVS:
   #     active_sampler_learning_init_cycles_to_pursue_goal: 5
   #     spot_run_dry: True
   #     perceiver: spot_perceiver
-  #     # IMPORTANT: Comment out the below line when running the
-  #     # MAPLE-Q experiments
   #     approach_wrapper: spot_wrapper
   #     segmenter: spot
   #     max_num_steps_interaction_request: 100
