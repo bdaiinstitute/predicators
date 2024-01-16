@@ -1522,7 +1522,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         # This `IsSemanticallyGreaterThan` predicate just serves to
         # provide a canonical grounding for this operator (we don't want
         # Sweep(yogurt, chips) to be separate from Sweep(chips, yogurt)).
-        LiftedAtom(_IsSemanticallyGreaterThan, target1, target2),
+        LiftedAtom(_IsSemanticallyGreaterThan, [target1, target2]),
         # Arbitrarily pick one of the targets to be the one ready for sweeping,
         # to prevent the robot 'moving to get ready for sweeping' twice.
         LiftedAtom(_RobotReadyForSweeping, [robot, target1]),
