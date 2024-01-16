@@ -125,7 +125,7 @@ def main() -> None:
     # Create the agent (approach).
     approach_name = CFG.approach
     # MAPLE-Q is not compatible with a wrapper.
-    if CFG.approach_wrapper and CFG.approach_name != "maple_q":
+    if CFG.approach_wrapper and approach_name != "maple_q":
         approach_name = f"{CFG.approach_wrapper}[{approach_name}]"
     approach = create_approach(approach_name, preds, options, env.types,
                                env.action_space, stripped_train_tasks)
