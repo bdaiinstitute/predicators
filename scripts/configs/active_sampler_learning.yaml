@@ -83,7 +83,7 @@ ENVS:
       perceiver: spot_perceiver
       segmenter: spot
       active_sampler_learning_explore_pursue_goal_interval: 1
-      max_num_steps_interaction_request: 300
+      max_num_steps_interaction_request: 150
   # spot_sweeping_sim_yogurt_only:
   #   NAME: "spot_main_sweep_env"
   #   FLAGS:

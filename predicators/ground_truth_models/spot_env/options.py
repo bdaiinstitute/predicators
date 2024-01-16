@@ -494,7 +494,7 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     # Special case: the robot is already on top of the surface (because it is
     # probably the floor). When this happens, just drop the object.
     surface_geom = object_to_top_down_geom(surface_obj, state)
-    if surface_geom.contains_point(robot_pose.x, robot_pose.y):
+    if surface_geom.contains_point(robot_pose.x, robot_pose.y) and surface_obj.name == "floor":
         return utils.create_spot_env_action(name, objects, _drop_and_stow,
                                             (robot, ))
 
