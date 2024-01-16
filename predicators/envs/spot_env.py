@@ -456,7 +456,7 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            # Very hacky optimization to force hand viewing to work.
+            # Very hacky optimization to force viewing to work.
             if action_name == "MoveToHandViewObject":
                 _, target_obj = action_objs
                 if target_obj not in next_obs.objects_in_hand_view:
