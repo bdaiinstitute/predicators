@@ -1391,7 +1391,6 @@ class MapleQFunction(MLPRegressor):
             self.predict_q_value(state, goal, option) for option in options
         ]
         idx = np.argmax(scores)
-        import ipdb; ipdb.set_trace()
         return options[idx]
 
     def add_datum_to_replay_buffer(self, datum: MapleQData) -> None:
