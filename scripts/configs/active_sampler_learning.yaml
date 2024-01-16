@@ -6,38 +6,38 @@ APPROACHES:
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
-  # task_repeat_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "task_repeat"
-  # success_rate_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "success_rate"
-  #     active_sampler_explore_use_ucb_bonus: False
-  # success_rate_explore_no_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "success_rate"
-  #     active_sampler_explore_use_ucb_bonus: False
-  # random_score_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "random"
-  # random_nsrts_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "random_nsrts"
-  # maple_q:
-  #   NAME: "maple_q"
-  #   FLAGS:
-  #     explorer: "maple_q"
-  #     mlp_regressor_max_itr: 100000
-  #     active_sampler_learning_batch_size: 1024
+  task_repeat_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "task_repeat"
+  success_rate_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "success_rate"
+      active_sampler_explore_use_ucb_bonus: False
+  success_rate_explore_no_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "success_rate"
+      active_sampler_explore_use_ucb_bonus: False
+  random_score_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "random"
+  random_nsrts_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "random_nsrts"
+  maple_q:
+    NAME: "maple_q"
+    FLAGS:
+      explorer: "maple_q"
+      mlp_regressor_max_itr: 100000
+      active_sampler_learning_batch_size: 1024
 ENVS:
   # grid_row:
   #   NAME: "grid_row"
@@ -77,6 +77,7 @@ ENVS:
       approach_wrapper: spot_wrapper
       segmenter: spot
       active_sampler_learning_explore_pursue_goal_interval: 1
+      max_num_steps_interaction_request: 200
 ARGS: []
 FLAGS:
   num_test_tasks: 10
@@ -91,11 +92,11 @@ FLAGS:
   active_sampler_learning_model: "myopic_classifier_mlp"
   active_sampler_learning_use_teacher: False
   online_nsrt_learning_requests_per_cycle: 1
-  max_num_steps_interaction_request: 100
+  # max_num_steps_interaction_request: 100
   num_online_learning_cycles: 10
   sesame_task_planner: "fdopt-costs"
   sesame_grounder: "fd_translator"
   active_sampler_learning_n_iter_no_change: 5000
   spot_graph_nav_map: "floor8-sweeping"
 START_SEED: 456
-NUM_SEEDS: 1
+NUM_SEEDS: 10
