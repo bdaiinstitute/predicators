@@ -688,8 +688,8 @@ if __name__ == "__main__":
         # "small purple cup/empty yogurt container",
         # "bag of chips/popcorn bag/yellow bag of food",
         "pink and gray stuffed animal/toy robot",
-        # "small football toy/stuffed toy football/small brown ball",
-        "toy truck/stuffed animal",
+        "small football toy/stuffed toy football/small brown ball",
+        # "toy truck/stuffed animal",
     ]
 
     def _run_manual_test() -> None:
