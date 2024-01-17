@@ -2040,8 +2040,9 @@ def _dry_simulate_sweep_into_container(
             x = container_pose.x + dx
             y = container_pose.y + dy
             z = container_pose.z
-            dist_to_container = (dx ** 2 + dy ** 2) ** 0.5
-            assert dist_to_container > (container_radius + _INSIDE_SURFACE_BUFFER)
+            dist_to_container = (dx**2 + dy**2)**0.5
+            assert dist_to_container > (container_radius +
+                                        _INSIDE_SURFACE_BUFFER)
             logging.info("BAD SWEEP SAMPLE!")
 
         swept_obj_pose = math_helpers.SE3Pose(x, y, z, math_helpers.Quat())
