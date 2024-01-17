@@ -613,6 +613,20 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
                                         (robot, move_rel_pos))
 
 
+def _drag_to_block_object_policy(state: State, memory: Dict,
+                                 objects: Sequence[Object],
+                                 params: Array) -> Action:
+    del state, memory  # not used
+
+    name = "DragToBlockObject"
+    robot, _, _ = get_robot()
+    dx, dy, dyaw = params
+    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
+
+    return utils.create_spot_env_action(name, objects, _drag_and_release,
+                                        (robot, move_rel_pos))
+
+
 def _sweep_into_container_policy(state: State, memory: Dict,
                                  objects: Sequence[Object],
                                  params: Array) -> Action:
@@ -723,6 +737,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
                                           (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
+    "DragToBlockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (1, )),  # velocity
     "SweepTwoObjectsIntoContainer": Box(-np.inf, np.inf, (1, )),  # same
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
@@ -744,6 +759,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropObjectInside": _drop_object_inside_policy,
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
+    "DragToBlockObject": _drag_to_block_object_policy,
     "SweepIntoContainer": _sweep_into_container_policy,
     "SweepTwoObjectsIntoContainer": _sweep_two_objects_into_container_policy,
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
