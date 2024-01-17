@@ -162,7 +162,10 @@ class MapleQApproach(OnlineNSRTLearningApproach):
             assert nsrt.option_vars == nsrt.parameters
         # On the first cycle, we need to register the ground NSRTs, goals, and
         # objects in the Q function so that it can define its inputs.
-        if not online_learning_cycle:
+        if online_learning_cycle is None or len(
+                self._q_function._ordered_ground_nsrts) + len(
+                    self._q_function._ordered_frozen_goals) + len(
+                        self._q_function._ordered_objects) == 0:
             all_ground_nsrts: Set[_GroundNSRT] = set()
             if CFG.sesame_grounder == "naive":
                 for nsrt in self._nsrts:
@@ -193,7 +196,6 @@ class MapleQApproach(OnlineNSRTLearningApproach):
                                            all_ground_nsrts)
         # Update the data using the updated self._segmented_trajs.
         self._update_maple_data()
-        # import ipdb; ipdb.set_trace()
         # Re-learn Q function.
         self._q_function.train_q_function()
         # Save the things we need other than the NSRTs, which were already

@@ -1378,7 +1378,7 @@ class MapleQFunction(MLPRegressor):
                    epsilon: float = 0.0) -> _Option:
         """Get the best option under Q, epsilon-greedy."""
         # Return a random option.
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         if self._rng.uniform() < epsilon:
             options = self._sample_applicable_options_from_state(
                 state, num_samples_per_applicable_nsrt=1)
@@ -1410,7 +1410,7 @@ class MapleQFunction(MLPRegressor):
         # been correctly set before calling training.
         assert len(self._ordered_objects) > 0
         assert len(self._ordered_frozen_goals) > 0
-        assert len(self._num_ground_nsrts) > 0
+        assert len(self._ordered_ground_nsrts) > 0
         # First, precompute the size of the input and output from the
         # Q-network.
         X_size = sum(o.type.dim for o in self._ordered_objects) + len(
