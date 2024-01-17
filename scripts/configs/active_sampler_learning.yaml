@@ -1,11 +1,11 @@
 # Final active sampler learning experiments.
 ---
 APPROACHES:
-  planning_progress_explore:
-    NAME: "active_sampler_learning"
-    FLAGS:
-      explorer: "active_sampler"
-      active_sampler_explore_task_strategy: "planning_progress"
+  # planning_progress_explore:
+  #   NAME: "active_sampler_learning"
+  #   FLAGS:
+  #     explorer: "active_sampler"
+  #     active_sampler_explore_task_strategy: "planning_progress"
   # competence_gradient_explore_ucb:
   #   NAME: "active_sampler_learning"
   #   FLAGS:
@@ -28,11 +28,11 @@ APPROACHES:
   #   FLAGS:
   #     explorer: "active_sampler"
   #     active_sampler_explore_task_strategy: "skill_diversity"
-  # random_score_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "random"
+  random_score_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "random"
   # random_nsrts_explore:
   #   NAME: "active_sampler_learning"
   #   FLAGS:
