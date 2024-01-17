@@ -33,21 +33,15 @@ bucket_prompt = "/".join([
     "white crate",
 ])
 bucket_obj = LanguageObjectDetectionID(bucket_prompt)
-# TODO rename all variables
-chips_prompt = "/".join([
-    # "pink and gray stuffed animal",
-    # "toy robot",
-    # "toy cupcake",
+football_prompt = "/".join([
     "small football toy",
     "stuffed toy football",
     "small brown ball",
 ])
-chips_obj = LanguageObjectDetectionID(chips_prompt)
+football_obj = LanguageObjectDetectionID(football_prompt)
 yogurt_prompt = "/".join([
     "small purple cup",
     "empty yogurt container",
-    # "toy truck",
-    # "stuffed animal",
 ])
 yogurt_obj = LanguageObjectDetectionID(yogurt_prompt)
 
@@ -411,7 +405,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # Bucket-specific grasp selection.
     bucket_obj: _get_bucket_grasp_pixel,
     # Chips-specific grasp selection.
-    chips_obj: partial(_get_mask_center_grasp_pixel, chips_obj),
+    football_obj: partial(_get_mask_center_grasp_pixel, football_obj),
     # Yogurt-specific grasp selection.
     yogurt_obj: partial(_get_mask_center_grasp_pixel, yogurt_obj),
 }
