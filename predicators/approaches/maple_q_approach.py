@@ -193,6 +193,7 @@ class MapleQApproach(OnlineNSRTLearningApproach):
                                            all_ground_nsrts)
         # Update the data using the updated self._segmented_trajs.
         self._update_maple_data()
+        # import ipdb; ipdb.set_trace()
         # Re-learn Q function.
         self._q_function.train_q_function()
         # Save the things we need other than the NSRTs, which were already
