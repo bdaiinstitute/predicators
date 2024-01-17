@@ -35,15 +35,17 @@ bucket_prompt = "/".join([
 bucket_obj = LanguageObjectDetectionID(bucket_prompt)
 # TODO rename all variables
 chips_prompt = "/".join([
-    "pink and gray stuffed animal",
-    "toy robot",
-    "toy cupcake",
-])
-chips_obj = LanguageObjectDetectionID(chips_prompt)
-yogurt_prompt = "/".join([
+    # "pink and gray stuffed animal",
+    # "toy robot",
+    # "toy cupcake",
     "small football toy",
     "stuffed toy football",
     "small brown ball",
+])
+chips_obj = LanguageObjectDetectionID(chips_prompt)
+yogurt_prompt = "/".join([
+    "small purple cup",
+    "empty yogurt container",
     # "toy truck",
     # "stuffed animal",
 ])

@@ -687,7 +687,8 @@ if __name__ == "__main__":
     TEST_LANGUAGE_DESCRIPTIONS = [
         # "small purple cup/empty yogurt container",
         # "bag of chips/popcorn bag/yellow bag of food",
-        "pink and gray stuffed animal/toy robot",
+        # "pink and gray stuffed animal/toy robot"
+        "small basketball toy/stuffed toy basketball/small orange ball",
         "small football toy/stuffed toy football/small brown ball",
         # "toy truck/stuffed animal",
     ]
