@@ -236,7 +236,7 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
     del state, goal, objs
     if CFG.spot_use_perfect_samplers:
         return np.array([1. / 3])
-    param = rng.uniform(0.1, 5.0)
+    param = rng.uniform(0.1, 1.0)
     return np.array([param])
 
 
