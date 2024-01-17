@@ -1512,11 +1512,11 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     preconds = {
         LiftedAtom(_NotBlocked, [blocked]),
         LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_NotHolding, [robot, blocker]),
+        LiftedAtom(_Holding, [robot, blocker]),
     }
     add_effs = {
         LiftedAtom(_Blocking, [blocker, blocked]),
-        LiftedAtom(_Holding, [robot, blocker]),
+        LiftedAtom(_NotHolding, [robot, blocker]),
     }
     del_effs = {
         LiftedAtom(_Holding, [robot, blocker]),

@@ -319,7 +319,7 @@ class ActiveSamplerExplorer(BaseExplorer):
                 # Terminate early if no goal could be found.
                 else:
                     # For spot environments, don't do random actions.
-                    if "spot" in CFG.env:  # pragma: no cover
+                    if "spot" in CFG.env and not CFG.spot_run_dry:  # pragma: no cover
                         self._log("[Explorer] TERMINATING EARLY!!! "
                                   "No reachable goal found.")
                         raise utils.RequestActPolicyFailure(
