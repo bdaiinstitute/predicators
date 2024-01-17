@@ -685,12 +685,8 @@ if __name__ == "__main__":
     ]
     TEST_APRIL_TAG_ID = 408
     TEST_LANGUAGE_DESCRIPTIONS = [
-        # "small purple cup/empty yogurt container",
-        # "bag of chips/popcorn bag/yellow bag of food",
-        # "pink and gray stuffed animal/toy robot"
         "small basketball toy/stuffed toy basketball/small orange ball",
         "small football toy/stuffed toy football/small brown ball",
-        # "toy truck/stuffed animal",
     ]
 
     def _run_manual_test() -> None:
@@ -847,5 +843,4 @@ if __name__ == "__main__":
                                 no_detections_outfile)
 
     _run_manual_test()
-    # TODO add back
-    # _run_pythonic_bowl_test()
+    _run_pythonic_bowl_test()
