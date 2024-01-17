@@ -498,7 +498,6 @@ class ActiveSamplerExplorer(BaseExplorer):
             logging.info(f"[Explorer]   posterior competence: {competence}")
             logging.info(f"[Explorer]   extrapolated competence: {extrap}")
             logging.info(f"[Explorer]   score: {score}")
-
             if CFG.active_sampler_explore_use_ucb_bonus:
                 # Normalize the score.
                 score = score / seen_train_tasks_num
