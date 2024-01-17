@@ -263,17 +263,18 @@ class SpotPerceiver(BasePerceiver):
         }
 
         # Uncomment for debugging.
-        # logging.info("Percept state:")
-        # logging.info(percept_state.pretty_str())
-        # logging.info("Percept atoms:")
-        # atom_str = "\n".join(
-        #     map(
-        #         str,
-        #         sorted(utils.abstract(percept_state,
-        #                               self._percept_predicates))))
-        # logging.info(atom_str)
-        # logging.info("Simulator state:")
-        # logging.info(simulator_state)
+        # TODO
+        logging.info("Percept state:")
+        logging.info(percept_state.pretty_str())
+        logging.info("Percept atoms:")
+        atom_str = "\n".join(
+            map(
+                str,
+                sorted(utils.abstract(percept_state,
+                                      self._percept_predicates))))
+        logging.info(atom_str)
+        logging.info("Simulator state:")
+        logging.info(simulator_state)
 
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,

@@ -478,7 +478,7 @@ class SpotRearrangementEnv(BaseEnv):
                     need_retry = not _obj_reachable_from_spot_pose(
                         next_obs.robot_pos, obj_position)
                 if need_retry:
-                    logging.warning(f"WARNING: retrying {action_name} because"
+                    logging.warning(f"WARNING: retrying {action_name} because "
                                     f"{target_obj} was not seen/reached.")
                     # Do a small random movement to get a new view.
                     assert isinstance(action_fn_args[1], math_helpers.SE2Pose)
@@ -863,7 +863,7 @@ class SpotRearrangementEnv(BaseEnv):
 
 ## Constants
 HANDEMPTY_GRIPPER_THRESHOLD = 2.5  # made public for use in perceiver
-_ONTOP_Z_THRESHOLD = 0.4
+_ONTOP_Z_THRESHOLD = 0.2
 _INSIDE_Z_THRESHOLD = 0.4
 _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
