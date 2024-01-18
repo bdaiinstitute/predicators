@@ -2025,7 +2025,7 @@ def _dry_simulate_sweep_into_container(
         last_obs: _SpotObservation, swept_objs: Set[Object], container: Object,
         nonpercept_atoms: Set[GroundAtom], duration: float,
         rng: np.random.Generator) -> _SpotObservation:
-    
+
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
