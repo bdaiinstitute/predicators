@@ -2052,7 +2052,7 @@ def _dry_simulate_sweep_into_container(
         farthest_swept_obj_distance = max(farthest_swept_obj_distance, dist)
     # Simply say that the optimal velocity is equal to the distance.
     optimal_velocity = farthest_swept_obj_distance
-    velocity = duration
+    velocity = 1. / duration
     # If the given velocity is close enough to the optimal velocity, sweep all
     # objects successfully; otherwise, have the objects fall randomly.
     thresh = 0.25
