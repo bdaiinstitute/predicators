@@ -292,7 +292,8 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "PlaceObjectOnTop":
             _, held_obj, target_surface = action_objs
             if len(action_args) == 1:
-                # assert target_surface.name == "floor"
+                if not CFG.spot_run_dry:
+                    assert target_surface.name == "floor"
                 place_offset = math_helpers.Vec3(0.0, 0.0, 0.0)
             else:
                 place_offset = action_args[1]
