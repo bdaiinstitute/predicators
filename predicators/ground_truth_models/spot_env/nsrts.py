@@ -254,7 +254,7 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
             tx, ty = state.get(target, "x"), state.get(target, "y")
             dist = np.sum(np.square(np.subtract((cx, cy), (tx, ty))))
             max_dist = max(max_dist, dist)
-        velocity = max_dist  # directly proportional
+        velocity = 3 * max(max_dist - 0.5, 0.1)
         return np.array([velocity])
     param = rng.uniform(0.1, 1.0)
     return np.array([param])
