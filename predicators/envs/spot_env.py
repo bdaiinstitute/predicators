@@ -2487,15 +2487,12 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
 
 
 ###############################################################################
-#                               Soda Sweep Env                                #
+#                               Main Sweep Env                                #
 ###############################################################################
 
 
 class SpotMainSweepEnv(SpotRearrangementEnv):
-    """An environment where a soda can needs to be swept into a bucket.
-
-    To force sweeping, the goal includes holding the sweeper.
-    """
+    """An environment where objects need to be swept into a bucket."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -2559,9 +2556,11 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
     def _generate_goal_description(self) -> GoalDescription:
         return CFG.spot_sweep_env_goal_description
 
+    @functools.lru_cache(maxsize=None)
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
-        del train_or_test, task_idx  # randomization coming later
+        del task_idx  # lru_cache takes care of this
+        rng = self._train_rng if train_or_test == "train" else self._test_rng
 
         # Create the objects and their initial poses.
         objects_in_view: Dict[Object, math_helpers.SE3Pose] = {}
@@ -2598,15 +2597,17 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         if CFG.spot_graph_nav_map == "floor8-v2":
             # Yogurt.
             yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x
-            yogurt_y = table_y - table_length / 2.25 + yogurt_length
+            yogurt_x = table_x + rng.uniform(-0.05, 0.05)
+            yogurt_y = table_y - table_length / 2.25 + yogurt_length + \
+                rng.uniform(-0.05, 0.05)
             yogurt_z = floor_z + table_height + yogurt_height / 2
             obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
 
-            # Chips.
+            # Football.
             football = Object("football", _movable_object_type)
-            football_x = yogurt_x
-            football_y = yogurt_y + 0.1
+            football_x = yogurt_x + rng.uniform(-0.05, 0.05)
+            football_y = yogurt_y + 0.1 + \
+                rng.uniform(-0.05, 0.05)
             football_z = floor_z + table_height + football_height / 2
             obj_to_xyz[football] = (football_x, football_y, football_z)
 
@@ -2641,7 +2642,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             yogurt_z = floor_z + table_height + yogurt_height / 2
             obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
 
-            # Chips.
+            # Football.
             football = Object("football", _movable_object_type)
             football_x = yogurt_x + 0.3
             football_y = yogurt_y

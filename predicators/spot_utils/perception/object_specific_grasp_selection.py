@@ -407,7 +407,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     brush_obj: _get_brush_grasp_pixel,
     # Bucket-specific grasp selection.
     bucket_obj: _get_bucket_grasp_pixel,
-    # Chips-specific grasp selection.
+    # Football-specific grasp selection.
     football_obj: partial(_get_mask_center_grasp_pixel, football_obj),
     # Yogurt-specific grasp selection.
     yogurt_obj: partial(_get_mask_center_grasp_pixel, yogurt_obj),
