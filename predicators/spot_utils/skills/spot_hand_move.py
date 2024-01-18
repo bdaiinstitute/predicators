@@ -12,7 +12,7 @@ from bosdyn.client.robot_command import RobotCommandBuilder, \
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
 from bosdyn.util import seconds_to_duration
-from google.protobuf import wrappers_pb2
+from google.protobuf.wrappers_pb2 import DoubleValue # pylint: disable=no-name-in-module
 
 
 def move_hand_to_relative_pose(
@@ -65,8 +65,8 @@ def move_hand_to_relative_pose_with_velocity(
     arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
         pose_trajectory_in_task=hand_traj,
         root_frame_name=BODY_FRAME_NAME,
-        max_linear_velocity=wrappers_pb2.DoubleValue(value=100),
-        max_angular_velocity=wrappers_pb2.DoubleValue(value=100))
+        max_linear_velocity=DoubleValue(value=100),
+        max_angular_velocity=DoubleValue(value=100))
 
     # Pack everything up in protos.
     arm_command = arm_command_pb2.ArmCommand.Request(
@@ -85,8 +85,8 @@ def move_hand_to_relative_pose_with_velocity(
         feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
         if feedback_resp.feedback.synchronized_feedback.arm_command_feedback.\
             arm_cartesian_feedback.status in [
-                arm_command_pb2.ArmCartesianCommand.Feedback.
-                STATUS_TRAJECTORY_COMPLETE, arm_command_pb2.
+                arm_command_pb2.ArmCartesianCommand.Feedback. # pylint: disable=no-member
+                STATUS_TRAJECTORY_COMPLETE, arm_command_pb2. # pylint: disable=no-member
                 ArmCartesianCommand.Feedback.STATUS_TRAJECTORY_STALLED
         ]:
             robot.logger.info('Move complete.')
