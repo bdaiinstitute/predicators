@@ -18,7 +18,6 @@ from google.protobuf import wrappers_pb2
 def move_hand_to_relative_pose(
     robot: Robot,
     body_tform_goal: math_helpers.SE3Pose,
-    duration: float = 2.0,
 ) -> None:
     """Move the spot hand.
 
@@ -30,11 +29,11 @@ def move_hand_to_relative_pose(
     cmd = RobotCommandBuilder.arm_pose_command(
         body_tform_goal.x, body_tform_goal.y, body_tform_goal.z,
         body_tform_goal.rot.w, body_tform_goal.rot.x, body_tform_goal.rot.y,
-        body_tform_goal.rot.z, BODY_FRAME_NAME, duration)
+        body_tform_goal.rot.z, BODY_FRAME_NAME, 2.0)
     # Send the request.
     cmd_id = robot_command_client.robot_command(cmd)
     # Wait until the arm arrives at the goal.
-    block_until_arm_arrives(robot_command_client, cmd_id, duration)
+    block_until_arm_arrives(robot_command_client, cmd_id, 2.0)
 
 
 def move_hand_to_relative_pose_with_velocity(
@@ -46,7 +45,7 @@ def move_hand_to_relative_pose_with_velocity(
     """Move the spot hand with a certain velocity specified as a duration (so
     velocity will become 1/duration)
 
-    The target pose is relative to the robot's body.
+    The curr hand pose and target pose are relative to the robot's body.
     """
     sweep_start_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
         pose=curr_hand_pose.to_proto(),
@@ -59,8 +58,10 @@ def move_hand_to_relative_pose_with_velocity(
     hand_traj = trajectory_pb2.SE3Trajectory(
         points=[sweep_start_pose_traj_point, sweep_end_pose_traj_point])
 
-    # Build the command by taking the trajectory and specifying the frame it is expressed
-    # in.
+    # Build the command by taking the trajectory and specifying the frame it
+    # is expressed in. Note that we set the max linear and angular velocity
+    # absurdly high to remove the default limits and enable the duration
+    # to significantly impact the speed of arm movement.
     arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
         pose_trajectory_in_task=hand_traj,
         root_frame_name=BODY_FRAME_NAME,
@@ -82,12 +83,8 @@ def move_hand_to_relative_pose_with_velocity(
     cmd_id = robot_command_client.robot_command(robot_command)
     while True:
         feedback_resp = robot_command_client.robot_command_feedback(cmd_id)
-        measured_pos_distance_to_goal = feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.measured_pos_distance_to_goal
-        measured_rot_distance_to_goal = feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.measured_rot_distance_to_goal
-        robot.logger.info('Distance to go: %.2f meters, %.2f radians',
-                          measured_pos_distance_to_goal,
-                          measured_rot_distance_to_goal)
-        if feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.status in [
+        if feedback_resp.feedback.synchronized_feedback.arm_command_feedback.\
+            arm_cartesian_feedback.status in [
                 arm_command_pb2.ArmCartesianCommand.Feedback.
                 STATUS_TRAJECTORY_COMPLETE, arm_command_pb2.
                 ArmCartesianCommand.Feedback.STATUS_TRAJECTORY_STALLED
