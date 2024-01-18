@@ -348,7 +348,8 @@ class SpotPerceiver(BasePerceiver):
         if goal_description == "place bucket such that yogurt can be swept into it":
             bucket = Object("bucket", _container_type)
             yogurt = Object("yogurt", _movable_object_type)
-            ContainerReadyForSweeping = pred_name_to_pred["ContainerReadyForSweeping"]
+            ContainerReadyForSweeping = pred_name_to_pred[
+                "ContainerReadyForSweeping"]
             return {
                 GroundAtom(ContainerReadyForSweeping, [bucket, yogurt]),
             }

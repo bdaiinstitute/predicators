@@ -9,7 +9,6 @@ from predicators.spot_utils.skills.spot_hand_move import \
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
-from bosdyn.client import math_helpers
 
 
 def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
@@ -40,7 +39,8 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
                                               z=move_dz,
                                               rot=math_helpers.Quat())
     sweep_end_pose = relative_hand_move * sweep_start_pose
-    move_hand_to_relative_pose_with_velocity(robot, sweep_start_pose, sweep_end_pose, duration)
+    move_hand_to_relative_pose_with_velocity(robot, sweep_start_pose,
+                                             sweep_end_pose, duration)
     # Stow arm.
     stow_arm(robot)
     # Back up a little bit so that we can see the result of sweeping.

@@ -2,7 +2,8 @@
 
 import time
 
-from google.protobuf import wrappers_pb2
+from bosdyn.api import arm_command_pb2, robot_command_pb2, \
+    synchronized_command_pb2, trajectory_pb2
 from bosdyn.client import math_helpers
 from bosdyn.client.frame_helpers import BODY_FRAME_NAME, ODOM_FRAME_NAME, \
     get_a_tform_b
@@ -10,8 +11,8 @@ from bosdyn.client.robot_command import RobotCommandBuilder, \
     RobotCommandClient, block_until_arm_arrives
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
-from bosdyn.api import arm_command_pb2, robot_command_pb2, synchronized_command_pb2, trajectory_pb2
 from bosdyn.util import seconds_to_duration
+from google.protobuf import wrappers_pb2
 
 
 def move_hand_to_relative_pose(
@@ -48,17 +49,23 @@ def move_hand_to_relative_pose_with_velocity(
     The target pose is relative to the robot's body.
     """
     sweep_start_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
-            pose=curr_hand_pose.to_proto(), time_since_reference=seconds_to_duration(0.0))
+        pose=curr_hand_pose.to_proto(),
+        time_since_reference=seconds_to_duration(0.0))
     sweep_end_pose_traj_point = trajectory_pb2.SE3TrajectoryPoint(
-            pose=body_tform_goal.to_proto(), time_since_reference=seconds_to_duration(duration))
-    
+        pose=body_tform_goal.to_proto(),
+        time_since_reference=seconds_to_duration(duration))
+
     # Build the trajectory proto by combining the points.
-    hand_traj = trajectory_pb2.SE3Trajectory(points=[sweep_start_pose_traj_point, sweep_end_pose_traj_point])
+    hand_traj = trajectory_pb2.SE3Trajectory(
+        points=[sweep_start_pose_traj_point, sweep_end_pose_traj_point])
 
     # Build the command by taking the trajectory and specifying the frame it is expressed
     # in.
     arm_cartesian_command = arm_command_pb2.ArmCartesianCommand.Request(
-        pose_trajectory_in_task=hand_traj, root_frame_name=BODY_FRAME_NAME, max_linear_velocity=wrappers_pb2.DoubleValue(value=100), max_angular_velocity=wrappers_pb2.DoubleValue(value=100))
+        pose_trajectory_in_task=hand_traj,
+        root_frame_name=BODY_FRAME_NAME,
+        max_linear_velocity=wrappers_pb2.DoubleValue(value=100),
+        max_angular_velocity=wrappers_pb2.DoubleValue(value=100))
 
     # Pack everything up in protos.
     arm_command = arm_command_pb2.ArmCommand.Request(
@@ -67,7 +74,8 @@ def move_hand_to_relative_pose_with_velocity(
     synchronized_command = synchronized_command_pb2.SynchronizedCommand.Request(
         arm_command=arm_command)
 
-    robot_command = robot_command_pb2.RobotCommand(synchronized_command=synchronized_command)
+    robot_command = robot_command_pb2.RobotCommand(
+        synchronized_command=synchronized_command)
     # Send the trajectory to the robot.
     robot_command_client = robot.ensure_client(
         RobotCommandClient.default_service_name)
@@ -77,8 +85,13 @@ def move_hand_to_relative_pose_with_velocity(
         measured_pos_distance_to_goal = feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.measured_pos_distance_to_goal
         measured_rot_distance_to_goal = feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.measured_rot_distance_to_goal
         robot.logger.info('Distance to go: %.2f meters, %.2f radians',
-                            measured_pos_distance_to_goal, measured_rot_distance_to_goal)
-        if feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.status in [arm_command_pb2.ArmCartesianCommand.Feedback.STATUS_TRAJECTORY_COMPLETE, arm_command_pb2.ArmCartesianCommand.Feedback.STATUS_TRAJECTORY_STALLED]:
+                          measured_pos_distance_to_goal,
+                          measured_rot_distance_to_goal)
+        if feedback_resp.feedback.synchronized_feedback.arm_command_feedback.arm_cartesian_feedback.status in [
+                arm_command_pb2.ArmCartesianCommand.Feedback.
+                STATUS_TRAJECTORY_COMPLETE, arm_command_pb2.
+                ArmCartesianCommand.Feedback.STATUS_TRAJECTORY_STALLED
+        ]:
             robot.logger.info('Move complete.')
             break
         time.sleep(0.1)
