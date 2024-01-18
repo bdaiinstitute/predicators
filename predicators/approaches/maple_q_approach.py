@@ -163,9 +163,9 @@ class MapleQApproach(OnlineNSRTLearningApproach):
         # On the first cycle, we need to register the ground NSRTs, goals, and
         # objects in the Q function so that it can define its inputs.
         if online_learning_cycle is None or len(
-                self._q_function._ordered_ground_nsrts) + len(
-                    self._q_function._ordered_frozen_goals) + len(
-                        self._q_function._ordered_objects) == 0:
+                self._q_function._ordered_ground_nsrts) + len(  # pylint: disable=protected-access
+                    self._q_function._ordered_frozen_goals) + len(  # pylint: disable=protected-access
+                        self._q_function._ordered_objects) == 0:  # pylint: disable=protected-access
             all_ground_nsrts: Set[_GroundNSRT] = set()
             if CFG.sesame_grounder == "naive":
                 for nsrt in self._nsrts:

@@ -110,12 +110,13 @@ class SpotPerceiver(BasePerceiver):
                     # the second argument to the controller.
                     object_attempted_to_grasp = objects[1]
                     # Remove from contained objects.
-                    for contained in self._container_to_contained_objects.values(
-                    ):
+                    for contained in self.\
+                        _container_to_contained_objects.values():
                         contained.discard(object_attempted_to_grasp)
                     # We only want to update the holding item id feature
                     # if we successfully picked something.
-                    if self._gripper_open_percentage > HANDEMPTY_GRIPPER_THRESHOLD:
+                    if self._gripper_open_percentage > \
+                        HANDEMPTY_GRIPPER_THRESHOLD:
                         self._held_object = object_attempted_to_grasp
                     else:
                         # We lost the object!
