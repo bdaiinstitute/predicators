@@ -2573,9 +2573,9 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         static_object_feats = metadata["static-object-features"]
         known_immovables = metadata["known-immovable-objects"]
         table_height = static_object_feats["black_table"]["height"]
+        table_width = static_object_feats["black_table"]["width"]
         table_length = static_object_feats["black_table"]["length"]
         yogurt_height = static_object_feats["yogurt"]["height"]
-        yogurt_length = static_object_feats["yogurt"]["length"]
         football_height = static_object_feats["football"]["height"]
         brush_height = static_object_feats["brush"]["height"]
         chair_height = static_object_feats["chair"]["height"]
@@ -2596,27 +2596,27 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         # Create movable objects.
         obj_to_xyz: Dict[Object, Tuple[float, float, float]] = {}
 
+        # Sample positions for the yogurt and football on top of the table.
+        table = next(o for o in objects_in_view if o.name == "black_table")
+        table_pose = objects_in_view[table]
+        angle = table_pose.rot.to_yaw()
+        table_rect = utils.Rectangle.from_center(table_pose.x, table_pose.y,
+                                                 table_width, table_length,
+                                                 angle)
+
+        # Yogurt.
+        yogurt = Object("yogurt", _movable_object_type)
+        yogurt_x, yogurt_y = table_rect.sample_random_point(rng, 0.13)
+        yogurt_z = floor_z + table_height + yogurt_height / 2
+        obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
+
+        # Football.
+        football = Object("football", _movable_object_type)
+        football_x, football_y = table_rect.sample_random_point(rng, 0.13)
+        football_z = floor_z + table_height + football_height / 2
+        obj_to_xyz[football] = (football_x, football_y, football_z)
+
         if CFG.spot_graph_nav_map == "floor8-v2":
-            # Yogurt.
-            yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x + rng.uniform(-0.05, 0.05)
-            yogurt_y = table_y - table_length / 2.25 + yogurt_length + \
-                rng.uniform(-0.05, 0.05)
-            yogurt_z = floor_z + table_height + yogurt_height / 2
-            obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
-
-            # Football.
-            football = Object("football", _movable_object_type)
-            football_x = yogurt_x + rng.uniform(-0.05, 0.05)
-            football_y = yogurt_y + 0.1 + \
-                rng.uniform(-0.05, 0.05)
-            football_z = floor_z + table_height + football_height / 2
-            obj_to_xyz[football] = (football_x, football_y, football_z)
-
-            # Randomly swap yogurt and football.
-            if rng.uniform() < 0.5:
-                obj_to_xyz[yogurt], obj_to_xyz[football] = \
-                    obj_to_xyz[football], obj_to_xyz[yogurt]
 
             # Brush.
             brush = Object("brush", _movable_object_type)
@@ -2642,25 +2642,6 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             obj_to_xyz[bucket] = (bucket_x, bucket_y, bucket_z)
 
         elif CFG.spot_graph_nav_map == "floor8-sweeping":
-            # Yogurt.
-            yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x - table_length / 2.25 + yogurt_length + \
-                rng.uniform(-0.05, 0.05)
-            yogurt_y = table_y + rng.uniform(-0.05, 0.05)
-            yogurt_z = floor_z + table_height + yogurt_height / 2
-            obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
-
-            # Football.
-            football = Object("football", _movable_object_type)
-            football_x = yogurt_x + 0.3 + rng.uniform(-0.05, 0.05)
-            football_y = yogurt_y + rng.uniform(-0.05, 0.05)
-            football_z = floor_z + table_height + football_height / 2
-            obj_to_xyz[football] = (football_x, football_y, football_z)
-
-            # Randomly swap yogurt and football.
-            if rng.uniform() < 0.5:
-                obj_to_xyz[yogurt], obj_to_xyz[football] = \
-                    obj_to_xyz[football], obj_to_xyz[yogurt]
 
             # Brush.
             brush = Object("brush", _movable_object_type)
