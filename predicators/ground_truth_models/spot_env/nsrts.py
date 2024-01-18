@@ -196,7 +196,6 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
     # height for placing so the cup rests stably.
     if len(objs) == 3 and objs[1].name == "cup":
         dz = -0.05
-    # print([dx, dy, dz])
     return np.array([dx, dy, dz])
 
 
