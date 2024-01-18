@@ -12,7 +12,8 @@ from bosdyn.client.robot_command import RobotCommandBuilder, \
 from bosdyn.client.robot_state import RobotStateClient
 from bosdyn.client.sdk import Robot
 from bosdyn.util import seconds_to_duration
-from google.protobuf.wrappers_pb2 import DoubleValue # pylint: disable=no-name-in-module
+from google.protobuf.wrappers_pb2 import \
+    DoubleValue  # pylint: disable=no-name-in-module
 
 
 def move_hand_to_relative_pose(
