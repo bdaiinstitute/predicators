@@ -1378,7 +1378,6 @@ class MapleQFunction(MLPRegressor):
                    epsilon: float = 0.0) -> _Option:
         """Get the best option under Q, epsilon-greedy."""
         # Return a random option.
-        # import ipdb; ipdb.set_trace()
         if self._rng.uniform() < epsilon:
             options = self._sample_applicable_options_from_state(
                 state, num_samples_per_applicable_nsrt=1)
