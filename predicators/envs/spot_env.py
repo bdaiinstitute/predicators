@@ -314,20 +314,20 @@ class SpotRearrangementEnv(BaseEnv):
 
         if action_name == "SweepIntoContainer":
             _, _, target, _, container = action_objs
-            _, _, _, _, _, velocity = action_args
+            _, _, _, _, _, duration = action_args
             return _dry_simulate_sweep_into_container(obs, {target},
                                                       container,
                                                       nonpercept_atoms,
-                                                      velocity=velocity,
+                                                      duration=duration,
                                                       rng=self._noise_rng)
 
         if action_name == "SweepTwoObjectsIntoContainer":
             _, _, target1, target2, _, container = action_objs
-            _, _, _, _, _, velocity = action_args
+            _, _, _, _, _, duration = action_args
             return _dry_simulate_sweep_into_container(obs, {target1, target2},
                                                       container,
                                                       nonpercept_atoms,
-                                                      velocity=velocity,
+                                                      duration=duration,
                                                       rng=self._noise_rng)
 
         if action_name in ["DragToUnblockObject", "DragToBlockObject"]:
@@ -2023,9 +2023,9 @@ def _dry_simulate_prepare_container_for_sweeping(
 
 def _dry_simulate_sweep_into_container(
         last_obs: _SpotObservation, swept_objs: Set[Object], container: Object,
-        nonpercept_atoms: Set[GroundAtom], velocity: float,
+        nonpercept_atoms: Set[GroundAtom], duration: float,
         rng: np.random.Generator) -> _SpotObservation:
-
+    
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
@@ -2052,6 +2052,7 @@ def _dry_simulate_sweep_into_container(
         farthest_swept_obj_distance = max(farthest_swept_obj_distance, dist)
     # Simply say that the optimal velocity is equal to the distance.
     optimal_velocity = farthest_swept_obj_distance
+    velocity = duration
     # If the given velocity is close enough to the optimal velocity, sweep all
     # objects successfully; otherwise, have the objects fall randomly.
     thresh = 0.25

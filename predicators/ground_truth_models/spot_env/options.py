@@ -314,6 +314,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     robot, _, _ = get_robot()
 
     velocity, = params
+    duration = max(1 / velocity, 1e-3)
 
     robot_obj = objects[robot_obj_idx]
     robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
@@ -344,7 +345,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     # Execute the sweep.
     return utils.create_spot_env_action(
         name, objects, sweep, (robot, sweep_start_pose, sweep_move_dx,
-                               sweep_move_dy, sweep_move_dz, velocity))
+                               sweep_move_dy, sweep_move_dz, duration))
 
 
 ###############################################################################
