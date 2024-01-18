@@ -2086,7 +2086,7 @@ def _dry_simulate_sweep_into_container(
     velocity = 1. / duration
     # If the given velocity is close enough to the optimal velocity, sweep all
     # objects successfully; otherwise, have the objects fall randomly.
-    thresh = 0.25
+    thresh = 0.15
     for swept_obj in swept_objs:
         swept_obj_height = static_feats[swept_obj.name]["height"]
         swept_obj_radius = static_feats[swept_obj.name]["width"] / 2
@@ -2611,6 +2611,11 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             football_z = floor_z + table_height + football_height / 2
             obj_to_xyz[football] = (football_x, football_y, football_z)
 
+            # Randomly swap yogurt and football.
+            if rng.uniform() < 0.5:
+                obj_to_xyz[yogurt], obj_to_xyz[football] = \
+                    obj_to_xyz[football], obj_to_xyz[yogurt]
+
             # Brush.
             brush = Object("brush", _movable_object_type)
             brush_x = table_x
@@ -2637,17 +2642,23 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         elif CFG.spot_graph_nav_map == "floor8-sweeping":
             # Yogurt.
             yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x - table_length / 2.25 + yogurt_length
-            yogurt_y = table_y
+            yogurt_x = table_x - table_length / 2.25 + yogurt_length + \
+                rng.uniform(-0.05, 0.05)
+            yogurt_y = table_y + rng.uniform(-0.05, 0.05)
             yogurt_z = floor_z + table_height + yogurt_height / 2
             obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
 
             # Football.
             football = Object("football", _movable_object_type)
-            football_x = yogurt_x + 0.3
-            football_y = yogurt_y
+            football_x = yogurt_x + 0.3 + rng.uniform(-0.05, 0.05)
+            football_y = yogurt_y + rng.uniform(-0.05, 0.05)
             football_z = floor_z + table_height + football_height / 2
             obj_to_xyz[football] = (football_x, football_y, football_z)
+
+            # Randomly swap yogurt and football.
+            if rng.uniform() < 0.5:
+                obj_to_xyz[yogurt], obj_to_xyz[football] = \
+                    obj_to_xyz[football], obj_to_xyz[yogurt]
 
             # Brush.
             brush = Object("brush", _movable_object_type)
