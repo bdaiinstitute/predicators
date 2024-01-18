@@ -2498,6 +2498,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             "SweepTwoObjectsIntoContainer",
             "PrepareContainerForSweeping",
             "PickAndDumpContainer",
+            "PickAndDumpTwoFromContainer",
             "DropNotPlaceableObject",
             "MoveToReadySweep",
             "PickObjectToDrag",
