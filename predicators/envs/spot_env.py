@@ -2085,9 +2085,7 @@ def _dry_simulate_sweep_into_container(
         dist = np.sum(np.square(np.subtract(swept_xy, container_xy)))
         farthest_swept_obj_distance = max(farthest_swept_obj_distance, dist)
     # Simply say that the optimal velocity is proportional to the distance.
-    # farthest_swept_obj_distance is typically between 0.5 and 0.8 and the
-    # base velocities are between 0.1 and 1.0.
-    optimal_velocity = 3 * max(farthest_swept_obj_distance - 0.5, 0.1)
+    optimal_velocity = np.clip(farthest_swept_obj_distance, 0.1, 1.0)
     velocity = 1. / duration
     # If the given velocity is close enough to the optimal velocity, sweep all
     # objects successfully; otherwise, have the objects fall randomly.
