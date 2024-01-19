@@ -2089,7 +2089,7 @@ def _dry_simulate_sweep_into_container(
     velocity = 1. / duration
     # If the given velocity is close enough to the optimal velocity, sweep all
     # objects successfully; otherwise, have the objects fall randomly.
-    thresh = 0.25
+    thresh = 0.15
     for swept_obj in swept_objs:
         swept_obj_height = static_feats[swept_obj.name]["height"]
         swept_obj_radius = static_feats[swept_obj.name]["width"] / 2
