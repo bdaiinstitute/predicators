@@ -6,43 +6,43 @@ APPROACHES:
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "planning_progress"
-  # competence_gradient_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "competence_gradient"
-  #     active_sampler_explore_use_ucb_bonus: True
+  competence_gradient_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "competence_gradient"
+      active_sampler_explore_use_ucb_bonus: True
   task_repeat_explore:
     NAME: "active_sampler_learning"
     FLAGS:
       explorer: "active_sampler"
       active_sampler_explore_task_strategy: "task_repeat"
-  # success_rate_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "success_rate"
-  #     active_sampler_explore_use_ucb_bonus: True
-  # skill_diversity_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "skill_diversity"
-  # random_score_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "random"
-  # random_nsrts_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "random_nsrts"
-  # maple_q:
-  #   NAME: "maple_q"
-  #   FLAGS:
-  #     explorer: "maple_q"
-  #     mlp_regressor_max_itr: 100000
-  #     active_sampler_learning_batch_size: 1024
+  success_rate_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "success_rate"
+      active_sampler_explore_use_ucb_bonus: True
+  skill_diversity_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "skill_diversity"
+  random_score_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "random"
+  random_nsrts_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "random_nsrts"
+  maple_q:
+    NAME: "maple_q"
+    FLAGS:
+      explorer: "maple_q"
+      mlp_regressor_max_itr: 100000
+      active_sampler_learning_batch_size: 1024
 ENVS:
   # grid_row:
   #   NAME: "grid_row"
@@ -76,7 +76,6 @@ ENVS:
       skill_competence_model_optimistic_recency_size: 2
       skill_competence_model_optimistic_window_size: 2
       horizon: 10
-      active_sampler_learning_explore_length_base: 100000  # effectively disable
       active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
       approach_wrapper: spot_wrapper
@@ -122,4 +121,4 @@ FLAGS:
   active_sampler_learning_n_iter_no_change: 5000
   spot_graph_nav_map: "floor8-sweeping"
 START_SEED: 456
-NUM_SEEDS: 8  # TODO change back to 10
+NUM_SEEDS: 10
