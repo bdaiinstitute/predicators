@@ -162,8 +162,10 @@ def test_spot_main_sweep_env_dry_run(graph_nav_map):
     sweep = SweepIntoContainer.ground([robot, brush, train_toy, table, bucket])
     move_to_reach_floor = MoveToReachObject.ground([robot, floor])
     place_brush = PlaceObjectOnTop.ground([robot, brush, floor])
-    dump_bucket = PickAndDumpContainer.ground([robot, bucket, floor, train_toy])
-    move_to_hand_view_train_toy = MoveToHandViewObject.ground([robot, train_toy])
+    dump_bucket = PickAndDumpContainer.ground(
+        [robot, bucket, floor, train_toy])
+    move_to_hand_view_train_toy = MoveToHandViewObject.ground(
+        [robot, train_toy])
     pick_train_toy = PickObjectFromTop.ground([robot, train_toy, floor])
     move_to_reach_table = MoveToReachObject.ground([robot, table])
     place_train_toy = PlaceObjectOnTop.ground([robot, train_toy, table])
@@ -575,7 +577,8 @@ def real_robot_sweeping_nsrt_test() -> None:
         nsrt_name_to_nsrt["SweepTwoObjectsIntoContainer"]
     MoveToReachObject = nsrt_name_to_nsrt["MoveToReachObject"]
     PlaceObjectOnTop = nsrt_name_to_nsrt["PlaceObjectOnTop"]
-    move_to_container_nsrt = MoveToReadySweep.ground((spot, container, train_toy))
+    move_to_container_nsrt = MoveToReadySweep.ground(
+        (spot, container, train_toy))
     sweep_nsrt = SweepTwoObjectsIntoContainer.ground(
         (spot, brush, train_toy, football, table, container))
     move_to_floor_nsrt = MoveToReachObject.ground((spot, floor))

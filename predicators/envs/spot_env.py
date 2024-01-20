@@ -1099,26 +1099,17 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                 blocked_obj,
                                 blocker_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
-        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
-            import ipdb
-            ipdb.set_trace()
         return False
 
     if _object_in_xy_classifier(state,
                                 blocker_obj,
                                 blocked_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
-        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
-            import ipdb
-            ipdb.set_trace()
         return False
 
     spot, = state.get_objects(_robot_type)
     if blocked_obj.is_instance(_movable_object_type) and \
         _holding_classifier(state, [spot, blocked_obj]):
-        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
-            import ipdb
-            ipdb.set_trace()
         return False
 
     # Draw a line between blocked and the robot’s current pose.
@@ -1145,8 +1136,6 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                            put_on_robot_if_held=False)
 
     ret_val = blocker_geom.intersects(blocked_robot_line)
-    # if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj) and not ret_val:
-    #     import ipdb; ipdb.set_trace()
     return ret_val
 
 
