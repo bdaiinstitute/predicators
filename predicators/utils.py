@@ -366,26 +366,11 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
                     sampler_input_lst.append(state.get(obj, "y"))
                 sampler_input_lst.extend(params)
             elif "SweepTwoObjects" in param_option.name:
-                # TODO: CHEATING!!! SANITY CHECK! NEED TO UNDO!
                 _, _, target1, target2, _, container = objects
-                
-                farthest_swept_obj_distance = 0.0
-                container_xy = np.array([state.get(container, "x"), state.get(container, "y")])
-                for swept_obj in [target1, target2]:
-                    swept_xy = np.array([state.get(swept_obj, "x"), state.get(swept_obj, "y")])
-                    dist = np.sum(np.square(np.subtract(swept_xy, container_xy)))
-                    farthest_swept_obj_distance = max(farthest_swept_obj_distance, dist)
-                # Simply say that the optimal velocity is proportional to the distance.
-                optimal_velocity = np.clip(farthest_swept_obj_distance, 0.1, 1.0)
-                velocity = params[0]
-                thresh = 0.15
-                gold = abs(optimal_velocity - velocity) < thresh
-                sampler_input_lst.append(gold)
-
-                # for obj in [target1, target2, container]:
-                #     sampler_input_lst.append(state.get(obj, "x"))
-                #     sampler_input_lst.append(state.get(obj, "y"))
-                # sampler_input_lst.extend(params)
+                for obj in [target1, target2, container]:
+                    sampler_input_lst.append(state.get(obj, "x"))
+                    sampler_input_lst.append(state.get(obj, "y"))
+                sampler_input_lst.extend(params)
             elif "Pick" in param_option.name:
                 if not CFG.active_sampler_learning_object_specific_samplers:
                     target_obj = objects[1]
