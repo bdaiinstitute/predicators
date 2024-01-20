@@ -26,7 +26,7 @@ from predicators.spot_utils.perception.object_detection import \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
-    brush_prompt, bucket_prompt, football_prompt, yogurt_prompt
+    brush_prompt, bucket_prompt, football_prompt, train_toy_prompt
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -1099,7 +1099,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                 blocked_obj,
                                 blocker_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
-        if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
+        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
             import ipdb
             ipdb.set_trace()
         return False
@@ -1108,7 +1108,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                 blocker_obj,
                                 blocked_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
-        if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
+        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
             import ipdb
             ipdb.set_trace()
         return False
@@ -1116,7 +1116,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     spot, = state.get_objects(_robot_type)
     if blocked_obj.is_instance(_movable_object_type) and \
         _holding_classifier(state, [spot, blocked_obj]):
-        if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
+        if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj):
             import ipdb
             ipdb.set_trace()
         return False
@@ -1145,7 +1145,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                            put_on_robot_if_held=False)
 
     ret_val = blocker_geom.intersects(blocked_robot_line)
-    # if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj) and not ret_val:
+    # if "chair" in str(blocker_obj) and "train_toy" in str(blocked_obj) and not ret_val:
     #     import ipdb; ipdb.set_trace()
     return ret_val
 
@@ -1586,7 +1586,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_On, [target2, surface]),
         # This `IsSemanticallyGreaterThan` predicate just serves to
         # provide a canonical grounding for this operator (we don't want
-        # Sweep(yogurt, football) to be separate from Sweep(football, yogurt)).
+        # Sweep(train_toy, football) to be separate from Sweep(football, train_toy)).
         LiftedAtom(_IsSemanticallyGreaterThan, [target1, target2]),
         # Arbitrarily pick one of the targets to be the one ready for sweeping,
         # to prevent the robot 'moving to get ready for sweeping' twice.
@@ -2555,9 +2555,9 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
-        yogurt = Object("yogurt", _movable_object_type)
-        yogurt_detection = LanguageObjectDetectionID(yogurt_prompt)
-        detection_id_to_obj[yogurt_detection] = yogurt
+        train_toy = Object("train_toy", _movable_object_type)
+        train_toy_detection = LanguageObjectDetectionID(train_toy_prompt)
+        detection_id_to_obj[train_toy_detection] = train_toy
 
         football = Object("football", _movable_object_type)
         football_detection = LanguageObjectDetectionID(football_prompt)
@@ -2598,8 +2598,8 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         known_immovables = metadata["known-immovable-objects"]
         table_height = static_object_feats["black_table"]["height"]
         table_length = static_object_feats["black_table"]["length"]
-        yogurt_height = static_object_feats["yogurt"]["height"]
-        yogurt_length = static_object_feats["yogurt"]["length"]
+        train_toy_height = static_object_feats["train_toy"]["height"]
+        train_toy_length = static_object_feats["train_toy"]["length"]
         football_height = static_object_feats["football"]["height"]
         brush_height = static_object_feats["brush"]["height"]
         chair_height = static_object_feats["chair"]["height"]
@@ -2621,17 +2621,17 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         obj_to_xyz: Dict[Object, Tuple[float, float, float]] = {}
 
         if CFG.spot_graph_nav_map == "floor8-v2":
-            # Yogurt.
-            yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x
-            yogurt_y = table_y - table_length / 2.25 + yogurt_length
-            yogurt_z = floor_z + table_height + yogurt_height / 2
-            obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
+            # train_toy.
+            train_toy = Object("train_toy", _movable_object_type)
+            train_toy_x = table_x
+            train_toy_y = table_y - table_length / 2.25 + train_toy_length
+            train_toy_z = floor_z + table_height + train_toy_height / 2
+            obj_to_xyz[train_toy] = (train_toy_x, train_toy_y, train_toy_z)
 
             # Chips.
             football = Object("football", _movable_object_type)
-            football_x = yogurt_x
-            football_y = yogurt_y + 0.1
+            football_x = train_toy_x
+            football_y = train_toy_y + 0.1
             football_z = floor_z + table_height + football_height / 2
             obj_to_xyz[football] = (football_x, football_y, football_z)
 
@@ -2659,17 +2659,17 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             obj_to_xyz[bucket] = (bucket_x, bucket_y, bucket_z)
 
         elif CFG.spot_graph_nav_map == "floor8-sweeping":
-            # Yogurt.
-            yogurt = Object("yogurt", _movable_object_type)
-            yogurt_x = table_x - table_length / 2.25 + yogurt_length
-            yogurt_y = table_y
-            yogurt_z = floor_z + table_height + yogurt_height / 2
-            obj_to_xyz[yogurt] = (yogurt_x, yogurt_y, yogurt_z)
+            # train_toy.
+            train_toy = Object("train_toy", _movable_object_type)
+            train_toy_x = table_x - table_length / 2.25 + train_toy_length
+            train_toy_y = table_y
+            train_toy_z = floor_z + table_height + train_toy_height / 2
+            obj_to_xyz[train_toy] = (train_toy_x, train_toy_y, train_toy_z)
 
             # Chips.
             football = Object("football", _movable_object_type)
-            football_x = yogurt_x + 0.3
-            football_y = yogurt_y
+            football_x = train_toy_x + 0.3
+            football_y = train_toy_y
             football_z = floor_z + table_height + football_height / 2
             obj_to_xyz[football] = (football_x, football_y, football_z)
 
