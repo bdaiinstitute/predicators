@@ -333,7 +333,8 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(Inside, [train_toy, bucket]),
                 GroundAtom(Inside, [football, bucket]),
             }
-        if goal_description == "get the objects into the bucket and put the bucket on the shelf":
+        if goal_description == "get the objects into the bucket and put " + \
+            "the bucket on the shelf":
             train_toy = Object("train_toy", _movable_object_type)
             football = Object("football", _movable_object_type)
             bucket = Object("bucket", _container_type)
@@ -361,8 +362,8 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [train_toy, bucket]),
             }
-        if goal_description == "place bucket such that train_toy can be swept " + \
-            "into it":
+        if goal_description == "place bucket such that train_toy can be " + \
+            "swept into it":
             bucket = Object("bucket", _container_type)
             train_toy = Object("train_toy", _movable_object_type)
             ContainerReadyForSweeping = pred_name_to_pred[
