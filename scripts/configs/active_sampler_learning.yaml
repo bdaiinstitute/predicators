@@ -82,8 +82,9 @@ ENVS:
       approach_wrapper: spot_wrapper
       perceiver: spot_perceiver
       segmenter: spot
-      active_sampler_learning_explore_pursue_goal_interval: 1
-      max_num_steps_interaction_request: 250
+      active_sampler_learning_explore_pursue_goal_interval: 5
+      active_sampler_learning_init_cycles_to_pursue_goal: 5
+      max_num_steps_interaction_request: 100
   # spot_sweeping_sim_yogurt_only:
   #   NAME: "spot_main_sweep_env"
   #   FLAGS:
@@ -115,7 +116,7 @@ FLAGS:
   active_sampler_learning_model: "myopic_classifier_mlp"
   active_sampler_learning_use_teacher: False
   online_nsrt_learning_requests_per_cycle: 1
-  num_online_learning_cycles: 10
+  num_online_learning_cycles: 25
   sesame_task_planner: "fdopt-costs"
   sesame_grounder: "fd_translator"
   active_sampler_learning_n_iter_no_change: 5000
