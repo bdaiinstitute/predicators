@@ -882,7 +882,7 @@ _ONTOP_Z_THRESHOLD = 0.2
 _INSIDE_Z_THRESHOLD = 0.4
 _ONTOP_SURFACE_BUFFER = 0.48
 _INSIDE_SURFACE_BUFFER = 0.1
-_FITS_IN_XY_BUFFER = 0.1
+_FITS_IN_XY_BUFFER = 0.025
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.5
@@ -1027,10 +1027,6 @@ def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
         obj_to_radius[obj] = radius
     contained_radius = obj_to_radius[contained]
     container_radius = obj_to_radius[container]
-
-    if "bucket" in str(contained) and "shelf" in str(container):
-        import ipdb; ipdb.set_trace()
-
     return contained_radius + _FITS_IN_XY_BUFFER < container_radius
 
 
@@ -1104,7 +1100,8 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                 blocker_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
         if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         return False
 
     if _object_in_xy_classifier(state,
@@ -1112,14 +1109,16 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                 blocked_obj,
                                 buffer=_ONTOP_SURFACE_BUFFER):
         if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         return False
 
     spot, = state.get_objects(_robot_type)
     if blocked_obj.is_instance(_movable_object_type) and \
         _holding_classifier(state, [spot, blocked_obj]):
         if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         return False
 
     # Draw a line between blocked and the robot’s current pose.
@@ -1146,8 +1145,8 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
                                            put_on_robot_if_held=False)
 
     ret_val = blocker_geom.intersects(blocked_robot_line)
-    if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj) and not ret_val:
-        import ipdb; ipdb.set_trace()
+    # if "chair" in str(blocker_obj) and "yogurt" in str(blocked_obj) and not ret_val:
+    #     import ipdb; ipdb.set_trace()
     return ret_val
 
 
