@@ -34,8 +34,7 @@ bucket_prompt = "/".join([
 ])
 bucket_obj = LanguageObjectDetectionID(bucket_prompt)
 football_prompt = "/".join([
-    "small football toy", "stuffed toy football", "small brown ball",
-    "reflector"
+    "small football toy", "taillight", "candle"
 ])
 football_obj = LanguageObjectDetectionID(football_prompt)
 yogurt_prompt = "/".join([

@@ -333,6 +333,18 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(Inside, [yogurt, bucket]),
                 GroundAtom(Inside, [football, bucket]),
             }
+        if goal_description == "get the objects into the bucket and put the bucket on the shelf":
+            yogurt = Object("yogurt", _movable_object_type)
+            football = Object("football", _movable_object_type)
+            bucket = Object("bucket", _container_type)
+            shelf = Object("shelf1", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [yogurt, bucket]),
+                GroundAtom(Inside, [football, bucket]),
+                GroundAtom(On, [bucket, shelf])
+            }
         if goal_description == "get the yogurt and football onto the table":
             yogurt = Object("yogurt", _movable_object_type)
             football = Object("football", _movable_object_type)
@@ -399,6 +411,13 @@ class SpotPerceiver(BasePerceiver):
             On = pred_name_to_pred["On"]
             return {
                 GroundAtom(On, [brush, shelf]),
+            }
+        if goal_description == "put the bucket in the second shelf":
+            bucket = Object("bucket", _container_type)
+            shelf = Object("shelf1", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            return {
+                GroundAtom(On, [bucket, shelf]),
             }
         if goal_description == "pick up the brush":
             robot = Object("robot", _robot_type)

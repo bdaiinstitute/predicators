@@ -1027,6 +1027,10 @@ def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
         obj_to_radius[obj] = radius
     contained_radius = obj_to_radius[contained]
     container_radius = obj_to_radius[container]
+
+    if "bucket" in str(contained) and "shelf" in str(container):
+        import ipdb; ipdb.set_trace()
+
     return contained_radius + _FITS_IN_XY_BUFFER < container_radius
 
 
