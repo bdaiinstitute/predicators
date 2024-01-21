@@ -191,18 +191,11 @@ def _move_to_absolute_pose_and_place_push_stow(
     # Open the gripper.
     open_gripper(robot)
     # Move the gripper slightly up to avoid collisions with the container.
-    dz = 0.2
+    dz = 0.6
     slightly_back_and_up_pose = math_helpers.SE3Pose(x=push_rel_pose.x,
                                                      y=push_rel_pose.y,
                                                      z=push_rel_pose.z + dz,
                                                      rot=push_rel_pose.rot)
-    move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
-    # Move the gripper back toward above the place rel pose to avoid collisions
-    # with the surface.
-    slightly_back_and_up_pose = math_helpers.SE3Pose(x=place_rel_pose.x,
-                                                     y=place_rel_pose.y,
-                                                     z=place_rel_pose.z + dz,
-                                                     rot=place_rel_pose.rot)
     move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
     # Stow.
     stow_arm(robot)
@@ -330,7 +323,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
 
     start_x = mean_x + 0.175
     start_y = mean_y + 0.4
-    start_z = mean_z + 0.25
+    start_z = mean_z + 0.225
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     yaw = math_helpers.Quat.from_yaw(np.pi / 4)
     rot = pitch * yaw
@@ -340,7 +333,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
                                             rot=rot)
     sweep_move_dx = 0.0
     sweep_move_dy = -0.8
-    sweep_move_dz = -0.15
+    sweep_move_dz = -0.25
 
     # Execute the sweep.
     return utils.create_spot_env_action(
