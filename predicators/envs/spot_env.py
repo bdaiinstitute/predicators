@@ -2039,7 +2039,7 @@ def _dry_simulate_prepare_container_for_sweeping(
     # First update the robot.
     robot_pose = new_robot_se2_pose.get_closest_se3_transform()
     # Now update the container relative to the robot.
-    robot_length = 0.8
+    robot_length = 0.3
     robot_yaw = new_robot_se2_pose.angle
     x = robot_pose.x + robot_length * np.cos(robot_yaw)
     y = robot_pose.y + robot_length * np.sin(robot_yaw)
