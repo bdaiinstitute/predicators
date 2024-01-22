@@ -1,33 +1,33 @@
 # Final active sampler learning experiments.
 ---
 APPROACHES:
-  # planning_progress_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "planning_progress"
-  # task_repeat_explore:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "task_repeat"
-  # competence_gradient_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "competence_gradient"
-  #     active_sampler_explore_use_ucb_bonus: True
-  # success_rate_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "success_rate"
-  #     active_sampler_explore_use_ucb_bonus: True
-  # skill_diversity_explore_ucb:
-  #   NAME: "active_sampler_learning"
-  #   FLAGS:
-  #     explorer: "active_sampler"
-  #     active_sampler_explore_task_strategy: "skill_diversity"
+  planning_progress_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "planning_progress"
+  task_repeat_explore:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "task_repeat"
+  competence_gradient_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "competence_gradient"
+      active_sampler_explore_use_ucb_bonus: True
+  success_rate_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "success_rate"
+      active_sampler_explore_use_ucb_bonus: True
+  skill_diversity_explore_ucb:
+    NAME: "active_sampler_learning"
+    FLAGS:
+      explorer: "active_sampler"
+      active_sampler_explore_task_strategy: "skill_diversity"
   random_score_explore:
     NAME: "active_sampler_learning"
     FLAGS:
@@ -68,9 +68,26 @@ ENVS:
   #     active_sampler_learning_explore_length_base: 100000  # effectively disable
   #     active_sampler_learning_feature_selection: oracle
   #     max_num_steps_interaction_request: 100
-  spot_sweeping_sim:
+  # spot_sweeping_sim:
+  #   NAME: "spot_main_sweep_env"
+  #   FLAGS:
+  #     active_sampler_learning_exploration_epsilon: 0.5
+  #     skill_competence_model_optimistic_recency_size: 2
+  #     skill_competence_model_optimistic_window_size: 2
+  #     horizon: 10
+  #     active_sampler_learning_explore_length_base: 100000  # effectively disable
+  #     active_sampler_learning_feature_selection: oracle
+  #     spot_run_dry: True
+  #     approach_wrapper: spot_wrapper
+  #     perceiver: spot_perceiver
+  #     segmenter: spot
+  #     active_sampler_learning_explore_pursue_goal_interval: 5
+  #     active_sampler_learning_init_cycles_to_pursue_goal: 5
+  #     max_num_steps_interaction_request: 100
+  spot_sweeping_sim_yogurt_only:
     NAME: "spot_main_sweep_env"
     FLAGS:
+      spot_sweep_env_goal_description: "'get the yogurt into the bucket'"
       active_sampler_learning_exploration_epsilon: 0.5
       skill_competence_model_optimistic_recency_size: 2
       skill_competence_model_optimistic_window_size: 2
@@ -84,23 +101,7 @@ ENVS:
       active_sampler_learning_explore_pursue_goal_interval: 5
       active_sampler_learning_init_cycles_to_pursue_goal: 5
       max_num_steps_interaction_request: 100
-  # spot_sweeping_sim_yogurt_only:
-  #   NAME: "spot_main_sweep_env"
-  #   FLAGS:
-  #     spot_sweep_env_goal_description: "'get the yogurt into the bucket'"
-  #     active_sampler_learning_explore_length_base: 25
-  #     active_sampler_learning_exploration_epsilon: 0.5
-  #     skill_competence_model_optimistic_recency_size: 2
-  #     skill_competence_model_optimistic_window_size: 2
-  #     horizon: 15
-  #     active_sampler_learning_explore_length_base: 100000  # effectively disable
-  #     active_sampler_learning_feature_selection: oracle
-  #     active_sampler_learning_init_cycles_to_pursue_goal: 5
-  #     spot_run_dry: True
-  #     perceiver: spot_perceiver
-  #     approach_wrapper: spot_wrapper
-  #     segmenter: spot
-  #     max_num_steps_interaction_request: 100
+
 ARGS: []
 FLAGS:
   num_test_tasks: 10
