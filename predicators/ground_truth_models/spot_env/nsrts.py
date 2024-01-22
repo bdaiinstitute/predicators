@@ -214,7 +214,7 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
         dx = 0.0
         dy = 0.0
     else:
-        dx, dy = rng.uniform(-0.4, 0.4, size=2)
+        dx, dy = rng.uniform(-0.3, 0.3, size=2)
 
     return np.array([dx, dy, drop_height])
 
