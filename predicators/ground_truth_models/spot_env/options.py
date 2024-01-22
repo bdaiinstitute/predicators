@@ -73,6 +73,8 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    retry_with_no_constraints=retry_grasp_after_fail)
     # Dump, if the grasp was successful.
     thresh = HANDEMPTY_GRIPPER_THRESHOLD
+    import ipdb
+    ipdb.set_trace()
     if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
         # Lift the grasped object up high enough that it doesn't collide.
         move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
@@ -192,10 +194,11 @@ def _move_to_absolute_pose_and_place_push_stow(
     time.sleep(0.5)
     # Open the gripper.
     open_gripper(robot)
-    # Move the gripper slightly up to avoid collisions with the container.
+    # Move the gripper slightly up and to the right to
+    # avoid collisions with the container.
     dz = 0.6
     slightly_back_and_up_pose = math_helpers.SE3Pose(x=push_rel_pose.x,
-                                                     y=push_rel_pose.y,
+                                                     y=push_rel_pose.y - 0.3,
                                                      z=push_rel_pose.z + dz,
                                                      rot=push_rel_pose.rot)
     move_hand_to_relative_pose(robot, slightly_back_and_up_pose)
