@@ -9,8 +9,6 @@ from bosdyn.client.sdk import Robot
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
-from predicators.spot_utils.utils import DEFAULT_HAND_POST_DUMP_POSE, \
-    DEFAULT_HAND_PRE_DUMP_POSE
 
 
 def dump_container(robot: Robot,
