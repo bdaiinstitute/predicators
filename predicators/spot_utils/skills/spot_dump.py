@@ -113,8 +113,8 @@ if __name__ == "__main__":
 
         # Dump!
         # dump_container(robot, place_height)
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
-        time.sleep(1.0)
+        # move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
+        # time.sleep(1.0)
         move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
 
     _run_manual_test()
