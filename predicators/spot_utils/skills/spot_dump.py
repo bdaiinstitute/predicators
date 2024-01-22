@@ -9,6 +9,8 @@ from bosdyn.client.sdk import Robot
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
+from predicators.spot_utils.utils import DEFAULT_HAND_POST_DUMP_POSE, \
+    DEFAULT_HAND_PRE_DUMP_POSE
 
 
 def dump_container(robot: Robot,
@@ -89,27 +91,30 @@ if __name__ == "__main__":
         robot.time_sync.wait_for_sync()
         localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 
-        # Start by looking down and then grasping the red bucket.
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FLOOR_POSE)
+        # # Start by looking down and then grasping the red bucket.
+        # move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FLOOR_POSE)
 
-        # Capture an image.
-        camera = "hand_color_image"
-        rgbds = capture_images(robot, localizer, [camera])
-        rgbd = rgbds[camera]
+        # # Capture an image.
+        # camera = "hand_color_image"
+        # rgbds = capture_images(robot, localizer, [camera])
+        # rgbd = rgbds[camera]
 
-        # Run detection to find the bucket.
-        # Detect the april tag and brush.
-        bucket_id = LanguageObjectDetectionID("large red bucket")
-        _, artifacts = detect_objects([bucket_id], rgbds)
-        rng = np.random.default_rng(CFG.seed)
-        (r, c), _ = get_grasp_pixel(rgbds, artifacts, bucket_id, camera, rng)
-        pixel = (r + 50, c)
+        # # Run detection to find the bucket.
+        # # Detect the april tag and brush.
+        # bucket_id = LanguageObjectDetectionID("large red bucket")
+        # _, artifacts = detect_objects([bucket_id], rgbds)
+        # rng = np.random.default_rng(CFG.seed)
+        # (r, c), _ = get_grasp_pixel(rgbds, artifacts, bucket_id, camera, rng)
+        # pixel = (r + 50, c)
 
-        # Grasp at the pixel with a top-down grasp.
-        top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
-        grasp_at_pixel(robot, rgbd, pixel, grasp_rot=top_down_rot)
+        # # Grasp at the pixel with a top-down grasp.
+        # top_down_rot = math_helpers.Quat.from_pitch(np.pi / 2)
+        # grasp_at_pixel(robot, rgbd, pixel, grasp_rot=top_down_rot)
 
         # Dump!
-        dump_container(robot, place_height)
+        # dump_container(robot, place_height)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
+        time.sleep(1.0)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
 
     _run_manual_test()

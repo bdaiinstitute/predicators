@@ -376,6 +376,8 @@ def _get_bucket_grasp_pixel(
     # body of the bucket. If that happens, just pick the center top pixel in
     # the mask, which should be the rim.
     if centroid is None:
+        import ipdb
+        ipdb.set_trace()
         mask_args = np.argwhere(mask)
         mask_min_c = min(mask_args[:, 1])
         mask_max_c = max(mask_args[:, 1])
@@ -384,14 +386,15 @@ def _get_bucket_grasp_pixel(
         min_r = min(r for r, c in mask_args if c == middle_c)
         selected_pixel = (middle_c, min_r)
     else:
-        selected_pixel = (centroid[0], centroid[1])
+        # NOTE! Testing
+        selected_pixel = (centroid[0] + 10, centroid[1])
 
     # Uncomment for debugging.
-    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
-    # cv2.imshow("Selected grasp", bgr)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # Specify a top-down grasp constraint.
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
