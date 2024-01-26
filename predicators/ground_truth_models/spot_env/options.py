@@ -334,7 +334,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     surface_width = state.get(surface_obj, "width")
     upper_left_surface_pose = math_helpers.SE3Pose(
         x=surface_center_pose.x + surface_width / 2.0 + 0.025,
-        y=surface_center_pose.y - surface_height / 2.0 + 0.15,
+        y=surface_center_pose.y - surface_height / 2.0 + 0.09,
         z=0.25,
         rot=surface_center_pose.rot)
     middle_bottom_surface_pose = math_helpers.SE3Pose(
@@ -392,7 +392,7 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
         return grasp_action
     param_dict = load_spot_metadata()["prepare_container_relative_xy"]
     prep_params = np.array(
-        [param_dict["dx"], param_dict["dy"], param_dict["angle"]])
+        [param_dict["dx"] - 0.15, param_dict["dy"], param_dict["angle"]])
     prep_objects = [robot, container, surface, surface]
     prep_sweep_action = _prepare_container_for_sweeping_policy(
         state, memory, prep_objects, prep_params)
@@ -721,14 +721,14 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
     rot = math_helpers.Quat.from_pitch(np.pi / 2)
     place_rel_pose = math_helpers.SE3Pose(x=0.6,
                                           y=0.0,
-                                          z=container_z - 0.15,
+                                          z=container_z - 0.03,
                                           rot=rot)
 
     # Push towards the target a little bit after placing.
     # Rotate the gripper a little bit to make sure the tray is aligned.
     rot = math_helpers.Quat.from_pitch(
-        np.pi / 2) * math_helpers.Quat.from_roll(-np.pi / 6)
-    push_rel_pose = math_helpers.SE3Pose(x=place_rel_pose.x,
+        np.pi / 2) * math_helpers.Quat.from_roll(-np.pi / 7)
+    push_rel_pose = math_helpers.SE3Pose(x=place_rel_pose.x + 0.1,
                                          y=place_rel_pose.y + 0.15,
                                          z=place_rel_pose.z,
                                          rot=rot)

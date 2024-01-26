@@ -483,6 +483,11 @@ class SpotRearrangementEnv(BaseEnv):
                                                      z=obj_pose.z)
                     need_retry = not _obj_reachable_from_spot_pose(
                         next_obs.robot_pos, obj_position)
+                    if need_retry:
+                        print(obj_pose)
+                        print(obj_position)
+                        print(next_obs.robot_pos)
+                        import ipdb; ipdb.set_trace()
                 if need_retry:
                     logging.warning(f"WARNING: retrying {action_name} because "
                                     f"{target_obj} was not seen/reached.")

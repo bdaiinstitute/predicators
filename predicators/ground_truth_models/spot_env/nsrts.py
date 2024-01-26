@@ -276,7 +276,7 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     # Parameters are dx, dy, yaw w.r.t. the surface.
     del state, goal, rng, objs  # randomization coming soon
     param_dict = load_spot_metadata()["prepare_container_relative_xy"]
-    return np.array([param_dict["dx"], param_dict["dy"], param_dict["angle"]])
+    return np.array([param_dict["dx"] - 0.15, param_dict["dy"], param_dict["angle"]])
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
