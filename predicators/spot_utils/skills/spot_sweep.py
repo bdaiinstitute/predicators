@@ -40,7 +40,7 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     # we're sweeping, move down by a bit to actually contact the surface.
     sweep_start_conformant = math_helpers.SE3Pose(x=sweep_start_pose.x,
                                                   y=sweep_start_pose.y,
-                                                  z=sweep_start_pose.z - 0.09,
+                                                  z=sweep_start_pose.z - 0.08,
                                                   rot=sweep_start_pose.rot)
     move_hand_to_relative_pose(robot, sweep_start_conformant)
     time.sleep(0.1)
