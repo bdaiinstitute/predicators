@@ -395,7 +395,6 @@ def _get_bucket_grasp_pixel(
         max_r = max(r for r, c in mask_args if c == middle_c)
         selected_pixel = (middle_c, max_r)
     else:
-        # NOTE! Testing
         selected_pixel = (centroid[0], centroid[1])
 
     # Uncomment for debugging.
