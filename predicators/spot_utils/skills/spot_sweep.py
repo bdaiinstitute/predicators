@@ -126,13 +126,13 @@ if __name__ == "__main__":
         # middle (horizontally) bottom pose. We will always move the hand to
         # some pose between these.
         upper_left_black_table_pose = math_helpers.SE3Pose(
-            x=black_table_pose.x + black_table_width / 2.0,
-            y=black_table_pose.y - black_table_height / 2.0 + 0.15,
+            x=black_table_pose.x + black_table_width / 2.0 + 0.03,
+            y=black_table_pose.y - black_table_height / 2.0 + 0.09,
             z=0.25,
             rot=black_table_pose.rot)
         middle_bottom_black_table_pose = math_helpers.SE3Pose(
-            x=black_table_pose.x - 0.18,
-            y=black_table_pose.y + black_table_height / 2.0,
+            x=black_table_pose.x,
+            y=black_table_pose.y + black_table_height / 2.0 - 0.10,
             z=0.25,
             rot=black_table_pose.rot)
 
@@ -189,12 +189,16 @@ if __name__ == "__main__":
         start_dx = 0.175
         start_dy = 0.4
         # clamp the x and y poses to the top left of the table worst case.
-        start_x = np.clip(middle_bottom_black_table_rel_pose.x,
-                          train_toy_rel_pose.x + start_dx,
-                          upper_left_black_table_rel_pose.x)
-        start_y = np.clip(middle_bottom_black_table_rel_pose.y,
-                          train_toy_rel_pose.y + start_dy,
-                          upper_left_black_table_rel_pose.y)
+        # start_x = np.clip(middle_bottom_black_table_rel_pose.x,
+        #                   train_toy_rel_pose.x + start_dx,
+        #                   upper_left_black_table_rel_pose.x)
+        # start_y = np.clip(middle_bottom_black_table_rel_pose.y,
+        #                   train_toy_rel_pose.y + start_dy,
+        #                   upper_left_black_table_rel_pose.y)
+        # start_x = upper_left_black_table_rel_pose.x
+        # start_y = upper_left_black_table_rel_pose.y
+        start_x = middle_bottom_black_table_rel_pose.x
+        start_y = middle_bottom_black_table_rel_pose.y
         # use absolute value so that we don't get messed up by noise in the
         # perception estimate
         start_z = 0.19

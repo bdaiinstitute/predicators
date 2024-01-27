@@ -333,12 +333,12 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     surface_height = state.get(surface_obj, "height")
     surface_width = state.get(surface_obj, "width")
     upper_left_surface_pose = math_helpers.SE3Pose(
-        x=surface_center_pose.x + surface_width / 2.0 + 0.025,
+        x=surface_center_pose.x + surface_width / 2.0 + 0.03,
         y=surface_center_pose.y - surface_height / 2.0 + 0.09,
         z=0.25,
         rot=surface_center_pose.rot)
     middle_bottom_surface_pose = math_helpers.SE3Pose(
-        x=surface_center_pose.x + 0.025,
+        x=surface_center_pose.x,
         y=surface_center_pose.y + surface_height / 2.0 - 0.10,
         z=0.25,
         rot=surface_center_pose.rot)
