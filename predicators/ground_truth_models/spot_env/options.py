@@ -728,7 +728,7 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
     # Rotate the gripper a little bit to make sure the tray is aligned.
     rot = math_helpers.Quat.from_pitch(
         np.pi / 2) * math_helpers.Quat.from_roll(-np.pi / 7)
-    push_rel_pose = math_helpers.SE3Pose(x=place_rel_pose.x + 0.1,
+    push_rel_pose = math_helpers.SE3Pose(x=place_rel_pose.x + 0.11,
                                          y=place_rel_pose.y + 0.15,
                                          z=place_rel_pose.z,
                                          rot=rot)
