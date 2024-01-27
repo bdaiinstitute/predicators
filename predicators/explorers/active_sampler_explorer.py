@@ -313,6 +313,13 @@ class ActiveSamplerExplorer(BaseExplorer):
                             "framework; ensure you DO NOT see this message "
                             "if you're running experiments comparing"
                             "different active sampler learning approaches.")
+                        init_atoms = utils.abstract(task.init,
+                                                    self._predicates)
+                        self._log(f"Init atoms: {init_atoms}")
+                        self._log(
+                            f"Goal - init atoms: {task.goal - init_atoms}")
+                        import ipdb
+                        ipdb.set_trace()
                         continue
                     self._log("[Explorer] Plan found.")
                     break

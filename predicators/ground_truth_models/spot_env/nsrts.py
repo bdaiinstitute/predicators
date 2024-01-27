@@ -224,6 +224,9 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
     else:
         dx, dy = rng.uniform(-0.4, 0.4, size=2)
         drop_height = rng.uniform(0.1, 0.6, size=1).item()
+        if objs[2].name == "bucket":
+            dx, dy = rng.uniform(-0.03, 0.03, size=2)
+            drop_height = rng.uniform(0.1, 0.3, size=1).item()
 
     return np.array([dx, dy, drop_height])
 
