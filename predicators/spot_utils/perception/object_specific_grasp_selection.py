@@ -121,27 +121,27 @@ def _get_chair_grasp_pixel(
                                          lo,
                                          hi,
                                          min_component_size=10)
-    if centroid is None:
-        # Pick the topmost middle pixel, which should correspond to the top
-        # of the chair.
-        mask_args = np.argwhere(mask)
-        mask_min_c = min(mask_args[:, 1])
-        mask_max_c = max(mask_args[:, 1])
-        c_len = mask_max_c - mask_min_c
-        middle_c = mask_min_c + c_len // 2
-        min_r = min(r for r, c in mask_args if c == middle_c)
-        pixel = (middle_c, min_r)
-    else:
-        pixel = (centroid[0], centroid[1])
+    # if centroid is None:
+    # Pick the topmost middle pixel, which should correspond to the top
+    # of the chair.
+    mask_args = np.argwhere(mask)
+    mask_min_c = min(mask_args[:, 1])
+    mask_max_c = max(mask_args[:, 1])
+    c_len = mask_max_c - mask_min_c
+    middle_c = mask_min_c + c_len // 2
+    min_r = min(r for r, c in mask_args if c == middle_c)
+    pixel = (middle_c, min_r + 12)
+    # else:
+    #     pixel = (centroid[0], centroid[1])
 
     # Uncomment for debugging.
-    # rgbd = rgbds[camera_name]
-    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
-    # cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
-    # cv2.imshow("Selected grasp", bgr)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # Force a top-down grasp.
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)

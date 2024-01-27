@@ -102,7 +102,7 @@ class SpotPerceiver(BasePerceiver):
                 f"[Perceiver] Previous action was {controller_name}{objects}.")
             # The robot is always the 0th argument of an
             # operator!
-            if "pick" in controller_name.lower():
+            if "pick" in controller_name.lower() and "dump" not in controller_name.lower():
                 if self._held_object is not None:
                     assert CFG.spot_run_dry
                 else:
