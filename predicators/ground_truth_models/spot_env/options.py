@@ -320,6 +320,8 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     velocity, = params
     duration = max(1 / velocity, 1e-3)
 
+    print(f"Sweeping with duraction: {duration}, (velocity: {velocity})")
+
     robot_obj = objects[robot_obj_idx]
     robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
 
