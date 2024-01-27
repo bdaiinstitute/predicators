@@ -19,7 +19,7 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     # Move first in the yz direction (perpendicular to robot body) to avoid
     # knocking the target object over.
     sweep_start_y_move = math_helpers.SE3Pose(
-        x=0.5,  # sensible default
+        x=0.65,  # sensible default
         y=sweep_start_pose.y,
         z=sweep_start_pose.z,
         rot=math_helpers.Quat(),
@@ -141,31 +141,33 @@ if __name__ == "__main__":
         go_home(robot, localizer)
         localizer.localize()
 
-        # Find the train_toy can.
-        train_toy_prompt = "/".join([
-            "small white ambulance toy",
-            "car_(automobile) toy",
-            "egg",
-        ])
-        train_toy_detection_id = LanguageObjectDetectionID(train_toy_prompt)
-        detections, _ = init_search_for_objects(robot, localizer,
-                                                {train_toy_detection_id})
-        train_toy_pose = detections[train_toy_detection_id]
+        # # Find the train_toy can.
+        # train_toy_prompt = "/".join([
+        #     "small white ambulance toy",
+        #     "car_(automobile) toy",
+        #     "egg",
+        # ])
+        # train_toy_detection_id = LanguageObjectDetectionID(train_toy_prompt)
+        # detections, _ = init_search_for_objects(robot, localizer,
+        #                                         {train_toy_detection_id})
+        # train_toy_pose = detections[train_toy_detection_id]
 
-        # Move the hand to the side so that the brush can face forward.
-        hand_side_pose = math_helpers.SE3Pose(x=0.80,
-                                              y=0.0,
-                                              z=0.25,
-                                              rot=math_helpers.Quat.from_yaw(
-                                                  -np.pi / 2))
-        move_hand_to_relative_pose(robot, hand_side_pose)
+        train_toy_pose = math_helpers.SE3Pose(2.336, -2.094, -0.077, math_helpers.Quat())
 
-        # Ask for the brush.
-        open_gripper(robot)
-        # Press any key, instead of just enter. Useful for remote control.
-        msg = "Put the brush in the robot's gripper, then press any key"
-        utils.wait_for_any_button_press(msg)
-        close_gripper(robot)
+        # # Move the hand to the side so that the brush can face forward.
+        # hand_side_pose = math_helpers.SE3Pose(x=0.80,
+        #                                       y=0.0,
+        #                                       z=0.25,
+        #                                       rot=math_helpers.Quat.from_yaw(
+        #                                           -np.pi / 2))
+        # move_hand_to_relative_pose(robot, hand_side_pose)
+
+        # # Ask for the brush.
+        # open_gripper(robot)
+        # # Press any key, instead of just enter. Useful for remote control.
+        # msg = "Put the brush in the robot's gripper, then press any key"
+        # utils.wait_for_any_button_press(msg)
+        # close_gripper(robot)
 
         # Move to in front of the train_toy.
         stow_arm(robot)
@@ -197,8 +199,8 @@ if __name__ == "__main__":
         #                   upper_left_black_table_rel_pose.y)
         # start_x = upper_left_black_table_rel_pose.x
         # start_y = upper_left_black_table_rel_pose.y
-        start_x = middle_bottom_black_table_rel_pose.x
-        start_y = middle_bottom_black_table_rel_pose.y
+        start_x = upper_left_black_table_rel_pose.x
+        start_y = upper_left_black_table_rel_pose.y
         # use absolute value so that we don't get messed up by noise in the
         # perception estimate
         start_z = 0.19

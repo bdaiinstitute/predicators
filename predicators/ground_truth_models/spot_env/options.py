@@ -343,7 +343,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     surface_width = state.get(surface_obj, "width")
     upper_left_surface_pose = math_helpers.SE3Pose(
         x=surface_center_pose.x + surface_width / 2.0 + 0.03,
-        y=surface_center_pose.y - surface_height / 2.0 + 0.09,
+        y=surface_center_pose.y - surface_height / 2.0 + 0.13,
         z=0.25,
         rot=surface_center_pose.rot)
     middle_bottom_surface_pose = math_helpers.SE3Pose(
@@ -357,7 +357,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     ) * middle_bottom_surface_pose
     # Now, compute the actual pose the hand should start sweeping from by
     # clamping it between the surface poses.
-    start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.175,
+    start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.35,
                       upper_left_surface_rel_pose.x)
     start_y = np.clip(middle_bottom_surface_rel_pose.y, mean_y + 0.41,
                       upper_left_surface_rel_pose.y)
