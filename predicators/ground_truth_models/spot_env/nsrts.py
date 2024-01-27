@@ -199,7 +199,7 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         dx = rng.uniform(0.1, 0.13)
     else:
         dx = rand_x - state.get(surf_to_place_on, "x")
-    dz = 0.05
+    dz = 0.1
     # If we're placing the cup, we want to reduce the z
     # height for placing so the cup rests stably.
     if len(objs) == 3 and objs[1].name == "cup":

@@ -74,6 +74,13 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
     # Dump, if the grasp was successful.
     thresh = HANDEMPTY_GRIPPER_THRESHOLD
     if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
+        # Drag the container to the right a bit to avoid hitting the table.
+        # NOTE: This is only for the tray
+        drag_right_pose = math_helpers.SE3Pose(x=0.8,
+                                         y=-0.35,
+                                         z=-0.32,
+                                         rot=math_helpers.Quat.from_pitch(np.pi / 2))
+        move_hand_to_relative_pose(robot, drag_right_pose)
         # Lift the grasped object up high enough that it doesn't collide.
         move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
         # Rotate to the right.
