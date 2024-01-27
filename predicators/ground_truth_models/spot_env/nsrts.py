@@ -180,10 +180,15 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
             assert isinstance(surf_geom, utils.Circle)
             rand_x, rand_y = surf_geom.x, surf_geom.y
     else:
-        edge_tolerance = 0.13
+        rand_x, rand_y = surf_geom.sample_random_point(rng, 0.13)
+        # For the table, be very conservative and place in a small
+        # boundary around the object's center (just because objects
+        # tend to roll/fall off the table, and this is annoying).
         if surf_to_place_on.name == "black_table":
-            edge_tolerance = 0.17
-        rand_x, rand_y = surf_geom.sample_random_point(rng, edge_tolerance)
+            rand_x = state.get(surf_to_place_on, "x") + rng.uniform(
+                -0.03, 0.03, 1).item()
+            rand_y = state.get(surf_to_place_on, "y") + rng.uniform(
+                -0.03, 0.03, 1).item()
     dy = rand_y - state.get(surf_to_place_on, "y")
     if surf_to_place_on.name == "drafting_table":
         # For placing on the table, bias towards the top.
@@ -276,7 +281,8 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     # Parameters are dx, dy, yaw w.r.t. the surface.
     del state, goal, rng, objs  # randomization coming soon
     param_dict = load_spot_metadata()["prepare_container_relative_xy"]
-    return np.array([param_dict["dx"] - 0.15, param_dict["dy"], param_dict["angle"]])
+    return np.array(
+        [param_dict["dx"] - 0.15, param_dict["dy"], param_dict["angle"]])
 
 
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
