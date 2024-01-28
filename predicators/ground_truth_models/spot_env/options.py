@@ -357,7 +357,7 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     # ) * middle_bottom_surface_pose
     left_bottom_black_table_pose = math_helpers.SE3Pose(
             x=surface_center_pose.x + surface_width / 2.0 + 0.10,
-            y=surface_center_pose.y - surface_height / 2.0 + 0.18,
+            y=surface_center_pose.y - surface_height / 2.0 + 0.10,
             z=0.25,
             rot=surface_center_pose.rot)
     left_bottom_black_table_rel_pose = robot_pose.inverse() * left_bottom_black_table_pose
