@@ -2530,7 +2530,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             "PlaceObjectOnTop",
             "DragToUnblockObject",
             "DragToBlockObject",
-            "SweepIntoContainer",
+            # "SweepIntoContainer",
             "SweepTwoObjectsIntoContainer",
             "PrepareContainerForSweeping",
             "PickAndDumpContainer",
