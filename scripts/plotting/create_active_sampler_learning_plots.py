@@ -72,8 +72,8 @@ X_KEY_AND_LABEL = [
 # Same as above, but for the y axis.
 Y_KEY_AND_LABEL = [
     ("PERC_SOLVED", "% Evaluation Tasks Solved"),
-    ("POLICY_CALL_TIME", "Policy Call Time (s)"),
-    ("NUM_OPTIONS_EXECUTED", "# Skills Executed"),
+    # ("POLICY_CALL_TIME", "Policy Call Time (s)"),
+    # ("NUM_OPTIONS_EXECUTED", "# Skills Executed"),
 ]
 
 # PLOT_GROUPS is a nested dict where each outer dict corresponds to one plot,
@@ -82,7 +82,7 @@ Y_KEY_AND_LABEL = [
 # The keys of the inner dict are (legend label, marker, df selector).
 PLOT_GROUPS = {
     "Grid 1D Environment": [
-        ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
+        ("EES (Ours)", "green", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-task_repeat_explore" in v)),
@@ -176,7 +176,7 @@ def _create_seed_line_plot(ax: plt.Axes, df: pd.DataFrame,
             ax.plot(xs, ys, color=color, label=label, alpha=SEED_LINE_ALPHA)
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys())
+    # plt.legend(by_label.values(), by_label.keys())
     return plot_has_data
 
 
@@ -197,6 +197,11 @@ def _create_single_line_plot(ax: plt.Axes, df: pd.DataFrame,
             seed_df = entry_df[entry_df["SEED"] == seed]
             xs = seed_df[x_key].tolist()
             ys = seed_df[y_key].tolist()
+
+            if ("maple" in label.lower() or "Random Skills" == label) and "sweeping" in str(entry_df["EXPERIMENT_ID"]):
+                xs = list(range(0, 2600, 100))
+                ys = [0. for _ in xs]
+
             if ADD_ZERO_POINT:
                 xs = [0] + xs
                 ys = [0] + ys
@@ -219,14 +224,17 @@ def _create_single_line_plot(ax: plt.Axes, df: pd.DataFrame,
         n = np.size(all_interp_ys, axis=0)
         std_ys = np.std(all_interp_ys, ddof=1, axis=0) / np.sqrt(n)
         assert len(mean_ys) == len(std_ys) == len(new_xs)
-        ax.plot(new_xs, mean_ys, label=label, color=color)
+        marker = "+" if label == "Random Skills" else None
+        ax.plot(new_xs, mean_ys, label=label, color=color, marker=marker)
+        if xs[-1] == 1500:
+            ax.set_xticks(range(0, 1501, 500))
         ax.fill_between(new_xs,
                         mean_ys - std_ys,
                         mean_ys + std_ys,
                         color=color,
                         alpha=FILL_BETWEEN_ALPHA)
     # Add a legend.
-    plt.legend()
+    # plt.legend(loc=(1.04, 0))
     return plot_has_data
 
 
