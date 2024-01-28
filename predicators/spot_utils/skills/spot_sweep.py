@@ -40,7 +40,7 @@ def sweep(robot: Robot, sweep_start_pose: math_helpers.SE3Pose, move_dx: float,
     # we're sweeping, move down by a bit to actually contact the surface.
     sweep_start_conformant = math_helpers.SE3Pose(x=sweep_start_pose.x,
                                                   y=sweep_start_pose.y,
-                                                  z=sweep_start_pose.z - 0.09,
+                                                  z=sweep_start_pose.z - 0.095,
                                                   rot=sweep_start_pose.rot)
     move_hand_to_relative_pose(robot, sweep_start_conformant)
     time.sleep(0.1)
@@ -135,6 +135,11 @@ if __name__ == "__main__":
             y=black_table_pose.y + black_table_height / 2.0 - 0.10,
             z=0.25,
             rot=black_table_pose.rot)
+        left_bottom_black_table_pose = math_helpers.SE3Pose(
+            x=black_table_pose.x + black_table_width / 2.0 + 0.10,
+            y=black_table_pose.y - black_table_height / 2.0 + 0.18,
+            z=0.25,
+            rot=black_table_pose.rot)
 
         # Go home.
         stow_arm(robot)
@@ -152,7 +157,7 @@ if __name__ == "__main__":
         #                                         {train_toy_detection_id})
         # train_toy_pose = detections[train_toy_detection_id]
 
-        train_toy_pose = math_helpers.SE3Pose(2.336, -2.094, -0.077, math_helpers.Quat())
+        train_toy_pose = math_helpers.SE3Pose(2.336, -1.994, -0.077, math_helpers.Quat())
 
         # # Move the hand to the side so that the brush can face forward.
         # hand_side_pose = math_helpers.SE3Pose(x=0.80,
@@ -171,7 +176,7 @@ if __name__ == "__main__":
 
         # Move to in front of the train_toy.
         stow_arm(robot)
-        pre_sweep_nav_distance = 0.7
+        pre_sweep_nav_distance = 0.8
         pre_sweep_nav_angle = np.pi / 2
         localizer.localize()
         robot_pose = localizer.get_last_robot_pose()
@@ -188,6 +193,8 @@ if __name__ == "__main__":
         ) * upper_left_black_table_pose
         middle_bottom_black_table_rel_pose = robot_pose.inverse(
         ) * middle_bottom_black_table_pose
+        left_bottom_black_table_rel_pose = robot_pose.inverse(
+        ) * left_bottom_black_table_pose
         start_dx = 0.175
         start_dy = 0.4
         # clamp the x and y poses to the top left of the table worst case.
@@ -197,10 +204,10 @@ if __name__ == "__main__":
         # start_y = np.clip(middle_bottom_black_table_rel_pose.y,
         #                   train_toy_rel_pose.y + start_dy,
         #                   upper_left_black_table_rel_pose.y)
+        start_x = left_bottom_black_table_rel_pose.x
+        start_y = left_bottom_black_table_rel_pose.y
         # start_x = upper_left_black_table_rel_pose.x
         # start_y = upper_left_black_table_rel_pose.y
-        start_x = upper_left_black_table_rel_pose.x
-        start_y = upper_left_black_table_rel_pose.y
         # use absolute value so that we don't get messed up by noise in the
         # perception estimate
         start_z = 0.19

@@ -186,9 +186,9 @@ def _place_object_on_top_sampler(state: State, goal: Set[GroundAtom],
         # tend to roll/fall off the table, and this is annoying).
         if surf_to_place_on.name == "black_table":
             rand_x = state.get(surf_to_place_on, "x") + rng.uniform(
-                -0.03, 0.03, 1).item()
+                -0.015, 0.03, 1).item()
             rand_y = state.get(surf_to_place_on, "y") + rng.uniform(
-                -0.03, 0.03, 1).item()
+                -0.03, 0.015, 1).item()
     dy = rand_y - state.get(surf_to_place_on, "y")
     if surf_to_place_on.name == "drafting_table":
         # For placing on the table, bias towards the top.

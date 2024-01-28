@@ -341,26 +341,34 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     surface_center_pose = utils.get_se3_pose_from_state(state, surface_obj)
     surface_height = state.get(surface_obj, "height")
     surface_width = state.get(surface_obj, "width")
-    upper_left_surface_pose = math_helpers.SE3Pose(
-        x=surface_center_pose.x + surface_width / 2.0 + 0.03,
-        y=surface_center_pose.y - surface_height / 2.0 + 0.13,
-        z=0.25,
-        rot=surface_center_pose.rot)
-    middle_bottom_surface_pose = math_helpers.SE3Pose(
-        x=surface_center_pose.x,
-        y=surface_center_pose.y + surface_height / 2.0 - 0.10,
-        z=0.25,
-        rot=surface_center_pose.rot)
-    upper_left_surface_rel_pose = robot_pose.inverse(
-    ) * upper_left_surface_pose
-    middle_bottom_surface_rel_pose = robot_pose.inverse(
-    ) * middle_bottom_surface_pose
+    # upper_left_surface_pose = math_helpers.SE3Pose(
+    #     x=surface_center_pose.x + surface_width / 2.0 + 0.03,
+    #     y=surface_center_pose.y - surface_height / 2.0 + 0.13,
+    #     z=0.25,
+    #     rot=surface_center_pose.rot)
+    # middle_bottom_surface_pose = math_helpers.SE3Pose(
+    #     x=surface_center_pose.x,
+    #     y=surface_center_pose.y + surface_height / 2.0 - 0.10,
+    #     z=0.25,
+    #     rot=surface_center_pose.rot)
+    # upper_left_surface_rel_pose = robot_pose.inverse(
+    # ) * upper_left_surface_pose
+    # middle_bottom_surface_rel_pose = robot_pose.inverse(
+    # ) * middle_bottom_surface_pose
+    left_bottom_black_table_pose = math_helpers.SE3Pose(
+            x=surface_center_pose.x + surface_width / 2.0 + 0.10,
+            y=surface_center_pose.y - surface_height / 2.0 + 0.18,
+            z=0.25,
+            rot=surface_center_pose.rot)
+    left_bottom_black_table_rel_pose = robot_pose.inverse() * left_bottom_black_table_pose
     # Now, compute the actual pose the hand should start sweeping from by
     # clamping it between the surface poses.
-    start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.35,
-                      upper_left_surface_rel_pose.x)
-    start_y = np.clip(middle_bottom_surface_rel_pose.y, mean_y + 0.41,
-                      upper_left_surface_rel_pose.y)
+    # start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.35,
+    #                   upper_left_surface_rel_pose.x)
+    # start_y = np.clip(middle_bottom_surface_rel_pose.y, mean_y + 0.41,
+    #                   upper_left_surface_rel_pose.y)
+    start_x = left_bottom_black_table_rel_pose.x
+    start_y = left_bottom_black_table_rel_pose.y
     # use absolute value so that we don't get messed up by noise in the
     # perception height estimate.
     start_z = 0.19
