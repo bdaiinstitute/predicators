@@ -86,7 +86,7 @@ PLOT_GROUPS = {
             lambda v: "grid_row-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-task_repeat_explore" in v)),
-        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "teal", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-competence_gradient" in v)),
         ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-success_rate_explore_ucb" in v)),
@@ -104,7 +104,7 @@ PLOT_GROUPS = {
             lambda v: "sticky_table-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-task_repeat_explore" in v)),
-        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "teal", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-competence_gradient" in v)),
         ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-success_rate_explore_ucb" in v)),
@@ -122,7 +122,7 @@ PLOT_GROUPS = {
             lambda v: "spot_sweeping_sim-planning_progress_explore" in v)),
         ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-task_repeat_explore" in v)),
-        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+        ("Competence Gradient", "teal", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-competence_gradient" in v)),
         ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-success_rate_explore_ucb" in v)),
@@ -234,7 +234,7 @@ def _create_single_line_plot(ax: plt.Axes, df: pd.DataFrame,
                         color=color,
                         alpha=FILL_BETWEEN_ALPHA)
     # Add a legend.
-    # plt.legend(loc=(1.04, 0))
+    plt.legend(loc=(1.04, 0))
     return plot_has_data
 
 
