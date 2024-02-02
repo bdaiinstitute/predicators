@@ -130,7 +130,7 @@ def _get_chair_grasp_pixel(
     c_len = mask_max_c - mask_min_c
     middle_c = mask_min_c + c_len // 2
     min_r = min(r for r, c in mask_args if c == middle_c)
-    pixel = (middle_c, min_r + 25)
+    pixel = (middle_c, min_r + 30)
     # else:
     #     pixel = (centroid[0], centroid[1])
 

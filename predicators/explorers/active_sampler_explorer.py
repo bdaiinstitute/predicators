@@ -280,6 +280,12 @@ class ActiveSamplerExplorer(BaseExplorer):
                             nsrt = [
                                 n for n in self._nsrts if n.op == op.parent
                             ][0]
+
+                            # HACK! Specific to the sweeping env so we don't
+                            # practice grasping.
+                            if nsrt.name == "PickObjectFromTop":
+                                continue
+
                             # NOTE: setting nonlocal variable.
                             next_practice_nsrt = nsrt.ground(op.objects)
                             nsrt_name = next_practice_nsrt.short_str
