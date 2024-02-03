@@ -192,10 +192,10 @@ def _drag_platform_to_shelf(robot: Robot) -> None:
     slightly_back_pose = math_helpers.SE2Pose(-0.65, 0.0, 0.0)
     navigate_to_relative_pose(robot, slightly_back_pose)
     # Now, rotate about 135 degrees.
-    rotated_pose = math_helpers.SE2Pose(0.0, 0.0, 3.35 * np.pi / 4)
+    rotated_pose = math_helpers.SE2Pose(0.0, 0.0, 3.25 * np.pi / 4)
     navigate_to_relative_pose(robot, rotated_pose)
     # Now, move forward to align with the shelf.
-    final_shelf_pose = math_helpers.SE2Pose(1.40, 0.0, 0.0)
+    final_shelf_pose = math_helpers.SE2Pose(1.30, 0.0, 0.0)
     navigate_to_relative_pose(robot, final_shelf_pose)
     open_gripper(robot)
     stow_arm(robot)
@@ -510,7 +510,7 @@ def _pick_object_to_drag_policy(state: State, memory: Dict,
 def _pick_and_dump_cup_policy(state: State, memory: Dict,
                               objects: Sequence[Object],
                               params: Array) -> Action:
-    # Same as PickObjectFromTop; just necessary to make options 1:1 with
+    # Same as PickObjectFromTopNotHigh; just necessary to make options 1:1 with
     # operators.
     name = "PickAndDumpCup"
     target_obj_idx = 1
@@ -815,14 +815,16 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
-    "PickObjectFromTop": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTop
+    "PickObjectFromTopNotHigh": Box(-np.inf, np.inf, (6, )),
+    # same as PickObjectFromTopNotHigh
+    "PickObjectFromTopHigh": Box(-np.inf, np.inf, (6, )),
+    # same as PickObjectFromTopNotHigh
     "PickAndDumpCup": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTop
+    # same as PickObjectFromTopNotHigh
     "PickAndDumpContainer": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTop
+    # same as PickObjectFromTopNotHigh
     "PickAndDumpTwoFromContainer": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTop
+    # same as PickObjectFromTopNotHigh
     "PickObjectToDrag": Box(-np.inf, np.inf, (6, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
@@ -844,7 +846,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
-    "PickObjectFromTop": _pick_object_from_top_policy,
+    "PickObjectFromTopNotHigh": _pick_object_from_top_policy,
+    "PickObjectFromTopHigh": _pick_object_from_top_policy,
     "PickObjectToDrag": _pick_object_to_drag_policy,
     "PickAndDumpCup": _pick_and_dump_cup_policy,
     "PickAndDumpContainer": _pick_and_dump_container_policy,

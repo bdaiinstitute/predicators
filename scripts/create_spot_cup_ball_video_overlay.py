@@ -19,8 +19,8 @@ _SKILL_NAME_REPLACEMENTS = {
     "MoveToHandViewObject(robot, ball)": "MoveToView\n(robot, ball)",
     "MoveToHandViewObject(robot, cup)": "MoveToView\n(robot, ring)",
     "MoveToReachObject(robot, drafting_table)": "MoveToReach\n(robot, table)",
-    "PickObjectFromTop(robot, ball, cup)": "Pick\n(robot, ball, ring)",
-    "PickObjectFromTop(robot, ball, floor)": "Pick\n(robot, ball, floor)",
+    "PickObjectFromTopNotHigh(robot, ball, cup)": "Pick\n(robot, ball, ring)",
+    "PickObjectFromTopNotHigh(robot, ball, floor)": "Pick\n(robot, ball, floor)",
     "PlaceObjectOnTop(robot, ball, drafting_table)":
     "Place\n(robot, ball, table)",
 }

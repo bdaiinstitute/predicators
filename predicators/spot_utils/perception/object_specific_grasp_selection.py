@@ -22,7 +22,7 @@ ball_prompt = "/".join([
 ball_obj = LanguageObjectDetectionID(ball_prompt)
 cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 brush_prompt = "/".join(
-    ["scrubbing brush", "hammer", "mop", "giant white toothbrush"])
+    ["scrubbing brush", "hammer", "scrubber", "giant white toothbrush"])
 brush_obj = LanguageObjectDetectionID(brush_prompt)
 bucket_prompt = "/".join([
     "white plastic container with black handles",
@@ -41,7 +41,7 @@ train_toy_prompt = "/".join([
 train_toy_obj = LanguageObjectDetectionID(train_toy_prompt)
 chair_prompt = "chair"
 chair_obj = LanguageObjectDetectionID(chair_prompt)
-platform_prompt = "black coffee table"
+platform_prompt = "black coffee table/bench"
 platform_obj = LanguageObjectDetectionID(platform_prompt)
 
 def _get_platform_grasp_pixel(

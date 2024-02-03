@@ -270,7 +270,7 @@ class SpotRearrangementEnv(BaseEnv):
                                                    robot_rel_se2_pose,
                                                    nonpercept_atoms)
 
-        if action_name == "PickObjectFromTop":
+        if "PickObjectFromTop" in action_name:
             _, target_obj, _ = action_objs
             pixel = action_args[2]
             return _dry_simulate_pick_from_top(obs, target_obj, pixel,
@@ -852,7 +852,7 @@ class SpotRearrangementEnv(BaseEnv):
                                          y=0.0,
                                          z=0.75,
                                          rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 3))
+                                             np.pi / 4))
         move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
             self._robot,
@@ -896,8 +896,9 @@ _FITS_IN_XY_BUFFER = 0.05
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.35
-_PLATFORM_INFRONT_BUFFER = 0.50
+_PLATFORM_INFRONT_BUFFER = 1.20
 _ROBOT_SWEEP_READY_TOL = 0.25
+_SURFACE_TOO_HIGH_THRESH = 0.3
 
 ## Types
 _ALL_TYPES = {
@@ -1255,6 +1256,18 @@ def _is_semantically_greater_than_classifier(
     return obj1.name > obj2.name
 
 
+def _surface_too_high_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    del state  # unused
+    surface, = objects
+    return state.get(surface, "z") > _SURFACE_TOO_HIGH_THRESH
+
+
+def _surface_not_too_high_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    return not _surface_too_high_classifier(state, objects)
+
+
 def _get_sweeping_surface_for_container(container: Object,
                                         state: State) -> Optional[Object]:
     if container.is_instance(_container_type):
@@ -1314,12 +1327,19 @@ _RobotReadyForSweeping = Predicate("RobotReadyForSweeping",
 _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
+_SurfaceTooHigh = Predicate("SurfaceTooHigh",
+                                   [_immovable_object_type],
+                                   _surface_too_high_classifier)
+_SurfaceNotTooHigh = Predicate("SurfaceNotTooHigh",
+                                   [_immovable_object_type],
+                                   _surface_not_too_high_classifier)
 _ALL_PREDICATES = {
     _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan, _PlatformInFrontOfSurface
+    _IsSemanticallyGreaterThan, _PlatformInFrontOfSurface, _SurfaceTooHigh,
+    _SurfaceNotTooHigh
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1372,13 +1392,14 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("MoveToBodyViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
-    # PickObjectFromTop
+    # PickObjectFromTopNotHigh
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     surface = Variable("?surface", _immovable_object_type)
     parameters = [robot, obj, surface]
     preconds = {
         LiftedAtom(_On, [obj, surface]),
+        LiftedAtom(_SurfaceNotTooHigh, [obj, surface]),
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj]),
         LiftedAtom(_NotInsideAnyContainer, [obj]),
@@ -1395,7 +1416,36 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotHolding, [robot, obj]),
     }
     ignore_effs = set()
-    yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
+    yield STRIPSOperator("PickObjectFromTopNotHigh", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+    
+    # PickObjectFromTopHigh
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    surface = Variable("?surface", _immovable_object_type)
+    platform = Variable("?platform", _platform_type)
+    parameters = [robot, obj, surface, platform]
+    preconds = {
+        LiftedAtom(_On, [obj, surface]),
+        LiftedAtom(_SurfaceTooHigh, [obj, surface]),
+        LiftedAtom(_PlatformInFrontOfSurface, [platform, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotInsideAnyContainer, [obj]),
+        LiftedAtom(_IsPlaceable, [obj]),
+        LiftedAtom(_HasFlatTopSurface, [surface]),
+    }
+    add_effs = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    del_effs = {
+        LiftedAtom(_On, [obj, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_InHandView, [robot, obj]),
+        LiftedAtom(_NotHolding, [robot, obj]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("PickObjectFromTopHigh", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # PickObjectToDrag
@@ -2279,7 +2329,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -2395,7 +2445,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -2446,7 +2496,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
             "DropObjectInside",
         }
@@ -2499,7 +2549,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
             "DropObjectInside",
             "DragToUnblockObject",
@@ -2562,7 +2612,8 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             "MoveToReachObject",
             "MoveToHandViewObject",
             "MoveToBodyViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
+            "PickObjectFromTopHigh",
             "PlaceObjectOnTop",
             "DragToUnblockObject",
             "DragToBlockObject",
@@ -2605,7 +2656,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         detection_id_to_obj[chair_detection] = chair
 
         platform = Object("platform", _platform_type)
-        platform_detection = LanguageObjectDetectionID("black coffee table")
+        platform_detection = LanguageObjectDetectionID("black coffee table/bench")
         detection_id_to_obj[platform_detection] = platform
 
         bucket = Object("bucket", _container_type)
@@ -2774,7 +2825,8 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTopNotHigh",
+            "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -2825,7 +2877,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject", "MoveToHandViewObject",
-            "MoveToBodyViewObject", "PickObjectFromTop", "PlaceObjectOnTop",
+            "MoveToBodyViewObject", "PickObjectFromTopNotHigh", "PlaceObjectOnTop",
             "DropObjectInsideContainerOnTop", "PickAndDumpCup"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
