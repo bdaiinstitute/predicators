@@ -62,7 +62,7 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
         robot: Robot, img: RGBDImageWithContext, pixel: Tuple[int, int],
         grasp_rot: Optional[math_helpers.Quat], rot_thresh: float,
         timeout: float, retry_grasp_after_fail: bool, do_stow: bool,
-        do_dump: bool) -> None:
+        do_dump: bool, move_while_grasping: bool) -> None:
     # Grasp.
     grasp_at_pixel(robot,
                    img,
@@ -70,7 +70,8 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    grasp_rot=grasp_rot,
                    rot_thresh=rot_thresh,
                    timeout=timeout,
-                   retry_with_no_constraints=retry_grasp_after_fail)
+                   retry_with_no_constraints=retry_grasp_after_fail,
+                   move_while_grasping=move_while_grasping)
     # Dump, if the grasp was successful.
     thresh = HANDEMPTY_GRIPPER_THRESHOLD
     if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
@@ -318,9 +319,12 @@ def _grasp_policy(name: str,
     # Retry a grasp if a failure occurs!
     retry_with_no_constraints = target_obj.name != "brush"
 
+    # HACK! assuming 0th object is always the robot.
+    move_while_grasping = state.get(objects[0], "z") < 0.11
+
     return utils.create_spot_env_action(
         name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0,
-                            retry_with_no_constraints, do_stow, do_dump))
+                            retry_with_no_constraints, do_stow, do_dump, move_while_grasping))
 
 
 def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
@@ -452,7 +456,7 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
 def _move_to_hand_view_object_policy(state: State, memory: Dict,
                                      objects: Sequence[Object],
                                      params: Array) -> Action:
-    name = "MoveToHandViewObject"
+    name = "MoveToHandViewObjectNotHigh"
     distance_param_idx = 0
     yaw_param_idx = 1
     robot_obj_idx = 0
@@ -811,7 +815,8 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
 
 _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReachObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
-    "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandViewObjectNotHigh": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandViewObjectTooHigh": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
@@ -844,7 +849,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 # that includes the name of the operators.
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
-    "MoveToHandViewObject": _move_to_hand_view_object_policy,
+    "MoveToHandViewObjectNotHigh": _move_to_hand_view_object_policy,
+    "MoveToHandViewObjectTooHigh": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTopNotHigh": _pick_object_from_top_policy,
     "PickObjectFromTopHigh": _pick_object_from_top_policy,

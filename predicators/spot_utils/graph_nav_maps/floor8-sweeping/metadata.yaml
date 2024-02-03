@@ -107,7 +107,7 @@ static-object-features:
     height: 0.1
     length: 0.8
     width: 0.7
-    flat_top_surface: 0
+    flat_top_surface: 1
 # This should be calculable, but I'm lazy. These values represent the SE2 pose
 # (in the table frame) for the robot before placing the container.
 prepare_container_relative_xy:

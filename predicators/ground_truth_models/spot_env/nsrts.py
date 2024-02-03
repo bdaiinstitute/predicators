@@ -78,8 +78,26 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 1.2
-    max_dist = 1.5
+    min_dist = 1.1
+    max_dist = 1.3
+
+    robot_obj = objs[0]
+    obj_to_nav_to = objs[1]
+
+    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
+
+    return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
+                                max_dist, min_angle, max_angle)
+
+
+def _closer_move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
+                                      rng: np.random.Generator,
+                                      objs: Sequence[Object]) -> Array:
+    # Parameters are relative distance, dyaw (to the object you're moving to).
+    del goal
+
+    min_dist = 0.8
+    max_dist = 1.25
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
@@ -313,7 +331,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
         nsrts = set()
 
         operator_name_to_sampler: Dict[str, NSRTSampler] = {
-            "MoveToHandViewObject": _move_to_hand_view_object_sampler,
+            "MoveToHandViewObjectNotHigh": _move_to_hand_view_object_sampler,
+            "MoveToHandViewObjectTooHigh": _closer_move_to_hand_view_object_sampler,
             "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTopNotHigh": _pick_object_from_top_sampler,

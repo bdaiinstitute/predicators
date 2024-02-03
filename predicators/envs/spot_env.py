@@ -263,7 +263,7 @@ class SpotRearrangementEnv(BaseEnv):
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
 
-        if action_name == "MoveToHandViewObject":
+        if action_name == "MoveToHandViewObjectNotHigh":
             _, target_obj = action_objs
             robot_rel_se2_pose = action_args[1]
             return _dry_simulate_move_to_view_hand(obs, target_obj,
@@ -464,12 +464,12 @@ class SpotRearrangementEnv(BaseEnv):
 
             # Very hacky optimization to force viewing/reaching to work.
             if action_name in [
-                    "MoveToHandViewObject", "MoveToBodyViewObject",
+                    "MoveToHandViewObjectNotHigh", "MoveToBodyViewObject",
                     "MoveToReachObject"
             ]:
-                _, target_obj = action_objs
+                target_obj = action_objs[1]
                 # Retry if each of the types of moving failed in their own way.
-                if action_name == "MoveToHandViewObject":
+                if action_name == "MoveToHandViewObjectNotHigh":
                     need_retry = target_obj not in \
                         next_obs.objects_in_hand_view
                 elif action_name == "MoveToBodyViewObject":
@@ -852,7 +852,7 @@ class SpotRearrangementEnv(BaseEnv):
                                          y=0.0,
                                          z=0.75,
                                          rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 4))
+                                             np.pi / 6))
         move_hand_to_relative_pose(self._robot, hand_pose)
         detections, artifacts = init_search_for_objects(
             self._robot,
@@ -896,7 +896,7 @@ _FITS_IN_XY_BUFFER = 0.05
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.35
-_PLATFORM_INFRONT_BUFFER = 1.20
+_PLATFORM_INFRONT_BUFFER = 1.35
 _ROBOT_SWEEP_READY_TOL = 0.25
 _SURFACE_TOO_HIGH_THRESH = 0.3
 
@@ -1105,6 +1105,11 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     # Only consider draggable (non-placeable, movable) objects to be blockers.
     if not blocker_obj.is_instance(_movable_object_type):
         return False
+
+    # Platform objects cannot be blockers.    
+    if blocker_obj.is_instance(_platform_type):
+        return False
+
     if _is_placeable_classifier(state, [blocker_obj]):
         return False
 
@@ -1258,7 +1263,6 @@ def _is_semantically_greater_than_classifier(
 
 def _surface_too_high_classifier(
         state: State, objects: Sequence[Object]) -> bool:
-    del state  # unused
     surface, = objects
     return state.get(surface, "z") > _SURFACE_TOO_HIGH_THRESH
 
@@ -1266,6 +1270,12 @@ def _surface_too_high_classifier(
 def _surface_not_too_high_classifier(
         state: State, objects: Sequence[Object]) -> bool:
     return not _surface_too_high_classifier(state, objects)
+
+
+def _robot_on_platform_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    robot, = objects
+    return state.get(robot, "z") > 0.11
 
 
 def _get_sweeping_surface_for_container(container: Object,
@@ -1333,13 +1343,15 @@ _SurfaceTooHigh = Predicate("SurfaceTooHigh",
 _SurfaceNotTooHigh = Predicate("SurfaceNotTooHigh",
                                    [_immovable_object_type],
                                    _surface_not_too_high_classifier)
+_RobotOnPlatform = Predicate("RobotOnPlatform", [_robot_type], _robot_on_platform_classifier)
+
 _ALL_PREDICATES = {
     _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
     _IsSemanticallyGreaterThan, _PlatformInFrontOfSurface, _SurfaceTooHigh,
-    _SurfaceNotTooHigh
+    _SurfaceNotTooHigh, _RobotOnPlatform
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1362,18 +1374,36 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("MoveToReachObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
-    # MoveToHandViewObject
+    # MoveToHandViewObjectNotHigh
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
-    parameters = [robot, obj]
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, obj, surface]
     preconds = {
         LiftedAtom(_NotBlocked, [obj]),
-        LiftedAtom(_HandEmpty, [robot])
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_SurfaceNotTooHigh, [surface])
     }
     add_effs = {LiftedAtom(_InHandView, [robot, obj])}
     del_effs = set()
     ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
-    yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
+    yield STRIPSOperator("MoveToHandViewObjectNotHigh", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+
+    # MoveToHandViewObjectTooHigh
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, obj, surface]
+    preconds = {
+        LiftedAtom(_NotBlocked, [obj]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_SurfaceTooHigh, [surface])
+    }
+    add_effs = {LiftedAtom(_InHandView, [robot, obj]), LiftedAtom(_RobotOnPlatform, [robot])}
+    del_effs = set()
+    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+    yield STRIPSOperator("MoveToHandViewObjectTooHigh", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
     # MoveToBodyViewObject
@@ -1399,7 +1429,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, obj, surface]
     preconds = {
         LiftedAtom(_On, [obj, surface]),
-        LiftedAtom(_SurfaceNotTooHigh, [obj, surface]),
+        LiftedAtom(_SurfaceNotTooHigh, [surface]),
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj]),
         LiftedAtom(_NotInsideAnyContainer, [obj]),
@@ -1427,13 +1457,14 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     parameters = [robot, obj, surface, platform]
     preconds = {
         LiftedAtom(_On, [obj, surface]),
-        LiftedAtom(_SurfaceTooHigh, [obj, surface]),
+        LiftedAtom(_SurfaceTooHigh, [surface]),
         LiftedAtom(_PlatformInFrontOfSurface, [platform, surface]),
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_InHandView, [robot, obj]),
         LiftedAtom(_NotInsideAnyContainer, [obj]),
         LiftedAtom(_IsPlaceable, [obj]),
         LiftedAtom(_HasFlatTopSurface, [surface]),
+        LiftedAtom(_RobotOnPlatform, [robot])
     }
     add_effs = {
         LiftedAtom(_Holding, [robot, obj]),
@@ -2328,7 +2359,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
             "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
         }
@@ -2444,7 +2475,7 @@ class SpotSodaTableEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
             "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
         }
@@ -2495,7 +2526,7 @@ class SpotSodaBucketEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
             "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -2548,7 +2579,7 @@ class SpotSodaChairEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
             "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -2610,7 +2641,8 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
+            "MoveToHandViewObjectTooHigh",
             "MoveToBodyViewObject",
             "PickObjectFromTopNotHigh",
             "PickObjectFromTopHigh",
@@ -2824,7 +2856,7 @@ class SpotBrushShelfEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObjectNotHigh",
             "PickObjectFromTopNotHigh",
             "PickObjectFromTopNotHigh",
             "PlaceObjectOnTop",
@@ -2876,7 +2908,7 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
         super().__init__(use_gui)
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
-            "MoveToReachObject", "MoveToHandViewObject",
+            "MoveToReachObject", "MoveToHandViewObjectNotHigh",
             "MoveToBodyViewObject", "PickObjectFromTopNotHigh", "PlaceObjectOnTop",
             "DropObjectInsideContainerOnTop", "PickAndDumpCup"
         }

@@ -16,8 +16,8 @@ from predicators.structs import Image, _GroundSTRIPSOperator
 matplotlib.rcParams.update({'font.size': 18})
 
 _SKILL_NAME_REPLACEMENTS = {
-    "MoveToHandViewObject(robot, ball)": "MoveToView\n(robot, ball)",
-    "MoveToHandViewObject(robot, cup)": "MoveToView\n(robot, ring)",
+    "MoveToHandViewObjectNotHigh(robot, ball)": "MoveToView\n(robot, ball)",
+    "MoveToHandViewObjectNotHigh(robot, cup)": "MoveToView\n(robot, ring)",
     "MoveToReachObject(robot, drafting_table)": "MoveToReach\n(robot, table)",
     "PickObjectFromTopNotHigh(robot, ball, cup)": "Pick\n(robot, ball, ring)",
     "PickObjectFromTopNotHigh(robot, ball, floor)": "Pick\n(robot, ball, floor)",
