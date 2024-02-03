@@ -76,10 +76,11 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
     if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
         # Drag the container to the right a bit to avoid hitting the table.
         # NOTE: This is only for the tray
-        drag_right_pose = math_helpers.SE3Pose(x=0.8,
-                                         y=-0.35,
-                                         z=-0.32,
-                                         rot=math_helpers.Quat.from_pitch(np.pi / 2))
+        drag_right_pose = math_helpers.SE3Pose(
+            x=0.8,
+            y=-0.35,
+            z=-0.32,
+            rot=math_helpers.Quat.from_pitch(np.pi / 2))
         move_hand_to_relative_pose(robot, drag_right_pose)
         # Lift the grasped object up high enough that it doesn't collide.
         move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
@@ -181,6 +182,22 @@ def _drag_and_release(robot: Robot, rel_pose: math_helpers.SE2Pose) -> None:
     # Move the gripper up a little bit.
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
     # Stow the arm.
+    stow_arm(robot)
+
+def _drag_platform_to_shelf(robot: Robot) -> None:
+    """Object-specific option to get the platform in front of 
+    the shelf. Note that currently this only works for the floor8-sweeping
+    map setup."""
+    # First move backwards slightly.
+    slightly_back_pose = math_helpers.SE2Pose(-0.65, 0.0, 0.0)
+    navigate_to_relative_pose(robot, slightly_back_pose)
+    # Now, rotate about 135 degrees.
+    rotated_pose = math_helpers.SE2Pose(0.0, 0.0, 3.35 * np.pi / 4)
+    navigate_to_relative_pose(robot, rotated_pose)
+    # Now, move forward to align with the shelf.
+    final_shelf_pose = math_helpers.SE2Pose(1.40, 0.0, 0.0)
+    navigate_to_relative_pose(robot, final_shelf_pose)
+    open_gripper(robot)
     stow_arm(robot)
 
 
@@ -356,11 +373,12 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     # middle_bottom_surface_rel_pose = robot_pose.inverse(
     # ) * middle_bottom_surface_pose
     left_bottom_black_table_pose = math_helpers.SE3Pose(
-            x=surface_center_pose.x + surface_width / 2.0 + 0.10,
-            y=surface_center_pose.y - surface_height / 2.0 + 0.10,
-            z=0.25,
-            rot=surface_center_pose.rot)
-    left_bottom_black_table_rel_pose = robot_pose.inverse() * left_bottom_black_table_pose
+        x=surface_center_pose.x + surface_width / 2.0 + 0.10,
+        y=surface_center_pose.y - surface_height / 2.0 + 0.10,
+        z=0.25,
+        rot=surface_center_pose.rot)
+    left_bottom_black_table_rel_pose = robot_pose.inverse(
+    ) * left_bottom_black_table_pose
     # Now, compute the actual pose the hand should start sweeping from by
     # clamping it between the surface poses.
     # start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.35,
@@ -686,6 +704,18 @@ def _drag_to_block_object_policy(state: State, memory: Dict,
                                         (robot, move_rel_pos))
 
 
+def _drag_platform_policy(state: State, memory: Dict,
+                                 objects: Sequence[Object],
+                                 params: Array) -> Action:
+    del state, memory, params # not used
+    name = "DragPlatform"
+    robot, _, _ = get_robot()
+    _, _, surface = objects
+    if surface.name != "shelf":
+        raise ValueError(f"option policy not implemented for dragging platform to {surface}")
+    return utils.create_spot_env_action(name, objects, _drag_platform_to_shelf, tuple([robot]))
+
+
 def _sweep_into_container_policy(state: State, memory: Dict,
                                  objects: Sequence[Object],
                                  params: Array) -> Action:
@@ -805,6 +835,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
+    "DragPlatformInFrontOfSurface": Box(0, 1, (0, )),  # empty
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -828,6 +859,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
+    "DragPlatformInFrontOfSurface": _drag_platform_policy,
 }
 
 

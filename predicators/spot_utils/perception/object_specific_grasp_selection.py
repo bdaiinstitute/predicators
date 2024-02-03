@@ -41,35 +41,63 @@ train_toy_prompt = "/".join([
 train_toy_obj = LanguageObjectDetectionID(train_toy_prompt)
 chair_prompt = "chair"
 chair_obj = LanguageObjectDetectionID(chair_prompt)
-
+platform_prompt = "black coffee table"
+platform_obj = LanguageObjectDetectionID(platform_prompt)
 
 def _get_platform_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
     # This assumes that we have just navigated to the april tag and are now
-    # looking down at the platform. We crop the top half of the image and
-    # then use CV2 to find the blue handle inside of it.
-    del artifacts, rng  # not used
+    # looking down at the platform. We use CV2 to find the blue handle 
+    # inside of it.
+    del rng  # not used
     rgb = rgbds[camera_name].rgb
-    half_height = rgb.shape[0] // 2
+    fourth_width = rgb.shape[1] // 4
 
-    # Crop the bottom half of the image.
-    img = rgb[half_height:]
+    # Crop the left and right halves of the image.
+    img = rgb[:, fourth_width:rgb.shape[1] - fourth_width]
 
     # Use CV2 to find a pixel.
     lo, hi = ((0, 130, 130), (130, 255, 255))
 
     cropped_centroid = find_color_based_centroid(img, lo, hi)
     if cropped_centroid is None:
-        raise RuntimeError("Could not find grasp for platform from image.")
+        detections = artifacts["language"]["object_id_to_img_detections"]
+        # select a pixel in the center of the image.
+        try:
+            seg_bb = detections[ball_obj][camera_name]
+        except KeyError:
+            raise ValueError(f"{ball_obj} not detected in {camera_name}")
+        # Select the last (bottom-most) pixel from the mask. We do this because the
+        # back finger of the robot gripper might displace the ball during grasping
+        # if we try to grasp at the center.
+        mask = seg_bb.mask
+        mask_args = np.argwhere(mask)
+        mask_min_c = min(mask_args[:, 1])
+        mask_max_c = max(mask_args[:, 1])
+        c_len = mask_max_c - mask_min_c
+        middle_c = mask_min_c + c_len // 2
+        min_r = min(r for r, c in mask_args if c == middle_c)
+        pixel = (middle_c, min_r - 95)
+        import ipdb; ipdb.set_trace()
+    else:
+        # Undo cropping.
+        cropped_x, cropped_y = cropped_centroid
+        x = cropped_x + fourth_width
+        y = cropped_y
+        pixel = (x, y)
+        
+        # Uncomment for debugging.
+        rgbd = rgbds[camera_name]
+        bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+        cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+        cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
+        cv2.imshow("Selected grasp", bgr)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
-    # Undo cropping.
-    cropped_x, cropped_y = cropped_centroid
-    x = cropped_x
-    y = cropped_y + half_height
-
-    return (x, y), None
+    return pixel, None
 
 
 def _get_ball_grasp_pixel(
@@ -463,5 +491,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # train_toy-specific grasp selection.
     train_toy_obj: partial(_get_mask_center_grasp_pixel, train_toy_obj),
     # Chair-specific grasp selection.
-    chair_obj: _get_chair_grasp_pixel
+    chair_obj: _get_chair_grasp_pixel,
+    # platform-specific grasp selection.
+    platform_obj: _get_platform_grasp_pixel
 }

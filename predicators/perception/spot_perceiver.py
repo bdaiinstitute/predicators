@@ -18,7 +18,7 @@ from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, \
-    _immovable_object_type, _movable_object_type, _robot_type, \
+    _immovable_object_type, _movable_object_type, _robot_type, _platform_type, \
     get_allowed_map_regions, load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, State, Task, \
@@ -102,7 +102,8 @@ class SpotPerceiver(BasePerceiver):
                 f"[Perceiver] Previous action was {controller_name}{objects}.")
             # The robot is always the 0th argument of an
             # operator!
-            if "pick" in controller_name.lower() and "dump" not in controller_name.lower():
+            if "pick" in controller_name.lower(
+            ) and "dump" not in controller_name.lower():
                 if self._held_object is not None:
                     assert CFG.spot_run_dry
                 else:
@@ -499,6 +500,20 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(Holding, [robot, brush]),
                 GroundAtom(ContainerReadyForSweeping, [bucket, black_table]),
                 GroundAtom(IsSweeper, [brush])
+            }
+        if goal_description == "grasp the platform":
+            robot = Object("robot", _robot_type)
+            platform = Object("platform", _platform_type)
+            Holding = pred_name_to_pred["Holding"]
+            return {
+                GroundAtom(Holding, [robot, platform]),
+            }
+        if goal_description == "move the platform to the shelf":
+            platform = Object("platform", _platform_type)
+            shelf = Object("shelf", _immovable_object_type)
+            PlatformInFrontOfSurface = pred_name_to_pred["PlatformInFrontOfSurface"]
+            return {
+                GroundAtom(PlatformInFrontOfSurface, [platform, shelf])
             }
         raise NotImplementedError("Unrecognized goal description")
 

@@ -26,7 +26,7 @@ known-immovable-objects:
     x: 2.35
     y: -1.93
     z: -0.32
-  shelf1:
+  shelf:
     x: 4.0
     y: -2.0
     z: 0.05
@@ -74,6 +74,17 @@ static-object-features:
     qx: 0
     qy: 0
     qz: 0
+  platform:
+    shape: 1
+    height: 0.32
+    length: 0.90
+    width: 0.61
+    placeable: 0
+    is_sweeper: 0
+    # the platform can move in the x/y plane only. We arbitrarily set its height
+    # to be pretty low so that it doesn't appear that anything is on top of it
+    # aside from it being atop the floor.
+    z: -0.6
   chair:
     shape: 2
     height: 0.3
@@ -91,7 +102,7 @@ static-object-features:
     length: 0.37
     width: 0.37
     flat_top_surface: 1
-  shelf1:
+  shelf:
     shape: 1
     height: 0.1
     length: 0.8
@@ -111,3 +122,4 @@ approach_angle_bounds:
   # Only approach the brush from perpendicular to it!
   brush: [-1.75, -1.25]
   floor: [-1.75, -1.25]
+  platform: [-0.05, 0.05]

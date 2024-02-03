@@ -85,6 +85,9 @@ _immovable_object_type = Type("immovable",
 _container_type = Type("container",
                        list(_movable_object_type.feature_names),
                        parent=_movable_object_type)
+_platform_type = Type("platform",
+                       list(_movable_object_type.feature_names),
+                       parent=_movable_object_type)
 
 
 def get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:

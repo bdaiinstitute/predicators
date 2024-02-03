@@ -39,7 +39,7 @@ from predicators.spot_utils.skills.spot_navigation import go_home, \
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _container_type, \
-    _immovable_object_type, _movable_object_type, _robot_type, \
+    _immovable_object_type, _movable_object_type, _robot_type, _platform_type, \
     get_allowed_map_regions, get_graph_nav_dir, \
     get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, verify_estop
@@ -896,6 +896,7 @@ _FITS_IN_XY_BUFFER = 0.05
 _REACHABLE_THRESHOLD = 0.925  # slightly less than length of arm
 _REACHABLE_YAW_THRESHOLD = 0.95  # higher better
 _CONTAINER_SWEEP_READY_BUFFER = 0.35
+_PLATFORM_INFRONT_BUFFER = 0.50
 _ROBOT_SWEEP_READY_TOL = 0.25
 
 ## Types
@@ -905,6 +906,7 @@ _ALL_TYPES = {
     _movable_object_type,
     _immovable_object_type,
     _container_type,
+    _platform_type
 }
 
 
@@ -1165,10 +1167,8 @@ def _get_highest_surface_object_is_on(obj: Object,
     return highest_surface
 
 
-def _container_adjacent_to_surface_for_sweeping(container: Object,
-                                                surface: Object,
-                                                state: State) -> bool:
-
+def _object_adjacent_to_surface(object: Object, surface: Object, state: State,
+                                adjacency_thresh: float) -> bool:
     surface_x = state.get(surface, "x")
     surface_y = state.get(surface, "y")
 
@@ -1180,13 +1180,23 @@ def _container_adjacent_to_surface_for_sweeping(container: Object,
     expected_x = surface_x + dx + place_distance * np.cos(angle)
     expected_y = surface_y + dy + place_distance * np.sin(angle)
 
-    container_x = state.get(container, "x")
-    container_y = state.get(container, "y")
+    object_x = state.get(object, "x")
+    object_y = state.get(object, "y")
 
-    dist = np.sqrt((expected_x - container_x)**2 +
-                   (expected_y - container_y)**2)
+    dist = np.sqrt((expected_x - object_x)**2 + (expected_y - object_y)**2)
 
-    return dist <= _CONTAINER_SWEEP_READY_BUFFER
+    if "platform" in object.name and "shelf" in surface.name:
+        print(f"dist between platform and shelf: {dist}")
+
+    return dist <= adjacency_thresh
+
+
+def _container_adjacent_to_surface_for_sweeping(container: Object,
+                                                surface: Object,
+                                                state: State) -> bool:
+
+    return _object_adjacent_to_surface(container, surface, state,
+                                       _CONTAINER_SWEEP_READY_BUFFER)
 
 
 def _container_ready_for_sweeping_classifier(
@@ -1194,6 +1204,11 @@ def _container_ready_for_sweeping_classifier(
     container, surface = objects
     return _container_adjacent_to_surface_for_sweeping(container, surface,
                                                        state)
+
+def _platform_in_front_of_surface_classifier(
+        state: State, objects: Sequence[Object]) -> bool:
+    platform, surface = objects
+    return _object_adjacent_to_surface(platform, surface, state, _PLATFORM_INFRONT_BUFFER)
 
 
 def _is_placeable_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1284,6 +1299,7 @@ _NotBlocked = Predicate("NotBlocked", [_base_object_type],
 _ContainerReadyForSweeping = Predicate(
     "ContainerReadyForSweeping", [_container_type, _immovable_object_type],
     _container_ready_for_sweeping_classifier)
+_PlatformInFrontOfSurface = Predicate("PlatformInFrontOfSurface", [_platform_type, _immovable_object_type], _platform_in_front_of_surface_classifier)
 _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type],
                          _is_placeable_classifier)
 _IsSweeper = Predicate("IsSweeper", [_movable_object_type],
@@ -1303,7 +1319,7 @@ _ALL_PREDICATES = {
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan
+    _IsSemanticallyGreaterThan, _PlatformInFrontOfSurface
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1667,6 +1683,26 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     ignore_effs = {_Reachable, _InHandView, _RobotReadyForSweeping}
     yield STRIPSOperator("PrepareContainerForSweeping", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+    
+    # DragPlatformInFrontOfSurface
+    robot = Variable("?robot", _robot_type)
+    platform = Variable("?platform", _platform_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, platform, surface]
+    preconds = {
+        LiftedAtom(_Holding, [robot, platform]),
+    }
+    add_effs = {
+        LiftedAtom(_PlatformInFrontOfSurface, [platform, surface]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, platform]),
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, platform]),
+    }
+    ignore_effs = {_Reachable, _InHandView}
+    yield STRIPSOperator("DragPlatformInFrontOfSurface", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
     # PickAndDumpCup
@@ -2539,6 +2575,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             "MoveToReadySweep",
             "PickObjectToDrag",
             "DropObjectInside",
+            "DragPlatformInFrontOfSurface"
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -2566,6 +2603,10 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
         chair = Object("chair", _movable_object_type)
         chair_detection = LanguageObjectDetectionID("chair")
         detection_id_to_obj[chair_detection] = chair
+
+        platform = Object("platform", _platform_type)
+        platform_detection = LanguageObjectDetectionID("black coffee table")
+        detection_id_to_obj[platform_detection] = platform
 
         bucket = Object("bucket", _container_type)
         bucket_detection = LanguageObjectDetectionID(bucket_prompt)

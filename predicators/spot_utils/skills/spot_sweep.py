@@ -157,7 +157,8 @@ if __name__ == "__main__":
         #                                         {train_toy_detection_id})
         # train_toy_pose = detections[train_toy_detection_id]
 
-        train_toy_pose = math_helpers.SE3Pose(2.336, -1.994, -0.077, math_helpers.Quat())
+        train_toy_pose = math_helpers.SE3Pose(2.336, -1.994, -0.077,
+                                              math_helpers.Quat())
 
         # # Move the hand to the side so that the brush can face forward.
         # hand_side_pose = math_helpers.SE3Pose(x=0.80,
