@@ -665,7 +665,10 @@ class SpotRearrangementEnv(BaseEnv):
         op_name, op_objects, _, _ = action.extra_info
         op_name_to_op = {o.name: o for o in self._strips_operators}
         op = op_name_to_op[op_name]
-        ground_op = op.ground(tuple(op_objects))
+        try:
+            ground_op = op.ground(tuple(op_objects))
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
         # Update the atoms using the operator.
         next_ground_atoms = utils.apply_operator(ground_op,
                                                  obs.nonpercept_atoms)

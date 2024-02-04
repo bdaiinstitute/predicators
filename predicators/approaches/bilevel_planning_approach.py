@@ -62,7 +62,7 @@ class BilevelPlanningApproach(BaseApproach):
         # Run task planning only and then greedily sample and execute in the
         # policy.
         if self._plan_without_sim:
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             nsrt_plan, atoms_seq, metrics = self._run_task_plan(
                 task, nsrts, preds, timeout, seed)
             self._last_nsrt_plan = nsrt_plan
@@ -72,7 +72,7 @@ class BilevelPlanningApproach(BaseApproach):
             logging.debug("Current Task Plan:")
             for act in nsrt_plan:
                 print(act.name, act.objects) # logging.debug(act)
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
 
 
         # Run full bilevel planning.

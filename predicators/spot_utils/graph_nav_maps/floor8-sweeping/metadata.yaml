@@ -14,8 +14,8 @@ allowed-regions:
   main-room:
     - [0.15, -2.25]
     - [0.15, 1.23]
-    - [4.0, 1.23]
-    - [4.0, -2.25]
+    - [3.95, 1.23] #[4.0, 1.23]
+    - [3.95, -2.25] #[4.0, -2.25]
 # Known immovable objects. Assuming default rotations.
 known-immovable-objects:
   floor:
