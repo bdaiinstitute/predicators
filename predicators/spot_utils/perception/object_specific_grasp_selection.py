@@ -66,9 +66,9 @@ def _get_platform_grasp_pixel(
         detections = artifacts["language"]["object_id_to_img_detections"]
         # select a pixel in the center of the image.
         try:
-            seg_bb = detections[ball_obj][camera_name]
+            seg_bb = detections[platform_obj][camera_name]
         except KeyError:
-            raise ValueError(f"{ball_obj} not detected in {camera_name}")
+            raise ValueError(f"{platform_obj} not detected in {camera_name}")
         # Select the last (bottom-most) pixel from the mask. We do this because the
         # back finger of the robot gripper might displace the ball during grasping
         # if we try to grasp at the center.
@@ -97,7 +97,11 @@ def _get_platform_grasp_pixel(
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    return pixel, None
+    # Force a forward top-down grasp.
+    roll = math_helpers.Quat.from_roll(np.pi / 2)
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+
+    return pixel, pitch * roll
 
 
 def _get_ball_grasp_pixel(

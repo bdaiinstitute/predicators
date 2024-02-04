@@ -1190,10 +1190,6 @@ def _object_adjacent_to_surface(object: Object, surface: Object, state: State,
     object_y = state.get(object, "y")
 
     dist = np.sqrt((expected_x - object_x)**2 + (expected_y - object_y)**2)
-
-    if "platform" in object.name and "shelf" in surface.name:
-        print(f"dist between platform and shelf: {dist}")
-
     return dist <= adjacency_thresh
 
 

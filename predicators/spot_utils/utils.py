@@ -347,7 +347,7 @@ def sample_move_offset_from_target(
     min_distance: float,
     max_distance: float,
     allowed_regions: Collection[scipy.spatial.Delaunay],  # pylint: disable=no-member
-    max_samples: int = 1000,
+    max_samples: int = 10000,
     min_angle: float = -np.pi,
     max_angle: float = np.pi,
 ) -> Tuple[float, float, Rectangle]:

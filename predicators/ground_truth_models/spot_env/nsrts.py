@@ -96,16 +96,20 @@ def _closer_move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom]
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 0.8
-    max_dist = 1.25
+    min_dist = 0.85
+    max_dist = 1.0
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
-    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
+    # HACK! Hardcoded for now
+    min_angle, max_angle = (3 * np.pi / 4) - 0.05, (3 * np.pi / 4) + 0.05 #_get_approach_angle_bounds(obj_to_nav_to, state)
 
-    return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
+    ret_val =  _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
+    
+    print(ret_val)
+    return ret_val
 
 
 def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
@@ -243,7 +247,8 @@ def _drop_object_inside_sampler(state: State, goal: Set[GroundAtom],
         dx, dy = rng.uniform(-0.4, 0.4, size=2)
         drop_height = rng.uniform(0.1, 0.6, size=1).item()
         if objs[2].name == "bucket":
-            dx, dy = rng.uniform(-0.03, 0.03, size=2)
+            dx = rng.uniform(-0.045, 0.01, size=1).item()
+            dy = rng.uniform(-0.09, -0.01, size=1).item()
             drop_height = rng.uniform(0.1, 0.3, size=1).item()
 
     return np.array([dx, dy, drop_height])

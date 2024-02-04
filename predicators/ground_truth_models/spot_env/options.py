@@ -190,10 +190,10 @@ def _drag_platform_to_shelf(robot: Robot) -> None:
     the shelf. Note that currently this only works for the floor8-sweeping
     map setup."""
     # First move backwards slightly.
-    slightly_back_pose = math_helpers.SE2Pose(-0.65, 0.0, 0.0)
+    slightly_back_pose = math_helpers.SE2Pose(-0.85, 0.0, 0.0)
     navigate_to_relative_pose(robot, slightly_back_pose)
     # Now, rotate about 135 degrees.
-    rotated_pose = math_helpers.SE2Pose(0.0, 0.0, 3.25 * np.pi / 4)
+    rotated_pose = math_helpers.SE2Pose(0.0, 0.0, 3.15 * np.pi / 4)
     navigate_to_relative_pose(robot, rotated_pose)
     # Now, move forward to align with the shelf.
     final_shelf_pose = math_helpers.SE2Pose(1.30, 0.0, 0.0)
