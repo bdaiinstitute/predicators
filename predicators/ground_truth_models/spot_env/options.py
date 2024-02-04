@@ -456,7 +456,7 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
 def _move_to_hand_view_object_policy(state: State, memory: Dict,
                                      objects: Sequence[Object],
                                      params: Array) -> Action:
-    name = "MoveToHandViewObjectNotHigh"
+    name = "MoveToHandViewObject"
     distance_param_idx = 0
     yaw_param_idx = 1
     robot_obj_idx = 0
@@ -514,7 +514,7 @@ def _pick_object_to_drag_policy(state: State, memory: Dict,
 def _pick_and_dump_cup_policy(state: State, memory: Dict,
                               objects: Sequence[Object],
                               params: Array) -> Action:
-    # Same as PickObjectFromTopNotHigh; just necessary to make options 1:1 with
+    # Same as PickObjectFromTop; just necessary to make options 1:1 with
     # operators.
     name = "PickAndDumpCup"
     target_obj_idx = 1
@@ -815,21 +815,21 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
 
 _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReachObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
-    "MoveToHandViewObjectNotHigh": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToHandViewObjectTooHigh": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
-    "PickObjectFromTopNotHigh": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTopNotHigh
+    "PickObjectFromTop": Box(-np.inf, np.inf, (6, )),
+    # same as PickObjectFromTop
     "PickObjectFromTopHigh": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTopNotHigh
+    # same as PickObjectFromTop
     "PickAndDumpCup": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTopNotHigh
+    # same as PickObjectFromTop
     "PickAndDumpContainer": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTopNotHigh
+    # same as PickObjectFromTop
     "PickAndDumpTwoFromContainer": Box(-np.inf, np.inf, (6, )),
-    # same as PickObjectFromTopNotHigh
+    # same as PickObjectFromTop
     "PickObjectToDrag": Box(-np.inf, np.inf, (6, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
@@ -849,10 +849,10 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 # that includes the name of the operators.
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
-    "MoveToHandViewObjectNotHigh": _move_to_hand_view_object_policy,
+    "MoveToHandViewObject": _move_to_hand_view_object_policy,
     "MoveToHandViewObjectTooHigh": _move_to_hand_view_object_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
-    "PickObjectFromTopNotHigh": _pick_object_from_top_policy,
+    "PickObjectFromTop": _pick_object_from_top_policy,
     "PickObjectFromTopHigh": _pick_object_from_top_policy,
     "PickObjectToDrag": _pick_object_to_drag_policy,
     "PickAndDumpCup": _pick_and_dump_cup_policy,

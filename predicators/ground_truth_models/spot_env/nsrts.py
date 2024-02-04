@@ -336,11 +336,11 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
         nsrts = set()
 
         operator_name_to_sampler: Dict[str, NSRTSampler] = {
-            "MoveToHandViewObjectNotHigh": _move_to_hand_view_object_sampler,
+            "MoveToHandViewObject": _move_to_hand_view_object_sampler,
             "MoveToHandViewObjectTooHigh": _closer_move_to_hand_view_object_sampler,
             "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
-            "PickObjectFromTopNotHigh": _pick_object_from_top_sampler,
+            "PickObjectFromTop": _pick_object_from_top_sampler,
             "PickObjectFromTopHigh": _pick_object_from_top_sampler,
             "PickObjectToDrag": _pick_object_from_top_sampler,
             "PickAndDumpCup": _pick_object_from_top_sampler,

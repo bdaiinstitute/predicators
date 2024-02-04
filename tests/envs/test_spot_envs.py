@@ -96,8 +96,8 @@ def test_spot_main_sweep_env_dry_run(graph_nav_map):
     # do the whole thing again.
     nsrt_name_to_nsrt = {n.name: n for n in nsrts}
     MoveToReachObject = nsrt_name_to_nsrt["MoveToReachObject"]
-    MoveToHandViewObjectNotHigh = nsrt_name_to_nsrt["MoveToHandViewObjectNotHigh"]
-    PickObjectFromTopNotHigh = nsrt_name_to_nsrt["PickObjectFromTopNotHigh"]
+    MoveToHandViewObject = nsrt_name_to_nsrt["MoveToHandViewObject"]
+    PickObjectFromTop = nsrt_name_to_nsrt["PickObjectFromTop"]
     PickObjectToDrag = nsrt_name_to_nsrt["PickObjectToDrag"]
     PlaceObjectOnTop = nsrt_name_to_nsrt["PlaceObjectOnTop"]
     DragToUnblockObject = nsrt_name_to_nsrt["DragToUnblockObject"]
@@ -149,24 +149,24 @@ def test_spot_main_sweep_env_dry_run(graph_nav_map):
             assert_delete_effects=assert_delete_effects)
 
     # Set up all the NSRTs for the following tests.
-    move_to_hand_view_bucket = MoveToHandViewObjectNotHigh.ground([robot, bucket])
-    pick_bucket = PickObjectFromTopNotHigh.ground([robot, bucket, floor])
+    move_to_hand_view_bucket = MoveToHandViewObject.ground([robot, bucket])
+    pick_bucket = PickObjectFromTop.ground([robot, bucket, floor])
     prepare_bucket = PrepareContainerForSweeping.ground(
         [robot, bucket, train_toy, table])
-    move_to_hand_view_chair = MoveToHandViewObjectNotHigh.ground([robot, chair])
+    move_to_hand_view_chair = MoveToHandViewObject.ground([robot, chair])
     pick_chair = PickObjectToDrag.ground([robot, chair])
     drag_chair = DragToUnblockObject.ground([robot, chair, train_toy])
-    move_to_hand_view_brush = MoveToHandViewObjectNotHigh.ground([robot, brush])
-    pick_brush = PickObjectFromTopNotHigh.ground([robot, brush, floor])
+    move_to_hand_view_brush = MoveToHandViewObject.ground([robot, brush])
+    pick_brush = PickObjectFromTop.ground([robot, brush, floor])
     move_to_reach_train_toy = MoveToReachObject.ground([robot, train_toy])
     sweep = SweepIntoContainer.ground([robot, brush, train_toy, table, bucket])
     move_to_reach_floor = MoveToReachObject.ground([robot, floor])
     place_brush = PlaceObjectOnTop.ground([robot, brush, floor])
     dump_bucket = PickAndDumpContainer.ground(
         [robot, bucket, floor, train_toy])
-    move_to_hand_view_train_toy = MoveToHandViewObjectNotHigh.ground(
+    move_to_hand_view_train_toy = MoveToHandViewObject.ground(
         [robot, train_toy])
-    pick_train_toy = PickObjectFromTopNotHigh.ground([robot, train_toy, floor])
+    pick_train_toy = PickObjectFromTop.ground([robot, train_toy, floor])
     move_to_reach_table = MoveToReachObject.ground([robot, table])
     place_train_toy = PlaceObjectOnTop.ground([robot, train_toy, table])
 
@@ -252,7 +252,7 @@ def real_robot_cube_env_test() -> None:
     state = perceiver.step(obs)
     spot = next(o for o in state if o.type.name == "robot")
     nsrt_name_to_nsrt = {n.name: n for n in nsrts}
-    MoveToHandViewObjectNotHigh = nsrt_name_to_nsrt["MoveToHandViewObjectNotHigh"]
+    MoveToHandViewObject = nsrt_name_to_nsrt["MoveToHandViewObject"]
     MoveToReachObject = nsrt_name_to_nsrt["MoveToReachObject"]
     ground_nsrts: List[_GroundNSRT] = []
     for nsrt in sorted(nsrts):
@@ -273,7 +273,7 @@ def real_robot_cube_env_test() -> None:
     target_table = table1 if init_table is table2 else table2
 
     # Find the applicable NSRTs.
-    move_to_cube_nsrt = MoveToHandViewObjectNotHigh.ground((spot, cube))
+    move_to_cube_nsrt = MoveToHandViewObject.ground((spot, cube))
     # Sample and run an option to move to the surface.
     option = move_to_cube_nsrt.sample_option(state, set(), rng)
     actions: List[Action] = []  # to test pickling
@@ -294,8 +294,8 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(InHandView, [spot, cube]).holds(state)
 
     # Now sample and run an option to pick from the surface.
-    PickObjectFromTopNotHigh = nsrt_name_to_nsrt["PickObjectFromTopNotHigh"]
-    grasp_cube_nrst = PickObjectFromTopNotHigh.ground([spot, cube, init_table])
+    PickObjectFromTop = nsrt_name_to_nsrt["PickObjectFromTop"]
+    grasp_cube_nrst = PickObjectFromTop.ground([spot, cube, init_table])
     assert all(a.holds(state) for a in grasp_cube_nrst.preconditions)
     option = grasp_cube_nrst.sample_option(state, set(), rng)
     assert option.initiable(state)
@@ -364,8 +364,8 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(HandEmpty, [spot]).holds(state)
 
     # Sample an option to pick from the surface again.
-    PickObjectFromTopNotHigh = nsrt_name_to_nsrt["PickObjectFromTopNotHigh"]
-    grasp_cube_nsrt = PickObjectFromTopNotHigh.ground([spot, cube, target_table])
+    PickObjectFromTop = nsrt_name_to_nsrt["PickObjectFromTop"]
+    grasp_cube_nsrt = PickObjectFromTop.ground([spot, cube, target_table])
     assert all(a.holds(state) for a in grasp_cube_nsrt.preconditions)
     option = grasp_cube_nsrt.sample_option(state, set(), rng)
     assert option.initiable(state)
@@ -409,8 +409,8 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(OnFloor, [cube, floor]).holds(state)
 
     # Move to the object on the floor.
-    MoveToHandViewObjectNotHigh = nsrt_name_to_nsrt["MoveToHandViewObjectNotHigh"]
-    move_to_cube_on_floor = MoveToHandViewObjectNotHigh.ground([spot, cube])
+    MoveToHandViewObject = nsrt_name_to_nsrt["MoveToHandViewObject"]
+    move_to_cube_on_floor = MoveToHandViewObject.ground([spot, cube])
     assert all(a.holds(state) for a in move_to_cube_on_floor.preconditions)
     option = move_to_cube_on_floor.sample_option(state, set(), rng)
     assert option.initiable(state)
@@ -426,8 +426,8 @@ def real_robot_cube_env_test() -> None:
     assert GroundAtom(InHandView, [spot, cube]).holds(state)
 
     # Now pick from floor.
-    PickObjectFromTopNotHigh = nsrt_name_to_nsrt["PickObjectFromTopNotHigh"]
-    grasp_cube_nrst = PickObjectFromTopNotHigh.ground([spot, cube, floor])
+    PickObjectFromTop = nsrt_name_to_nsrt["PickObjectFromTop"]
+    grasp_cube_nrst = PickObjectFromTop.ground([spot, cube, floor])
     assert all(a.holds(state) for a in grasp_cube_nrst.preconditions)
     option = grasp_cube_nrst.sample_option(state, set(), rng)
     assert option.initiable(state)

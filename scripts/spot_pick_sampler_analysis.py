@@ -30,7 +30,7 @@ def _main() -> None:
     # state should not be used.
     state = _create_example_state(env)
     # Load the parameterized option of interest.
-    skill_name = "PickObjectFromTopNotHigh"
+    skill_name = "PickObjectFromTop"
     options = get_gt_options(env.get_name())
     option = next(o for o in options if o.name == skill_name)
     # Create separate plots for each movable object in the environment.

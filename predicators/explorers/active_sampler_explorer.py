@@ -283,7 +283,7 @@ class ActiveSamplerExplorer(BaseExplorer):
 
                             # HACK! Specific to the sweeping env so we don't
                             # practice grasping.
-                            if nsrt.name == "PickObjectFromTopNotHigh":
+                            if nsrt.name == "PickObjectFromTop":
                                 continue
 
                             # NOTE: setting nonlocal variable.
