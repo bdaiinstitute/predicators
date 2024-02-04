@@ -985,6 +985,9 @@ def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
     top1 = state.get(obj1, "z") + state.get(obj1, "height") / 2
     top2 = state.get(obj2, "z") + state.get(obj2, "height") / 2
 
+    if "shelf" in obj1.name:
+        return False
+
     return top1 > top2
 
 

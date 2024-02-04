@@ -120,6 +120,7 @@ class NSRTLearningApproach(BilevelPlanningApproach):
             self._compute_sidelining_objective_value(trajectories)
 
     def load(self, online_learning_cycle: Optional[int]) -> None:
+        
         save_path = utils.get_approach_load_path_str()
         with open(f"{save_path}_{online_learning_cycle}.NSRTs", "rb") as f:
             self._nsrts = pkl.load(f)
@@ -142,6 +143,30 @@ class NSRTLearningApproach(BilevelPlanningApproach):
         # Seed the option parameter spaces after loading.
         for nsrt in self._nsrts:
             nsrt.option.params_space.seed(CFG.seed)
+
+        # HACK!
+        nsrts_to_del = set()
+        for nsrt in self._nsrts:
+            if nsrt.name in ["PickObjectFromTop", "MoveToHandViewObject"]:
+                nsrts_to_del.add(nsrt)
+        self._nsrts = self._nsrts - nsrts_to_del
+
+        oracle_nsrts, _, _ = \
+            learn_nsrts_from_data([],
+                                  self._train_tasks,
+                                  self._get_current_predicates(),
+                                  self._initial_options,
+                                  self._action_space,
+                                  [],
+                                  sampler_learner=CFG.sampler_learner,
+                                  annotations=None)
+
+        nsrts_to_add = set()
+        for nsrt in oracle_nsrts:
+            if nsrt.name in ["PickObjectFromTop", "MoveToHandViewObject", "PickObjectFromTopHigh", "MoveToHandViewObjectTooHigh", "DragPlatformInFrontOfSurface"]:
+                nsrts_to_add.add(nsrt)
+        self._nsrts = self._nsrts | nsrts_to_add
+
 
     def _compute_sidelining_objective_value(
             self, trajectories: List[LowLevelTrajectory]) -> None:
