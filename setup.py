@@ -34,7 +34,7 @@ setup(
         "lisdf",
         "moviepy==1.0.3",
         "apriltag==0.0.16",
-        "scikit-image==0.21.0",
+        "scikit-image==0.19.3",
         "protobuf==4.22.0",
         "seaborn==0.12.1",
         "smepy@git+https://github.com/sebdumancic/structure_mapping.git",
