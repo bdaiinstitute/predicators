@@ -30,6 +30,7 @@ from predicators.structs import NSRT, Action, DefaultState, \
 _TaskID = Tuple[str, int]
 
 
+
 class ActiveSamplerExplorer(BaseExplorer):
     """Uses past ground operator successes and failures to choose a ground
     operator to "practice". Makes a plan to visit the ground operator and try
