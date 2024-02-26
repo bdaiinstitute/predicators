@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
 
+import pbrspot
 import matplotlib
 import numpy as np
 from bosdyn.client import RetryableRpcError, create_standard_sdk, math_helpers
@@ -198,6 +199,21 @@ class SpotRearrangementEnv(BaseEnv):
         assert "spot_wrapper" in CFG.approach or \
                "spot_wrapper" in CFG.approach_wrapper, \
             "Must use spot wrapper in spot envs!"
+        # If we're doing proper bilevel planning, then we need to instantiate
+        # a simulator!
+        if not CFG.bilevel_plan_without_sim:
+            # First, launch pybullet.
+            pbrspot.utils.connect(use_gui=True)
+            pbrspot.utils.disable_real_time()
+            pbrspot.utils.set_default_camera()
+            # Create robot object 
+            self.sim_robot = pbrspot.spot.Spot()
+            self.sim_robot.set_point([0, 0, 0])
+            floor_urdf = utils.get_env_asset_path("urdf/spot_related/floor.urdf")
+            floor_obj = pbrspot.body.createBody(floor_urdf)
+            floor_obj.set_point([0, 0, 0])
+            import ipdb; ipdb.set_trace()
+        
         robot, localizer, lease_client = get_robot()
         self._robot = robot
         self._localizer = localizer
@@ -220,6 +236,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
