@@ -58,6 +58,9 @@ def navigate_to_relative_pose_and_gaze(robot: Robot,
     gaze_at_relative_pose(robot, rel_gaze_target_body)
 
 
+# TODO: make a navigation action for pybullet that just teleports the robot?
+# Need to figure out how exactly to gaze at something...
+
 def _grasp_at_pixel_and_maybe_stow_or_dump(
         robot: Robot, img: RGBDImageWithContext, pixel: Tuple[int, int],
         grasp_rot: Optional[math_helpers.Quat], rot_thresh: float,

@@ -423,9 +423,9 @@ class SpotRearrangementEnv(BaseEnv):
         return self._current_task.init_obs
 
     def step(self, action: Action) -> Observation:
-        """Override step() because simulate() is not implemented."""
+        """Override step() for real-world execution!"""
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, action_fn, action_fn_args = action.extra_info
+        action_name, action_objs, action_fn, action_fn_args, _, _ = action.extra_info
         self._last_action = action
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
@@ -706,8 +706,9 @@ class SpotRearrangementEnv(BaseEnv):
         }
 
     def simulate(self, state: State, action: Action) -> State:
-        import ipdb
-        ipdb.set_trace()
+        assert isinstance(action.extra_info, (list, tuple))
+        action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
+        
         raise NotImplementedError("Simulate not implemented for SpotEnv.")
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
