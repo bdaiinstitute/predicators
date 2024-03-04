@@ -8,6 +8,7 @@ from typing import Collection, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+import pbrspot
 import scipy
 import yaml
 from bosdyn.api import estop_pb2, robot_state_pb2
@@ -411,3 +412,23 @@ def spot_pose_to_geom2d(pose: math_helpers.SE3Pose) -> Rectangle:
     yaw = pose.rot.to_yaw()
     return Rectangle.from_center(pose.x, pose.y, front_to_back_length,
                                  side_length, yaw)
+
+
+def update_pbrspot_robot_conf(robot: Robot,
+                              sim_robot: pbrspot.spot.Spot) -> None:
+    """Simply updates the simulated spot to mirror the configuration of the
+    real robot."""
+    curr_robot_state = get_robot_state(robot)
+    robot_joint_to_curr_conf: Dict[str, float] = {}
+    for joint in curr_robot_state.kinematic_state.joint_states:
+        robot_joint_to_curr_conf[joint.name.replace(".", "_").replace(
+            "arm0", "arm")] = joint.position.value
+    sim_robot.set_joint_positions(sim_robot.body_joint_names, [
+        robot_joint_to_curr_conf[j_name]
+        for j_name in sim_robot.body_joint_names
+    ])
+    arm_conf = [
+        robot_joint_to_curr_conf[j_name]
+        for j_name in sim_robot.arm_joint_names
+    ]
+    sim_robot.arm.set_configuration(arm_conf)

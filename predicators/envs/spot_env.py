@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
 
-import pbrspot
 import matplotlib
 import numpy as np
+import pbrspot
 from bosdyn.client import RetryableRpcError, create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
@@ -43,7 +43,8 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
     get_allowed_map_regions, get_graph_nav_dir, \
     get_robot_gripper_open_percentage, get_spot_home_pose, \
-    load_spot_metadata, object_to_top_down_geom, verify_estop
+    load_spot_metadata, object_to_top_down_geom, update_pbrspot_robot_conf, \
+    verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -182,6 +183,13 @@ def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     return obj_to_pose
 
 
+# HACK!: Pybullet gets mad if we try to connect to it multiple times,
+# so we're going to instantiate a global variable here to indicate
+# whether or not we've connected to pybullet before.
+
+_SIMULATED_SPOT_ROBOT = None
+
+
 class SpotRearrangementEnv(BaseEnv):
     """An environment containing tasks for a real Spot robot to execute.
 
@@ -199,21 +207,32 @@ class SpotRearrangementEnv(BaseEnv):
         assert "spot_wrapper" in CFG.approach or \
                "spot_wrapper" in CFG.approach_wrapper, \
             "Must use spot wrapper in spot envs!"
+
         # If we're doing proper bilevel planning, then we need to instantiate
         # a simulator!
+        global _SIMULATED_SPOT_ROBOT
         if not CFG.bilevel_plan_without_sim:
-            # First, launch pybullet.
-            pbrspot.utils.connect(use_gui=True)
-            pbrspot.utils.disable_real_time()
-            pbrspot.utils.set_default_camera()
-            # Create robot object 
-            self.sim_robot = pbrspot.spot.Spot()
-            self.sim_robot.set_point([0, 0, 0])
-            floor_urdf = utils.get_env_asset_path("urdf/spot_related/floor.urdf")
-            floor_obj = pbrspot.body.createBody(floor_urdf)
-            floor_obj.set_point([0, 0, 0])
-            import ipdb; ipdb.set_trace()
-        
+            if _SIMULATED_SPOT_ROBOT is None:
+                # First, launch pybullet.
+                pbrspot.utils.connect(use_gui=True)
+                pbrspot.utils.disable_real_time()
+                pbrspot.utils.set_default_camera()
+                # Create robot object atop the floor.
+                self.sim_robot = pbrspot.spot.Spot()
+                floor_urdf = utils.get_env_asset_path(
+                    "urdf/spot_related/floor.urdf")
+                floor_obj = pbrspot.body.createBody(floor_urdf)
+                # The floor is known to be about 40cm below the
+                # robot's position.
+                floor_obj.set_point([0, 0, -0.4])
+                self.sim_robot.set_point([
+                    0, 0,
+                    pbrspot.placements.stable_z(self.sim_robot, floor_obj)
+                ])
+                _SIMULATED_SPOT_ROBOT = self.sim_robot
+            else:
+                self.sim_robot = _SIMULATED_SPOT_ROBOT
+
         robot, localizer, lease_client = get_robot()
         self._robot = robot
         self._localizer = localizer
@@ -236,7 +255,6 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
-
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -688,6 +706,8 @@ class SpotRearrangementEnv(BaseEnv):
         }
 
     def simulate(self, state: State, action: Action) -> State:
+        import ipdb
+        ipdb.set_trace()
         raise NotImplementedError("Simulate not implemented for SpotEnv.")
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
@@ -718,6 +738,31 @@ class SpotRearrangementEnv(BaseEnv):
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds)
         goal_description = self._generate_goal_description()
+
+        if not CFG.bilevel_plan_without_sim:
+            # Start by modifying the robot to be in the right
+            # position and configuration.
+            # TODO: setting the robot pose causes it to be wildly wrong w.r.t the
+            # real world???
+            # TODO: we're not really setting the quaternion of the robot here
+            # but we probably should!
+            self.sim_robot.set_point([robot_pos.x, robot_pos.y, robot_pos.z])
+            update_pbrspot_robot_conf(self._robot, self.sim_robot)
+
+            # Find the relevant object urdfs and then put them at the
+            # right places in the world. Importantly note that we
+            # expect the name of the object to be the same as the name
+            # of the urdf file!
+            for obj, pose in objects_in_view.items():
+                # The floor object is loaded during init and thus treated
+                # separately.
+                if obj.name == "floor":
+                    continue
+                obj_urdf = utils.get_env_asset_path(
+                    f"urdf/spot_related/{obj.name}.urdf", assert_exists=True)
+                obj_obj = pbrspot.body.createBody(obj_urdf)
+                obj_obj.set_point([pose.x, pose.y, pose.z])
+
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
         json_objects = {o.name: o.type.name for o in objects_in_view}
@@ -2352,6 +2397,56 @@ class SpotCubeEnv(SpotRearrangementEnv):
         # Finish the task.
         goal_description = self._generate_goal_description()
         return EnvironmentTask(init_obs, goal_description)
+
+
+###############################################################################
+#                                Soda Floor Env                               #
+###############################################################################
+
+
+class SpotSodaFloorEnv(SpotRearrangementEnv):
+    """An extremely basic environment where a soda can needs to be picked up.
+
+    Very simple and mostly just for testing.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_soda_floor_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        soda_can = Object("soda_can", _movable_object_type)
+        soda_can_detection = LanguageObjectDetectionID("soda can")
+        detection_id_to_obj[soda_can_detection] = soda_can
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "pick up the soda can"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
 
 
 ###############################################################################

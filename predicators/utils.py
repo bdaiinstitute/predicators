@@ -3719,13 +3719,16 @@ def get_se3_pose_from_state(
 def create_spot_env_action(
     action_name: str,
     operator_objects: Sequence[Object] = tuple(),
-    fn: Optional[Callable] = None,
-    fn_args: Sequence = tuple()
+    real_world_fn: Optional[Callable] = None,
+    real_world_fn_args: Sequence = tuple(),
+    simulation_fn: Optional[Callable] = None,
+    simulation_fn_args: Sequence = tuple()
 ) -> Action:  # pragma: no cover
     """Helper for spot environments."""
     return SpotAction(np.array([], dtype=np.float32),
-                      extra_info=(action_name, tuple(operator_objects), fn,
-                                  tuple(fn_args)))
+                      extra_info=(action_name, tuple(operator_objects),
+                                  real_world_fn, tuple(real_world_fn_args),
+                                  simulation_fn, simulation_fn_args))
 
 
 def _obs_to_state_pass_through(obs: Observation) -> State:
