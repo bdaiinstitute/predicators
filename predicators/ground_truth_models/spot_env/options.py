@@ -4,6 +4,7 @@ import time
 from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
+import pbrspot
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 from gym.spaces import Box
@@ -12,7 +13,7 @@ from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotRearrangementEnv, _get_sweeping_surface_for_container, get_robot, \
-    get_robot_gripper_open_percentage
+    get_robot_gripper_open_percentage, get_simulated_robot
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
@@ -23,7 +24,8 @@ from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_navigation import \
-    navigate_to_absolute_pose, navigate_to_relative_pose
+    navigate_to_absolute_pose, navigate_to_relative_pose, \
+    simulated_navigate_to_relative_pose
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
@@ -58,8 +60,15 @@ def navigate_to_relative_pose_and_gaze(robot: Robot,
     gaze_at_relative_pose(robot, rel_gaze_target_body)
 
 
-# TODO: make a navigation action for pybullet that just teleports the robot?
-# Need to figure out how exactly to gaze at something...
+def simulated_navigate_to_relative_pose_and_gaze(
+        sim_robot: pbrspot.spot.Spot, rel_pose: math_helpers.SE2Pose,
+        gaze_target: math_helpers.Vec3) -> None:
+    """Teleports the pybullet spot robot to rel_pose and then gazes at
+    gaze_target via the hand."""
+    simulated_navigate_to_relative_pose(sim_robot, rel_pose)
+    # Somehow get the arm to gaze at the target correctly? Maybe for now we can just
+    # mock this and teleport...
+
 
 def _grasp_at_pixel_and_maybe_stow_or_dump(
         robot: Robot, img: RGBDImageWithContext, pixel: Tuple[int, int],
@@ -226,6 +235,7 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
     del memory  # not used
 
     robot, localizer, _ = get_robot()
+    sim_robot = get_simulated_robot()
 
     distance = params[distance_param_idx]
     yaw = params[yaw_param_idx]
@@ -245,11 +255,16 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
     if not do_gaze:
         fn: Callable = navigate_to_relative_pose
         fn_args: Tuple = (robot, rel_pose)
+        sim_fn: Callable = simulated_navigate_to_relative_pose
+        sim_fn_args: Tuple = (sim_robot, rel_pose)
     else:
         fn = navigate_to_relative_pose_and_gaze
         fn_args = (robot, rel_pose, localizer, gaze_target)
+        sim_fn: Callable = simulated_navigate_to_relative_pose_and_gaze
+        sim_fn_args: Tuple = (sim_robot, rel_pose, gaze_target)
 
-    return utils.create_spot_env_action(name, objects, fn, fn_args)
+    return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
+                                        sim_fn_args)
 
 
 def _grasp_policy(name: str,

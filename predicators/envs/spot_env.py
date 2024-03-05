@@ -53,6 +53,12 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
 #                                Base Class                                   #
 ###############################################################################
 
+# HACK!: Pybullet gets mad if we try to connect to it multiple times,
+# so we're going to instantiate a global variable here to indicate
+# whether or not we've connected to pybullet before.
+
+_SIMULATED_SPOT_ROBOT = None
+
 
 @dataclass(frozen=True)
 class _SpotObservation:
@@ -167,6 +173,11 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
     return obj_to_detection_id[obj]
 
 
+def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
+    """Return the simulated robot object."""
+    return _SIMULATED_SPOT_ROBOT
+
+
 def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     """Load known immovable object poses from metadata."""
     known_immovables = load_spot_metadata()["known-immovable-objects"]
@@ -181,13 +192,6 @@ def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
                                     rot=rot)
         obj_to_pose[obj] = pose
     return obj_to_pose
-
-
-# HACK!: Pybullet gets mad if we try to connect to it multiple times,
-# so we're going to instantiate a global variable here to indicate
-# whether or not we've connected to pybullet before.
-
-_SIMULATED_SPOT_ROBOT = None
 
 
 class SpotRearrangementEnv(BaseEnv):
@@ -708,7 +712,7 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
-        
+
         raise NotImplementedError("Simulate not implemented for SpotEnv.")
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
