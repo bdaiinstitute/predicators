@@ -141,8 +141,9 @@ def get_robot(
 
     If we are doing a dry run, return dummy Nones for each component.
     """
-    if CFG.spot_run_dry:
-        return None, None, None
+    # HACK: Commenting out for now!
+    # if CFG.spot_run_dry:
+    return None, None, None
     setup_logging(False)
     hostname = CFG.spot_robot_ip
     path = get_graph_nav_dir()
@@ -241,6 +242,7 @@ class SpotRearrangementEnv(BaseEnv):
         self._robot = robot
         self._localizer = localizer
         self._lease_client = lease_client
+
         # Note that we need to include the operators in this
         # class because they're used to update the symbolic
         # parts of the state during execution.
@@ -395,6 +397,8 @@ class SpotRearrangementEnv(BaseEnv):
 
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
+
+
 
     def reset(self, train_or_test: str, task_idx: int) -> Observation:
         # NOTE: task_idx and train_or_test ignored unless loading from JSON!
@@ -712,6 +716,7 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
+        import ipdb; ipdb.set_trace()
 
         raise NotImplementedError("Simulate not implemented for SpotEnv.")
 
@@ -832,10 +837,51 @@ class SpotRearrangementEnv(BaseEnv):
         raise NotImplementedError("This env does not use Matplotlib")
 
     def _load_task_from_json(self, json_file: Path) -> EnvironmentTask:
-        # Use the BaseEnv default code for loading from JSON, which will
-        # create a State as an observation. We'll then convert that State
-        # into a _SpotObservation instead.
-        base_env_task = super()._load_task_from_json(json_file)
+        # NOTE: Code copied from load_task_json of superclass.
+        with open(json_file, "r", encoding="utf-8") as f:
+            json_dict = json.load(f)
+        object_name_to_object: Dict[str, Object] = {}
+        # Parse objects.
+        type_name_to_type = {t.name: t for t in self.types}
+        for obj_name, type_name in json_dict["objects"].items():
+            obj_type = type_name_to_type[type_name]
+            obj = Object(obj_name, obj_type)
+            object_name_to_object[obj_name] = obj
+        assert set(object_name_to_object).\
+            issubset(set(json_dict["init"])), \
+            "The init state can only include objects in `objects`."
+        assert set(object_name_to_object).\
+            issuperset(set(json_dict["init"])), \
+            "The init state must include every object in `objects`."
+        # Parse initial state.
+        init_dict: Dict[Object, Dict[str, float]] = {}
+        for obj_name, obj_dict in json_dict["init"].items():
+            obj = object_name_to_object[obj_name]
+            init_dict[obj] = obj_dict.copy()
+        # Get the object detection id's, which are features of
+        # each object type.
+        obj_to_detection_id = {v: k for k, v in self._detection_id_to_obj.items()}
+        for obj in init_dict.keys():
+            if obj in obj_to_detection_id:
+                init_dict[obj]["object_id"] = obj_to_detection_id[obj]
+        init_state = utils.create_state_from_dict(init_dict)
+        # Parse goal.
+        if "goal" in json_dict:
+            goal = self._parse_goal_from_json(json_dict["goal"],
+                                              object_name_to_object)
+        elif "goal_description" in json_dict:  # pragma: no cover
+            goal = json_dict["goal_description"]
+        else:  # pragma: no cover
+            if CFG.override_json_with_input:
+                goal = self._parse_goal_from_input_to_json(
+                    init_state, json_dict, object_name_to_object)
+            else:
+                assert "language_goal" in json_dict
+                goal = self._parse_language_goal_from_json(
+                    json_dict["language_goal"], object_name_to_object)
+        base_env_task = EnvironmentTask(init_state, goal)
+        
+        # TODO
         init = base_env_task.init
         # Images not currently saved or used.
         images: Dict[str, RGBDImageWithContext] = {}
