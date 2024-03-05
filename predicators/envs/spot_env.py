@@ -438,7 +438,6 @@ class SpotRearrangementEnv(BaseEnv):
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
-
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
         assert self.action_space.contains(action.arr)
@@ -469,7 +468,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Otherwise, the action is either an operator to execute or a special
         # action. The only difference between the two is that operators update
-        # the non-perfect states.
+        # the non-percept states.
 
         operator_names = {o.name for o in self._strips_operators}
 
@@ -716,9 +715,47 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
-        import ipdb; ipdb.set_trace()
+         # The extra info is (action name, objects, function, function args).
+        # The action name is either an operator name (for use with nonpercept
+        # predicates) or a special name. See below for the special names.
+        obs = self._current_observation
+        assert isinstance(obs, _SpotObservation)
+        assert self.action_space.contains(action.arr)
 
-        raise NotImplementedError("Simulate not implemented for SpotEnv.")
+        # Special case: the action is "done", indicating that the robot
+        # believes it has finished the task. Used for goal checking.
+        if action_name == "done":
+
+            # During planning, trust that the goal is accomplished if the
+            # done action is returned, since we don't want a human in the loop.
+            self._current_task_goal_reached = True
+            return self._current_observation
+
+        # Otherwise, the action is either an operator to execute or a special
+        # action. The only difference between the two is that operators update
+        # the non-percept states.
+
+        operator_names = {o.name for o in self._strips_operators}
+
+        # The action corresponds to an operator finishing.
+        if action_name in operator_names:
+            # Update the non-percepts.
+            operator_names = {o.name for o in self._strips_operators}
+            next_nonpercept = self._get_next_nonpercept_atoms(obs, action)
+        else:
+            next_nonpercept = obs.nonpercept_atoms
+
+        # Execute the action in the pybullet env. Automatically retry
+        # if a retryable error is encountered.
+        action_fn(*action_fn_args)  # type: ignore
+
+        # TODO: get and construct the next observation by querying the pybullet
+        # env!
+        next_obs = None
+
+        self._current_observation = next_obs
+        return self._current_observation
+
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal
