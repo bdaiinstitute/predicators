@@ -43,8 +43,8 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
     get_allowed_map_regions, get_graph_nav_dir, \
     get_robot_gripper_open_percentage, get_spot_home_pose, \
-    load_spot_metadata, object_to_top_down_geom, update_pbrspot_robot_conf, \
-    verify_estop
+    load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
+    update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -227,9 +227,9 @@ class SpotRearrangementEnv(BaseEnv):
                 floor_urdf = utils.get_env_asset_path(
                     "urdf/spot_related/floor.urdf")
                 floor_obj = pbrspot.body.createBody(floor_urdf)
-                # The floor is known to be about 40cm below the
+                # The floor is known to be about 60cm below the
                 # robot's position.
-                floor_obj.set_point([0, 0, -0.4])
+                floor_obj.set_point([0, 0, -0.6])
                 self.sim_robot.set_point([
                     0, 0,
                     pbrspot.placements.stable_z(self.sim_robot, floor_obj)
@@ -261,6 +261,9 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+
+        # Used to keep track of all simulated objects.
+        self._obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -398,8 +401,6 @@ class SpotRearrangementEnv(BaseEnv):
         raise NotImplementedError("Dry simulation not implemented for action "
                                   f"{action_name}")
 
-
-
     def reset(self, train_or_test: str, task_idx: int) -> Observation:
         # NOTE: task_idx and train_or_test ignored unless loading from JSON!
         if CFG.test_task_json_dir is not None and train_or_test == "test":
@@ -428,6 +429,32 @@ class SpotRearrangementEnv(BaseEnv):
         self._current_observation = self._current_task.init_obs
         self._current_task_goal_reached = False
         self._last_action = None
+
+        # Start by modifying the simulated robot to be in the right
+        # position and configuration.
+        # TODO: probably also want to reset the pybullet sim to only
+        # have the robot and floor as well here.
+        if not CFG.bilevel_plan_without_sim:
+            # If we're connected to a real-world robot, then update the
+            # simulated robot to be in exactly the sasme joint
+            # configuration as the real robot.
+            if self._robot is not None:
+                update_pbrspot_robot_conf(self._robot, self.sim_robot)
+
+            # Find the relevant object urdfs and then put them at the
+            # right places in the world. Importantly note that we
+            # expect the name of the object to be the same as the name
+            # of the urdf file!
+            for obj in self._current_observation.objects_in_view.keys():
+                # The floor object is loaded during init and thus treated
+                # separately.
+                if obj.name == "floor":
+                    continue
+                obj_urdf = utils.get_env_asset_path(
+                    f"urdf/spot_related/{obj.name}.urdf", assert_exists=True)
+                sim_obj = pbrspot.body.createBody(obj_urdf)
+                self._obj_name_to_sim_obj[obj.name] = sim_obj
+
         return self._current_task.init_obs
 
     def step(self, action: Action) -> Observation:
@@ -498,7 +525,8 @@ class SpotRearrangementEnv(BaseEnv):
             # Get the new observation. Again, automatically retry if needed.
             while True:
                 try:
-                    next_obs = self._build_observation(next_nonpercept)
+                    next_obs = self._build_realworld_observation(
+                        next_nonpercept)
                     break
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
@@ -561,9 +589,9 @@ class SpotRearrangementEnv(BaseEnv):
     def goal_reached(self) -> bool:
         return self._current_task_goal_reached
 
-    def _build_observation(self,
-                           ground_atoms: Set[GroundAtom]) -> _SpotObservation:
-        """Helper for building a new _SpotObservation().
+    def _build_realworld_observation(
+            self, ground_atoms: Set[GroundAtom]) -> _SpotObservation:
+        """Helper for building a new _SpotObservation() from real-robot data.
 
         This is an environment method because the nonpercept predicates
         may vary per environment.
@@ -715,47 +743,32 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
-         # The extra info is (action name, objects, function, function args).
+        # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
-        obs = self._current_observation
-        assert isinstance(obs, _SpotObservation)
         assert self.action_space.contains(action.arr)
+
+        # Update the poses of the robot and all relevant objects
+        # to be in the correct position(s).
+        update_pbrspot_given_state(self.sim_robot, self._obj_name_to_sim_obj,
+                                    state)
 
         # Special case: the action is "done", indicating that the robot
         # believes it has finished the task. Used for goal checking.
         if action_name == "done":
-
             # During planning, trust that the goal is accomplished if the
-            # done action is returned, since we don't want a human in the loop.
+            # done action is returned.
             self._current_task_goal_reached = True
-            return self._current_observation
-
-        # Otherwise, the action is either an operator to execute or a special
-        # action. The only difference between the two is that operators update
-        # the non-percept states.
-
-        operator_names = {o.name for o in self._strips_operators}
-
-        # The action corresponds to an operator finishing.
-        if action_name in operator_names:
-            # Update the non-percepts.
-            operator_names = {o.name for o in self._strips_operators}
-            next_nonpercept = self._get_next_nonpercept_atoms(obs, action)
-        else:
-            next_nonpercept = obs.nonpercept_atoms
+            return state
 
         # Execute the action in the pybullet env. Automatically retry
         # if a retryable error is encountered.
         action_fn(*action_fn_args)  # type: ignore
 
-        # TODO: get and construct the next observation by querying the pybullet
+        # TODO: get and construct the next state by querying the pybullet
         # env!
-        next_obs = None
-
-        self._current_observation = next_obs
-        return self._current_observation
-
+        next_state = None
+        return next_state
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal
@@ -785,31 +798,6 @@ class SpotRearrangementEnv(BaseEnv):
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds)
         goal_description = self._generate_goal_description()
-
-        if not CFG.bilevel_plan_without_sim:
-            # Start by modifying the robot to be in the right
-            # position and configuration.
-            # TODO: setting the robot pose causes it to be wildly wrong w.r.t the
-            # real world???
-            # TODO: we're not really setting the quaternion of the robot here
-            # but we probably should!
-            self.sim_robot.set_point([robot_pos.x, robot_pos.y, robot_pos.z])
-            update_pbrspot_robot_conf(self._robot, self.sim_robot)
-
-            # Find the relevant object urdfs and then put them at the
-            # right places in the world. Importantly note that we
-            # expect the name of the object to be the same as the name
-            # of the urdf file!
-            for obj, pose in objects_in_view.items():
-                # The floor object is loaded during init and thus treated
-                # separately.
-                if obj.name == "floor":
-                    continue
-                obj_urdf = utils.get_env_asset_path(
-                    f"urdf/spot_related/{obj.name}.urdf", assert_exists=True)
-                obj_obj = pbrspot.body.createBody(obj_urdf)
-                obj_obj.set_point([pose.x, pose.y, pose.z])
-
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
         json_objects = {o.name: o.type.name for o in objects_in_view}
@@ -897,7 +885,10 @@ class SpotRearrangementEnv(BaseEnv):
             init_dict[obj] = obj_dict.copy()
         # Get the object detection id's, which are features of
         # each object type.
-        obj_to_detection_id = {v: k for k, v in self._detection_id_to_obj.items()}
+        obj_to_detection_id = {
+            v: k
+            for k, v in self._detection_id_to_obj.items()
+        }
         for obj in init_dict.keys():
             if obj in obj_to_detection_id:
                 init_dict[obj]["object_id"] = obj_to_detection_id[obj]
@@ -917,7 +908,7 @@ class SpotRearrangementEnv(BaseEnv):
                 goal = self._parse_language_goal_from_json(
                     json_dict["language_goal"], object_name_to_object)
         base_env_task = EnvironmentTask(init_state, goal)
-        
+
         # TODO
         init = base_env_task.init
         # Images not currently saved or used.

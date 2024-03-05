@@ -93,6 +93,8 @@ def simulated_navigate_to_relative_pose(
     """
     curr_pose = sim_robot.get_pose()
     # TODO: Compute new_pose by adding curr_pose with rel_pose.
+    import ipdb
+    ipdb.set_trace()
 
 
 def navigate_to_absolute_pose(robot: Robot,

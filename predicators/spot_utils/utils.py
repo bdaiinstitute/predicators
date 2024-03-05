@@ -432,3 +432,21 @@ def update_pbrspot_robot_conf(robot: Robot,
         for j_name in sim_robot.arm_joint_names
     ]
     sim_robot.arm.set_configuration(arm_conf)
+
+
+def update_pbrspot_given_state(sim_robot: pbrspot.spot.Spot,
+                             obj_name_to_sim_obj: Dict[str, pbrspot.body.Body],
+                             state: State) -> None:
+    """Update simulated environment to match state."""
+    for obj in state:
+        # The floor object is loaded during init and thus treated
+        # separately.
+        if obj.name == "floor":
+            continue
+        if obj.type.name == "robot":
+            sim_robot.set_pose(
+                ([state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z") - 0.6],
+                [state.get(obj, "qx"), state.get(obj, "qy"), state.get(obj, "qz"), state.get(obj, "qw")]))
+        else:
+            sim_obj = obj_name_to_sim_obj[obj.name]
+            sim_obj.set_point([state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z")])
