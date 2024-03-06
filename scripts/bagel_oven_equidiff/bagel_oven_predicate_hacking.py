@@ -5,7 +5,8 @@ import numpy as np
 from predicators import utils
 import imageio.v2 as iio
 
-filepath = Path("/Users/tom/Desktop") / "equidiff"/ "data_teleop_oven_full_x58.hdf5"
+dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
 assert filepath.exists()
 
 f = h5py.File(filepath, 'r')
@@ -17,56 +18,57 @@ eef_pos = demo["robot0_eef_pos"]
 eef_quat = demo["robot0_eef_quat"]
 gripper_qpos = demo["robot0_gripper_qpos"]
 
-voxel_map = np.swapaxes(voxels[0], 0, -1)
+imgs = []
+for t in range(len(voxels)):
+    voxel_map = np.swapaxes(voxels[t], 0, -1)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
-
-#### From ChatGPT ####
-fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-# X/Y
-ax = axes[0]
-x_coords, y_coords, colors = [], [], []
-for x in range(voxel_map.shape[0]):
-    for y in range(voxel_map.shape[1]):
-        for z in range(voxel_map.shape[2]):
-            if voxel_map[x, y, z, 3] > 0:
-                x_coords.append(x)
-                y_coords.append(y)
-                colors.append(voxel_map[x, y, z] / 255)
-                break
-ax.scatter(x_coords, y_coords, c=colors)
-ax.set_xlim([0, voxel_map.shape[0]])
-ax.set_ylim([0, voxel_map.shape[1]])
-ax.set_xlabel("x")
-ax.set_ylabel("y")
-ax.set_xticks([])
-ax.set_yticks([])
-
-# X/Z
-ax = axes[1]
-x_coords, z_coords, colors = [], [], []
-for x in range(voxel_map.shape[0]):
-    for z in range(voxel_map.shape[2]):
+    # X/Y
+    ax = axes[0]
+    x_coords, y_coords, colors = [], [], []
+    for x in range(voxel_map.shape[0]):
         for y in range(voxel_map.shape[1]):
-            if voxel_map[x, y, z, 3] > 0:
-                x_coords.append(x)
-                z_coords.append(z)
-                colors.append(voxel_map[x, y, z] / 255)
-                break
-ax.scatter(x_coords, z_coords, c=colors)
-ax.set_xlim([0, voxel_map.shape[0]])
-ax.set_ylim([0, voxel_map.shape[2]])
-ax.set_xlabel("x")
-ax.set_ylabel("z")
-ax.set_xticks([])
-ax.set_yticks([])
+            for z in range(voxel_map.shape[2]):
+                if voxel_map[x, y, z, 3] > 0:
+                    x_coords.append(x)
+                    y_coords.append(y)
+                    colors.append(voxel_map[x, y, z] / 255)
+                    break
+    ax.scatter(x_coords, y_coords, c=colors)
+    ax.set_xlim([0, voxel_map.shape[0]])
+    ax.set_ylim([0, voxel_map.shape[1]])
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_xticks([])
+    ax.set_yticks([])
 
-# Show the plot
-img = utils.fig2img(fig, dpi=150)
-plt.close()
+    # X/Z
+    ax = axes[1]
+    x_coords, z_coords, colors = [], [], []
+    for x in range(voxel_map.shape[0]):
+        for z in range(voxel_map.shape[2]):
+            for y in range(voxel_map.shape[1]):
+                if voxel_map[x, y, z, 3] > 0:
+                    x_coords.append(x)
+                    z_coords.append(z)
+                    colors.append(voxel_map[x, y, z] / 255)
+                    break
+    ax.scatter(x_coords, z_coords, c=colors)
+    ax.set_xlim([0, voxel_map.shape[0]])
+    ax.set_ylim([0, voxel_map.shape[2]])
+    ax.set_xlabel("x")
+    ax.set_ylabel("z")
+    ax.set_xticks([])
+    ax.set_yticks([])
 
-import ipdb; ipdb.set_trace()
+    # Show the plot
+    img = utils.fig2img(fig, dpi=150)
+    plt.close()
+    imgs.append(img)
 
+video_path = dirpath / "bagel_oven_viz.mp4"
+iio.mimsave(video_path, imgs, fps=10)
+print(f"Wrote out to {video_path}")
 
 
 #### From ChatGPT ####

@@ -24,7 +24,7 @@ setup(
         "pathos",
         "requests",
         "slack_bolt",
-        # "pybullet>=3.2.0",
+        "pybullet==3.2.5",
         "scikit-learn==1.1.2",
         "graphlib-backport",
         "openai==0.28.1",
