@@ -97,7 +97,7 @@ class SpotPerceiver(BasePerceiver):
         assert self._curr_env is not None
         if self._prev_action is not None:
             assert isinstance(self._prev_action.extra_info, (list, tuple))
-            controller_name, objects, _, _ = self._prev_action.extra_info
+            controller_name, objects, _, _, _, _ = self._prev_action.extra_info
             logging.info(
                 f"[Perceiver] Previous action was {controller_name}{objects}.")
             # The robot is always the 0th argument of an

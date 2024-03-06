@@ -53,7 +53,7 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
 #                                Base Class                                   #
 ###############################################################################
 
-# HACK!: Pybullet gets mad if we try to connect to it multiple times,
+# NOTE: Pybullet gets mad if we try to connect to it multiple times,
 # so we're going to instantiate a global variable here to indicate
 # whether or not we've connected to pybullet before.
 
@@ -307,7 +307,7 @@ class SpotRearrangementEnv(BaseEnv):
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         """Step-like function for spot dry runs."""
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, action_args = action.extra_info
+        action_name, action_objs, _, action_args, _, _ = action.extra_info
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
 
@@ -465,8 +465,6 @@ class SpotRearrangementEnv(BaseEnv):
 
     def step(self, action: Action) -> Observation:
         """Override step() for real-world execution!"""
-        import ipdb
-        ipdb.set_trace()
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, action_fn, action_fn_args, _, _ = action.extra_info
         self._last_action = action
@@ -676,7 +674,7 @@ class SpotRearrangementEnv(BaseEnv):
         # Otherwise do nothing and let the lost object dance proceed.
         if self._last_action is not None:
             assert isinstance(self._last_action.extra_info, (list, tuple))
-            op_name, op_objects, _, _ = self._last_action.extra_info
+            op_name, op_objects, _, _, _, _ = self._last_action.extra_info
             if op_name == "SweepTwoObjectsIntoContainer":
                 swept_objects: Set[Object] = set(op_objects[2:4])
                 container: Optional[Object] = op_objects[-1]

@@ -435,7 +435,7 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
     def _fn() -> None:
         for action in actions:
             assert isinstance(action.extra_info, (list, tuple))
-            _, _, action_fn, action_fn_args = action.extra_info
+            _, _, action_fn, action_fn_args, _, _ = action.extra_info
             action_fn(*action_fn_args)
 
     return utils.create_spot_env_action(name, objects, _fn, tuple())
