@@ -58,6 +58,9 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
 # whether or not we've connected to pybullet before.
 
 _SIMULATED_SPOT_ROBOT = None
+# Used to keep track of all simulated objects; also needs to be global
+# since we make and reset the env multiple times!
+_obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
 
 
 @dataclass(frozen=True)
@@ -262,8 +265,6 @@ class SpotRearrangementEnv(BaseEnv):
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
 
-        # Used to keep track of all simulated objects.
-        self._obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -435,6 +436,8 @@ class SpotRearrangementEnv(BaseEnv):
         # TODO: probably also want to reset the pybullet sim to only
         # have the robot and floor as well here.
         if not CFG.bilevel_plan_without_sim:
+            global _obj_name_to_sim_obj
+            _obj_name_to_sim_obj = {}
             # If we're connected to a real-world robot, then update the
             # simulated robot to be in exactly the sasme joint
             # configuration as the real robot.
@@ -453,7 +456,7 @@ class SpotRearrangementEnv(BaseEnv):
                 obj_urdf = utils.get_env_asset_path(
                     f"urdf/spot_related/{obj.name}.urdf", assert_exists=True)
                 sim_obj = pbrspot.body.createBody(obj_urdf)
-                self._obj_name_to_sim_obj[obj.name] = sim_obj
+                _obj_name_to_sim_obj[obj.name] = sim_obj
 
         return self._current_task.init_obs
 
@@ -741,6 +744,7 @@ class SpotRearrangementEnv(BaseEnv):
         }
 
     def simulate(self, state: State, action: Action) -> State:
+        global _obj_name_to_sim_obj
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
         # The extra info is (action name, objects, function, function args).
@@ -750,7 +754,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Update the poses of the robot and all relevant objects
         # to be in the correct position(s).
-        update_pbrspot_given_state(self.sim_robot, self._obj_name_to_sim_obj,
+        update_pbrspot_given_state(self.sim_robot, _obj_name_to_sim_obj,
                                     state)
 
         # Special case: the action is "done", indicating that the robot

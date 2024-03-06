@@ -256,12 +256,12 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
         fn: Callable = navigate_to_relative_pose
         fn_args: Tuple = (robot, rel_pose)
         sim_fn: Callable = simulated_navigate_to_relative_pose
-        sim_fn_args: Tuple = (sim_robot, rel_pose)
+        sim_fn_args: Tuple = (sim_robot, robot_pose.get_closest_se2_transform() * rel_pose)
     else:
         fn = navigate_to_relative_pose_and_gaze
         fn_args = (robot, rel_pose, localizer, gaze_target)
         sim_fn: Callable = simulated_navigate_to_relative_pose_and_gaze
-        sim_fn_args: Tuple = (sim_robot, rel_pose, gaze_target)
+        sim_fn_args: Tuple = (sim_robot, robot_pose.get_closest_se2_transform() * rel_pose, gaze_target)
 
     return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
                                         sim_fn_args)

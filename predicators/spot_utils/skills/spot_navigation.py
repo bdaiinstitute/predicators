@@ -85,16 +85,17 @@ def navigate_to_relative_pose(robot: Robot,
 
 def simulated_navigate_to_relative_pose(
     sim_robot: pbrspot.spot.Spot,
-    body_tform_goal: math_helpers.SE2Pose,
+    relative_pose: math_helpers.SE2Pose,
 ) -> None:
     """Execute a relative move.
 
     The pose is dx, dy, dyaw relative to the robot's body.
     """
     curr_pose = sim_robot.get_pose()
+    # First, convert relative pose to SE3.
+    rel_se3 = relative_pose.get_closest_se3_transform(curr_pose[0][2])
     # TODO: Compute new_pose by adding curr_pose with rel_pose.
-    import ipdb
-    ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
 
 
 def navigate_to_absolute_pose(robot: Robot,
