@@ -64,6 +64,12 @@ def create_voxel_map_video(demo_num):
     filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
     assert filepath.exists()
 
+    annotations_filepath = dirpath  / f"bagel_oven_annotations_demo{demo_num}.p"
+    annotations = None
+    if annotations_filepath.exists():
+        with open(annotations_filepath, "rb") as f:
+            annotations = p.load(f)
+
     f = h5py.File(filepath, 'r')
     dataset = f['dataset']
     demo = dataset[f'demo_{demo_num}']
@@ -78,7 +84,11 @@ def create_voxel_map_video(demo_num):
 
     for t in range(len(voxels)):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
-        img = voxel_map_to_img(voxel_map)
+        title = None
+        if annotations and len(annotations) >= t-1:
+            annotations_t = annotations[t]
+            title = f"Annotations: {annotations_t}"
+        img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
 
     video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
@@ -143,5 +153,5 @@ def create_predicate_annotations(demo_num):
 
 
 if __name__ == "__main__":
-    # create_voxel_map_video(demo_num=40)
-    create_predicate_annotations(demo_num=0)
+    create_voxel_map_video(demo_num=0)
+    # create_predicate_annotations(demo_num=0)
