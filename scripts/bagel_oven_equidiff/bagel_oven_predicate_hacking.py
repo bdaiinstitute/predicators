@@ -74,27 +74,32 @@ def collapse_voxel_map(voxel_map, dim0, dim1, dim2_direction):
 def voxel_map_to_img(voxel_map, title=None):
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
+    # TODO remove
+    voxel_map_shape = voxel_map.shape
+    # voxel_map = voxel_map[:, :25, :]  # CROPS JUST THE TOP OF THE VOXELS
+
     # X/Y
     ax = axes[0]
     x_coords, y_coords, colors = collapse_voxel_map(voxel_map, 0, 1, "backward")
     ax.scatter(x_coords, y_coords, c=colors)
-    ax.set_xlim([0, voxel_map.shape[0]])
-    ax.set_ylim([voxel_map.shape[1], 0])
+    ax.set_xlim([0, voxel_map_shape[0]])
+    ax.set_ylim([voxel_map_shape[1], 0])
     ax.set_xlabel("x")
     ax.set_ylabel("-y")
-    ax.set_xticks([])
-    ax.set_yticks([])
+    # ax.set_xticks([])
+    # ax.set_yticks([])
 
     # X/Z
     ax = axes[1]
     x_coords, z_coords, colors = collapse_voxel_map(voxel_map, 0, 2, "forward")
     ax.scatter(x_coords, z_coords, c=colors)
-    ax.set_xlim([0, voxel_map.shape[0]])
-    ax.set_ylim([0, voxel_map.shape[2]])
+    ax.set_xlim([0, voxel_map_shape[0]])
+    ax.set_ylim([0, voxel_map_shape[2]])
     ax.set_xlabel("x")
     ax.set_ylabel("z")
-    ax.set_xticks([])
-    ax.set_yticks([])
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+
     if title:
         plt.suptitle(title)
 
@@ -142,7 +147,7 @@ def create_voxel_map_video(demo_num):
         imgs.append(img)
 
         # TODO remove
-        if t > 10:
+        if t > 5:
             break
 
     video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
