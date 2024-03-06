@@ -9,9 +9,11 @@ dirpath =  Path("/Users/tom/Desktop") / "equidiff"
 filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
 assert filepath.exists()
 
+demo_num = 1
+
 f = h5py.File(filepath, 'r')
 dataset = f['dataset']
-demo = dataset['demo_0']
+demo = dataset[f'demo_{demo_num}']
 actions = demo["action"]
 voxels = demo["agentview_voxel"]
 eef_pos = demo["robot0_eef_pos"]
@@ -28,7 +30,7 @@ for t in range(len(voxels)):
     x_coords, y_coords, colors = [], [], []
     for x in range(voxel_map.shape[0]):
         for y in range(voxel_map.shape[1]):
-            for z in range(voxel_map.shape[2]):
+            for z in range(voxel_map.shape[2] - 1, -1, -1):  # NOTE
                 if voxel_map[x, y, z, 3] > 0:
                     x_coords.append(x)
                     y_coords.append(y)
@@ -36,9 +38,9 @@ for t in range(len(voxels)):
                     break
     ax.scatter(x_coords, y_coords, c=colors)
     ax.set_xlim([0, voxel_map.shape[0]])
-    ax.set_ylim([0, voxel_map.shape[1]])
+    ax.set_ylim([voxel_map.shape[1], 0])
     ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_ylabel("-y")
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -62,11 +64,11 @@ for t in range(len(voxels)):
     ax.set_yticks([])
 
     # Show the plot
-    img = utils.fig2img(fig, dpi=150)
+    img = utils.fig2data(fig, dpi=150)
     plt.close()
     imgs.append(img)
 
-video_path = dirpath / "bagel_oven_viz.mp4"
+video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
 iio.mimsave(video_path, imgs, fps=10)
 print(f"Wrote out to {video_path}")
 
