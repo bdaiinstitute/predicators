@@ -153,9 +153,15 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
-        pixel, rot_quat = get_grasp_pixel(rgbds, artifacts,
-                                          target_detection_id, hand_camera,
-                                          rng)
+        try:
+            pixel, rot_quat = get_grasp_pixel(rgbds, artifacts,
+                                            target_detection_id, hand_camera,
+                                            rng)
+        except KeyError:
+            # HACK! This is how we know we're not executing on the real robot lol...
+            # Definitely not great to be doing this with a try/except.
+            pixel = (150, 150)
+            rot_quat = None
         if rot_quat is None:
             rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
         else:

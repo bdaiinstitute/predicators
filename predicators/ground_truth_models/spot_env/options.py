@@ -13,14 +13,16 @@ from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotRearrangementEnv, _get_sweeping_surface_for_container, get_robot, \
-    get_robot_gripper_open_percentage, get_simulated_robot
+    get_robot_gripper_open_percentage, get_simulated_robot, \
+    get_simulated_object
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import \
     get_last_captured_images
-from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
+from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, \
+    simulated_grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_navigation import \
@@ -281,9 +283,11 @@ def _grasp_policy(name: str,
     del memory  # not used
 
     robot, _, _ = get_robot()
+    sim_robot = get_simulated_robot()
     assert len(params) == 6
     pixel = (int(params[0]), int(params[1]))
     target_obj = objects[target_obj_idx]
+    sim_target_obj = get_simulated_object(target_obj)
 
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
@@ -291,7 +295,11 @@ def _grasp_policy(name: str,
     else:
         rgbds = get_last_captured_images()
         hand_camera = "hand_color_image"
-        img = rgbds[hand_camera]
+        try:
+            img = rgbds[hand_camera]
+        except KeyError:
+            # HACK! This is how we know we're planning in sim.
+            img = None
 
     # Grasp from the top-down.
     grasp_rot = None
@@ -305,6 +313,7 @@ def _grasp_policy(name: str,
     do_stow = not do_dump and \
         target_obj_volume < CFG.spot_grasp_stow_volume_threshold
     fn = _grasp_at_pixel_and_maybe_stow_or_dump
+    sim_fn = simulated_grasp_at_pixel
 
     # Use a relatively forgiving threshold for grasp constraints in general,
     # but for the ball, use a strict constraint.
@@ -318,7 +327,8 @@ def _grasp_policy(name: str,
 
     return utils.create_spot_env_action(
         name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0,
-                            retry_with_no_constraints, do_stow, do_dump))
+                            retry_with_no_constraints, do_stow, do_dump),
+                    sim_fn, (sim_robot, grasp_rot, sim_target_obj))
 
 
 def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,

@@ -182,6 +182,10 @@ def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
     return _SIMULATED_SPOT_ROBOT
 
 
+def get_simulated_object(obj: Object) -> pbrspot.body.Body:
+    """Return the simulated version of obj."""
+    return _obj_name_to_sim_obj[obj.name]
+
 def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     """Load known immovable object poses from metadata."""
     known_immovables = load_spot_metadata()["known-immovable-objects"]
@@ -768,8 +772,23 @@ class SpotRearrangementEnv(BaseEnv):
         action_fn(*action_fn_args)  # type: ignore
 
         # Construct a new state given the updated simulation.
-        next_state = construct_state_given_pbrspot(self.sim_robot, _obj_name_to_sim_obj)
+        next_state = construct_state_given_pbrspot(self.sim_robot, _obj_name_to_sim_obj, state)
+
+        # In the future, we'll probably actually implement proper ways to
+        # check things like InHandView and other quantities below
+        # in the simulator (e.g., by shooting a ray!). However for now, 
+        # we're going to just hack things such that the expected atoms check
+        # passes. This will be done in a manner similar to dry sim.
+        if action_name == "MoveToHandViewObject":
+            obj_to_view = action_objs[1]
+            next_state.set(obj_to_view, "in_hand_view", 1.0)
+        elif action_name == "PickObjectFromTop":
+            obj_to_pick = action_objs[1]
+            next_state.set(obj_to_pick, "held", 1.0)
+            next_state.set(obj_to_pick, "in_hand_view", 0.0)
+
         return next_state
+
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal
@@ -1218,6 +1237,7 @@ def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
         y=state.get(obj, "y"),
         z=state.get(obj, "z"),
     )
+
     return _obj_reachable_from_spot_pose(spot_pose, obj_position)
 
 

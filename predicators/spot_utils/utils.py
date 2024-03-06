@@ -474,18 +474,17 @@ def construct_state_given_pbrspot(sim_robot: pbrspot.spot.Spot,
     sim_robot_pose = sim_robot.get_pose()
     next_state = state.copy()
     for obj in state:
-        # The floor object is loaded during init and thus treated
-        # separately.
         if obj.name == "floor":
             continue
         if obj.type.name == "robot":
             next_state.set(obj, "x", sim_robot_pose[0][0])
             next_state.set(obj, "y", sim_robot_pose[0][1])
-            next_state.set(obj, "z", sim_robot_pose[0][2])
-            next_state.set(obj, "qx", sim_robot_pose[1][1])
-            next_state.set(obj, "qy", sim_robot_pose[1][2])
-            next_state.set(obj, "qz", sim_robot_pose[1][3])
-            next_state.set(obj, "qw", sim_robot_pose[1][0])
+            next_state.set(obj, "z", sim_robot_pose[0][2] + 0.6)
+            next_state.set(obj, "qx", sim_robot_pose[1][0])
+            next_state.set(obj, "qy", sim_robot_pose[1][1])
+            next_state.set(obj, "qz", sim_robot_pose[1][2])
+            next_state.set(obj, "qw", sim_robot_pose[1][3])
+            next_state.set(obj, "gripper_open_percentage", sim_robot.hand.GetJointPositions() * -100.0)
         else:
             sim_obj = obj_name_to_sim_obj[obj.name]
             sim_obj_pose = sim_obj.get_pose()
