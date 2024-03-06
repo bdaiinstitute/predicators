@@ -9,20 +9,74 @@ import cv2
 import pickle as p
 
 
+def _tray_pulled_out_classifier(state):
+    return False  # TODO
+
+
+def _tray_inside_oven_classifier(state):
+    return not _tray_pulled_out_classifier(state)
+
+
+
+_PREDICATE_CLASSIFIERS = {
+    # TODO: notholdingbagel
+    # TODO: ovenclosed
+    # TODO: ovenopen
+    # TODO: bagelgrasped
+    # TODO: bagelontable
+    # TODO: bagelontray
+    "trayinsideoven": _tray_inside_oven_classifier,
+    "traypulledout": _tray_pulled_out_classifier,
+}
+
+
+def _get_state_from_voxel_map(voxel_map):
+    # Canonicalize orientation with respect to the oven.
+    return voxel_map
+
+
+def get_abstract_state(voxel_map):
+    state = _get_state_from_voxel_map(voxel_map)
+    curr_pred_names = set()
+    for pred_name, classifier in _PREDICATE_CLASSIFIERS.items():
+        if classifier(state):
+            curr_pred_names.add(pred_name)
+    return sorted(curr_pred_names)
+
+
+
+
+
+def collapse_voxel_map(voxel_map, dim0, dim1, dim2_direction):
+    dim2s = [i for i in range(3) if i not in {dim0, dim1}]
+    assert len(dim2s) == 1
+    dim2 = dim2s[0]
+    x_coords, y_coords, colors = [], [], []
+    for d0 in range(voxel_map.shape[dim0]):
+        for d1 in range(voxel_map.shape[dim1]):
+            if dim2_direction == "forward":
+                d2s = range(voxel_map.shape[dim2])
+            else:
+                assert dim2_direction == "backward"
+                d2s = range(voxel_map.shape[dim2] - 1, -1, -1)
+            for d2 in d2s:
+                d_to_i = {dim0: d0, dim1: d1, dim2: d2}
+                idx = (d_to_i[0], d_to_i[1], d_to_i[2])
+                if voxel_map[idx + (3,)] > 0:
+                    x_coords.append(d0)
+                    y_coords.append(d1)
+                    colors.append(voxel_map[idx] / 255)
+                    break
+    return x_coords, y_coords, colors
+
+
+
 def voxel_map_to_img(voxel_map, title=None):
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     # X/Y
     ax = axes[0]
-    x_coords, y_coords, colors = [], [], []
-    for x in range(voxel_map.shape[0]):
-        for y in range(voxel_map.shape[1]):
-            for z in range(voxel_map.shape[2] - 1, -1, -1):  # NOTE
-                if voxel_map[x, y, z, 3] > 0:
-                    x_coords.append(x)
-                    y_coords.append(y)
-                    colors.append(voxel_map[x, y, z] / 255)
-                    break
+    x_coords, y_coords, colors = collapse_voxel_map(voxel_map, 0, 1, "backward")
     ax.scatter(x_coords, y_coords, c=colors)
     ax.set_xlim([0, voxel_map.shape[0]])
     ax.set_ylim([voxel_map.shape[1], 0])
@@ -33,15 +87,7 @@ def voxel_map_to_img(voxel_map, title=None):
 
     # X/Z
     ax = axes[1]
-    x_coords, z_coords, colors = [], [], []
-    for x in range(voxel_map.shape[0]):
-        for z in range(voxel_map.shape[2]):
-            for y in range(voxel_map.shape[1]):
-                if voxel_map[x, y, z, 3] > 0:
-                    x_coords.append(x)
-                    z_coords.append(z)
-                    colors.append(voxel_map[x, y, z] / 255)
-                    break
+    x_coords, z_coords, colors = collapse_voxel_map(voxel_map, 0, 2, "forward")
     ax.scatter(x_coords, z_coords, c=colors)
     ax.set_xlim([0, voxel_map.shape[0]])
     ax.set_ylim([0, voxel_map.shape[2]])
@@ -84,12 +130,20 @@ def create_voxel_map_video(demo_num):
 
     for t in range(len(voxels)):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
-        title = None
+        title = ""
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
             title = f"Annotations: {annotations_t}"
+
+        predicted_pred_names = get_abstract_state(voxel_map)
+        title += f"\nPredictions: {predicted_pred_names}"
+
         img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
+
+        # TODO remove
+        if t > 10:
+            break
 
     video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
     iio.mimsave(video_path, imgs, fps=10)
@@ -153,5 +207,5 @@ def create_predicate_annotations(demo_num):
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=0)
-    # create_predicate_annotations(demo_num=0)
+    create_voxel_map_video(demo_num=40)
+    # create_predicate_annotations(demo_num=40)
