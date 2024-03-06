@@ -44,7 +44,7 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     get_allowed_map_regions, get_graph_nav_dir, \
     get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
-    update_pbrspot_robot_conf, verify_estop
+    update_pbrspot_robot_conf, verify_estop, construct_state_given_pbrspot
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -264,7 +264,6 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
-
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -754,8 +753,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Update the poses of the robot and all relevant objects
         # to be in the correct position(s).
-        update_pbrspot_given_state(self.sim_robot, _obj_name_to_sim_obj,
-                                    state)
+        update_pbrspot_given_state(self.sim_robot, _obj_name_to_sim_obj, state)
 
         # Special case: the action is "done", indicating that the robot
         # believes it has finished the task. Used for goal checking.
@@ -769,9 +767,8 @@ class SpotRearrangementEnv(BaseEnv):
         # if a retryable error is encountered.
         action_fn(*action_fn_args)  # type: ignore
 
-        # TODO: get and construct the next state by querying the pybullet
-        # env!
-        next_state = None
+        # Construct a new state given the updated simulation.
+        next_state = construct_state_given_pbrspot(self.sim_robot, _obj_name_to_sim_obj)
         return next_state
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:

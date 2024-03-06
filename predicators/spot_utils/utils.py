@@ -272,6 +272,7 @@ def get_relative_se2_from_se3(
     rot = target_offset_angle + np.pi
     target_se2 = math_helpers.SE2Pose(x, y, rot)
     robot_se2 = robot_pose.get_closest_se2_transform()
+
     return robot_se2.inverse() * target_se2
 
 
@@ -435,8 +436,9 @@ def update_pbrspot_robot_conf(robot: Robot,
 
 
 def update_pbrspot_given_state(sim_robot: pbrspot.spot.Spot,
-                             obj_name_to_sim_obj: Dict[str, pbrspot.body.Body],
-                             state: State) -> None:
+                               obj_name_to_sim_obj: Dict[str,
+                                                         pbrspot.body.Body],
+                               state: State) -> None:
     """Update simulated environment to match state."""
     for obj in state:
         # The floor object is loaded during init and thus treated
@@ -444,9 +446,50 @@ def update_pbrspot_given_state(sim_robot: pbrspot.spot.Spot,
         if obj.name == "floor":
             continue
         if obj.type.name == "robot":
-            sim_robot.set_pose(
-                ([state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z") - 0.6],
-                [state.get(obj, "qx"), state.get(obj, "qy"), state.get(obj, "qz"), state.get(obj, "qw")]))
+            sim_robot.set_pose(([
+                state.get(obj, "x"),
+                state.get(obj, "y"),
+                state.get(obj, "z") - 0.6
+            ], [
+                state.get(obj, "qx"),
+                state.get(obj, "qy"),
+                state.get(obj, "qz"),
+                state.get(obj, "qw")
+            ]))
         else:
             sim_obj = obj_name_to_sim_obj[obj.name]
-            sim_obj.set_point([state.get(obj, "x"), state.get(obj, "y"), state.get(obj, "z")])
+            sim_obj.set_point([
+                state.get(obj, "x"),
+                state.get(obj, "y"),
+                state.get(obj, "z")
+            ])
+
+
+def construct_state_given_pbrspot(sim_robot: pbrspot.spot.Spot,
+                               obj_name_to_sim_obj: Dict[str,
+                                                         pbrspot.body.Body],
+                               state: State) -> State:
+    """Construct state to match new simulated env state. Return an updated copy
+    of the state."""
+    sim_robot_pose = sim_robot.get_pose()
+    next_state = state.copy()
+    for obj in state:
+        # The floor object is loaded during init and thus treated
+        # separately.
+        if obj.name == "floor":
+            continue
+        if obj.type.name == "robot":
+            next_state.set(obj, "x", sim_robot_pose[0][0])
+            next_state.set(obj, "y", sim_robot_pose[0][1])
+            next_state.set(obj, "z", sim_robot_pose[0][2])
+            next_state.set(obj, "qx", sim_robot_pose[1][1])
+            next_state.set(obj, "qy", sim_robot_pose[1][2])
+            next_state.set(obj, "qz", sim_robot_pose[1][3])
+            next_state.set(obj, "qw", sim_robot_pose[1][0])
+        else:
+            sim_obj = obj_name_to_sim_obj[obj.name]
+            sim_obj_pose = sim_obj.get_pose()
+            next_state.set(obj, "x", sim_obj_pose[0][0])
+            next_state.set(obj, "y", sim_obj_pose[0][1])
+            next_state.set(obj, "z", sim_obj_pose[0][2])
+    return next_state
