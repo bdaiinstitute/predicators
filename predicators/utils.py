@@ -2805,6 +2805,17 @@ def compute_necessary_atoms_seq(
     return necessary_atoms_seq
 
 
+def compute_atoms_seq_from_plan(
+        skeleton: List[_GroundNSRT],
+        init_atoms: Set[GroundAtom]) -> List[Set[GroundAtom]]:
+    """Compute a sequence of atoms by applying ground NSRTs from a plan in
+    sequence."""
+    atoms_sequence = [init_atoms]
+    for ground_nsrt in skeleton:
+        atoms_sequence.append(apply_operator(ground_nsrt, atoms_sequence[-1]))
+    return atoms_sequence
+
+
 def get_successors_from_ground_ops(
         atoms: Set[GroundAtom],
         ground_ops: Collection[GroundNSRTOrSTRIPSOperator],

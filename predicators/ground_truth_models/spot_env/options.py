@@ -13,8 +13,8 @@ from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotRearrangementEnv, _get_sweeping_surface_for_container, get_robot, \
-    get_robot_gripper_open_percentage, get_simulated_robot, \
-    get_simulated_object
+    get_robot_gripper_open_percentage, get_simulated_object, \
+    get_simulated_robot
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
@@ -328,7 +328,7 @@ def _grasp_policy(name: str,
     return utils.create_spot_env_action(
         name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0,
                             retry_with_no_constraints, do_stow, do_dump),
-                    sim_fn, (sim_robot, grasp_rot, sim_target_obj))
+        sim_fn, (sim_robot, grasp_rot, sim_target_obj))
 
 
 def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,

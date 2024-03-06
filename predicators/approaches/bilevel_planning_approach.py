@@ -78,6 +78,8 @@ class BilevelPlanningApproach(BaseApproach):
                 task, nsrts, preds, timeout, seed)
             self._last_plan = option_plan
             self._last_nsrt_plan = nsrt_plan
+            atoms_seq = utils.compute_atoms_seq_from_plan(
+                nsrt_plan, utils.abstract(task.init, preds))
             self._last_atoms_seq = atoms_seq
             policy = utils.option_plan_to_policy(option_plan)
 

@@ -41,10 +41,10 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _container_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
-    get_allowed_map_regions, get_graph_nav_dir, \
-    get_robot_gripper_open_percentage, get_spot_home_pose, \
+    construct_state_given_pbrspot, get_allowed_map_regions, \
+    get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
-    update_pbrspot_robot_conf, verify_estop, construct_state_given_pbrspot
+    update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
     STRIPSOperator, Type, Variable
@@ -144,9 +144,8 @@ def get_robot(
 
     If we are doing a dry run, return dummy Nones for each component.
     """
-    # HACK: Commenting out for now!
-    # if CFG.spot_run_dry:
-    return None, None, None
+    if CFG.spot_run_dry:
+        return None, None, None
     setup_logging(False)
     hostname = CFG.spot_robot_ip
     path = get_graph_nav_dir()
@@ -185,6 +184,7 @@ def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
 def get_simulated_object(obj: Object) -> pbrspot.body.Body:
     """Return the simulated version of obj."""
     return _obj_name_to_sim_obj[obj.name]
+
 
 def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     """Load known immovable object poses from metadata."""
@@ -465,6 +465,8 @@ class SpotRearrangementEnv(BaseEnv):
 
     def step(self, action: Action) -> Observation:
         """Override step() for real-world execution!"""
+        import ipdb
+        ipdb.set_trace()
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, action_fn, action_fn_args, _, _ = action.extra_info
         self._last_action = action
@@ -732,7 +734,7 @@ class SpotRearrangementEnv(BaseEnv):
         This should be deprecated eventually.
         """
         assert isinstance(action.extra_info, (list, tuple))
-        op_name, op_objects, _, _ = action.extra_info
+        op_name, op_objects, _, _, _, _ = action.extra_info
         op_name_to_op = {o.name: o for o in self._strips_operators}
         op = op_name_to_op[op_name]
         ground_op = op.ground(tuple(op_objects))
@@ -772,11 +774,12 @@ class SpotRearrangementEnv(BaseEnv):
         action_fn(*action_fn_args)  # type: ignore
 
         # Construct a new state given the updated simulation.
-        next_state = construct_state_given_pbrspot(self.sim_robot, _obj_name_to_sim_obj, state)
+        next_state = construct_state_given_pbrspot(self.sim_robot,
+                                                   _obj_name_to_sim_obj, state)
 
         # In the future, we'll probably actually implement proper ways to
         # check things like InHandView and other quantities below
-        # in the simulator (e.g., by shooting a ray!). However for now, 
+        # in the simulator (e.g., by shooting a ray!). However for now,
         # we're going to just hack things such that the expected atoms check
         # passes. This will be done in a manner similar to dry sim.
         if action_name == "MoveToHandViewObject":
@@ -788,7 +791,6 @@ class SpotRearrangementEnv(BaseEnv):
             next_state.set(obj_to_pick, "in_hand_view", 0.0)
 
         return next_state
-
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal

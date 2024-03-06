@@ -94,10 +94,9 @@ def simulated_navigate_to_relative_pose(
     curr_pose = sim_robot.get_pose()
     new_se3 = new_pose.get_closest_se3_transform(curr_pose[0][2])
     # Set the pose of the robot to the correct new computed pose.
-    sim_robot.set_pose([
-        (new_pose.x,
-         new_pose.y, curr_pose[0][2]),
-        (new_se3.rot.x, new_se3.rot.y, new_se3.rot.z, new_se3.rot.w)])
+    sim_robot.set_pose([(new_pose.x, new_pose.y, curr_pose[0][2]),
+                        (new_se3.rot.x, new_se3.rot.y, new_se3.rot.z,
+                         new_se3.rot.w)])
 
 
 def navigate_to_absolute_pose(robot: Robot,

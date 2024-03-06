@@ -466,11 +466,13 @@ def update_pbrspot_given_state(sim_robot: pbrspot.spot.Spot,
 
 
 def construct_state_given_pbrspot(sim_robot: pbrspot.spot.Spot,
-                               obj_name_to_sim_obj: Dict[str,
-                                                         pbrspot.body.Body],
-                               state: State) -> State:
-    """Construct state to match new simulated env state. Return an updated copy
-    of the state."""
+                                  obj_name_to_sim_obj: Dict[str,
+                                                            pbrspot.body.Body],
+                                  state: State) -> State:
+    """Construct state to match new simulated env state.
+
+    Return an updated copy of the state.
+    """
     sim_robot_pose = sim_robot.get_pose()
     next_state = state.copy()
     for obj in state:
@@ -484,7 +486,8 @@ def construct_state_given_pbrspot(sim_robot: pbrspot.spot.Spot,
             next_state.set(obj, "qy", sim_robot_pose[1][1])
             next_state.set(obj, "qz", sim_robot_pose[1][2])
             next_state.set(obj, "qw", sim_robot_pose[1][3])
-            next_state.set(obj, "gripper_open_percentage", sim_robot.hand.GetJointPositions() * -100.0)
+            next_state.set(obj, "gripper_open_percentage",
+                           sim_robot.hand.GetJointPositions() * -100.0)
         else:
             sim_obj = obj_name_to_sim_obj[obj.name]
             sim_obj_pose = sim_obj.get_pose()
