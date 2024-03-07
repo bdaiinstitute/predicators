@@ -464,7 +464,8 @@ class SpotRearrangementEnv(BaseEnv):
     def step(self, action: Action) -> Observation:
         """Override step() for real-world execution!"""
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, action_fn, action_fn_args, _, _ = action.extra_info
+        action_name, action_objs, action_fn, action_fn_args, _, _ = \
+            action.extra_info
         self._last_action = action
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
@@ -748,7 +749,8 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         global _obj_name_to_sim_obj
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, _, action_fn, action_fn_args = action.extra_info
+        action_name, action_objs, _, _, action_fn, action_fn_args = \
+            action.extra_info
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
@@ -893,9 +895,9 @@ class SpotRearrangementEnv(BaseEnv):
             v: k
             for k, v in self._detection_id_to_obj.items()
         }
-        for obj in init_dict.keys():
+        for obj, init_val in init_dict.items():
             if obj in obj_to_detection_id:
-                init_dict[obj]["object_id"] = obj_to_detection_id[obj]
+                init_val["object_id"] = obj_to_detection_id[obj]
         init_state = utils.create_state_from_dict(init_dict)
         goal = self._parse_goal_from_json_dict(json_dict,
                                                object_name_to_object,

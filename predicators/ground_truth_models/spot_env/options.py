@@ -49,7 +49,7 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
 # Hack: options don't generally get passed rng's, but we need them primarily
 # for options that do some kind of implicit sampling (e.g. sim-safe grasping).
 # In the future, we probably want to pass these thru nicely.
-_options_rng = np.random.default_rng(CFG.seed)
+_options_rng = np.random.default_rng(0)
 
 
 def navigate_to_relative_pose_and_gaze(robot: Robot,
@@ -75,9 +75,10 @@ def simulated_navigate_to_relative_pose_and_gaze(
         gaze_target: math_helpers.Vec3) -> None:
     """Teleports the pybullet spot robot to rel_pose and then gazes at
     gaze_target via the hand."""
+    del gaze_target
     simulated_navigate_to_relative_pose(sim_robot, rel_pose)
-    # Somehow get the arm to gaze at the target correctly? Maybe for now we can just
-    # mock this and teleport...
+    # Somehow get the arm to gaze at the target correctly? Maybe for now we
+    # can just mock this and teleport...
 
 
 def _grasp_at_pixel_and_maybe_stow_or_dump(
