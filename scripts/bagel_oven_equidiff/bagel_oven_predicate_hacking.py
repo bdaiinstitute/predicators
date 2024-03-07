@@ -30,9 +30,52 @@ _PREDICATE_CLASSIFIERS = {
 }
 
 
+# for debugging, remove later
+COUNT = 0
+
+def _canonicalize_voxel_map(voxel_map):
+    # Assume that the y dimension is consistent. Crop above a certain y value
+    # to isolate the top of the oven, which we will use to orient the scene.
+    voxel_map = voxel_map[:, 10:25]
+    oven_xs, oven_zs, _ = collapse_voxel_map(voxel_map, 0, 2, "forward")
+
+    # Remove outliers.
+    mask_image = np.zeros((voxel_map.shape[0], voxel_map.shape[2]), dtype=np.uint8)
+    for x, z in zip(oven_xs, oven_zs):
+        mask_image[x, z] = 1
+    nb_components, output, stats, _ = cv2.connectedComponentsWithStats(mask_image, connectivity=8)
+    sizes = stats[:, -1]
+    max_label = 1
+    max_size = sizes[1]
+    for i in range(2, nb_components):
+        if sizes[i] > max_size:
+            max_label = i
+            max_size = sizes[i]
+    points = np.argwhere(output == max_label)
+
+    # Fit a rectangle to the points.
+    (cx, cy), (w, h), rot_deg  = cv2.minAreaRect(points)
+    rect = utils.Rectangle.from_center(cx, cy, w, h, rotation_about_center=rot_deg / 180 * np.pi)
+
+    # Uncomment to debug.
+    _, ax = plt.subplots(1, 1)
+    ax.scatter(oven_xs, oven_zs)
+    rect.plot(ax, facecolor=(1, 1, 1, 0.5), edgecolor="black")
+    ax.set_xlim([0, voxel_map.shape[0]])
+    ax.set_ylim([0, voxel_map.shape[2]])
+    ax.set_xlabel("x")
+    ax.set_ylabel("z")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    global COUNT
+    COUNT += 1
+    plt.savefig(f"debug_{COUNT}.png")
+
+    raise NotImplementedError
+
+
 def _get_state_from_voxel_map(voxel_map):
-    # Canonicalize orientation with respect to the oven.
-    return voxel_map
+    return _canonicalize_voxel_map(voxel_map)
 
 
 def get_abstract_state(voxel_map):
@@ -74,9 +117,7 @@ def collapse_voxel_map(voxel_map, dim0, dim1, dim2_direction):
 def voxel_map_to_img(voxel_map, title=None):
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
-    # TODO remove
     voxel_map_shape = voxel_map.shape
-    # voxel_map = voxel_map[:, :25, :]  # CROPS JUST THE TOP OF THE VOXELS
 
     # X/Y
     ax = axes[0]
@@ -86,8 +127,8 @@ def voxel_map_to_img(voxel_map, title=None):
     ax.set_ylim([voxel_map_shape[1], 0])
     ax.set_xlabel("x")
     ax.set_ylabel("-y")
-    # ax.set_xticks([])
-    # ax.set_yticks([])
+    ax.set_xticks([])
+    ax.set_yticks([])
 
     # X/Z
     ax = axes[1]
@@ -97,8 +138,8 @@ def voxel_map_to_img(voxel_map, title=None):
     ax.set_ylim([0, voxel_map_shape[2]])
     ax.set_xlabel("x")
     ax.set_ylabel("z")
-    # ax.set_xticks([])
-    # ax.set_yticks([])
+    ax.set_xticks([])
+    ax.set_yticks([])
 
     if title:
         plt.suptitle(title)
@@ -212,5 +253,9 @@ def create_predicate_annotations(demo_num):
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=40)
+    for d in range(58):
+        try:
+            create_voxel_map_video(demo_num=d)
+        except NotImplementedError:
+            pass
     # create_predicate_annotations(demo_num=40)
