@@ -1,3 +1,11 @@
+"""
+TODOs
+    - Speed profile
+    - Probably need to split open and close oven into open, grasp, close, because
+      there are intermediate states where the oven is neither open nor closed
+
+"""
+
 import h5py
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -123,23 +131,30 @@ def collapse_voxel_map(voxel_map, dim0, dim1, dim2_direction):
     dim2s = [i for i in range(3) if i not in {dim0, dim1}]
     assert len(dim2s) == 1
     dim2 = dim2s[0]
-    x_coords, y_coords, colors = [], [], []
-    for d0 in range(voxel_map.shape[dim0]):
-        for d1 in range(voxel_map.shape[dim1]):
-            if dim2_direction == "forward":
-                d2s = range(voxel_map.shape[dim2])
-            else:
-                assert dim2_direction == "backward"
-                d2s = range(voxel_map.shape[dim2] - 1, -1, -1)
-            for d2 in d2s:
-                d_to_i = {dim0: d0, dim1: d1, dim2: d2}
-                idx = (d_to_i[0], d_to_i[1], d_to_i[2])
-                if voxel_map[idx + (3,)] > 0:
-                    x_coords.append(d0)
-                    y_coords.append(d1)
-                    colors.append(voxel_map[idx] / 255)
-                    break
-    return x_coords, y_coords, colors
+
+    keep_mask = np.ones((voxel_map.shape[dim0], voxel_map.shape[dim1]), dtype=bool)
+
+    if dim2_direction == "forward":
+        d2s = range(voxel_map.shape[dim2])
+    else:
+        assert dim2_direction == "backward"
+        d2s = range(voxel_map.shape[dim2] - 1, -1, -1)
+
+    coords0, coords1, colors = [], [], []
+    for d2 in d2s:
+        d_to_i = {dim0: slice(None), dim1: slice(None), dim2: d2}
+        idx = (d_to_i[0], d_to_i[1], d_to_i[2])
+        voxel_map_layer = voxel_map[idx]
+        this_keep_mask = keep_mask & (voxel_map_layer[..., 3] > 0)
+        for coord0, coord1 in np.argwhere(this_keep_mask):
+            # This is probably wrong
+            color = voxel_map_layer[(coord0, coord1)] / 255
+            coords0.append(coord0)
+            coords1.append(coord1)
+            colors.append(color)
+        keep_mask = keep_mask & (~this_keep_mask)
+
+    return coords0, coords1, colors
 
 
 
