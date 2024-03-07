@@ -329,7 +329,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
         # If we're doing proper bilevel planning with a simulator, then
         # we need to replace some of the samplers.
         if not CFG.bilevel_plan_without_sim:
-            operator_name_to_sampler["PickObjectFromTop"]: utils.null_sampler
+            operator_name_to_sampler["PickObjectFromTop"] = utils.null_sampler
             # NOTE: will probably have to replace all other pick ops
             # similarly in the future.
 
