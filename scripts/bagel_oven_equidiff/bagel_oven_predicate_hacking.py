@@ -9,24 +9,33 @@ import cv2
 import pickle as p
 
 
-def _tray_pulled_out_classifier(state):
-    return False  # TODO
+def _oven_open_classifier(state):
+    # Count the number of active voxels in the expected region and threshold.
+    x_min = 8
+    x_max = 32
+    z_min = 8
+    z_max = 64 - 8
+    y_min = 64 - 64 // 5
+    y_max = 63
+    region = state[x_min:x_max, y_min:y_max, z_min:z_max]
+    num_active = np.sum(np.array(region[..., 3].flat) > 1e-5)
+    return num_active > 100
 
 
-def _tray_inside_oven_classifier(state):
-    return not _tray_pulled_out_classifier(state)
+def _oven_closed_classifier(state):
+    return not _oven_open_classifier(state)
 
 
 
 _PREDICATE_CLASSIFIERS = {
     # TODO: notholdingbagel
-    # TODO: ovenclosed
-    # TODO: ovenopen
     # TODO: bagelgrasped
     # TODO: bagelontable
     # TODO: bagelontray
-    "trayinsideoven": _tray_inside_oven_classifier,
-    "traypulledout": _tray_pulled_out_classifier,
+    # TODO: trayinsideoven
+    # TODO: traypulledout
+    "ovenopen": _oven_open_classifier,
+    "ovenclosed": _oven_closed_classifier,
 }
 
 
@@ -167,17 +176,10 @@ def voxel_map_to_img(voxel_map, title=None):
     return img
 
 
-def create_voxel_map_video(demo_num):
-
+def load_data(demo_num):
     dirpath =  Path("/Users/tom/Desktop") / "equidiff"
     filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
     assert filepath.exists()
-
-    annotations_filepath = dirpath  / f"bagel_oven_annotations_demo{demo_num}.p"
-    annotations = None
-    if annotations_filepath.exists():
-        with open(annotations_filepath, "rb") as f:
-            annotations = p.load(f)
 
     f = h5py.File(filepath, 'r')
     dataset = f['dataset']
@@ -189,14 +191,25 @@ def create_voxel_map_video(demo_num):
     eef_quat = demo["robot0_eef_quat"]
     gripper_qpos = demo["robot0_gripper_qpos"]
 
+    return voxels
+
+
+
+def create_voxel_map_video(demo_num):
+
+    voxels = load_data(demo_num)
+
+    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+    annotations_filepath = dirpath  / f"bagel_oven_annotations_demo{demo_num}.p"
+    annotations = None
+    if annotations_filepath.exists():
+        with open(annotations_filepath, "rb") as f:
+            annotations = p.load(f)
+
     imgs = []
 
     for t in range(len(voxels)):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
-
-        # TODO remove
-        voxel_map = _canonicalize_voxel_map(voxel_map)
-
         title = ""
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
@@ -207,10 +220,6 @@ def create_voxel_map_video(demo_num):
 
         img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
-
-        # TODO remove
-        if t > 5:
-            break
 
     video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
     iio.mimsave(video_path, imgs, fps=10)
@@ -227,13 +236,7 @@ def create_predicate_annotations(demo_num):
     sorted_pred_names = sorted(p.name for p in predicates)
 
     dirpath =  Path("/Users/tom/Desktop") / "equidiff"
-    filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
-    assert filepath.exists()
-
-    f = h5py.File(filepath, 'r')
-    dataset = f['dataset']
-    demo = dataset[f'demo_{demo_num}']
-    voxels = demo["agentview_voxel"]
+    voxels = load_data(demo_num)
 
     annotations = []
     pred_prompt_str = ", ".join(f"{i}: {p}" for i, p in enumerate(sorted_pred_names))
@@ -273,6 +276,20 @@ def create_predicate_annotations(demo_num):
     print(f"Dumped annotations to {annotations_path}")
 
 
+
+def _test_oven_open_closed_classifier():
+     voxels = load_data(demo_num=0)
+     neg1 = np.swapaxes(voxels[0], 0, -1)
+     assert not _oven_open_classifier(neg1)
+     assert _oven_closed_classifier(neg1)
+
+     pos1 = np.swapaxes(voxels[200], 0, -1)
+     assert _oven_open_classifier(pos1)
+     assert not _oven_closed_classifier(pos1)
+
+
 if __name__ == "__main__":
     create_voxel_map_video(demo_num=0)
     # create_predicate_annotations(demo_num=40)
+
+    # _test_oven_open_closed_classifier()
