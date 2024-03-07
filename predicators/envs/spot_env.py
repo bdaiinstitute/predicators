@@ -181,8 +181,12 @@ def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
     return _SIMULATED_SPOT_ROBOT
 
 
-def get_simulated_object(obj: Object) -> pbrspot.body.Body:
+def get_simulated_object(
+        obj: Object,
+        fail_if_no_key: bool = True) -> Optional[pbrspot.body.Body]:
     """Return the simulated version of obj."""
+    if not fail_if_no_key and obj.name not in _obj_name_to_sim_obj:
+        return None
     return _obj_name_to_sim_obj[obj.name]
 
 
