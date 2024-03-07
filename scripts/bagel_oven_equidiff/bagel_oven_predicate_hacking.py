@@ -33,8 +33,8 @@ _PREDICATE_CLASSIFIERS = {
 def _canonicalize_voxel_map(voxel_map):
     # Assume that the y dimension is consistent. Crop above a certain y value
     # to isolate the top of the oven, which we will use to orient the scene.
-    voxel_map = voxel_map[:, 10:25]
-    oven_xs, oven_zs, _ = collapse_voxel_map(voxel_map, 0, 2, "forward")
+    cropped_voxel_map = voxel_map[:, 10:25]
+    oven_xs, oven_zs, _ = collapse_voxel_map(cropped_voxel_map, 0, 2, "forward")
 
     # Remove outliers.
     mask_image = np.zeros((voxel_map.shape[0], voxel_map.shape[2]), dtype=np.uint8)
@@ -193,6 +193,10 @@ def create_voxel_map_video(demo_num):
 
     for t in range(len(voxels)):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
+
+        # TODO remove
+        voxel_map = _canonicalize_voxel_map(voxel_map)
+
         title = ""
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
@@ -270,5 +274,5 @@ def create_predicate_annotations(demo_num):
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=d)
+    create_voxel_map_video(demo_num=0)
     # create_predicate_annotations(demo_num=40)
