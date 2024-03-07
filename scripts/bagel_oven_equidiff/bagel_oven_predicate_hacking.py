@@ -87,6 +87,8 @@ def _canonicalize_voxel_map(voxel_map):
         for z in range(voxel_map.shape[2]):
             new_x, new_z = utils.rotate_point_in_image(x, z, rot_degrees, voxel_map.shape[0],
                             voxel_map.shape[2])
+            if not (0 <= new_x < voxel_map.shape[0] and 0 <= new_z < voxel_map.shape[2]):
+                continue
             for y in range(voxel_map.shape[1]):
                 new_voxel_map[new_x, y, new_z] = voxel_map[x, y, z]
 
