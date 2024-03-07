@@ -7,6 +7,7 @@ from predicators.envs.pddl_env import _parse_pddl_domain
 import imageio.v2 as iio
 import cv2
 import pickle as p
+from tqdm import tqdm
 
 
 def _oven_open_classifier(state):
@@ -210,7 +211,7 @@ def create_voxel_map_video(demo_num):
 
     imgs = []
 
-    for t in range(len(voxels)):
+    for t in tqdm(range(len(voxels))):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
         title = ""
         if annotations and len(annotations) >= t-1:
@@ -291,7 +292,7 @@ def _test_oven_open_closed_classifier():
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=0)
+    create_voxel_map_video(demo_num=40)
     # create_predicate_annotations(demo_num=40)
 
     # _test_oven_open_closed_classifier()
