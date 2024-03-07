@@ -28,12 +28,6 @@ known-immovable-objects:
     z: -0.32
   shelf1:
     x: 4.0
-    y: -2.0  # black_table:
-    x: 2.3
-    y: -2.0
-    z: -0.32
-  shelf1:
-    x: 4.0
     y: -2.0
     z: 0.05
     yaw: -0.7
