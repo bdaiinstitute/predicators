@@ -574,8 +574,9 @@ def _sim_safe_pick_object_from_top_policy(state: State, memory: Dict,
     fn_args = (robot, objects[target_obj_idx], _options_rng, True, True, False)
     sim_fn = simulated_grasp_at_pixel
     sim_target_obj = get_simulated_object(objects[target_obj_idx])
-    utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
-                                 (sim_robot, sim_target_obj))
+    sim_fn_args = (sim_robot, sim_target_obj)
+    return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
+                                        sim_fn_args)
 
 
 def _pick_object_to_drag_policy(state: State, memory: Dict,

@@ -219,7 +219,6 @@ class SpotRearrangementEnv(BaseEnv):
         assert "spot_wrapper" in CFG.approach or \
                "spot_wrapper" in CFG.approach_wrapper, \
             "Must use spot wrapper in spot envs!"
-
         # If we're doing proper bilevel planning, then we need to instantiate
         # a simulator!
         global _SIMULATED_SPOT_ROBOT
@@ -249,7 +248,6 @@ class SpotRearrangementEnv(BaseEnv):
         self._robot = robot
         self._localizer = localizer
         self._lease_client = lease_client
-
         # Note that we need to include the operators in this
         # class because they're used to update the symbolic
         # parts of the state during execution.
@@ -471,6 +469,7 @@ class SpotRearrangementEnv(BaseEnv):
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
+
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
         assert self.action_space.contains(action.arr)
@@ -882,27 +881,12 @@ class SpotRearrangementEnv(BaseEnv):
         raise NotImplementedError("This env does not use Matplotlib")
 
     def _load_task_from_json(self, json_file: Path) -> EnvironmentTask:
-        # NOTE: Code copied from load_task_json of superclass.
         with open(json_file, "r", encoding="utf-8") as f:
             json_dict = json.load(f)
-        object_name_to_object: Dict[str, Object] = {}
-        # Parse objects.
-        type_name_to_type = {t.name: t for t in self.types}
-        for obj_name, type_name in json_dict["objects"].items():
-            obj_type = type_name_to_type[type_name]
-            obj = Object(obj_name, obj_type)
-            object_name_to_object[obj_name] = obj
-        assert set(object_name_to_object).\
-            issubset(set(json_dict["init"])), \
-            "The init state can only include objects in `objects`."
-        assert set(object_name_to_object).\
-            issuperset(set(json_dict["init"])), \
-            "The init state must include every object in `objects`."
-        # Parse initial state.
-        init_dict: Dict[Object, Dict[str, float]] = {}
-        for obj_name, obj_dict in json_dict["init"].items():
-            obj = object_name_to_object[obj_name]
-            init_dict[obj] = obj_dict.copy()
+        object_name_to_object = self._parse_object_name_to_object_from_json(
+            json_dict)
+        init_dict = self._parse_init_state_dict_from_json(
+            json_dict, object_name_to_object)
         # Get the object detection id's, which are features of
         # each object type.
         obj_to_detection_id = {
@@ -913,23 +897,11 @@ class SpotRearrangementEnv(BaseEnv):
             if obj in obj_to_detection_id:
                 init_dict[obj]["object_id"] = obj_to_detection_id[obj]
         init_state = utils.create_state_from_dict(init_dict)
-        # Parse goal.
-        if "goal" in json_dict:
-            goal = self._parse_goal_from_json(json_dict["goal"],
-                                              object_name_to_object)
-        elif "goal_description" in json_dict:  # pragma: no cover
-            goal = json_dict["goal_description"]
-        else:  # pragma: no cover
-            if CFG.override_json_with_input:
-                goal = self._parse_goal_from_input_to_json(
-                    init_state, json_dict, object_name_to_object)
-            else:
-                assert "language_goal" in json_dict
-                goal = self._parse_language_goal_from_json(
-                    json_dict["language_goal"], object_name_to_object)
+        goal = self._parse_goal_from_json_dict(json_dict,
+                                               object_name_to_object,
+                                               init_state)
         base_env_task = EnvironmentTask(init_state, goal)
 
-        # TODO
         init = base_env_task.init
         # Images not currently saved or used.
         images: Dict[str, RGBDImageWithContext] = {}
@@ -1237,7 +1209,6 @@ def _reachable_classifier(state: State, objects: Sequence[Object]) -> bool:
         y=state.get(obj, "y"),
         z=state.get(obj, "z"),
     )
-
     return _obj_reachable_from_spot_pose(spot_pose, obj_position)
 
 
