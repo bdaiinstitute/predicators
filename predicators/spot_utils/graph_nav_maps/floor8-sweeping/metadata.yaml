@@ -31,8 +31,6 @@ known-immovable-objects:
     y: -2.0
     z: 0.05
     yaw: -0.7
-    z: 0.05
-    yaw: -0.7
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
   floor:
