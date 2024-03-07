@@ -12,11 +12,14 @@ from gym.spaces import Box
 from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
-    SpotRearrangementEnv, _get_sweeping_surface_for_container, get_robot, \
+    SpotRearrangementEnv, _get_sweeping_surface_for_container, \
+    get_detection_id_for_object, get_robot, \
     get_robot_gripper_open_percentage, get_simulated_object, \
     get_simulated_robot
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
+from predicators.spot_utils.perception.object_detection import \
+    get_grasp_pixel, get_last_detected_objects
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import \
@@ -42,6 +45,11 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
 ###############################################################################
+
+# Hack: options don't generally get passed rng's, but we need them primarily
+# for options that do some kind of implicit sampling (e.g. sim-safe grasping).
+# In the future, we probably want to pass these thru nicely.
+_options_rng = np.random.default_rng(CFG.seed)
 
 
 def navigate_to_relative_pose_and_gaze(robot: Robot,
@@ -83,6 +91,67 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    pixel,
                    grasp_rot=grasp_rot,
                    rot_thresh=rot_thresh,
+                   timeout=timeout,
+                   retry_with_no_constraints=retry_grasp_after_fail)
+    # Dump, if the grasp was successful.
+    thresh = HANDEMPTY_GRIPPER_THRESHOLD
+    if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
+        # Lift the grasped object up high enough that it doesn't collide.
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
+        # Rotate to the right.
+        angle = -np.pi / 2
+        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, angle))
+        # Move the hand to execute the dump.
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
+        time.sleep(1.0)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
+        # Rotate back to where we started.
+        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, -angle))
+    # Stow.
+    if do_stow:
+        stow_arm(robot)
+
+
+def _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump(
+        robot: Robot, target_obj: Object, rng: np.random.Generator,
+        timeout: float, retry_grasp_after_fail: bool, do_stow: bool,
+        do_dump: bool) -> None:
+    """Implicitly gets the current image from the hand camera and selects a
+    pixel + rotation threshold.
+
+    This is necessary because we can't select pixels from inside
+    simulation, but we want to do this in a just-in-time fashion when
+    we're actually executing the skill on the robot. Basically, this
+    moves all the logic from the pixel grasp sampler and the skill
+    inside here.
+    """
+    # Select the coordinates of a pixel within the image so that
+    # we grasp at that pixel!
+    target_detection_id = get_detection_id_for_object(target_obj)
+    rgbds = get_last_captured_images()
+    _, artifacts = get_last_detected_objects()
+    hand_camera = "hand_color_image"
+    pixel, rot_quat = get_grasp_pixel(rgbds, artifacts, target_detection_id,
+                                      hand_camera, rng)
+    if rot_quat is None:
+        rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
+    else:
+        rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
+
+    img = rgbds[hand_camera]
+    # Use a relatively forgiving threshold for grasp constraints in general,
+    # but for the ball, use a strict constraint.
+    if target_obj.name == "ball":
+        thresh = 0.17
+    else:
+        thresh = np.pi / 4
+
+    # Grasp.
+    grasp_at_pixel(robot,
+                   img,
+                   pixel,
+                   grasp_rot=rot_quat_tuple,
+                   rot_thresh=thresh,
                    timeout=timeout,
                    retry_with_no_constraints=retry_grasp_after_fail)
     # Dump, if the grasp was successful.
@@ -295,11 +364,7 @@ def _grasp_policy(name: str,
     else:
         rgbds = get_last_captured_images()
         hand_camera = "hand_color_image"
-        try:
-            img = rgbds[hand_camera]
-        except KeyError:
-            # HACK! This is how we know we're planning in sim.
-            img = None
+        img = rgbds[hand_camera]
 
     # Grasp from the top-down.
     grasp_rot = None
@@ -313,7 +378,8 @@ def _grasp_policy(name: str,
     do_stow = not do_dump and \
         target_obj_volume < CFG.spot_grasp_stow_volume_threshold
     fn = _grasp_at_pixel_and_maybe_stow_or_dump
-    sim_fn = simulated_grasp_at_pixel
+    sim_fn = None  # NOTE: cannot simulate using this option, so this
+    # shouldn't be called anyways...
 
     # Use a relatively forgiving threshold for grasp constraints in general,
     # but for the ball, use a strict constraint.
@@ -494,6 +560,22 @@ def _pick_object_from_top_policy(state: State, memory: Dict,
     name = "PickObjectFromTop"
     target_obj_idx = 1
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
+
+
+def _sim_safe_pick_object_from_top_policy(state: State, memory: Dict,
+                                          objects: Sequence[Object],
+                                          params: Array) -> Action:
+    del state, memory, params  # unused.
+    name = "SimSafePickObjectFromTop"
+    target_obj_idx = 1
+    robot, _, _ = get_robot()
+    sim_robot = get_simulated_robot()
+    fn = _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump
+    fn_args = (robot, objects[target_obj_idx], _options_rng, True, True, False)
+    sim_fn = simulated_grasp_at_pixel
+    sim_target_obj = get_simulated_object(objects[target_obj_idx])
+    utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
+                                 (sim_robot, sim_target_obj))
 
 
 def _pick_object_to_drag_policy(state: State, memory: Dict,
@@ -844,6 +926,14 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
 }
+
+# If we're doing proper bilevel planning with a simulator, then
+# we need to make some adjustments to the params spaces
+# and policies.
+if not CFG.bilevel_plan_without_sim:
+    _OPERATOR_NAME_TO_PARAM_SPACE["PickObjectFromTop"] = Box(0, 1, (0, ))
+    _OPERATOR_NAME_TO_POLICY[
+        "PickObjectFromTop"] = _sim_safe_pick_object_from_top_policy
 
 
 class _SpotParameterizedOption(utils.SingletonParameterizedOption):

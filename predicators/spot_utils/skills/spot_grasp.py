@@ -138,7 +138,6 @@ def grasp_at_pixel(robot: Robot,
 
 
 def simulated_grasp_at_pixel(sim_robot: pbrspot.spot.Spot,
-                             rot_constraint: math_helpers.Quat,
                              obj_to_be_grasped: pbrspot.body.Body) -> None:
     """Simulated grasping in pybullet.
 

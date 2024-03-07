@@ -153,15 +153,9 @@ def _pick_object_from_top_sampler(state: State, goal: Set[GroundAtom],
         rgbds = get_last_captured_images()
         _, artifacts = get_last_detected_objects()
         hand_camera = "hand_color_image"
-        try:
-            pixel, rot_quat = get_grasp_pixel(rgbds, artifacts,
-                                              target_detection_id, hand_camera,
-                                              rng)
-        except (KeyError, ValueError):
-            # HACK! This is how we know we're not executing on the real robot lol...
-            # Definitely not great to be doing this with a try/except.
-            pixel = (150, 150)
-            rot_quat = None
+        pixel, rot_quat = get_grasp_pixel(rgbds, artifacts,
+                                          target_detection_id, hand_camera,
+                                          rng)
         if rot_quat is None:
             rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
         else:
@@ -331,6 +325,13 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
         }
+
+        # If we're doing proper bilevel planning with a simulator, then
+        # we need to replace some of the samplers.
+        if not CFG.bilevel_plan_without_sim:
+            operator_name_to_sampler["PickObjectFromTop"]: utils.null_sampler
+            # NOTE: will probably have to replace all other pick ops
+            # similarly in the future.
 
         for strips_op in env.strips_operators:
             sampler = operator_name_to_sampler[strips_op.name]
