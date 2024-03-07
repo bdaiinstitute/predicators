@@ -30,9 +30,6 @@ _PREDICATE_CLASSIFIERS = {
 }
 
 
-# for debugging, remove later
-COUNT = 0
-
 def _canonicalize_voxel_map(voxel_map):
     # Assume that the y dimension is consistent. Crop above a certain y value
     # to isolate the top of the oven, which we will use to orient the scene.
@@ -54,24 +51,44 @@ def _canonicalize_voxel_map(voxel_map):
     points = np.argwhere(output == max_label)
 
     # Fit a rectangle to the points.
-    (cx, cy), (w, h), rot_deg  = cv2.minAreaRect(points)
-    rect = utils.Rectangle.from_center(cx, cy, w, h, rotation_about_center=rot_deg / 180 * np.pi)
+    (cx, cz), (w, h), rot_deg  = cv2.minAreaRect(points)
 
     # Uncomment to debug.
-    _, ax = plt.subplots(1, 1)
-    ax.scatter(oven_xs, oven_zs)
-    rect.plot(ax, facecolor=(1, 1, 1, 0.5), edgecolor="black")
-    ax.set_xlim([0, voxel_map.shape[0]])
-    ax.set_ylim([0, voxel_map.shape[2]])
-    ax.set_xlabel("x")
-    ax.set_ylabel("z")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    global COUNT
-    COUNT += 1
-    plt.savefig(f"debug_{COUNT}.png")
+    # rect = utils.Rectangle.from_center(cx, cz, w, h, rotation_about_center=rot_deg / 180 * np.pi)
+    # _, ax = plt.subplots(1, 1)
+    # ax.scatter(oven_xs, oven_zs)
+    # rect.plot(ax, facecolor=(1, 1, 1, 0.5), edgecolor="black")
+    # ax.set_xlim([0, voxel_map.shape[0]])
+    # ax.set_ylim([0, voxel_map.shape[2]])
+    # ax.set_xlabel("x")
+    # ax.set_ylabel("z")
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+    # plt.savefig("debug.png")
 
-    raise NotImplementedError
+    # Determine the angle between the oven and the center of the workspace.
+    wx = (voxel_map.shape[0] - 1) / 2
+    wz = (voxel_map.shape[2] - 1) / 2
+    rot = np.pi - np.arctan2(cz - wz, cx - wx)  # between -pi and pi
+    rot_degrees = 180 * rot / np.pi
+
+    # Rotate points in the voxel map by that amount.
+    new_voxel_map = np.zeros_like(voxel_map)
+    for x in range(voxel_map.shape[0]):
+        for z in range(voxel_map.shape[2]):
+            new_x, new_z = utils.rotate_point_in_image(x, z, rot_degrees, voxel_map.shape[0],
+                            voxel_map.shape[2])
+            for y in range(voxel_map.shape[1]):
+                new_voxel_map[new_x, y, new_z] = voxel_map[x, y, z]
+
+    # Uncomment to debug.
+    # img = voxel_map_to_img(new_voxel_map)
+    # global COUNT
+    # COUNT += 1
+    # iio.imsave(f"debug_imgs/debug_rot_{COUNT}.png", img)
+    # raise NotImplementedError
+
+    return new_voxel_map
 
 
 def _get_state_from_voxel_map(voxel_map):
@@ -253,9 +270,5 @@ def create_predicate_annotations(demo_num):
 
 
 if __name__ == "__main__":
-    for d in range(58):
-        try:
-            create_voxel_map_video(demo_num=d)
-        except NotImplementedError:
-            pass
+    create_voxel_map_video(demo_num=d)
     # create_predicate_annotations(demo_num=40)

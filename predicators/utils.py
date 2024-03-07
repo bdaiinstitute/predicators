@@ -3704,7 +3704,7 @@ def rotate_point_in_image(r: float, c: float, rot_degrees: float, height: int,
     # Add the center of the image back to the pixel location to
     # translate the rotation back from the origin.
     rotated_pt = rotated_pt_centered + center
-    return rotated_pt[0], rotated_pt[1]
+    return int(rotated_pt[0]), int(rotated_pt[1])
 
 
 def get_se3_pose_from_state(
