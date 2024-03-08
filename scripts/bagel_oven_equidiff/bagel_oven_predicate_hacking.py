@@ -1,8 +1,8 @@
 """
 TODOs
-    - Speed profile
     - Probably need to split open and close oven into open, grasp, close, because
-      there are intermediate states where the oven is neither open nor closed
+      there are intermediate states where the oven is neither open nor closed.
+      Same for pulling the tray out.
 
 """
 
@@ -35,16 +35,35 @@ def _oven_closed_classifier(state):
     return not _oven_open_classifier(state)
 
 
+def _tray_pulled_out_classifier(state):
+    # Count the number of active voxels in the expected region and threshold.
+    x_min = 16
+    x_max = 32
+    z_min = 8
+    z_max = 64 - 8
+    y_min = 32
+    y_max = 48
+    region = state[x_min:x_max, y_min:y_max, z_min:z_max]
+    colors = np.reshape(region[..., :3], (-1, 3))
+    tray_color = np.array([1, 200, 150])
+    dists = np.sum((colors - tray_color)**2, axis=1)
+    num_active = np.sum(dists < 1000)
+    return num_active > 50
+
+
+def _tray_inside_oven_classifier(state):
+    return not _tray_pulled_out_classifier(state)
+
 
 _PREDICATE_CLASSIFIERS = {
     # TODO: notholdingbagel
     # TODO: bagelgrasped
     # TODO: bagelontable
     # TODO: bagelontray
-    # TODO: trayinsideoven
-    # TODO: traypulledout
     "ovenopen": _oven_open_classifier,
     "ovenclosed": _oven_closed_classifier,
+    "trayinsideoven": _tray_inside_oven_classifier,
+    "traypulledout": _tray_pulled_out_classifier,
 }
 
 
@@ -306,8 +325,20 @@ def _test_oven_open_closed_classifier():
      assert not _oven_closed_classifier(pos1)
 
 
+def _test_tray_classifier():
+     voxels = load_data(demo_num=0)
+    #  neg1 = np.swapaxes(voxels[0], 0, -1)
+    #  assert not _tray_pulled_out_classifier(neg1)
+    #  assert _tray_inside_oven_classifier(neg1)
+
+     pos1 = np.swapaxes(voxels[300], 0, -1)
+     assert _tray_pulled_out_classifier(pos1)
+     assert not _tray_inside_oven_classifier(pos1)
+
+
 if __name__ == "__main__":
     create_voxel_map_video(demo_num=40)
     # create_predicate_annotations(demo_num=40)
 
     # _test_oven_open_closed_classifier()
+    # _test_tray_classifier()
