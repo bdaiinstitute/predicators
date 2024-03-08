@@ -22,7 +22,7 @@ from predicators.spot_utils.skills.spot_find_objects import find_objects
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_allowed_map_regions
 from predicators.structs import Action, Object, ParameterizedOption, \
-    Predicate, State, Task, Type, SpotActionExtraInfo
+    Predicate, SpotActionExtraInfo, State, Task, Type
 
 
 class SpotWrapperApproach(BaseApproachWrapper):
@@ -56,7 +56,8 @@ class SpotWrapperApproach(BaseApproachWrapper):
             nonlocal base_approach_policy, need_stow
             # If we think that we're done, return the done action.
             if task.goal_holds(state):
-                extra_info = SpotActionExtraInfo("done", [], None, tuple(), None, tuple())
+                extra_info = SpotActionExtraInfo("done", [], None, tuple(),
+                                                 None, tuple())
                 return utils.create_spot_env_action(extra_info)
             # If some objects are lost, find them.
             lost_objects: Set[Object] = set()
@@ -77,7 +78,8 @@ class SpotWrapperApproach(BaseApproachWrapper):
                     for o in lost_objects
                 }
                 allowed_regions = self._allowed_regions
-                extra_info = SpotActionExtraInfo("find-objects", [], find_objects,
+                extra_info = SpotActionExtraInfo(
+                    "find-objects", [], find_objects,
                     (state, self._rng, robot, localizer, lease_client,
                      lost_object_ids, allowed_regions), None, tuple())
                 return utils.create_spot_env_action(extra_info)
@@ -89,7 +91,7 @@ class SpotWrapperApproach(BaseApproachWrapper):
                 self._base_approach_has_control = False
                 robot, _, _ = get_robot()
                 extra_info = SpotActionExtraInfo("stow-arm", [], stow_arm,
-                                                    (robot, ), None, tuple())
+                                                 (robot, ), None, tuple())
                 return utils.create_spot_env_action(extra_info)
             # Check if we need to re-solve.
             if base_approach_policy is None:

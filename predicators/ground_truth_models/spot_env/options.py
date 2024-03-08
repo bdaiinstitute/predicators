@@ -141,10 +141,10 @@ def _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump(
         thresh = 0.17
     else:
         thresh = np.pi / 4
-    
-    _grasp_at_pixel_and_maybe_stow_or_dump(robot, img, pixel, rot_quat,
-                                           thresh, timeout,
-                                           retry_grasp_after_fail, do_stow, do_dump)
+
+    _grasp_at_pixel_and_maybe_stow_or_dump(robot, img, pixel, rot_quat, thresh,
+                                           timeout, retry_grasp_after_fail,
+                                           do_stow, do_dump)
 
 
 def _place_at_relative_position_and_stow(

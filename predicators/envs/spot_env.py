@@ -53,13 +53,11 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
 #                                Base Class                                   #
 ###############################################################################
 
-# NOTE: PyBullet gets mad if we try to connect to it multiple times,
-# so we're going to instantiate a global variable here to indicate
-# whether or not we've connected to PyBullet before.
-
+# NOTE: The main reason we need these two global variables below is
+# that our options need access to this information, and we don't
+# want to kill and respawn the simulation every time this is
+# necessary.
 _SIMULATED_SPOT_ROBOT: Optional[pbrspot.spot.Spot] = None
-# Used to keep track of all simulated objects; also needs to be global
-# since we make and reset the env multiple times!
 _obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
 
 
@@ -184,7 +182,12 @@ def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
 def get_simulated_object(
         obj: Object,
         fail_if_no_key: bool = True) -> Optional[pbrspot.body.Body]:
-    """Return the simulated version of obj."""
+    """Return the simulated version of obj.
+
+    We add a fail_if_no_key option because sometimes we want to
+    run in environments where we only have a simulated object for
+    *a subset* of all objects.
+    """
     if not fail_if_no_key and obj.name not in _obj_name_to_sim_obj:
         return None
     return _obj_name_to_sim_obj[obj.name]
@@ -225,27 +228,10 @@ class SpotRearrangementEnv(BaseEnv):
             "Must use spot wrapper in spot envs!"
         # If we're doing proper bilevel planning, then we need to instantiate
         # a simulator!
+        global _SIMULATED_SPOT_ROBOT  # pylint:disable=global-statement
         if not CFG.bilevel_plan_without_sim:
-            global _SIMULATED_SPOT_ROBOT  # pylint:disable=global-statement
-            if _SIMULATED_SPOT_ROBOT is not None:
-                self.sim_robot = _SIMULATED_SPOT_ROBOT
-            else:
-                # First, launch PyBullet.
-                pbrspot.utils.connect(use_gui=self._using_gui)
-                pbrspot.utils.disable_real_time()
-                pbrspot.utils.set_default_camera()
-                # Create robot object atop the floor.
-                self.sim_robot = pbrspot.spot.Spot()
-                floor_urdf = utils.get_env_asset_path("urdf/floor.urdf")
-                floor_obj = pbrspot.body.createBody(floor_urdf)
-                # The floor is known to be about 60cm below the
-                # robot's position.
-                floor_obj.set_point([0, 0, -0.6])
-                self.sim_robot.set_point([
-                    0, 0,
-                    pbrspot.placements.stable_z(self.sim_robot, floor_obj)
-                ])
-                _SIMULATED_SPOT_ROBOT = self.sim_robot
+            self._initialize_pybullet()
+            _SIMULATED_SPOT_ROBOT = self._sim_robot
         robot, localizer, lease_client = get_robot()
         self._robot = robot
         self._localizer = localizer
@@ -268,6 +254,27 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+
+    def _initialize_pybullet(self) -> None:
+        # First, check if we have any connections to pybullet already,
+        # and reset them.
+        clients = pbrspot.utils.get_connection()
+        if clients > 0:
+            pbrspot.utils.disconnect()
+        # Now, launch PyBullet.
+        pbrspot.utils.connect(use_gui=self._using_gui)
+        pbrspot.utils.disable_real_time()
+        pbrspot.utils.set_default_camera()
+        # Create robot object atop the floor.
+        self._sim_robot = pbrspot.spot.Spot()
+        floor_urdf = utils.get_env_asset_path("urdf/floor.urdf")
+        floor_obj = pbrspot.body.createBody(floor_urdf)
+        # The floor is known to be about 60cm below the
+        # robot's position.
+        floor_obj.set_point([0, 0, -0.6])
+        self._sim_robot.set_point(
+            [0, 0,
+             pbrspot.placements.stable_z(self._sim_robot, floor_obj)])
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -450,7 +457,7 @@ class SpotRearrangementEnv(BaseEnv):
             # simulated robot to be in exactly the sasme joint
             # configuration as the real robot.
             if self._robot is not None:
-                update_pbrspot_robot_conf(self._robot, self.sim_robot)
+                update_pbrspot_robot_conf(self._robot, self._sim_robot)
             # Find the relevant object urdfs and then put them at the
             # right places in the world. Importantly note that we
             # expect the name of the object to be the same as the name
@@ -469,10 +476,7 @@ class SpotRearrangementEnv(BaseEnv):
 
     def step(self, action: Action) -> Observation:
         """Override step() for real-world execution!"""
-        try:
-            assert isinstance(action.extra_info, SpotActionExtraInfo)
-        except AssertionError:
-            import ipdb; ipdb.set_trace()
+        assert isinstance(action.extra_info, SpotActionExtraInfo)
         action_name = action.extra_info.action_name
         action_objs = action.extra_info.operator_objects
         action_fn = action.extra_info.real_world_fn
@@ -589,6 +593,7 @@ class SpotRearrangementEnv(BaseEnv):
                                           math_helpers.SE2Pose)
                         angle = self._noise_rng.uniform(-np.pi / 6, np.pi / 6)
                     rel_pose = math_helpers.SE2Pose(0, 0, angle)
+                    assert isinstance(action_fn_args, tuple)
                     new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
                         action_fn_args[2:]
 
@@ -774,7 +779,8 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Update the poses of the robot and all relevant objects
         # to be in the correct position(s).
-        update_pbrspot_given_state(self.sim_robot, _obj_name_to_sim_obj, state)
+        update_pbrspot_given_state(self._sim_robot, _obj_name_to_sim_obj,
+                                   state)
 
         # Special case: the action is "done", indicating that the robot
         # believes it has finished the task. Used for goal checking.
@@ -789,7 +795,7 @@ class SpotRearrangementEnv(BaseEnv):
         sim_action_fn(*sim_action_fn_args)  # type: ignore
 
         # Construct a new state given the updated simulation.
-        next_state = construct_state_given_pbrspot(self.sim_robot,
+        next_state = construct_state_given_pbrspot(self._sim_robot,
                                                    _obj_name_to_sim_obj, state)
 
         # In the future, we'll probably actually implement proper ways to
