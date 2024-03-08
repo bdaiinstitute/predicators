@@ -231,7 +231,7 @@ class SpotRearrangementEnv(BaseEnv):
                 # Create robot object atop the floor.
                 self.sim_robot = pbrspot.spot.Spot()
                 floor_urdf = utils.get_env_asset_path(
-                    "urdf/spot_related/floor.urdf")
+                    "urdf/floor.urdf")
                 floor_obj = pbrspot.body.createBody(floor_urdf)
                 # The floor is known to be about 60cm below the
                 # robot's position.
@@ -455,7 +455,7 @@ class SpotRearrangementEnv(BaseEnv):
                 if obj.name == "floor":
                     continue
                 obj_urdf = utils.get_env_asset_path(
-                    f"urdf/spot_related/{obj.name}.urdf", assert_exists=True)
+                    f"urdf/{obj.name}.urdf", assert_exists=True)
                 sim_obj = pbrspot.body.createBody(obj_urdf)
                 _obj_name_to_sim_obj[obj.name] = sim_obj
 
@@ -749,7 +749,7 @@ class SpotRearrangementEnv(BaseEnv):
     def simulate(self, state: State, action: Action) -> State:
         global _obj_name_to_sim_obj
         assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, _, action_fn, action_fn_args = \
+        action_name, action_objs, _, _, sim_action_fn, sim_action_fn_args = \
             action.extra_info
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
@@ -770,7 +770,7 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Execute the action in the pybullet env. Automatically retry
         # if a retryable error is encountered.
-        action_fn(*action_fn_args)  # type: ignore
+        sim_action_fn(*sim_action_fn_args)  # type: ignore
 
         # Construct a new state given the updated simulation.
         next_state = construct_state_given_pbrspot(self.sim_robot,
@@ -788,6 +788,9 @@ class SpotRearrangementEnv(BaseEnv):
             obj_to_pick = action_objs[1]
             next_state.set(obj_to_pick, "held", 1.0)
             next_state.set(obj_to_pick, "in_hand_view", 0.0)
+        else:
+            raise NotImplementedError(f"Simulation for {action_name} " + \
+                                      "not implemented.")
 
         return next_state
 
