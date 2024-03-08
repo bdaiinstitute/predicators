@@ -323,21 +323,18 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
     target_height = state.get(target_obj, "height")
     gaze_target = math_helpers.Vec3(target_pose.x, target_pose.y,
                                     target_pose.z + target_height / 2)
-
+    fn = navigate_to_relative_pose_and_gaze
+    fn_args = (robot, rel_pose, localizer, gaze_target)
+    sim_fn: Callable = simulated_navigate_to_relative_pose_and_gaze
+    sim_fn_args: Tuple = (sim_robot,
+                          robot_pose.get_closest_se2_transform() * rel_pose,
+                          gaze_target)
     if not do_gaze:
-        fn: Callable = navigate_to_relative_pose
-        fn_args: Tuple = (robot, rel_pose)
-        sim_fn: Callable = simulated_navigate_to_relative_pose
-        sim_fn_args: Tuple = (sim_robot,
-                              robot_pose.get_closest_se2_transform() *
-                              rel_pose)
-    else:
-        fn = navigate_to_relative_pose_and_gaze
-        fn_args = (robot, rel_pose, localizer, gaze_target)
-        sim_fn: Callable = simulated_navigate_to_relative_pose_and_gaze
-        sim_fn_args: Tuple = (sim_robot,
-                              robot_pose.get_closest_se2_transform() *
-                              rel_pose, gaze_target)
+        fn = navigate_to_relative_pose  # type: ignore
+        fn_args = (robot, rel_pose)  # type: ignore
+        sim_fn = simulated_navigate_to_relative_pose
+        sim_fn_args = (sim_robot,
+                       robot_pose.get_closest_se2_transform() * rel_pose)
 
     return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
                                         sim_fn_args)
@@ -357,7 +354,7 @@ def _grasp_policy(name: str,
     assert len(params) == 6
     pixel = (int(params[0]), int(params[1]))
     target_obj = objects[target_obj_idx]
-    sim_target_obj = get_simulated_object(target_obj)
+    sim_target_obj = get_simulated_object(target_obj, False)
 
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:
@@ -929,14 +926,6 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToReadySweep": _move_to_ready_sweep_policy,
 }
 
-# If we're doing proper bilevel planning with a simulator, then
-# we need to make some adjustments to the params spaces
-# and policies.
-if not CFG.bilevel_plan_without_sim:
-    _OPERATOR_NAME_TO_PARAM_SPACE["PickObjectFromTop"] = Box(0, 1, (0, ))
-    _OPERATOR_NAME_TO_POLICY[
-        "PickObjectFromTop"] = _sim_safe_pick_object_from_top_policy
-
 
 class _SpotParameterizedOption(utils.SingletonParameterizedOption):
     """A parameterized option for spot.
@@ -949,6 +938,14 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
     """
 
     def __init__(self, operator_name: str, types: List[Type]) -> None:
+        # If we're doing proper bilevel planning with a simulator, then
+        # we need to make some adjustments to the params spaces
+        # and policies.
+        if not CFG.bilevel_plan_without_sim:
+            _OPERATOR_NAME_TO_PARAM_SPACE["PickObjectFromTop"] = Box(
+                0, 1, (0, ))
+            _OPERATOR_NAME_TO_POLICY[
+                "PickObjectFromTop"] = _sim_safe_pick_object_from_top_policy
         params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
         policy = _OPERATOR_NAME_TO_POLICY[operator_name]
         super().__init__(operator_name, policy, types, params_space)

@@ -57,7 +57,7 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
 # so we're going to instantiate a global variable here to indicate
 # whether or not we've connected to pybullet before.
 
-_SIMULATED_SPOT_ROBOT = None
+_SIMULATED_SPOT_ROBOT: Optional[pbrspot.spot.Spot] = None
 # Used to keep track of all simulated objects; also needs to be global
 # since we make and reset the env multiple times!
 _obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
@@ -181,8 +181,12 @@ def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
     return _SIMULATED_SPOT_ROBOT
 
 
-def get_simulated_object(obj: Object) -> pbrspot.body.Body:
+def get_simulated_object(
+        obj: Object,
+        fail_if_no_key: bool = True) -> Optional[pbrspot.body.Body]:
     """Return the simulated version of obj."""
+    if not fail_if_no_key and obj.name not in _obj_name_to_sim_obj:
+        return None
     return _obj_name_to_sim_obj[obj.name]
 
 
@@ -221,9 +225,11 @@ class SpotRearrangementEnv(BaseEnv):
             "Must use spot wrapper in spot envs!"
         # If we're doing proper bilevel planning, then we need to instantiate
         # a simulator!
-        global _SIMULATED_SPOT_ROBOT
         if not CFG.bilevel_plan_without_sim:
-            if _SIMULATED_SPOT_ROBOT is None:
+            global _SIMULATED_SPOT_ROBOT  # pylint:disable=global-statement
+            if _SIMULATED_SPOT_ROBOT is not None:
+                self.sim_robot = _SIMULATED_SPOT_ROBOT
+            else:
                 # First, launch pybullet.
                 pbrspot.utils.connect(use_gui=True)
                 pbrspot.utils.disable_real_time()
@@ -241,9 +247,6 @@ class SpotRearrangementEnv(BaseEnv):
                     pbrspot.placements.stable_z(self.sim_robot, floor_obj)
                 ])
                 _SIMULATED_SPOT_ROBOT = self.sim_robot
-            else:
-                self.sim_robot = _SIMULATED_SPOT_ROBOT
-
         robot, localizer, lease_client = get_robot()
         self._robot = robot
         self._localizer = localizer
@@ -434,17 +437,19 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Start by modifying the simulated robot to be in the right
         # position and configuration.
-        # TODO: probably also want to reset the pybullet sim to only
-        # have the robot and floor as well here.
         if not CFG.bilevel_plan_without_sim:
-            global _obj_name_to_sim_obj
+            global _obj_name_to_sim_obj  # pylint:disable=global-statement
+            # Start by removing all previously-known objects from
+            # the simulation.
+            if len(_obj_name_to_sim_obj) > 0:
+                for sim_obj in _obj_name_to_sim_obj.values():
+                    sim_obj.remove_body()
             _obj_name_to_sim_obj = {}
             # If we're connected to a real-world robot, then update the
             # simulated robot to be in exactly the sasme joint
             # configuration as the real robot.
             if self._robot is not None:
                 update_pbrspot_robot_conf(self._robot, self.sim_robot)
-
             # Find the relevant object urdfs and then put them at the
             # right places in the world. Importantly note that we
             # expect the name of the object to be the same as the name
@@ -747,7 +752,6 @@ class SpotRearrangementEnv(BaseEnv):
         }
 
     def simulate(self, state: State, action: Action) -> State:
-        global _obj_name_to_sim_obj
         assert isinstance(action.extra_info, (list, tuple))
         action_name, action_objs, _, _, sim_action_fn, sim_action_fn_args = \
             action.extra_info
@@ -900,7 +904,8 @@ class SpotRearrangementEnv(BaseEnv):
         }
         for obj, init_val in init_dict.items():
             if obj in obj_to_detection_id:
-                init_val["object_id"] = obj_to_detection_id[obj]
+                init_val["object_id"] = obj_to_detection_id[
+                    obj]  # type: ignore
         init_state = utils.create_state_from_dict(init_dict)
         goal = self._parse_goal_from_json_dict(json_dict,
                                                object_name_to_object,
