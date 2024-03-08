@@ -58,9 +58,10 @@ from predicators.structs import NSRT, Action, Array, DummyOption, \
     GroundNSRTOrSTRIPSOperator, Image, LDLRule, LiftedAtom, \
     LiftedDecisionList, LiftedOrGroundAtom, LowLevelTrajectory, Metrics, \
     NSRTOrSTRIPSOperator, Object, ObjectOrVariable, Observation, OptionSpec, \
-    ParameterizedOption, Predicate, Segment, SpotAction, State, \
-    STRIPSOperator, Task, Type, Variable, VarToObjSub, Video, _GroundLDLRule, \
-    _GroundNSRT, _GroundSTRIPSOperator, _Option, _TypedEntity
+    ParameterizedOption, Predicate, Segment, SpotAction, SpotActionExtraInfo, \
+    State, STRIPSOperator, Task, Type, Variable, VarToObjSub, Video, \
+    _GroundLDLRule, _GroundNSRT, _GroundSTRIPSOperator, _Option, \
+    _TypedEntity
 from predicators.third_party.fast_downward_translator.translate import \
     main as downward_translate
 
@@ -3726,18 +3727,10 @@ def get_se3_pose_from_state(
 
 
 def create_spot_env_action(
-    action_name: str,
-    operator_objects: Sequence[Object] = tuple(),
-    real_world_fn: Optional[Callable] = None,
-    real_world_fn_args: Sequence = tuple(),
-    simulation_fn: Optional[Callable] = None,
-    simulation_fn_args: Sequence = tuple()
-) -> Action:  # pragma: no cover
+        action_extra_info: SpotActionExtraInfo) -> Action:  # pragma: no cover
     """Helper for spot environments."""
     return SpotAction(np.array([], dtype=np.float32),
-                      extra_info=(action_name, tuple(operator_objects),
-                                  real_world_fn, tuple(real_world_fn_args),
-                                  simulation_fn, simulation_fn_args))
+                      extra_info=action_extra_info)
 
 
 def _obs_to_state_pass_through(obs: Observation) -> State:

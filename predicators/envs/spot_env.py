@@ -46,16 +46,16 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
     update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
-    GroundAtom, LiftedAtom, Object, Observation, Predicate, State, \
-    STRIPSOperator, Type, Variable
+    GroundAtom, LiftedAtom, Object, Observation, Predicate, \
+    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable
 
 ###############################################################################
 #                                Base Class                                   #
 ###############################################################################
 
-# NOTE: Pybullet gets mad if we try to connect to it multiple times,
+# NOTE: PyBullet gets mad if we try to connect to it multiple times,
 # so we're going to instantiate a global variable here to indicate
-# whether or not we've connected to pybullet before.
+# whether or not we've connected to PyBullet before.
 
 _SIMULATED_SPOT_ROBOT: Optional[pbrspot.spot.Spot] = None
 # Used to keep track of all simulated objects; also needs to be global
@@ -230,14 +230,13 @@ class SpotRearrangementEnv(BaseEnv):
             if _SIMULATED_SPOT_ROBOT is not None:
                 self.sim_robot = _SIMULATED_SPOT_ROBOT
             else:
-                # First, launch pybullet.
-                pbrspot.utils.connect(use_gui=True)
+                # First, launch PyBullet.
+                pbrspot.utils.connect(use_gui=self._using_gui)
                 pbrspot.utils.disable_real_time()
                 pbrspot.utils.set_default_camera()
                 # Create robot object atop the floor.
                 self.sim_robot = pbrspot.spot.Spot()
-                floor_urdf = utils.get_env_asset_path(
-                    "urdf/floor.urdf")
+                floor_urdf = utils.get_env_asset_path("urdf/floor.urdf")
                 floor_obj = pbrspot.body.createBody(floor_urdf)
                 # The floor is known to be about 60cm below the
                 # robot's position.
@@ -307,8 +306,10 @@ class SpotRearrangementEnv(BaseEnv):
             self, action: Action,
             nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
         """Step-like function for spot dry runs."""
-        assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, action_args, _, _ = action.extra_info
+        assert isinstance(action.extra_info, SpotActionExtraInfo)
+        action_name = action.extra_info.action_name
+        action_objs = action.extra_info.operator_objects
+        action_args = action.extra_info.real_world_fn_args
         obs = self._current_observation
         assert isinstance(obs, _SpotObservation)
 
@@ -459,8 +460,8 @@ class SpotRearrangementEnv(BaseEnv):
                 # separately.
                 if obj.name == "floor":
                     continue
-                obj_urdf = utils.get_env_asset_path(
-                    f"urdf/{obj.name}.urdf", assert_exists=True)
+                obj_urdf = utils.get_env_asset_path(f"urdf/{obj.name}.urdf",
+                                                    assert_exists=True)
                 sim_obj = pbrspot.body.createBody(obj_urdf)
                 _obj_name_to_sim_obj[obj.name] = sim_obj
 
@@ -468,9 +469,16 @@ class SpotRearrangementEnv(BaseEnv):
 
     def step(self, action: Action) -> Observation:
         """Override step() for real-world execution!"""
-        assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, action_fn, action_fn_args, _, _ = \
-            action.extra_info
+        try:
+            assert isinstance(action.extra_info, SpotActionExtraInfo)
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
+        action_name = action.extra_info.action_name
+        action_objs = action.extra_info.operator_objects
+        action_fn = action.extra_info.real_world_fn
+        action_fn_args = action.extra_info.real_world_fn_args
+        sim_action_fn = action.extra_info.simulation_fn
+        sim_action_args = action.extra_info.simulation_fn_args
         self._last_action = action
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
@@ -583,12 +591,11 @@ class SpotRearrangementEnv(BaseEnv):
                     rel_pose = math_helpers.SE2Pose(0, 0, angle)
                     new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
                         action_fn_args[2:]
+
                     new_action = utils.create_spot_env_action(
-                        action_name,
-                        action_objs,
-                        action_fn,
-                        new_action_args,
-                    )
+                        SpotActionExtraInfo(action_name, action_objs,
+                                            action_fn, new_action_args,
+                                            sim_action_fn, sim_action_args))
                     return self.step(new_action)
 
         self._current_observation = next_obs
@@ -678,8 +685,10 @@ class SpotRearrangementEnv(BaseEnv):
         # the observation so that the swept object is inside the container.
         # Otherwise do nothing and let the lost object dance proceed.
         if self._last_action is not None:
-            assert isinstance(self._last_action.extra_info, (list, tuple))
-            op_name, op_objects, _, _, _, _ = self._last_action.extra_info
+            assert isinstance(self._last_action.extra_info,
+                              SpotActionExtraInfo)
+            op_name = self._last_action.extra_info.action_name
+            op_objects = self._last_action.extra_info.operator_objects
             if op_name == "SweepTwoObjectsIntoContainer":
                 swept_objects: Set[Object] = set(op_objects[2:4])
                 container: Optional[Object] = op_objects[-1]
@@ -736,8 +745,9 @@ class SpotRearrangementEnv(BaseEnv):
 
         This should be deprecated eventually.
         """
-        assert isinstance(action.extra_info, (list, tuple))
-        op_name, op_objects, _, _, _, _ = action.extra_info
+        assert isinstance(action.extra_info, SpotActionExtraInfo)
+        op_name = action.extra_info.action_name
+        op_objects = action.extra_info.operator_objects
         op_name_to_op = {o.name: o for o in self._strips_operators}
         op = op_name_to_op[op_name]
         ground_op = op.ground(tuple(op_objects))
@@ -752,9 +762,11 @@ class SpotRearrangementEnv(BaseEnv):
         }
 
     def simulate(self, state: State, action: Action) -> State:
-        assert isinstance(action.extra_info, (list, tuple))
-        action_name, action_objs, _, _, sim_action_fn, sim_action_fn_args = \
-            action.extra_info
+        assert isinstance(action.extra_info, SpotActionExtraInfo)
+        action_name = action.extra_info.action_name
+        action_objs = action.extra_info.operator_objects
+        sim_action_fn = action.extra_info.simulation_fn
+        sim_action_fn_args = action.extra_info.simulation_fn_args
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
@@ -772,7 +784,7 @@ class SpotRearrangementEnv(BaseEnv):
             self._current_task_goal_reached = True
             return state
 
-        # Execute the action in the pybullet env. Automatically retry
+        # Execute the action in the PyBullet env. Automatically retry
         # if a retryable error is encountered.
         sim_action_fn(*sim_action_fn_args)  # type: ignore
 
@@ -788,7 +800,7 @@ class SpotRearrangementEnv(BaseEnv):
         if action_name == "MoveToHandViewObject":
             obj_to_view = action_objs[1]
             next_state.set(obj_to_view, "in_hand_view", 1.0)
-        elif action_name == "PickObjectFromTop":
+        elif action_name == "SimSafePickObjectFromTop":
             obj_to_pick = action_objs[1]
             next_state.set(obj_to_pick, "held", 1.0)
             next_state.set(obj_to_pick, "in_hand_view", 0.0)
@@ -898,14 +910,8 @@ class SpotRearrangementEnv(BaseEnv):
             json_dict, object_name_to_object)
         # Get the object detection id's, which are features of
         # each object type.
-        obj_to_detection_id = {
-            v: k
-            for k, v in self._detection_id_to_obj.items()
-        }
-        for obj, init_val in init_dict.items():
-            if obj in obj_to_detection_id:
-                init_val["object_id"] = obj_to_detection_id[
-                    obj]  # type: ignore
+        for i, (obj, init_val) in enumerate(sorted(init_dict.items())):
+            init_val["object_id"] = i
         init_state = utils.create_state_from_dict(init_dict)
         goal = self._parse_goal_from_json_dict(json_dict,
                                                object_name_to_object,

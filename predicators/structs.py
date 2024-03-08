@@ -1808,6 +1808,18 @@ class GroundMacro:
         return len(self.ground_nsrts)
 
 
+@dataclass(frozen=True, repr=False, eq=False)
+class SpotActionExtraInfo:
+    """A sequence of things that are in the extra_info field of actions for the
+    SpotEnv."""
+    action_name: str
+    operator_objects: Sequence[Object]
+    real_world_fn: Optional[Callable]
+    real_world_fn_args: Sequence
+    simulation_fn: Optional[Callable]
+    simulation_fn_args: Sequence
+
+
 # Convenience higher-order types useful throughout the code
 Observation = Any
 GoalDescription = Any

@@ -40,7 +40,7 @@ from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     DEFAULT_HAND_PRE_DUMP_LIFT_POSE, DEFAULT_HAND_PRE_DUMP_POSE, \
     get_relative_se2_from_se3, load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
-    Predicate, State, Type
+    Predicate, SpotActionExtraInfo, State, Type
 
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
@@ -134,11 +134,6 @@ def _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump(
     hand_camera = "hand_color_image"
     pixel, rot_quat = get_grasp_pixel(rgbds, artifacts, target_detection_id,
                                       hand_camera, rng)
-    if rot_quat is None:
-        rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
-    else:
-        rot_quat_tuple = (rot_quat.w, rot_quat.x, rot_quat.y, rot_quat.z)
-
     img = rgbds[hand_camera]
     # Use a relatively forgiving threshold for grasp constraints in general,
     # but for the ball, use a strict constraint.
@@ -146,32 +141,10 @@ def _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump(
         thresh = 0.17
     else:
         thresh = np.pi / 4
-
-    # Grasp.
-    grasp_at_pixel(robot,
-                   img,
-                   pixel,
-                   grasp_rot=rot_quat_tuple,
-                   rot_thresh=thresh,
-                   timeout=timeout,
-                   retry_with_no_constraints=retry_grasp_after_fail)
-    # Dump, if the grasp was successful.
-    thresh = HANDEMPTY_GRIPPER_THRESHOLD
-    if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
-        # Lift the grasped object up high enough that it doesn't collide.
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_LIFT_POSE)
-        # Rotate to the right.
-        angle = -np.pi / 2
-        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, angle))
-        # Move the hand to execute the dump.
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_PRE_DUMP_POSE)
-        time.sleep(1.0)
-        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
-        # Rotate back to where we started.
-        navigate_to_relative_pose(robot, math_helpers.SE2Pose(0, 0, -angle))
-    # Stow.
-    if do_stow:
-        stow_arm(robot)
+    
+    _grasp_at_pixel_and_maybe_stow_or_dump(robot, img, pixel, rot_quat,
+                                           thresh, timeout,
+                                           retry_grasp_after_fail, do_stow, do_dump)
 
 
 def _place_at_relative_position_and_stow(
@@ -335,9 +308,9 @@ def _move_to_target_policy(name: str, distance_param_idx: int,
         sim_fn = simulated_navigate_to_relative_pose
         sim_fn_args = (sim_robot,
                        robot_pose.get_closest_se2_transform() * rel_pose)
-
-    return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
-                                        sim_fn_args)
+    action_extra_info = SpotActionExtraInfo(name, objects, fn, fn_args, sim_fn,
+                                            sim_fn_args)
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _grasp_policy(name: str,
@@ -388,11 +361,11 @@ def _grasp_policy(name: str,
 
     # Retry a grasp if a failure occurs!
     retry_with_no_constraints = target_obj.name != "brush"
-
-    return utils.create_spot_env_action(
+    action_extra_info = SpotActionExtraInfo(
         name, objects, fn, (robot, img, pixel, grasp_rot, thresh, 20.0,
                             retry_with_no_constraints, do_stow, do_dump),
         sim_fn, (sim_robot, grasp_rot, sim_target_obj))
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
@@ -462,10 +435,12 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     sweep_move_dy = -0.8
     sweep_move_dz = 0.0
 
-    # Execute the sweep.
-    return utils.create_spot_env_action(
+    # Execute the sweep. Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(
         name, objects, sweep, (robot, sweep_start_pose, sweep_move_dx,
-                               sweep_move_dy, sweep_move_dz, duration))
+                               sweep_move_dy, sweep_move_dz, duration), None,
+        ())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
@@ -502,7 +477,10 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
             _, _, action_fn, action_fn_args, _, _ = action.extra_info
             action_fn(*action_fn_args)
 
-    return utils.create_spot_env_action(name, objects, _fn, tuple())
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 ###############################################################################
@@ -569,12 +547,14 @@ def _sim_safe_pick_object_from_top_policy(state: State, memory: Dict,
     robot, _, _ = get_robot()
     sim_robot = get_simulated_robot()
     fn = _sim_safe_grasp_at_pixel_and_maybe_stow_or_dump
-    fn_args = (robot, objects[target_obj_idx], _options_rng, True, True, False)
+    fn_args = (robot, objects[target_obj_idx], _options_rng, 10.0, True, True,
+               False)
     sim_fn = simulated_grasp_at_pixel
     sim_target_obj = get_simulated_object(objects[target_obj_idx])
     sim_fn_args = (sim_robot, sim_target_obj)
-    return utils.create_spot_env_action(name, objects, fn, fn_args, sim_fn,
-                                        sim_fn_args)
+    action_extra_info = SpotActionExtraInfo(name, objects, fn, fn_args, sim_fn,
+                                            sim_fn_args)
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _pick_object_to_drag_policy(state: State, memory: Dict,
@@ -651,8 +631,10 @@ def _place_object_on_top_policy(state: State, memory: Dict,
     surface_geom = object_to_top_down_geom(surface_obj, state)
     if surface_geom.contains_point(
             robot_pose.x, robot_pose.y) and surface_obj.name == "floor":
-        return utils.create_spot_env_action(name, objects, _drop_and_stow,
-                                            (robot, ))
+        # Note simulation fn and args not yet implemented.
+        action_extra_info = SpotActionExtraInfo(name, objects, _drop_and_stow,
+                                                (robot, ), None, tuple())
+        return utils.create_spot_env_action(action_extra_info)
 
     # If we're running on the actual robot, we want to be very precise
     # about the robot's current pose when computing the relative
@@ -663,9 +645,11 @@ def _place_object_on_top_policy(state: State, memory: Dict,
         robot_pose = localizer.get_last_robot_pose()
 
     place_rel_pos = robot_pose.inverse() * place_pose
-    return utils.create_spot_env_action(name, objects,
-                                        _place_at_relative_position_and_stow,
-                                        (robot, place_rel_pos))
+    # Note simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(
+        name, objects, _place_at_relative_position_and_stow,
+        (robot, place_rel_pos), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _drop_object_inside_policy(state: State, memory: Dict,
@@ -694,10 +678,11 @@ def _drop_object_inside_policy(state: State, memory: Dict,
     place_rel_pos = math_helpers.Vec3(x=container_rel_pose.x + dx,
                                       y=container_rel_pose.y + dy,
                                       z=place_z)
-
-    return utils.create_spot_env_action(name, objects,
-                                        _drop_at_relative_position_and_look,
-                                        (robot, place_rel_pos))
+    # Note simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(
+        name, objects, _drop_at_relative_position_and_look,
+        (robot, place_rel_pos), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _drop_not_placeable_object_policy(state: State, memory: Dict,
@@ -708,8 +693,11 @@ def _drop_not_placeable_object_policy(state: State, memory: Dict,
     name = "DropNotPlaceableObject"
     robot, _, _ = get_robot()
 
-    return utils.create_spot_env_action(name, objects, _open_and_close_gripper,
-                                        (robot, ))
+    # Note simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(name, objects,
+                                            _open_and_close_gripper, (robot, ),
+                                            None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _move_and_drop_object_inside_policy(state: State, memory: Dict,
@@ -738,8 +726,10 @@ def _move_and_drop_object_inside_policy(state: State, memory: Dict,
     # probably the floor). When this happens, just drop the object.
     surface_geom = object_to_top_down_geom(surface_obj, state)
     if surface_geom.contains_point(robot_pose.x, robot_pose.y):
-        return utils.create_spot_env_action(name, objects, _drop_and_stow,
-                                            (robot, ))
+        # Note simulation fn and args not yet implemented.
+        action_extra_info = SpotActionExtraInfo(name, objects, _drop_and_stow,
+                                                (robot, ), None, tuple())
+        return utils.create_spot_env_action(action_extra_info)
 
     # The dz parameter is with respect to the top of the container.
     container_half_height = state.get(container_obj, "height") / 2
@@ -748,10 +738,11 @@ def _move_and_drop_object_inside_policy(state: State, memory: Dict,
     place_abs_pos = math_helpers.Vec3(x=container_pose.x + dx,
                                       y=container_pose.y + dy,
                                       z=place_z)
-
-    return utils.create_spot_env_action(
+    # Note simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(
         name, objects, _move_closer_and_drop_at_relative_position_and_look,
-        (robot, localizer, place_abs_pos))
+        (robot, localizer, place_abs_pos), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _drag_to_unblock_object_policy(state: State, memory: Dict,
@@ -763,9 +754,11 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
     robot, _, _ = get_robot()
     dx, dy, dyaw = params
     move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
-
-    return utils.create_spot_env_action(name, objects, _drag_and_release,
-                                        (robot, move_rel_pos))
+    # Note that simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(name, objects, _drag_and_release,
+                                            (robot, move_rel_pos), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _drag_to_block_object_policy(state: State, memory: Dict,
@@ -777,9 +770,11 @@ def _drag_to_block_object_policy(state: State, memory: Dict,
     robot, _, _ = get_robot()
     dx, dy, dyaw = params
     move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
-
-    return utils.create_spot_env_action(name, objects, _drag_and_release,
-                                        (robot, move_rel_pos))
+    # Note that simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(name, objects, _drag_and_release,
+                                            (robot, move_rel_pos), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _sweep_into_container_policy(state: State, memory: Dict,
@@ -845,10 +840,12 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
                                          y=place_rel_pose.y + 0.15,
                                          z=place_rel_pose.z,
                                          rot=rot)
-
-    return utils.create_spot_env_action(
+    # Note that simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(
         name, objects, _move_to_absolute_pose_and_place_push_stow,
-        (robot, localizer, absolute_move_pose, place_rel_pose, push_rel_pose))
+        (robot, localizer, absolute_move_pose, place_rel_pose, push_rel_pose),
+        None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 def _move_to_ready_sweep_policy(state: State, memory: Dict,
