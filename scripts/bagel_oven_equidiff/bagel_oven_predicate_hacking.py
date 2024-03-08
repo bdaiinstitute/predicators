@@ -250,16 +250,16 @@ def create_voxel_map_video(demo_num):
         title = ""
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
-            title = f"Annotations: {annotations_t}"
+            # title = f"Annotations: {annotations_t}\n"
 
         predicted_pred_names = get_abstract_state(voxel_map)
-        title += f"\nPredictions: {predicted_pred_names}"
+        title += f"Predictions: {predicted_pred_names}"
 
         img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
 
     video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
-    iio.mimsave(video_path, imgs, fps=10)
+    iio.mimsave(video_path, imgs, fps=30)
     print(f"Wrote out to {video_path}")
 
 
