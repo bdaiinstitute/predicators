@@ -6,6 +6,7 @@
     (BagelGrasped)
     (OvenGrasped)
     (TrayGrasped)
+    (TrayReadyToPush)
     
     (OvenClosed)
     (OvenOpen)
@@ -68,14 +69,23 @@
     )
 )
 
+(:action PrepareTrayPush
+    :parameters ()
+    :precondition (and (NothingGrasped) (TrayPulledOut))
+    :effect (and
+        (TrayReadyToPush)
+        (not (NothingGrasped)) 
+    )
+)
+
 (:action PushInTray
     :parameters ()
-    :precondition (and (TrayPulledOut) (TrayGrasped))
+    :precondition (and (TrayPulledOut) (TrayReadyToPush))
     :effect (and
         (TrayInsideOven)
         (not (TrayPulledOut))
         (NothingGrasped)
-        (not (TrayGrasped))
+        (not (TrayReadyToPush))
     )
 )
 

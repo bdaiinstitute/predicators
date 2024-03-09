@@ -277,9 +277,39 @@ def create_predicate_annotations(demo_num):
 
     annotations = []
     pred_prompt_str = ", ".join(f"{i}: {p}" for i, p in enumerate(sorted_pred_names))
-    prompt = f"Which of the following predicates hold? Enter a comma-separated list of integers. Enter 's' for same as last. {pred_prompt_str}\n"
+
+    pred_name_to_idx = {v: k for k, v in enumerate(sorted_pred_names)}
+    custom_response_txts = [
+        {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
+        {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
+        {"ovengrasped", "trayinsideoven", "bagelontable"},
+        {"ovengrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+        
+        {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+        {"traygrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+        {"traygrasped", "ovenopen", "bagelontable"},
+        {"traygrasped", "ovenopen", "traypulledout", "bagelontable"},
+        
+        {"nothinggrasped", "ovenopen", "traypulledout", "bagelontable"},
+        {"bagelgrasped", "ovenopen", "traypulledout", "bagelontable"},
+        {"bagelgrasped", "ovenopen", "traypulledout"},
+        {"bagelgrasped", "ovenopen", "traypulledout", "bagelontray"},
+        
+        {"nothinggrasped", "ovenopen", "traypulledout", "bagelontray"},
+        {"trayreadytopush", "ovenopen", "traypulledout", "bagelontray"},
+        {"trayreadytopush", "ovenopen", "bagelontray"},
+        {"trayreadytopush", "ovenopen", "trayinsideoven", "bagelontray"},
+        
+        {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontray"},
+        {"ovengrasped", "ovenopen", "trayinsideoven", "bagelontray"},
+        {"ovengrasped", "trayinsideoven", "bagelontray"},
+        {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
+        
+        {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
+    ]
 
     for t in range(len(voxels)):
+        prompt = f"Which of the following predicates hold? Enter a comma-separated list of integers. Enter 's' for same as last. Enter 'c' to use the next custom response, which is: {next_custom} {pred_prompt_str}\n"
         voxel_map = np.swapaxes(voxels[t], 0, -1)
         rgb_img = voxel_map_to_img(voxel_map, title=f"Time Step {t}")
 
@@ -337,8 +367,8 @@ def _test_tray_classifier():
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=40)
-    # create_predicate_annotations(demo_num=40)
+    # create_voxel_map_video(demo_num=40)
+    create_predicate_annotations(demo_num=0)
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
