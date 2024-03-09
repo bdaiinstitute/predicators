@@ -237,7 +237,7 @@ def create_voxel_map_video(demo_num):
     voxels = load_data(demo_num)
 
     dirpath =  Path("/Users/tom/Desktop") / "equidiff"
-    annotations_filepath = dirpath  / f"bagel_oven_annotations_demo{demo_num}.p"
+    annotations_filepath = dirpath  / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
     annotations = None
     if annotations_filepath.exists():
         with open(annotations_filepath, "rb") as f:
@@ -258,7 +258,7 @@ def create_voxel_map_video(demo_num):
         img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
 
-    video_path = dirpath / f"bagel_oven_viz_demo{demo_num}.mp4"
+    video_path = dirpath / "videos" / f"bagel_oven_viz_demo{demo_num}.mp4"
     iio.mimsave(video_path, imgs, fps=30)
     print(f"Wrote out to {video_path}")
 
@@ -386,7 +386,7 @@ def create_predicate_annotations_v1(demo_num):
             annotations.append(annotation)
             break
 
-    annotations_path = dirpath / f"bagel_oven_annotations_demo{demo_num}.p"
+    annotations_path = dirpath / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
     with open(annotations_path, "wb") as f:
         p.dump(annotations, f)
     print(f"Dumped annotations to {annotations_path}")
@@ -416,7 +416,8 @@ def _test_tray_classifier():
 
 
 if __name__ == "__main__":
-    create_voxel_map_video(demo_num=0)
+    for i in range(58):
+        create_voxel_map_video(demo_num=i)
     # create_predicate_annotations(demo_num=0)
 
     # _test_oven_open_closed_classifier()
