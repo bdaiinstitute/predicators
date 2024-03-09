@@ -247,10 +247,10 @@ def create_voxel_map_video(demo_num):
 
     for t in tqdm(range(len(voxels))):
         voxel_map = np.swapaxes(voxels[t], 0, -1)
-        title = ""
+        title = f"\nTime {t} "
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
-            title = f"Annotations: {annotations_t}\n"
+            title += f"Annotations: {annotations_t}\n"
 
         # predicted_pred_names = get_abstract_state(voxel_map)
         # title += f"Predictions: {predicted_pred_names}"
@@ -263,7 +263,73 @@ def create_voxel_map_video(demo_num):
     print(f"Wrote out to {video_path}")
 
 
+custom_response_txts = [
+    {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
+    {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
+    {"ovengrasped", "trayinsideoven", "bagelontable"},
+    # The robot releases the handle before the oven is fully open, then
+    # gravity acts on the handle.
+    {"nothinggrasped", "trayinsideoven", "bagelontable"},
+    
+    {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+    {"traygrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+    {"traygrasped", "ovenopen", "bagelontable"},
+    {"traygrasped", "ovenopen", "traypulledout", "bagelontable"},
+    
+    {"nothinggrasped", "ovenopen", "traypulledout", "bagelontable"},
+    {"bagelgrasped", "ovenopen", "traypulledout", "bagelontable"},
+    {"bagelgrasped", "ovenopen", "traypulledout"},
+    {"bagelgrasped", "ovenopen", "traypulledout", "bagelontray"},
+    
+    {"nothinggrasped", "ovenopen", "traypulledout", "bagelontray"},
+    {"trayreadytopush", "ovenopen", "traypulledout", "bagelontray"},
+    {"trayreadytopush", "ovenopen", "bagelontray"},
+    {"trayreadytopush", "ovenopen", "trayinsideoven", "bagelontray"},
+    
+    {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontray"},
+    {"ovengrasped", "ovenopen", "trayinsideoven", "bagelontray"},
+    {"ovengrasped", "trayinsideoven", "bagelontray"},
+    {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
+    
+    {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
+]
+
+
 def create_predicate_annotations(demo_num):
+    
+    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+
+    split_frame_file = dirpath / "split_frames" / f"bagel_oven_split_frames_demo{demo_num}.txt"
+    with open(split_frame_file, "r") as f:
+        split_frame_txt = f.read().split("\n")
+    
+    assert len(split_frame_txt) == len(custom_response_txts) * 2 - 1
+
+    split_frames = set()
+    for i in range(len(custom_response_txts) - 1):
+        got = split_frame_txt[2 * i]
+        expect = ", ".join(sorted(custom_response_txts[i]))
+        assert got == expect, (got, expect)
+        split_frame_str = split_frame_txt[2 * i + 1].strip()
+        assert split_frame_str.isdigit()
+        split_frames.add(int(split_frame_str))
+
+    voxels = load_data(demo_num)
+    annotations = []
+    labels = list(custom_response_txts)
+    current_label = labels.pop(0)
+    for t in range(len(voxels)):
+        if t in split_frames:
+            current_label = labels.pop(0)
+        annotations.append(sorted(current_label))
+
+    annotations_path = dirpath / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
+    with open(annotations_path, "wb") as f:
+        p.dump(annotations, f)
+    print(f"Dumped annotations to {annotations_path}")
+
+
+def create_predicate_annotations_v1(demo_num):
 
     # Load predicates from domain.pddl in same directory
     domain_filepath = Path(__file__).parent / "domain.pddl"
@@ -278,36 +344,6 @@ def create_predicate_annotations(demo_num):
     annotations = []
     pred_prompt_str = ", ".join(f"{i}: {p}" for i, p in enumerate(sorted_pred_names))
 
-    custom_response_txts = [
-        {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
-        {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
-        {"ovengrasped", "trayinsideoven", "bagelontable"},
-        # The robot releases the handle before the oven is fully open, then
-        # gravity acts on the handle.
-        {"nothinggrasped", "trayinsideoven", "bagelontable"},
-        
-        {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontable"},
-        {"traygrasped", "ovenopen", "trayinsideoven", "bagelontable"},
-        {"traygrasped", "ovenopen", "bagelontable"},
-        {"traygrasped", "ovenopen", "traypulledout", "bagelontable"},
-        
-        {"nothinggrasped", "ovenopen", "traypulledout", "bagelontable"},
-        {"bagelgrasped", "ovenopen", "traypulledout", "bagelontable"},
-        {"bagelgrasped", "ovenopen", "traypulledout"},
-        {"bagelgrasped", "ovenopen", "traypulledout", "bagelontray"},
-        
-        {"nothinggrasped", "ovenopen", "traypulledout", "bagelontray"},
-        {"trayreadytopush", "ovenopen", "traypulledout", "bagelontray"},
-        {"trayreadytopush", "ovenopen", "bagelontray"},
-        {"trayreadytopush", "ovenopen", "trayinsideoven", "bagelontray"},
-        
-        {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontray"},
-        {"ovengrasped", "ovenopen", "trayinsideoven", "bagelontray"},
-        {"ovengrasped", "trayinsideoven", "bagelontray"},
-        {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
-        
-        {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
-    ]
     for c in custom_response_txts:
         assert c.issubset(set(sorted_pred_names))
 
