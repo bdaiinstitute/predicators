@@ -278,12 +278,13 @@ def create_predicate_annotations(demo_num):
     annotations = []
     pred_prompt_str = ", ".join(f"{i}: {p}" for i, p in enumerate(sorted_pred_names))
 
-    pred_name_to_idx = {v: k for k, v in enumerate(sorted_pred_names)}
     custom_response_txts = [
         {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
         {"ovengrasped", "ovenclosed", "trayinsideoven", "bagelontable"},
         {"ovengrasped", "trayinsideoven", "bagelontable"},
-        {"ovengrasped", "ovenopen", "trayinsideoven", "bagelontable"},
+        # The robot releases the handle before the oven is fully open, then
+        # gravity acts on the handle.
+        {"nothinggrasped", "trayinsideoven", "bagelontable"},
         
         {"nothinggrasped", "ovenopen", "trayinsideoven", "bagelontable"},
         {"traygrasped", "ovenopen", "trayinsideoven", "bagelontable"},
@@ -307,9 +308,17 @@ def create_predicate_annotations(demo_num):
         
         {"nothinggrasped", "ovenclosed", "trayinsideoven", "bagelontray"},
     ]
+    for c in custom_response_txts:
+        assert c.issubset(set(sorted_pred_names))
+
+    next_custom_idx = 0
 
     for t in range(len(voxels)):
-        prompt = f"Which of the following predicates hold? Enter a comma-separated list of integers. Enter 's' for same as last. Enter 'c' to use the next custom response, which is: {next_custom} {pred_prompt_str}\n"
+        prompt = f"Which of the following predicates hold? Enter a comma-separated list of integers. Enter 's' for same as last. {pred_prompt_str}\n"
+        next_custom_txt = None
+        if next_custom_idx < len(custom_response_txts):
+            next_custom_txt = sorted(custom_response_txts[next_custom_idx])
+            prompt += f"Alternatively, press 'c' to use the next custom response: {next_custom_txt}\n"
         voxel_map = np.swapaxes(voxels[t], 0, -1)
         rgb_img = voxel_map_to_img(voxel_map, title=f"Time Step {t}")
 
@@ -321,6 +330,10 @@ def create_predicate_annotations(demo_num):
             try:
                 if res == 's':
                     annotation = annotations[-1]
+                if res == 'c':
+                    assert next_custom_txt is not None
+                    annotation = next_custom_txt
+                    next_custom_idx += 1
                 else:
                     pred_names = set()
                     for i_str in res.split(","):
@@ -367,8 +380,8 @@ def _test_tray_classifier():
 
 
 if __name__ == "__main__":
-    # create_voxel_map_video(demo_num=40)
-    create_predicate_annotations(demo_num=0)
+    create_voxel_map_video(demo_num=0)
+    # create_predicate_annotations(demo_num=0)
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
