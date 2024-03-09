@@ -250,7 +250,7 @@ def create_voxel_map_video(demo_num):
         title = ""
         if annotations and len(annotations) >= t-1:
             annotations_t = annotations[t]
-            # title = f"Annotations: {annotations_t}\n"
+            title = f"Annotations: {annotations_t}\n"
 
         predicted_pred_names = get_abstract_state(voxel_map)
         title += f"Predictions: {predicted_pred_names}"
