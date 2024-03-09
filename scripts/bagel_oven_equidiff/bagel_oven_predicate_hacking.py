@@ -252,8 +252,8 @@ def create_voxel_map_video(demo_num):
             annotations_t = annotations[t]
             title = f"Annotations: {annotations_t}\n"
 
-        predicted_pred_names = get_abstract_state(voxel_map)
-        title += f"Predictions: {predicted_pred_names}"
+        # predicted_pred_names = get_abstract_state(voxel_map)
+        # title += f"Predictions: {predicted_pred_names}"
 
         img = voxel_map_to_img(voxel_map, title=title)
         imgs.append(img)
