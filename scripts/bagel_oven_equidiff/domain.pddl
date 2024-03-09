@@ -1,59 +1,90 @@
 (define (domain BagelOven)
 
 (:predicates
-    (NotHoldingBagel)
+    (NothingGrasped)
+    
+    (BagelGrasped)
+    (OvenGrasped)
+    (TrayGrasped)
+    
     (OvenClosed)
     (OvenOpen)
+    
     (TrayInsideOven)
     (TrayPulledOut)
-    (BagelGrasped)
+    
     (BagelOnTable)
     (BagelOnTray)
 )
 
+(:action GraspOven
+    :parameters ()
+    :precondition (NothingGrasped)
+    :effect (and
+        (OvenGrasped)
+        (not (NothingGrasped))
+    )
+)
+
 (:action OpenOven
     :parameters ()
-    :precondition (and (OvenClosed) (NotHoldingBagel))
+    :precondition (and (OvenClosed) (OvenGrasped))
     :effect (and
         (OvenOpen)
         (not (OvenClosed))
+        (NothingGrasped)
+        (not (OvenGrasped))
     )
 )
 
 (:action CloseOven
     :parameters ()
-    :precondition (and (OvenOpen) (TrayInsideOven) (NotHoldingBagel))
+    :precondition (and (OvenOpen) (TrayInsideOven) (OvenGrasped))
     :effect (and
         (OvenClosed)
         (not (OvenOpen))
+        (NothingGrasped)
+        (not (OvenGrasped))
+    )
+)
+
+(:action GraspTray
+    :parameters ()
+    :precondition (and (NothingGrasped) (OvenOpen))
+    :effect (and
+        (TrayGrasped)
+        (not (NothingGrasped))
     )
 )
 
 (:action PullOutTray
     :parameters ()
-    :precondition (and (TrayInsideOven) (OvenOpen) (NotHoldingBagel))
+    :precondition (and (TrayInsideOven) (TrayGrasped))
     :effect (and
         (TrayPulledOut)
         (not (TrayInsideOven))
+        (NothingGrasped)
+        (not (TrayGrasped))
     )
 )
 
 (:action PushInTray
     :parameters ()
-    :precondition (and (TrayPulledOut) (NotHoldingBagel))
+    :precondition (and (TrayPulledOut) (TrayGrasped))
     :effect (and
         (TrayInsideOven)
         (not (TrayPulledOut))
+        (NothingGrasped)
+        (not (TrayGrasped))
     )
 )
 
-(:action PickBagelFromTable
+(:action GraspBagel
     :parameters ()
-    :precondition (and (BagelOnTable) (NotHoldingBagel))
+    :precondition (and (BagelOnTable) (NothingGrasped))
     :effect (and
         (BagelGrasped)
-        (not (BagelOnTable))
-        (not (NotHoldingBagel))
+        (not (NothingGrasped))
     )
 )
 
@@ -62,7 +93,7 @@
     :precondition (and (BagelGrasped) (TrayPulledOut))
     :effect (and
         (BagelOnTray)
-        (NotHoldingBagel)
+        (NothingGrasped)
         (not (BagelGrasped))
     )
 )
