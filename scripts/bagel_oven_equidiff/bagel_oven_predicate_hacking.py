@@ -214,7 +214,7 @@ def voxel_map_to_img(voxel_map, title=None):
 
 
 def load_data(demo_num):
-    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
     filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
     assert filepath.exists()
 
@@ -236,7 +236,7 @@ def create_voxel_map_video(demo_num):
 
     voxels = load_data(demo_num)
 
-    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
     annotations_filepath = dirpath  / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
     annotations = None
     if annotations_filepath.exists():
@@ -297,7 +297,7 @@ custom_response_txts = [
 
 def create_predicate_annotations(demo_num):
     
-    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
 
     split_frame_file = dirpath / "split_frames" / f"bagel_oven_split_frames_demo{demo_num}.txt"
     with open(split_frame_file, "r") as f:
@@ -338,7 +338,7 @@ def create_predicate_annotations_v1(demo_num):
     _, predicates, _ = _parse_pddl_domain(domain_str)
     sorted_pred_names = sorted(p.name for p in predicates)
 
-    dirpath =  Path("/Users/tom/Desktop") / "equidiff"
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
     voxels = load_data(demo_num)
 
     annotations = []
@@ -416,9 +416,9 @@ def _test_tray_classifier():
 
 
 if __name__ == "__main__":
-    for i in range(58):
-        create_voxel_map_video(demo_num=i)
-    # create_predicate_annotations(demo_num=0)
+    demo_num = 8
+    create_predicate_annotations(demo_num=demo_num)
+    create_voxel_map_video(demo_num=demo_num)
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
