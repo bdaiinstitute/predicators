@@ -87,7 +87,7 @@ def simulated_navigate_to_relative_pose(
     sim_robot: pbrspot.spot.Spot,
     new_pose: math_helpers.SE2Pose,
 ) -> None:
-    """Execute a relative move.
+    """Execute an absolute position move.
 
     The new_pose is the pose to navigate to in the world frame.
     """

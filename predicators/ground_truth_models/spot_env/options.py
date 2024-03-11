@@ -327,7 +327,7 @@ def _grasp_policy(name: str,
     assert len(params) == 6
     pixel = (int(params[0]), int(params[1]))
     target_obj = objects[target_obj_idx]
-    sim_target_obj = get_simulated_object(target_obj, False)
+    sim_target_obj = get_simulated_object(target_obj)
 
     # Special case: if we're running dry, the image won't be used.
     if CFG.spot_run_dry:

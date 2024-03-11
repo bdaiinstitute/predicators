@@ -174,22 +174,14 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
     return obj_to_detection_id[obj]
 
 
-def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
+def get_simulated_robot() -> pbrspot.spot.Spot:
     """Return the simulated robot object."""
+    assert _SIMULATED_SPOT_ROBOT is not None
     return _SIMULATED_SPOT_ROBOT
 
 
-def get_simulated_object(
-        obj: Object,
-        fail_if_no_key: bool = True) -> Optional[pbrspot.body.Body]:
-    """Return the simulated version of obj.
-
-    We add a fail_if_no_key option because sometimes we want to
-    run in environments where we only have a simulated object for
-    *a subset* of all objects.
-    """
-    if not fail_if_no_key and obj.name not in _obj_name_to_sim_obj:
-        return None
+def get_simulated_object(obj: Object) -> pbrspot.body.Body:
+    """Return the simulated version of obj."""
     return _obj_name_to_sim_obj[obj.name]
 
 

@@ -46,6 +46,7 @@ DEFAULT_HAND_PRE_DUMP_POSE = math_helpers.SE3Pose(
     math_helpers.Quat.from_yaw(np.pi / 1.1))
 DEFAULT_HAND_POST_DUMP_POSE = math_helpers.SE3Pose(
     x=0.80, y=0.0, z=0.25, rot=math_helpers.Quat.from_pitch(np.pi / 2))
+DEFAULT_SIM_ROBOT_Z_OFFSET = 0.6
 
 
 # Spot-specific types.
@@ -448,7 +449,7 @@ def update_pbrspot_given_state(sim_robot: pbrspot.spot.Spot,
             sim_robot.set_pose(([
                 state.get(obj, "x"),
                 state.get(obj, "y"),
-                state.get(obj, "z") - 0.6
+                state.get(obj, "z") - DEFAULT_SIM_ROBOT_Z_OFFSET
             ], [
                 state.get(obj, "qx"),
                 state.get(obj, "qy"),
@@ -480,7 +481,8 @@ def construct_state_given_pbrspot(sim_robot: pbrspot.spot.Spot,
         if obj.type.name == "robot":
             next_state.set(obj, "x", sim_robot_pose[0][0])
             next_state.set(obj, "y", sim_robot_pose[0][1])
-            next_state.set(obj, "z", sim_robot_pose[0][2] + 0.6)
+            next_state.set(obj, "z",
+                           sim_robot_pose[0][2] + DEFAULT_SIM_ROBOT_Z_OFFSET)
             next_state.set(obj, "qx", sim_robot_pose[1][0])
             next_state.set(obj, "qy", sim_robot_pose[1][1])
             next_state.set(obj, "qz", sim_robot_pose[1][2])
