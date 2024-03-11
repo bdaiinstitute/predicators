@@ -174,14 +174,18 @@ def get_detection_id_for_object(obj: Object) -> ObjectDetectionID:
     return obj_to_detection_id[obj]
 
 
-def get_simulated_robot() -> pbrspot.spot.Spot:
+def get_simulated_robot() -> Optional[pbrspot.spot.Spot]:
     """Return the simulated robot object."""
+    if CFG.spot_run_dry:
+        return None
     assert _SIMULATED_SPOT_ROBOT is not None
     return _SIMULATED_SPOT_ROBOT
 
 
-def get_simulated_object(obj: Object) -> pbrspot.body.Body:
+def get_simulated_object(obj: Object) -> Optional[pbrspot.body.Body]:
     """Return the simulated version of obj."""
+    if CFG.spot_run_dry:
+        return None
     return _obj_name_to_sim_obj[obj.name]
 
 
