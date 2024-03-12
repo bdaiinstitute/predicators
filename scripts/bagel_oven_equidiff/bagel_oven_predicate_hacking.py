@@ -469,7 +469,106 @@ def _test_loading_predicate_labels(predicate_labels_hdf5):
         assert not demo_annotations[0, 0]
         # But the bagel is grasped at some point.
         assert demo_annotations[:, 0].any()
+
+
+def _learn_operators():
+    num_demos = 42
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
+
+    # Load annotations.
+    demo_to_annotation_sets = {}
+    all_seen_predicates = set()
+    for demo_num in range(num_demos):
+        annotations_path = dirpath / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
+        with open(annotations_path, "rb") as f:
+            annotations = p.load(f)
+        demo_to_annotation_sets[demo_num] = [set(a) for a in annotations]
+        for a in demo_to_annotation_sets[demo_num]:
+            all_seen_predicates.update(a)
+
+    # Use certain predicate changes to segment the demos.
+    predicates_to_split_on = {"nothinggrasped", "bagelgrasped", "ovengrasped", "traygrasped", "trayreadytopush"}
+    assert predicates_to_split_on.issubset(all_seen_predicates)
+    # One annoying case where the oven grasp is released before the oven is fully open.
+    # I'm not sure how to think about this...
+    skip_final_atom_sets = [
+        {"bagelontable", "nothinggrasped", "trayinsideoven"},
+    ]
+    demo_to_segment_times = {}
+    for demo_num, annotation_sets in demo_to_annotation_sets.items():
+        demo_to_segment_times[demo_num] = []
+        next_init_atoms = annotation_sets[0]
+        for t, atom_set in enumerate(annotation_sets[1:]):
+            if any(atom_set == a for a in skip_final_atom_sets):
+                continue
+            added = atom_set - next_init_atoms
+            if added & predicates_to_split_on:
+                next_init_atoms = atom_set
+                demo_to_segment_times[demo_num].append(t + 1)
+
+    # Group segments based on effects.
+    effects_to_segments = {}
+    for demo_num, segment_times in demo_to_segment_times.items():
+        annotation_sets = demo_to_annotation_sets[demo_num]
+        init_atoms = annotation_sets[0]
+        prev_t = 0
+        for t in segment_times:
+            final_atoms = annotation_sets[t]
+            add_atoms = final_atoms - init_atoms
+            del_atoms = init_atoms - final_atoms
+            effects = (frozenset(add_atoms), frozenset(del_atoms))
+            if effects not in effects_to_segments:
+                effects_to_segments[effects] = []
+            effects_to_segments[effects].append((demo_num, prev_t, t))
+            prev_t = t
+            init_atoms = final_atoms
+
+    # Learn preconditions by intersection.
+    effects_to_preconditions = {}
+    for effects, segments in effects_to_segments.items():
+        intersection = None
+        for demo_num, t0, _ in segments:
+            init_atoms = demo_to_annotation_sets[demo_num][t0]
+            if intersection is None:
+                intersection = set(init_atoms)
+            intersection &= set(init_atoms)
+        assert intersection is not None
+        effects_to_preconditions[effects] = intersection
     
+    # Write out domain file.
+    predicates_str = "\n    ".join([f"({pre})" for pre in sorted(all_seen_predicates)])
+    operators_str = ""
+    for i, effects in enumerate(sorted(effects_to_preconditions)):
+        preconditions = effects_to_preconditions[effects]
+        inner_precond_str = " ".join([f"({pre})" for pre in sorted(preconditions)])
+        precond_str = f"(and {inner_precond_str})"
+        add_effs, del_effs = effects
+        add_effs_str = "\n        ".join([f"({eff})" for eff in sorted(add_effs)])
+        del_effs_str = "\n        ".join([f"(not ({eff}))" for eff in sorted(del_effs)])
+        op_str = f"""(:action Skill{i}
+    :parameters ()
+    :precondition {precond_str}
+    :effect (and
+        {add_effs_str}
+        {del_effs_str}
+)    
+)"""
+        operators_str += "\n" + op_str
+
+
+    domain_str = f"""(define (domain bagel-oven)
+
+(:predicates
+    {predicates_str}
+)
+
+{operators_str}
+
+)
+"""
+    
+    with open("learned_domain.pddl", "w") as f:
+        f.write(domain_str)
 
 
 def _test_oven_open_closed_classifier():
@@ -500,9 +599,11 @@ if __name__ == "__main__":
     # create_voxel_map_video(demo_num=demo_num)
     # create_hdf5(range(42))
 
-    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
-    predicate_labels_file = dirpath / f"predicate_annotations_data_teleop_oven_full_x42.hdf5"
-    _test_loading_predicate_labels(predicate_labels_file)
+    # dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
+    # predicate_labels_file = dirpath / f"predicate_annotations_data_teleop_oven_full_x42.hdf5"
+    # _test_loading_predicate_labels(predicate_labels_file)
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
+
+    _learn_operators()
