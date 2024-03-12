@@ -393,6 +393,60 @@ def create_predicate_annotations_v1(demo_num):
 
 
 
+def create_hdf5(demo_range):
+    num_demos = len(demo_range)
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
+    filepath = dirpath / "data_teleop_oven_full_x58.hdf5"
+    assert filepath.exists()
+    outfilepath = dirpath / f"predicate_annotations_data_teleop_oven_full_x{num_demos}.hdf5"
+
+    # First prepare the predicate labels.
+    demo_to_annotation_sets = {}
+    all_seen_predicates = set()
+    for demo_num in demo_range:
+        annotations_path = dirpath / "annotations" / f"bagel_oven_annotations_demo{demo_num}.p"
+        with open(annotations_path, "rb") as f:
+            annotations = p.load(f)
+        demo_to_annotation_sets[demo_num] = [set(a) for a in annotations]
+        for a in demo_to_annotation_sets[demo_num]:
+            all_seen_predicates.update(a)
+
+    # Convert to bit vectors.
+    ordered_predicates = sorted(all_seen_predicates)
+    demo_to_annotation_vecs = {}
+    for demo_num in demo_range:
+        vecs = []
+        for a in demo_to_annotation_sets[demo_num]:
+            v = np.zeros(len(ordered_predicates), dtype=bool)
+            for i, pred in enumerate(ordered_predicates):
+                if pred in a:
+                    v[i] = True
+            assert sum(v) == len(a)
+            vecs.append(v)
+        demo_to_annotation_vecs[demo_num] = np.array(vecs, dtype=bool)
+    
+    f = h5py.File(filepath, 'r')
+    new_f = h5py.File(outfilepath, 'w')
+    f.copy(f["dataset"], new_f, "dataset")
+    f.close()
+
+    # Save the sorted predicate names in the dataset.
+    new_f["dataset"]["predicate_names"] = ordered_predicates
+
+    # Delete not included demos and add labels to demos.
+    for i in range(num_demos):
+        if i not in demo_range:
+            del new_f["dataset"][f"demo_{i}"]
+        else:
+            pred_labels = demo_to_annotation_vecs[i]
+            assert pred_labels.shape[0] == new_f["dataset"][f"demo_{i}"]["action"].shape[0]
+            new_f["dataset"][f"demo_{i}"]["predicates"] = pred_labels
+
+    # Close.
+    new_f.close()
+    
+
+
 def _test_oven_open_closed_classifier():
      voxels = load_data(demo_num=0)
      neg1 = np.swapaxes(voxels[0], 0, -1)
@@ -416,9 +470,10 @@ def _test_tray_classifier():
 
 
 if __name__ == "__main__":
-    demo_num = 8
-    create_predicate_annotations(demo_num=demo_num)
-    create_voxel_map_video(demo_num=demo_num)
+    # demo_num = 1
+    # create_predicate_annotations(demo_num=demo_num)
+    # create_voxel_map_video(demo_num=demo_num)
+    create_hdf5(range(42))
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
