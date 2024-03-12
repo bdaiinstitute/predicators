@@ -1,18 +1,18 @@
 (define
-    (problem BagelOven1)
-    (:domain BagelOven)
+    (problem bagel-oven-problem1)
+    (:domain bagel-oven)
     
     (:init
-        (BagelOnTable)
-        (TrayInsideOven)
-        (OvenClosed)
-        (NothingGrasped)
+        (bagelontable)
+        (trayinsideoven)
+        (ovenclosed)
+        (nothinggrasped)
     )
     (:goal (and
-            (TrayInsideOven)
-            (OvenClosed)
-            (BagelOnTray)
-            (NothingGrasped)
+            (trayinsideoven)
+            (ovenclosed)
+            (bagelontray)
+            (nothinggrasped)
         )
     )
 )

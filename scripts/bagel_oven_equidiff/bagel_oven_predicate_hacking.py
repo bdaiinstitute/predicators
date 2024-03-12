@@ -506,6 +506,10 @@ def _learn_operators():
                 next_init_atoms = atom_set
                 demo_to_segment_times[demo_num].append(t + 1)
 
+    subskill_files = dirpath / "subskill_segmentation_timesteps.p"
+    with open(subskill_files, "wb") as f:
+        p.dump(demo_to_segment_times, f)
+
     # Group segments based on effects.
     effects_to_segments = {}
     for demo_num, segment_times in demo_to_segment_times.items():
