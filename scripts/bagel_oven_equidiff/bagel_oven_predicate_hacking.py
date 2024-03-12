@@ -446,6 +446,31 @@ def create_hdf5(demo_range):
     new_f.close()
     
 
+def _test_loading_predicate_labels(predicate_labels_hdf5):
+    # E.g., predicate_annotations_data_teleop_oven_full_x42.hdf5
+    f = h5py.File(predicate_labels_hdf5, 'r')
+    dataset = f['dataset']
+    # The predicate labels are saved (in order) at the top level.
+    predicate_names = [n.decode("utf-8") for n in dataset["predicate_names"]]
+    # There are 11 predicates annotated for now.
+    num_predicates = 11
+    assert len(predicate_names) == num_predicates
+    assert predicate_names[0] == "bagelgrasped"
+    # There are 42 demos annotated for now.
+    num_annotated_demos = 42
+    for i in range(num_annotated_demos):
+        demo = dataset[f'demo_{i}']
+        demo_len = len(demo["action"])
+        # The predicate annotations are saved as an NxM array, where N is the
+        # length of the demonstration and M is the number of predicates.
+        demo_annotations = demo["predicates"]
+        assert demo_annotations.shape == (demo_len, num_predicates)
+        # Initially, the bagel is not grasped.
+        assert not demo_annotations[0, 0]
+        # But the bagel is grasped at some point.
+        assert demo_annotations[:, 0].any()
+    
+
 
 def _test_oven_open_closed_classifier():
      voxels = load_data(demo_num=0)
@@ -473,7 +498,11 @@ if __name__ == "__main__":
     # demo_num = 1
     # create_predicate_annotations(demo_num=demo_num)
     # create_voxel_map_video(demo_num=demo_num)
-    create_hdf5(range(42))
+    # create_hdf5(range(42))
+
+    dirpath =  Path("/Users/tom/Dropbox") / "equidiff"
+    predicate_labels_file = dirpath / f"predicate_annotations_data_teleop_oven_full_x42.hdf5"
+    _test_loading_predicate_labels(predicate_labels_file)
 
     # _test_oven_open_closed_classifier()
     # _test_tray_classifier()
