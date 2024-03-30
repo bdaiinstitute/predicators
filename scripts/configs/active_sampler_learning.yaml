@@ -44,13 +44,14 @@ APPROACHES:
       mlp_regressor_max_itr: 100000
       active_sampler_learning_batch_size: 1024
 ENVS:
-  # grid_row:
-  #   NAME: "grid_row"
-  #   FLAGS:
-  #     active_sampler_learning_explore_length_base: 100000  # effectively disable
-  #     active_sampler_learning_feature_selection: all
-  #     active_sampler_learning_explore_pursue_goal_interval: 1
-  #     max_num_steps_interaction_request: 150
+  grid_row:
+    NAME: "grid_row"
+    FLAGS:
+      active_sampler_learning_explore_length_base: 100000  # effectively disable
+      active_sampler_learning_feature_selection: all
+      active_sampler_learning_explore_pursue_goal_interval: 1
+      max_num_steps_interaction_request: 150
+      active_sampler_learning_object_specific_samplers: True
   ball_and_cup_sticky_table:
     NAME: "ball_and_cup_sticky_table"
     FLAGS:
@@ -66,8 +67,9 @@ ENVS:
       skill_competence_model_optimistic_window_size: 2
       horizon: 8
       active_sampler_learning_explore_length_base: 100000  # effectively disable
-      active_sampler_learning_feature_selection: all
+      active_sampler_learning_feature_selection: oracle
       max_num_steps_interaction_request: 100
+      active_sampler_learning_object_specific_samplers: True
   spot_sweeping_sim:
     NAME: "spot_main_sweep_env"
     FLAGS:
@@ -76,7 +78,7 @@ ENVS:
       skill_competence_model_optimistic_window_size: 2
       horizon: 10
       active_sampler_learning_explore_length_base: 100000  # effectively disable
-      active_sampler_learning_feature_selection: all
+      active_sampler_learning_feature_selection: oracle
       spot_run_dry: True
       approach_wrapper: spot_wrapper
       perceiver: spot_perceiver
@@ -84,6 +86,7 @@ ENVS:
       active_sampler_learning_explore_pursue_goal_interval: 5
       active_sampler_learning_init_cycles_to_pursue_goal: 5
       max_num_steps_interaction_request: 100
+      active_sampler_learning_object_specific_samplers: True
   # spot_sweeping_sim_yogurt_only:
   #   NAME: "spot_main_sweep_env"
   #   FLAGS:
