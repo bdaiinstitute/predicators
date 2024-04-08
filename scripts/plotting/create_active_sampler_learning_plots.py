@@ -13,6 +13,8 @@ from scipy import interpolate
 from scripts.analyze_results_directory import create_raw_dataframe, \
     get_df_for_entry
 
+
+plt.style.use('my_style')
 pd.set_option('chained_assignment', None)
 
 ############################ Change below here ################################
@@ -81,24 +83,24 @@ Y_KEY_AND_LABEL = [
 # The keys of the outer dict are plot titles.
 # The keys of the inner dict are (legend label, marker, df selector).
 PLOT_GROUPS = {
-    # "Grid 1D Environment": [
-    #     ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-planning_progress_explore" in v)),
-    #     ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-task_repeat_explore" in v)),
-    #     ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-competence_gradient" in v)),
-    #     ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-success_rate_explore_ucb" in v)),
-    #     ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-random_score_explore" in v)),
-    #     ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-random_nsrts_explore" in v)),
-    #     ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-skill_diversity" in v)),
-    #     ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "grid_row-maple_q" in v)),
-    # ],
+    "Grid 1D Environment": [
+        ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-planning_progress_explore" in v)),
+        ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-task_repeat_explore" in v)),
+        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-competence_gradient" in v)),
+        ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-success_rate_explore_ucb" in v)),
+        ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-random_score_explore" in v)),
+        ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-random_nsrts_explore" in v)),
+        ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-skill_diversity" in v)),
+        ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-maple_q" in v)),
+    ],
     "Ball and Cup Sticky Table": [
         ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-planning_progress_explore" in v)),
@@ -117,24 +119,24 @@ PLOT_GROUPS = {
         ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-maple_q" in v)),
     ],
-    # "Cleanup Playroom": [
-    #     ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-planning_progress_explore" in v)),
-    #     ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-task_repeat_explore" in v)),
-    #     ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-competence_gradient" in v)),
-    #     ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-success_rate_explore_ucb" in v)),
-    #     ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-random_score_explore" in v)),
-    #     ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-random_nsrts_explore" in v)),
-    #     ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
-    #         lambda v: "spot_sweeping_sim-skill_diversity" in v)),
-        # ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
-        #     lambda v: "spot_sweeping_sim-maple_q" in v)),
-    # ],
+    "Cleanup Playroom": [
+        ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-planning_progress_explore" in v)),
+        ("Task Repeat", "orange", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-task_repeat_explore" in v)),
+        ("Competence Gradient", "yellow", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-competence_gradient" in v)),
+        ("Fail Focus", "red", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-success_rate_explore_ucb" in v)),
+        ("Task-Relevant", "purple", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-random_score_explore" in v)),
+        ("Random Skills", "blue", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-random_nsrts_explore" in v)),
+        ("Skill Diversity", "pink", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-skill_diversity" in v)),
+        ("MAPLE-Q", "silver", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-maple_q" in v)),
+    ],
     # "Cleanup Playroom (Yogurt Only)": [
     #     ("Planning Progress", "green", lambda df: df["EXPERIMENT_ID"].apply(
     #         lambda v: "spot_sweeping_sim_yogurt_only-planning_progress_explore" in v)),
@@ -247,7 +249,7 @@ def _create_single_line_plot(ax: plt.Axes, df: pd.DataFrame,
                         color=color,
                         alpha=FILL_BETWEEN_ALPHA)
     # Add a legend.
-    plt.legend()
+    # plt.legend()
     return plot_has_data
 
 
