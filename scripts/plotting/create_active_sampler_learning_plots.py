@@ -160,18 +160,24 @@ PLOT_GROUPS = {
             lambda v: "grid_row-planning_progress_explore_original" in v)),
         ("No Feature Eng.", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "grid_row-planning_progress_explore_no_feature_engineering" in v)),
+        ("No Weight Sharing", "red", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "grid_row-planning_progress_explore_no_weight_sharing" in v)),
     ],
     "Ball and Cup Sticky Table": [
         ("Original", "green", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-planning_progress_explore_original" in v)),
         ("No Feature Eng.", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "sticky_table-planning_progress_explore_no_feature_engineering" in v)),
+        ("No Weight Sharing", "red", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "sticky_table-planning_progress_explore_no_weight_sharing" in v)),
     ],
     "Cleanup Playroom": [
         ("Original", "green", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-planning_progress_explore_original" in v)),
         ("No Feature Eng.", "blue", lambda df: df["EXPERIMENT_ID"].apply(
             lambda v: "spot_sweeping_sim-planning_progress_explore_no_feature_engineering" in v)),
+        ("No Weight Sharing", "red", lambda df: df["EXPERIMENT_ID"].apply(
+            lambda v: "spot_sweeping_sim-planning_progress_explore_no_weight_sharing" in v)),
     ],
 }
 
