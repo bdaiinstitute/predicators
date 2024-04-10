@@ -108,8 +108,11 @@ def create_raw_dataframe(
             run_data_defaultdict.update(config)
         else:
             run_data_defaultdict = outdata
-        (env, approach, seed, excluded_predicates, included_options,
-         experiment_id, online_learning_cycle) = filepath[8:-4].split("__")
+        try:
+            (env, approach, seed, excluded_predicates, included_options,
+            experiment_id, online_learning_cycle) = filepath[8:-4].split("__")
+        except ValueError:
+            import ipdb; ipdb.set_trace()
         if not excluded_predicates:
             excluded_predicates = "none"
         run_data = dict(

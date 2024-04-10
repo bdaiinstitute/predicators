@@ -307,9 +307,33 @@ def construct_active_sampler_input(state: State, objects: Sequence[Object],
     assert not CFG.sampler_learning_use_goals
     sampler_input_lst = [1.0]  # start with bias term
     if CFG.active_sampler_learning_feature_selection == "all":
-        for obj in objects:
-            sampler_input_lst.extend(state[obj])
-        sampler_input_lst.extend(params)
+        if "spot" not in CFG.env:
+            for obj in objects:
+                sampler_input_lst.extend(state[obj])
+            sampler_input_lst.extend(params)
+        else:
+            base_feat_names = [
+                    "x",
+                    "y",
+                    "z",
+                    "qw",
+                    "qx",
+                    "qy",
+                    "qz",
+                    "shape",
+                    "height",
+                    "width",
+                    "length",
+                ]
+            if not CFG.active_sampler_learning_object_specific_samplers:
+                base_feat_names.append("object_id")
+            for obj in objects:
+                if obj.type.name == "robot":
+                    sampler_input_lst.extend(state[obj])
+                else:
+                    for feat in base_feat_names:
+                        sampler_input_lst.append(state.get(obj, feat))
+            sampler_input_lst.extend(params)
 
     else:
         assert CFG.active_sampler_learning_feature_selection == "oracle"
