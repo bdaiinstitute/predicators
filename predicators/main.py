@@ -71,8 +71,14 @@ def main() -> None:
     args = utils.parse_args()
     utils.update_config(args)
     str_args = " ".join(sys.argv)
-    # Log to stderr.
-    handlers: List[logging.Handler] = [logging.StreamHandler()]
+    # Log to stderr or use `rich` package for more structured output.
+    handlers: List[logging.Handler] = []
+    if CFG.log_rich:
+        from rich.logging import RichHandler
+        handlers.append(RichHandler())
+    else:
+        handlers.append(logging.StreamHandler())
+
     if CFG.log_file:
         handlers.append(logging.FileHandler(CFG.log_file, mode='w'))
     logging.basicConfig(level=CFG.loglevel,
