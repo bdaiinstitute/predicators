@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
-    Optional, Sequence, Set, Tuple
+    Optional, Sequence, Set, Tuple, Any
 
 import matplotlib
 import numpy as np
@@ -93,6 +93,13 @@ class _PartialPerceptionState(State):
     NOTE: these states are only created in the perceiver, but they are used
     in the classifier definitions for the dummy predicates
     """
+
+    # DEBUG Add an additional field to store Spot images
+    # This would be directly copied from the images in raw Observation
+    # NOTE: This is only used when using VLM for predicate evaluation
+    # NOTE: Performance aspect should be considered later
+    obs_images: Optional[Dict[str, RGBDImageWithContext]] = None
+    # TODO: it's still unclear how we select and store useful images!
 
     @property
     def _simulator_state_predicates(self) -> Set[Predicate]:
@@ -1108,17 +1115,21 @@ def _object_in_xy_classifier(state: State,
 def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_on, obj_surface = objects
 
-    # Check that the bottom of the object is close to the top of the surface.
-    expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
-    actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
-    classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
+    if CFG.spot_vlm_eval_predicate:
+        print("TODO!!")
+        print(state.camera_images)
+    else:
+        # Check that the bottom of the object is close to the top of the surface.
+        expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
+        actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
+        classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
 
-    # If so, check that the object is within the bounds of the surface.
-    if not _object_in_xy_classifier(
-            state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
-        return False
+        # If so, check that the object is within the bounds of the surface.
+        if not _object_in_xy_classifier(
+                state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
+            return False
 
-    return classification_val
+        return classification_val
 
 
 def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:

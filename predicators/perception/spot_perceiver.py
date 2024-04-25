@@ -200,6 +200,12 @@ class SpotPerceiver(BasePerceiver):
         for obj in observation.objects_in_view:
             self._lost_objects.discard(obj)
 
+        # Add Spot images to the state if needed
+        # NOTE: This is only used when using VLM for predicate evaluation
+        # NOTE: Performance aspect should be considered later
+        if CFG.spot_vlm_eval_predicate:
+            self._obs_images = observation.images
+
     def _create_state(self) -> State:
         if self._waiting_for_observation:
             return DefaultState
@@ -281,9 +287,15 @@ class SpotPerceiver(BasePerceiver):
         # logging.info("Simulator state:")
         # logging.info(simulator_state)
 
+        # Prepare the images from observation
+        # TODO: we need to strategically add images; now just for test
+        obs_images = self._obs_images if CFG.spot_vlm_eval_predicate else None
+
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
-                                        simulator_state=simulator_state)
+                                        simulator_state=simulator_state,
+                                        obs_images=obs_images)
+        # DEBUG - look into dataclass field init - why warning
 
         return state
 
