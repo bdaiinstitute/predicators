@@ -164,3 +164,45 @@ class GoogleGeminiVLM(VisionLanguageModel):
                 time.sleep(3.0)
         response.resolve()
         return [response.text]
+
+
+class OpenAIVLM(VisionLanguageModel):
+    """Interface to the OpenAI VLM."""
+
+    def __init__(self, model_name: str) -> None:
+        self._model_name = model_name
+        assert "OPENAI_API_KEY" in os.environ
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    def get_id(self) -> str:
+        return f"OpenAI-{self._model_name}"
+
+    def _sample_completions(self,
+                            prompt: str,
+                            imgs: List[PIL.Image.Image],
+                            temperature: float,
+                            seed: int,
+                            num_completions: int = 1) -> List[str]:
+        # TODO run and test
+        response = openai.Completion.create(
+            model=self._model_name,
+            prompt=prompt,
+            images=[image.tobytes() for image in imgs],
+            temperature=temperature,
+            max_tokens=2048,
+            n=num_completions,
+            stop=None,
+            seed=seed)
+        return [completion.choices[0].text for completion in response.choices]
+
+
+if __name__ == '__main__':
+    vlm_list = [OpenAIVLM, GoogleGeminiVLM]
+    vlm_class = vlm_list[1]
+
+    # TODO test
+    vlm = vlm_class("text-to-image")
+    prompt = "A beautiful sunset over a lake."
+    imgs = [PIL.Image.open("sunset.jpg")]
+    completions = vlm.sample_completions(prompt, imgs, temperature=0.0, seed=0)
+    print(completions)
