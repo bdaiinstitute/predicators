@@ -5,17 +5,22 @@ Models (LLM's)
 """
 
 import abc
+import base64
 import logging
 import os
 import time
+from io import BytesIO
 from typing import List, Optional
 
+import cv2
 import google
 import google.generativeai as genai
 import imagehash
 import openai
 import PIL.Image
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
+from predicators import utils
 from predicators.settings import CFG
 
 # This is a special string that we assume will never appear in a prompt, and
@@ -74,7 +79,7 @@ class PretrainedLargeModel(abc.ABC):
         model_id = self.get_id()
         prompt_id = hash(prompt)
         config_id = f"{temperature}_{seed}_{num_completions}_" + \
-                f"{stop_token}"
+                    f"{stop_token}"
         # If the temperature is 0, the seed does not matter.
         if temperature == 0.0:
             config_id = f"most_likely_{num_completions}_{stop_token}"
@@ -249,3 +254,119 @@ class GoogleGeminiVLM(VisionLanguageModel):
                 time.sleep(3.0)
         response.resolve()
         return [response.text]
+
+
+class OpenAIVLM(VisionLanguageModel):
+    """Interface for OpenAI's VLMs, including GPT-4 Turbo (and preview versions)."""
+
+    def __init__(self, model_name: str):
+        """Initialize with a specific model name."""
+        self.model_name = model_name
+        self.set_openai_key()
+
+    def set_openai_key(self, key: Optional[str] = None):
+        """Set the OpenAI API key."""
+        if key is None:
+            assert "OPENAI_API_KEY" in os.environ
+            key = os.environ["OPENAI_API_KEY"]
+        openai.api_key = key
+
+    def prepare_openai_messages(self, content: str):
+        """Prepare text-only messages for the OpenAI API."""
+        return [{"role": "user", "content": content}]
+
+    def prepare_openai_vision_messages(
+            self, prefix: Optional[str] = None, suffix: Optional[str] = None,
+            image_paths: Optional[List[str]] = None, image_size: Optional[int] = 512):
+        """Prepare text and image messages for the OpenAI API."""
+        if image_paths is None:
+            image_paths = []
+        elif not isinstance(image_paths, list):
+            image_paths = [image_paths]
+
+        content = []
+
+        if prefix:
+            content.append({"text": prefix, "type": "text"})
+
+        for path in image_paths:
+            if not isinstance(path, str):
+                print(f"Invalid image path: {path}")
+                continue
+            if not os.path.exists(path):
+                print(f"Image file not found: {path}")
+                continue
+
+            frame = cv2.imread(path)
+            if image_size:
+                factor = image_size / max(frame.shape[:2])
+                frame = cv2.resize(frame, dsize=None, fx=factor, fy=factor)
+            _, buffer = cv2.imencode(".png", frame)
+            frame = base64.b64encode(buffer).decode("utf-8")
+            content.append({"image_url": {"url": f"data:image/png:base64,{frame}"}, "type": "image_url"})
+
+        if suffix:
+            content.append({"text": suffix, "type": "text"})
+
+        return [{"role": "user", "content": content}]
+
+    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+    def call_openai_api(self, messages: list, model: str = "gpt-4", seed: Optional[int] = None, max_tokens: int = 32,
+                        temperature: float = 0.2, verbose: bool = False):
+        """Make an API call to OpenAI."""
+        client = openai.OpenAI()
+        completion = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            seed=seed,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        if verbose:
+            print(f"OpenAI API response: {completion}")
+        assert len(completion.choices) == 1
+        return completion.choices[0].message.content
+
+    def get_id(self) -> str:
+        """Get an identifier for the model."""
+        return f"OpenAI-{self.model_name}"
+
+    def _sample_completions(self,
+                            prompt: str,
+                            imgs: Optional[List[PIL.Image.Image]],
+                            temperature: float,
+                            seed: int,
+                            stop_token: Optional[str] = None,
+                            num_completions: int = 1) -> List[str]:
+        """Query the model and get responses."""
+        messages = self.prepare_openai_messages(prompt)
+        responses = [
+            self.call_openai_api(messages, model=self.model_name, max_tokens=512, temperature=temperature)
+            for _ in range(num_completions)
+        ]
+        return responses
+
+
+# Example usage:
+if __name__ == "__main__":
+    # Make sure the OPENAI_API_KEY is set
+    model_name = "gpt-4-turbo"
+    vlm = OpenAIVLM(model_name)
+
+    prompt = """
+        Describe the object relationships between the objects and containers.
+        You can use following predicate-style descriptions:
+        Inside(object1, container)
+        Blocking(object1, object2)
+        On(object, surface)
+        """
+    images = [PIL.Image.open("../test_vlm_predicate_img.jpg")]
+
+    print("Start requesting...")
+    completions = vlm._sample_completions(
+        prompt=prompt,
+        imgs=images,
+        temperature=0.5, num_completions=1, seed=0
+    )
+    for i, completion in enumerate(completions):
+        print(f"Completion {i + 1}: {completion}")
