@@ -20,7 +20,6 @@ import openai
 import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
-from predicators import utils
 from predicators.settings import CFG
 
 # This is a special string that we assume will never appear in a prompt, and
@@ -271,39 +270,29 @@ class OpenAIVLM(VisionLanguageModel):
             key = os.environ["OPENAI_API_KEY"]
         openai.api_key = key
 
-    def prepare_openai_messages(self, content: str):
-        """Prepare text-only messages for the OpenAI API."""
-        return [{"role": "user", "content": content}]
-
-    def prepare_openai_vision_messages(
-            self, prefix: Optional[str] = None, suffix: Optional[str] = None,
-            image_paths: Optional[List[str]] = None, image_size: Optional[int] = 512):
+    def prepare_vision_messages(
+            self, images: List[PIL.Image.Image],
+            prefix: Optional[str] = None, suffix: Optional[str] = None, image_size: Optional[int] = 512):
         """Prepare text and image messages for the OpenAI API."""
-        if image_paths is None:
-            image_paths = []
-        elif not isinstance(image_paths, list):
-            image_paths = [image_paths]
-
         content = []
 
         if prefix:
             content.append({"text": prefix, "type": "text"})
 
-        for path in image_paths:
-            if not isinstance(path, str):
-                print(f"Invalid image path: {path}")
-                continue
-            if not os.path.exists(path):
-                print(f"Image file not found: {path}")
-                continue
-
-            frame = cv2.imread(path)
+        assert images
+        for img in images:
+            img_resized = img
             if image_size:
-                factor = image_size / max(frame.shape[:2])
-                frame = cv2.resize(frame, dsize=None, fx=factor, fy=factor)
-            _, buffer = cv2.imencode(".png", frame)
+                factor = image_size / max(img.size)
+                img_resized = img.resize((int(img.size[0] * factor), int(img.size[1] * factor)))
+
+            # Convert the image to PNG format and encode it in base64
+            buffer = BytesIO()
+            img_resized.save(buffer, format="PNG")
+            buffer = buffer.getvalue()
             frame = base64.b64encode(buffer).decode("utf-8")
-            content.append({"image_url": {"url": f"data:image/png:base64,{frame}"}, "type": "image_url"})
+
+            content.append({"image_url": {"url": f"data:image/png;base64,{frame}"}, "type": "image_url"})
 
         if suffix:
             content.append({"text": suffix, "type": "text"})
@@ -339,7 +328,7 @@ class OpenAIVLM(VisionLanguageModel):
                             stop_token: Optional[str] = None,
                             num_completions: int = 1) -> List[str]:
         """Query the model and get responses."""
-        messages = self.prepare_openai_messages(prompt)
+        messages = self.prepare_vision_messages(prefix=prompt, images=imgs)
         responses = [
             self.call_openai_api(messages, model=self.model_name, max_tokens=512, temperature=temperature)
             for _ in range(num_completions)
@@ -363,10 +352,10 @@ if __name__ == "__main__":
     images = [PIL.Image.open("../test_vlm_predicate_img.jpg")]
 
     print("Start requesting...")
-    completions = vlm._sample_completions(
+    completions = vlm.sample_completions(
         prompt=prompt,
         imgs=images,
-        temperature=0.5, num_completions=1, seed=0
+        temperature=0.5, num_completions=3, seed=0
     )
     for i, completion in enumerate(completions):
-        print(f"Completion {i + 1}: {completion}")
+        print(f"Completion {i + 1}: \n{completion}\n")
