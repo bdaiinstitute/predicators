@@ -272,7 +272,9 @@ class OpenAIVLM(VisionLanguageModel):
 
     def prepare_vision_messages(
             self, images: List[PIL.Image.Image],
-            prefix: Optional[str] = None, suffix: Optional[str] = None, image_size: Optional[int] = 512):
+            prefix: Optional[str] = None, suffix: Optional[str] = None, image_size: Optional[int] = 512,
+            detail: str = "auto"
+    ):
         """Prepare text and image messages for the OpenAI API."""
         content = []
 
@@ -280,6 +282,7 @@ class OpenAIVLM(VisionLanguageModel):
             content.append({"text": prefix, "type": "text"})
 
         assert images
+        assert detail in ["auto", "low", "high"]
         for img in images:
             img_resized = img
             if image_size:
@@ -292,7 +295,13 @@ class OpenAIVLM(VisionLanguageModel):
             buffer = buffer.getvalue()
             frame = base64.b64encode(buffer).decode("utf-8")
 
-            content.append({"image_url": {"url": f"data:image/png;base64,{frame}"}, "type": "image_url"})
+            content.append({
+                "image_url": {
+                    "url": f"data:image/png;base64,{frame}",
+                    "detail": "auto"
+                },
+                "type": "image_url"
+            })
 
         if suffix:
             content.append({"text": suffix, "type": "text"})
@@ -320,17 +329,20 @@ class OpenAIVLM(VisionLanguageModel):
         """Get an identifier for the model."""
         return f"OpenAI-{self.model_name}"
 
-    def _sample_completions(self,
-                            prompt: str,
-                            imgs: Optional[List[PIL.Image.Image]],
-                            temperature: float,
-                            seed: int,
-                            stop_token: Optional[str] = None,
-                            num_completions: int = 1) -> List[str]:
+    def _sample_completions(
+            self,
+            prompt: str,
+            imgs: Optional[List[PIL.Image.Image]],
+            temperature: float,
+            seed: int,
+            stop_token: Optional[str] = None,
+            num_completions: int = 1,
+            max_tokens=512,
+    ) -> List[str]:
         """Query the model and get responses."""
-        messages = self.prepare_vision_messages(prefix=prompt, images=imgs)
+        messages = self.prepare_vision_messages(prefix=prompt, images=imgs, detail="auto")
         responses = [
-            self.call_openai_api(messages, model=self.model_name, max_tokens=512, temperature=temperature)
+            self.call_openai_api(messages, model=self.model_name, max_tokens=max_tokens, temperature=temperature)
             for _ in range(num_completions)
         ]
         return responses
