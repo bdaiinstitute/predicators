@@ -118,6 +118,19 @@ class State:
     # this field is provided.
     simulator_state: Optional[Any] = None
 
+    # DEBUG Add an additional field to store the previous atoms
+    prev_atoms: Optional[Sequence[GroundAtom]] = None
+    prev_step: Optional[Any] = None
+    visible_objects: Optional[Any] = None
+
+    # DEBUG Add an additional field to store Spot images
+    # TODO subclass can't create new field?
+    # This would be directly copied from the images in raw Observation
+    # NOTE: This is only used when using VLM for predicate evaluation
+    # NOTE: Performance aspect should be considered later
+    camera_images: Optional[Dict[str, Any]] = None
+    # TODO: it's still unclear how we select and store useful images!
+
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
