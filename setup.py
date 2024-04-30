@@ -44,7 +44,7 @@ setup(
         "gym_sokoban@git+https://github.com/Learning-and-Intelligent-Systems/gym-sokoban.git",  # pylint: disable=line-too-long
         "pbrspot@git+https://github.com/NishanthJKumar/pbrspot.git",
         "google-generativeai",
-        "imagehash",
+        "ImageHash",
         "rich",
     ],
     include_package_data=True,
