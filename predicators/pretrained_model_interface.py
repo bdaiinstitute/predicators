@@ -258,9 +258,10 @@ class GoogleGeminiVLM(VisionLanguageModel):
 class OpenAIVLM(VisionLanguageModel):
     """Interface for OpenAI's VLMs, including GPT-4 Turbo (and preview versions)."""
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = "gpt-4-turbo", detail: str = "auto"):
         """Initialize with a specific model name."""
         self.model_name = model_name
+        self.detail = detail
         self.set_openai_key()
 
     def set_openai_key(self, key: Optional[str] = None):
@@ -277,6 +278,9 @@ class OpenAIVLM(VisionLanguageModel):
     ):
         """Prepare text and image messages for the OpenAI API."""
         content = []
+
+        if detail is None or detail == "auto":
+            detail = self.detail
 
         if prefix:
             content.append({"text": prefix, "type": "text"})
@@ -356,10 +360,18 @@ if __name__ == "__main__":
 
     prompt = """
         Describe the object relationships between the objects and containers.
+        You can think step by step, include predicates that are potentially true or false, and evaluate their values. 
         You can use following predicate-style descriptions:
         Inside(object1, container)
         Blocking(object1, object2)
         On(object, surface)
+        
+        Example output:
+        Inside(hammer:object, box:container) = True
+        On(box:object, desk:surface) = True
+        On(hammer:object, desk:surface) = False
+        
+        YOUR RESPONSE:
         """
     images = [PIL.Image.open("../test_vlm_predicate_img.jpg")]
 
