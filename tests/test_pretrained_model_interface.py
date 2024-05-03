@@ -167,19 +167,27 @@ def test_openai_vlm_image_example():
 
     prompt = """
         Describe the object relationships between the objects and containers.
+        You can think step by step, include predicates that are potentially true or false, and evaluate their values. 
         You can use following predicate-style descriptions:
         Inside(object1, container)
         Blocking(object1, object2)
         On(object, surface)
+
+        Example output:
+        Inside(hammer:object, box:container) = True
+        On(box:object, desk:surface) = True
+        On(hammer:object, desk:surface) = False
+
+        YOUR RESPONSE:
         """
     images = [Image.open("../tests/datasets/test_vlm_predicate_img.jpg")]
 
     # NOTE: Uncomment for actual test
-    # print("Start requesting...")
-    # completions = vlm.sample_completions(prompt=prompt,
-    #                                      imgs=images,
-    #                                      temperature=0.5,
-    #                                      num_completions=3,
-    #                                      seed=0)
-    # for i, completion in enumerate(completions):
-    #     print(f"Completion {i + 1}: \n{completion}\n")
+    print("Start requesting...")
+    completions = vlm.sample_completions(prompt=prompt,
+                                         imgs=images,
+                                         temperature=0.5,
+                                         num_completions=3,
+                                         seed=0)
+    for i, completion in enumerate(completions):
+        print(f"Completion {i + 1}: \n{completion}\n")
