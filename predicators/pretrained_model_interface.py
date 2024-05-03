@@ -350,36 +350,3 @@ class OpenAIVLM(VisionLanguageModel):
             for _ in range(num_completions)
         ]
         return responses
-
-
-# Example usage:
-if __name__ == "__main__":
-    # Make sure the OPENAI_API_KEY is set
-    model_name = "gpt-4-turbo"
-    vlm = OpenAIVLM(model_name)
-
-    prompt = """
-        Describe the object relationships between the objects and containers.
-        You can think step by step, include predicates that are potentially true or false, and evaluate their values. 
-        You can use following predicate-style descriptions:
-        Inside(object1, container)
-        Blocking(object1, object2)
-        On(object, surface)
-        
-        Example output:
-        Inside(hammer:object, box:container) = True
-        On(box:object, desk:surface) = True
-        On(hammer:object, desk:surface) = False
-        
-        YOUR RESPONSE:
-        """
-    images = [PIL.Image.open("../test_vlm_predicate_img.jpg")]
-
-    print("Start requesting...")
-    completions = vlm.sample_completions(
-        prompt=prompt,
-        imgs=images,
-        temperature=0.5, num_completions=3, seed=0
-    )
-    for i, completion in enumerate(completions):
-        print(f"Completion {i + 1}: \n{completion}\n")
