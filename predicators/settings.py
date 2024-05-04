@@ -46,6 +46,9 @@ class GlobalSettings:
     # your call to utils.reset_config().
     render_state_dpi = 150
     approach_wrapper = None
+    # Use VLMs to evaluate some spatial predicates in visual environment,
+    # e.g., Sokoban. Still work in progress.
+    enable_vlm_eval_predicate = False
 
     # cover_multistep_options env parameters
     cover_multistep_action_limits = [-np.inf, np.inf]
@@ -178,6 +181,8 @@ class GlobalSettings:
     spot_run_dry = False
     spot_use_perfect_samplers = False  # for debugging
     spot_sweep_env_goal_description = "get the objects into the bucket"
+    # Evaluate some predicates with VLM; need additional setup; WIP
+    spot_vlm_eval_predicate = False
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3

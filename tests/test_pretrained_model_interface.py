@@ -8,7 +8,7 @@ from PIL import Image
 
 from predicators import utils
 from predicators.pretrained_model_interface import GoogleGeminiVLM, \
-    LargeLanguageModel, OpenAILLM, VisionLanguageModel
+    LargeLanguageModel, OpenAILLM, OpenAIVLM, VisionLanguageModel
 
 
 class _DummyLLM(LargeLanguageModel):
@@ -147,3 +147,47 @@ def test_gemini_vlm():
     # Create an OpenAILLM with the curie model.
     vlm = GoogleGeminiVLM("gemini-pro-vision")
     assert vlm.get_id() == "Google-gemini-pro-vision"
+
+
+def test_openai_vlm():
+    """Tests for GoogleGeminiVLM()."""
+    cache_dir = "_fake_llm_cache_dir"
+    utils.reset_config({"pretrained_model_prompt_cache_dir": cache_dir})
+    if "OPENAI_API_KEY" not in os.environ:  # pragma: no cover
+        os.environ["OPENAI_API_KEY"] = "dummy API key"
+    # Create an OpenAILLM with the curie model.
+    vlm = OpenAIVLM("gpt-4-turbo")
+    assert vlm.get_id() == "OpenAI-gpt-4-turbo"
+
+
+def test_openai_vlm_image_example():
+    # Make sure the OPENAI_API_KEY is set
+    model_name = "gpt-4-turbo"
+    vlm = OpenAIVLM(model_name)
+
+    prompt = """
+        Describe the object relationships between the objects and containers.
+        You can think step by step, include predicates that are potentially true or false, and evaluate their values. 
+        You can use following predicate-style descriptions:
+        Inside(object1, container)
+        Blocking(object1, object2)
+        On(object, surface)
+
+        Example output:
+        Inside(hammer:object, box:container) = True
+        On(box:object, desk:surface) = True
+        On(hammer:object, desk:surface) = False
+
+        YOUR RESPONSE:
+        """
+    images = [Image.open("../tests/datasets/test_vlm_predicate_img.jpg")]
+
+    # NOTE: Uncomment for actual test
+    print("Start requesting...")
+    completions = vlm.sample_completions(prompt=prompt,
+                                         imgs=images,
+                                         temperature=0.5,
+                                         num_completions=3,
+                                         seed=0)
+    for i, completion in enumerate(completions):
+        print(f"Completion {i + 1}: \n{completion}\n")
