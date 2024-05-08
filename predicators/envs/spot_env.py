@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
 
-import PIL.Image
 import matplotlib
 import numpy as np
 import pbrspot
+import PIL.Image
 from bosdyn.client import RetryableRpcError, create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
@@ -28,8 +28,8 @@ from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
-from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, \
-    vlm_predicate_batch_classify
+from predicators.spot_utils.perception.object_perception import \
+    get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     brush_prompt, bucket_prompt, football_prompt, train_toy_prompt
 from predicators.spot_utils.perception.perception_structs import \
@@ -51,7 +51,8 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
-    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, VLMPredicate, VLMGroundAtom
+    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
+    VLMGroundAtom, VLMPredicate
 
 ###############################################################################
 #                                Base Class                                   #
@@ -129,13 +130,14 @@ class _PartialPerceptionState(State):
             "predicates": self._simulator_state_predicates.copy(),
             "atoms": self._simulator_state_atoms.copy()
         }
-        return _PartialPerceptionState(state_copy,
-                                       simulator_state=sim_state_copy,
-                                       camera_images=self.camera_images,
-                                       visible_objects=self.visible_objects,
-                                       vlm_atom_dict=self.vlm_atom_dict,
-                                       vlm_predicates=self.vlm_predicates,
-                                       )
+        return _PartialPerceptionState(
+            state_copy,
+            simulator_state=sim_state_copy,
+            camera_images=self.camera_images,
+            visible_objects=self.visible_objects,
+            vlm_atom_dict=self.vlm_atom_dict,
+            vlm_predicates=self.vlm_predicates,
+        )
 
 
 def _create_dummy_predicate_classifier(
@@ -312,7 +314,7 @@ class SpotRearrangementEnv(BaseEnv):
     def action_space(self) -> Box:
         # The action space is effectively empty because only the extra info
         # part of actions are used.
-        return Box(0, 1, (0,))
+        return Box(0, 1, (0, ))
 
     @abc.abstractmethod
     def _get_dry_task(self, train_or_test: str,
@@ -350,7 +352,7 @@ class SpotRearrangementEnv(BaseEnv):
                                                nonpercept_atoms)
 
         if action_name in [
-            "MoveToReachObject", "MoveToReadySweep", "MoveToBodyViewObject"
+                "MoveToReachObject", "MoveToReadySweep", "MoveToBodyViewObject"
         ]:
             robot_rel_se2_pose = action_args[1]
             return _dry_simulate_move_to_reach_obj(obs, robot_rel_se2_pose,
@@ -623,7 +625,8 @@ class SpotRearrangementEnv(BaseEnv):
         return self._current_task_goal_reached
 
     def _build_realworld_observation(
-            self, nonpercept_atoms: Set[GroundAtom], curr_obs: Optional[_SpotObservation]) -> _SpotObservation:
+            self, nonpercept_atoms: Set[GroundAtom],
+            curr_obs: Optional[_SpotObservation]) -> _SpotObservation:
         """Helper for building a new _SpotObservation() from real-robot data.
 
         This is an environment method because the nonpercept predicates
@@ -753,7 +756,9 @@ class SpotRearrangementEnv(BaseEnv):
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_dict: Dict[VLMGroundAtom, bool or None] = vlm_predicate_batch_classify(vlm_atoms, rgbds, True)
+            vlm_atom_dict: Dict[VLMGroundAtom,
+                                bool or None] = vlm_predicate_batch_classify(
+                                    vlm_atoms, rgbds, True)
             # Update value if atoms in previous obs is None while new is not None
             for atom, result in vlm_atom_dict.items():
                 if curr_obs.vlm_atom_dict[atom] is None and result is not None:
@@ -762,7 +767,6 @@ class SpotRearrangementEnv(BaseEnv):
         else:
             vlm_predicates = set()
             vlm_atom_dict = {}
-
 
         obs = _SpotObservation(rgbds, all_objects_in_view,
                                objects_in_hand_view,
@@ -862,7 +866,8 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._localizer is not None
 
         # TODO add logic for VLM predicates evaluation
-        objects_in_view, vlm_atom_dict = self._actively_construct_initial_object_views()
+        objects_in_view, vlm_atom_dict = self._actively_construct_initial_object_views(
+        )
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -1014,17 +1019,17 @@ class SpotRearrangementEnv(BaseEnv):
         return EnvironmentTask(init_obs, goal)
 
     def _actively_construct_initial_object_views(
-            self) -> Tuple[
-        Dict[Object, math_helpers.SE3Pose],
-        Dict[VLMGroundAtom, bool or None]
-    ]:
+        self
+    ) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[VLMGroundAtom,
+                                                        bool or None]]:
         assert self._robot is not None
         assert self._localizer is not None
         stow_arm(self._robot)
         go_home(self._robot, self._localizer)
         self._localizer.localize()
         detection_ids = self._detection_id_to_obj.keys()
-        detections, vlm_atom_dict = self._run_init_search_for_objects(set(detection_ids))
+        detections, vlm_atom_dict = self._run_init_search_for_objects(
+            set(detection_ids))
         stow_arm(self._robot)
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
@@ -1034,8 +1039,9 @@ class SpotRearrangementEnv(BaseEnv):
         return obj_to_se3_pose, vlm_atom_dict
 
     def _run_init_search_for_objects(
-            self, detection_ids: Set[ObjectDetectionID]
-    ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[VLMGroundAtom, bool or None]]:
+        self, detection_ids: Set[ObjectDetectionID]
+    ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[
+            VLMGroundAtom, bool or None]]:
         """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
@@ -1178,7 +1184,8 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
         # (Whether {obj_on} is on {obj_surface} in the image?)
         # """
         # return vlm_predicate_classify(predicate_str, state)
-        raise RuntimeError("VLM predicate classifier should be evaluated in batch!")
+        raise RuntimeError(
+            "VLM predicate classifier should be evaluated in batch!")
 
     else:
         # Check that the bottom of the object is close to the top of the surface.
@@ -1291,8 +1298,8 @@ def in_general_view_classifier(state: State,
 def _obj_reachable_from_spot_pose(spot_pose: math_helpers.SE3Pose,
                                   obj_position: math_helpers.Vec3) -> bool:
     is_xy_near = np.sqrt(
-        (spot_pose.x - obj_position.x) ** 2 +
-        (spot_pose.y - obj_position.y) ** 2) <= _REACHABLE_THRESHOLD
+        (spot_pose.x - obj_position.x)**2 +
+        (spot_pose.y - obj_position.y)**2) <= _REACHABLE_THRESHOLD
 
     # Compute angle between spot's forward direction and the line from
     # spot to the object.
@@ -1433,8 +1440,8 @@ def _container_adjacent_to_surface_for_sweeping(container: Object,
     container_x = state.get(container, "x")
     container_y = state.get(container, "y")
 
-    dist = np.sqrt((expected_x - container_x) ** 2 +
-                   (expected_y - container_y) ** 2)
+    dist = np.sqrt((expected_x - container_x)**2 +
+                   (expected_y - container_y)**2)
 
     return dist <= _CONTAINER_SWEEP_READY_BUFFER
 
@@ -1556,7 +1563,7 @@ _IsSemanticallyGreaterThan = Predicate(
 #     #                        _inside_classifier)
 
 _On = VLMPredicate("On", [_movable_object_type, _base_object_type],
-                       _on_classifier)
+                   _on_classifier)
 
 # NOTE: Define all regular or VLM predicates above
 _ALL_PREDICATES = {
@@ -1572,7 +1579,8 @@ _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 # is VLM perceptible or not.
 # NOTE: candidates: on, inside, door opened, blocking, not blocked, ...
 _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
-    p for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
+    p
+    for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
 }
 
 
@@ -2393,7 +2401,7 @@ def _dry_simulate_sweep_into_container(
             x = container_pose.x + dx
             y = container_pose.y + dy
             z = container_pose.z
-            dist_to_container = (dx ** 2 + dy ** 2) ** 0.5
+            dist_to_container = (dx**2 + dy**2)**0.5
             assert dist_to_container > (container_radius +
                                         _INSIDE_SURFACE_BUFFER)
 

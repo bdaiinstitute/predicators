@@ -2,7 +2,8 @@
 import logging
 import time
 from collections import defaultdict
-from typing import Any, Collection, Dict, List, Optional, Sequence, Tuple, Set, Callable
+from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, \
+    Set, Tuple
 
 import numpy as np
 from bosdyn.client import math_helpers
@@ -13,7 +14,8 @@ from scipy.spatial import Delaunay
 
 from predicators import utils
 from predicators.spot_utils.perception.object_detection import detect_objects
-from predicators.spot_utils.perception.object_perception import vlm_predicate_batch_classify, get_vlm_atom_combinations
+from predicators.spot_utils.perception.object_perception import \
+    get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -26,7 +28,7 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_FLOOR_POSE, get_allowed_map_regions, \
     get_collision_geoms_for_nav, get_relative_se2_from_se3, \
     sample_random_nearby_point_to_move, spot_pose_to_geom2d
-from predicators.structs import State, VLMPredicate, Object, VLMGroundAtom
+from predicators.structs import Object, State, VLMGroundAtom, VLMPredicate
 
 
 def _find_objects_with_choreographed_moves(
@@ -39,7 +41,8 @@ def _find_objects_with_choreographed_moves(
     allowed_regions: Optional[Collection[Delaunay]] = None,
     vlm_predicates: Optional[Set[VLMPredicate]] = None,
     id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
-) -> Tuple[Dict[ObjectDetectionID, SE3Pose], Dict[str, Any], Dict[VLMGroundAtom, bool or None]]:
+) -> Tuple[Dict[ObjectDetectionID, SE3Pose], Dict[str, Any], Dict[
+        VLMGroundAtom, bool or None]]:
     """Helper for object search with hard-coded relative moves."""
 
     if relative_hand_moves is not None:
@@ -53,7 +56,8 @@ def _find_objects_with_choreographed_moves(
 
     # Save VLMGroundAtoms from all poses
     # NOTE: overwrite if the same atom is found; to improve later
-    all_vlm_atom_dict: Dict[VLMGroundAtom, bool or None] = defaultdict(lambda: None)
+    all_vlm_atom_dict: Dict[VLMGroundAtom,
+                            bool or None] = defaultdict(lambda: None)
 
     # Open the hand to mitigate possible occlusions.
     if open_and_close_gripper:
@@ -80,7 +84,8 @@ def _find_objects_with_choreographed_moves(
         if len(all_detections) > 0 and len(vlm_predicates) > 0:
             objects = [id2object[id_] for id_ in all_detections]
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_dict = vlm_predicate_batch_classify(vlm_atoms, rgbds, True)
+            vlm_atom_dict = vlm_predicate_batch_classify(
+                vlm_atoms, rgbds, True)
             # Update value if original is None while new is not None
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
@@ -140,7 +145,8 @@ def init_search_for_objects(
     allowed_regions: Optional[Collection[Delaunay]] = None,
     vlm_predicates: Optional[Set[VLMPredicate]] = None,
     id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
-) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any], Dict[VLMGroundAtom, bool or None]]:
+) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any], Dict[
+        VLMGroundAtom, bool or None]]:
     """Spin around in place looking for objects.
 
     Raise a RuntimeError if an object can't be found after spinning.

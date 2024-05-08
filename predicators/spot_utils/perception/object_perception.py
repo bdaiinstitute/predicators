@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, List, Set, Sequence
+from typing import Dict, List, Sequence, Set
 
 import PIL.Image
 
 from predicators.pretrained_model_interface import OpenAIVLM
-from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext
-from predicators.structs import State, VLMGroundAtom, Object, VLMPredicate
+from predicators.spot_utils.perception.perception_structs import \
+    RGBDImageWithContext
+from predicators.structs import Object, State, VLMGroundAtom, VLMPredicate
 from predicators.utils import get_object_combinations
 
 ###############################################################################
@@ -109,10 +110,14 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
         return None
 
 
-def vlm_predicate_batch_query(queries: List[str], images: Dict[str, RGBDImageWithContext]) -> List[bool]:
-    """Use queries generated from VLM predicates to evaluate them via VLM in batch.
+def vlm_predicate_batch_query(
+        queries: List[str], images: Dict[str,
+                                         RGBDImageWithContext]) -> List[bool]:
+    """Use queries generated from VLM predicates to evaluate them via VLM in
+    batch.
 
-    The VLM takes a list of queries and images in current observation to evaluate them.
+    The VLM takes a list of queries and images in current observation to
+    evaluate them.
     """
 
     # Assemble the full prompt
@@ -139,20 +144,25 @@ def vlm_predicate_batch_query(queries: List[str], images: Dict[str, RGBDImageWit
     responses = vlm_responses[0].strip().lower().split('\n')
     results = []
     for i, r in enumerate(responses):
-        assert r in ['yes', 'no', 'unknown'], f"Invalid response in line {i}: {r}"
+        assert r in ['yes', 'no',
+                     'unknown'], f"Invalid response in line {i}: {r}"
         if r == 'yes':
             results.append(True)
         elif r == 'no':
             results.append(False)
         else:
             results.append(None)
-    assert len(results) == len(queries), "Number of responses should match queries."
+    assert len(results) == len(
+        queries), "Number of responses should match queries."
 
     return results
 
 
-def vlm_predicate_batch_classify(atoms: Set[VLMGroundAtom], images: Dict[str, RGBDImageWithContext],
-                                 get_dict: bool = True) -> Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom]:
+def vlm_predicate_batch_classify(
+        atoms: Set[VLMGroundAtom],
+        images: Dict[str, RGBDImageWithContext],
+        get_dict: bool = True
+) -> Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom]:
     """Use VLM to evaluate a set of atoms in a given state."""
     # Get the queries for the atoms
     queries = [atom.get_query_str() for atom in atoms]
@@ -176,7 +186,8 @@ def vlm_predicate_batch_classify(atoms: Set[VLMGroundAtom], images: Dict[str, RG
         return hold_atoms
 
 
-def get_vlm_atom_combinations(objects: Sequence[Object], preds: Set[VLMPredicate]) -> Set[VLMGroundAtom]:
+def get_vlm_atom_combinations(objects: Sequence[Object],
+                              preds: Set[VLMPredicate]) -> Set[VLMGroundAtom]:
     atoms = set()
     for pred in preds:
         for choice in get_object_combinations(objects, pred.types):

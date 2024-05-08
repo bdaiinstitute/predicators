@@ -320,16 +320,18 @@ class VLMPredicate(Predicate):
     """Struct defining a predicate (a lifted classifier over states) that uses
     a VLM for evaluation.
 
-    It overrides the `holds` method, which only return the stored predicate
-    value in the State. Instead, it supports a query method that generates VLM
-    query, where all VLM predicates will be evaluated at once.
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State. Instead, it supports a query method
+    that generates VLM query, where all VLM predicates will be evaluated
+    at once.
     """
 
     def get_query(self, objects: Sequence[Object]) -> str:
         """Get a query string for this predicate.
 
-        Instead of directly evaluating the predicate, we will use the VLM to
-        evaluate all VLM predicate classifiers in a batched manner.
+        Instead of directly evaluating the predicate, we will use the
+        VLM to evaluate all VLM predicate classifiers in a batched
+        manner.
         """
         self.pddl_str()
 
@@ -462,9 +464,10 @@ class VLMGroundAtom(GroundAtom):
     """Struct defining a ground atom (a predicate applied to objects) that uses
     a VLM for evaluation.
 
-    It overrides the `holds` method, which only return the stored predicate
-    value in the State. Instead, it supports a query method that generates VLM
-    query, where all VLM predicates will be evaluated at once.
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State. Instead, it supports a query method
+    that generates VLM query, where all VLM predicates will be evaluated
+    at once.
     """
 
     # NOTE: This subclasses GroundAtom to support VLM predicates and classifiers
@@ -473,11 +476,13 @@ class VLMGroundAtom(GroundAtom):
     def get_query_str(self, without_type: bool = False) -> str:
         """Get a query string for this ground atom.
 
-        Instead of directly evaluating the ground atom, we will use the VLM to
-        evaluate all VLM predicate classifiers in a batched manner.
+        Instead of directly evaluating the ground atom, we will use the
+        VLM to evaluate all VLM predicate classifiers in a batched
+        manner.
         """
         if without_type:
-            string = self.predicate.name + "(" + ", ".join(o.name for o in self.objects) + ")"
+            string = self.predicate.name + "(" + ", ".join(
+                o.name for o in self.objects) + ")"
         else:
             string = str(self)
         return string
