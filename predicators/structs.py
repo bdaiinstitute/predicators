@@ -118,18 +118,14 @@ class State:
     # this field is provided.
     simulator_state: Optional[Any] = None
 
-    # DEBUG Add an additional field to store the previous atoms
-    prev_atoms: Optional[Sequence[GroundAtom]] = None
-    prev_step: Optional[Any] = None
+    # Store additional fields for VLM predicate classifiers
+    # NOTE: adding in Spot ev subclass doesn't work; may need fix
+    # prev_atoms: Optional[Dict[str, bool]] = None
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool or None]] = None
+    vlm_predicates: Optional[Collection[Predicate]] = None
     visible_objects: Optional[Any] = None
-
-    # DEBUG Add an additional field to store Spot images
-    # TODO subclass can't create new field?
-    # This would be directly copied from the images in raw Observation
-    # NOTE: This is only used when using VLM for predicate evaluation
-    # NOTE: Performance aspect should be considered later
+    # This is directly copied from the images in raw Observation
     camera_images: Optional[Dict[str, Any]] = None
-    # TODO: it's still unclear how we select and store useful images!
 
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
@@ -320,6 +316,40 @@ class Predicate:
         return not self._classifier(state, objects)
 
 
+class VLMPredicate(Predicate):
+    """Struct defining a predicate (a lifted classifier over states) that uses
+    a VLM for evaluation.
+
+    It overrides the `holds` method, which only return the stored predicate
+    value in the State. Instead, it supports a query method that generates VLM
+    query, where all VLM predicates will be evaluated at once.
+    """
+
+    def get_query(self, objects: Sequence[Object]) -> str:
+        """Get a query string for this predicate.
+
+        Instead of directly evaluating the predicate, we will use the VLM to
+        evaluate all VLM predicate classifiers in a batched manner.
+        """
+        self.pddl_str()
+
+    def holds(self, state: State, objects: Sequence[Object]) -> bool:
+        """Public method for getting predicate value.
+
+        Performs type checking first. Directly use value
+        """
+        assert len(objects) == self.arity
+        for obj, pred_type in zip(objects, self.types):
+            assert isinstance(obj, Object)
+            assert obj.is_instance(pred_type)
+
+        # TODO get predicate values from State
+        # TODO store a dict, from str to bool; but it should be str of GroundAtom or Predicate?
+        # return state.prev_atoms[str(self)]
+        # return self._classifier(state, objects)
+        return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
+
+
 @dataclass(frozen=True, repr=False, eq=False)
 class _Atom:
     """Struct defining an atom (a predicate applied to either variables or
@@ -425,6 +455,42 @@ class GroundAtom(_Atom):
     def holds(self, state: State) -> bool:
         """Check whether this ground atom holds in the given state."""
         return self.predicate.holds(state, self.objects)
+
+
+@dataclass(frozen=True, repr=False, eq=False)
+class VLMGroundAtom(GroundAtom):
+    """Struct defining a ground atom (a predicate applied to objects) that uses
+    a VLM for evaluation.
+
+    It overrides the `holds` method, which only return the stored predicate
+    value in the State. Instead, it supports a query method that generates VLM
+    query, where all VLM predicates will be evaluated at once.
+    """
+
+    # NOTE: This subclasses GroundAtom to support VLM predicates and classifiers
+    predicate: VLMPredicate
+
+    def get_query_str(self, without_type: bool = False) -> str:
+        """Get a query string for this ground atom.
+
+        Instead of directly evaluating the ground atom, we will use the VLM to
+        evaluate all VLM predicate classifiers in a batched manner.
+        """
+        if without_type:
+            string = self.predicate.name + "(" + ", ".join(o.name for o in self.objects) + ")"
+        else:
+            string = str(self)
+        return string
+
+    def holds(self, state: State) -> bool:
+        """Public method for getting predicate value.
+
+        Retrieve GroundAtom value from State directly.
+        """
+        assert isinstance(self.predicate, VLMPredicate)
+        # TODO get predicate values from State
+        return state.vlm_atom_dict[self]
+        # return self.predicate.holds(state, self.objects)
 
 
 @dataclass(frozen=True, eq=False)
