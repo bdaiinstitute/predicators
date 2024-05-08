@@ -46,6 +46,7 @@ setup(
         "google-generativeai",
         "ImageHash",
         "rich",
+        "tenacity",
     ],
     include_package_data=True,
     extras_require={
