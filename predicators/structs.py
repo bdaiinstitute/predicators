@@ -481,9 +481,7 @@ class VLMGroundAtom(GroundAtom):
         Retrieve GroundAtom value from State directly.
         """
         assert isinstance(self.predicate, VLMPredicate)
-        # TODO get predicate values from State
         return state.vlm_atom_dict[self]
-        # return self.predicate.holds(state, self.objects)
 
 
 @dataclass(frozen=True, eq=False)
