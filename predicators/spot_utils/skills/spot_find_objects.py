@@ -80,7 +80,7 @@ def _find_objects_with_choreographed_moves(
         print(f"Found objects: {set(all_detections)}")
         print(f"Remaining objects: {remaining_object_ids}")
 
-        # DEBUG Get VLM queries + Send request
+        # Get VLM queries + Send request
         if len(all_detections) > 0 and len(vlm_predicates) > 0:
             objects = [id2object[id_] for id_ in all_detections]
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
@@ -92,7 +92,7 @@ def _find_objects_with_choreographed_moves(
                     all_vlm_atom_dict[atom] = result
             print(f"Calculated VLM atoms: {all_vlm_atom_dict}")
         else:
-            # print("No VLM predicates or no objects found yet.")
+            # No VLM predicates or no objects found yet
             pass
 
         # Success, finish.

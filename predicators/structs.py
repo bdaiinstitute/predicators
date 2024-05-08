@@ -119,8 +119,7 @@ class State:
     simulator_state: Optional[Any] = None
 
     # Store additional fields for VLM predicate classifiers
-    # NOTE: adding in Spot ev subclass doesn't work; may need fix
-    # prev_atoms: Optional[Dict[str, bool]] = None
+    # NOTE: adding in Spot subclass doesn't work; may need fix
     vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool or None]] = None
     vlm_predicates: Optional[Collection[Predicate]] = None
     visible_objects: Optional[Any] = None
@@ -326,15 +325,6 @@ class VLMPredicate(Predicate):
     at once.
     """
 
-    def get_query(self, objects: Sequence[Object]) -> str:
-        """Get a query string for this predicate.
-
-        Instead of directly evaluating the predicate, we will use the
-        VLM to evaluate all VLM predicate classifiers in a batched
-        manner.
-        """
-        self.pddl_str()
-
     def holds(self, state: State, objects: Sequence[Object]) -> bool:
         """Public method for getting predicate value.
 
@@ -345,10 +335,8 @@ class VLMPredicate(Predicate):
             assert isinstance(obj, Object)
             assert obj.is_instance(pred_type)
 
-        # TODO get predicate values from State
-        # TODO store a dict, from str to bool; but it should be str of GroundAtom or Predicate?
-        # return state.prev_atoms[str(self)]
-        # return self._classifier(state, objects)
+        # Get VLM predicate values from State
+        # It is stored in a dictionary of VLMGroundAtom -> bool
         return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
 
 
