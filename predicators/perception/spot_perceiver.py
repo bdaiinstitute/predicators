@@ -205,6 +205,8 @@ class SpotPerceiver(BasePerceiver):
         if CFG.spot_vlm_eval_predicate:
             # Add current Spot images to the state if needed
             self._camera_images = observation.images
+            self._vlm_atom_dict = observation.vlm_atom_dict
+            self._vlm_predicates = observation.vlm_predicates
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
@@ -294,7 +296,10 @@ class SpotPerceiver(BasePerceiver):
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state,
                                         camera_images=camera_images,
-                                        visible_objects=self._objects_in_view)
+                                        visible_objects=self._objects_in_view,
+                                        vlm_atom_dict=self._vlm_atom_dict,
+                                        vlm_predicates=self._vlm_predicates,
+                                        )
         # DEBUG - look into dataclass field init - why warning
 
         return state
