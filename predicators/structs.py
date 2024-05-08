@@ -337,6 +337,7 @@ class VLMPredicate(Predicate):
 
         # Get VLM predicate values from State
         # It is stored in a dictionary of VLMGroundAtom -> bool
+        assert state.vlm_atom_dict is not None
         return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
 
 
@@ -481,6 +482,7 @@ class VLMGroundAtom(GroundAtom):
         Retrieve GroundAtom value from State directly.
         """
         assert isinstance(self.predicate, VLMPredicate)
+        assert state.vlm_atom_dict is not None
         return state.vlm_atom_dict[self]
 
 
