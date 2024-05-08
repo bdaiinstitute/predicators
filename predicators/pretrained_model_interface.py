@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from io import BytesIO
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import cv2
 import google
@@ -265,7 +265,7 @@ class OpenAIVLM(VisionLanguageModel):
         self.detail = detail
         self.set_openai_key()
 
-    def set_openai_key(self, key: Optional[str] = None):
+    def set_openai_key(self, key: Optional[str] = None) -> None:
         """Set the OpenAI API key."""
         if key is None:
             assert "OPENAI_API_KEY" in os.environ
@@ -277,7 +277,7 @@ class OpenAIVLM(VisionLanguageModel):
                                 prefix: Optional[str] = None,
                                 suffix: Optional[str] = None,
                                 image_size: Optional[int] = 512,
-                                detail: str = "auto"):
+                                detail: str = "auto") -> List[Dict[str, str]]:
         """Prepare text and image messages for the OpenAI API."""
         content = []
 
@@ -299,8 +299,8 @@ class OpenAIVLM(VisionLanguageModel):
             # Convert the image to PNG format and encode it in base64
             buffer = BytesIO()
             img_resized.save(buffer, format="PNG")
-            buffer = buffer.getvalue()
-            frame = base64.b64encode(buffer).decode("utf-8")
+            buffer_bytes = buffer.getvalue()
+            frame = base64.b64encode(buffer_bytes).decode("utf-8")
 
             content.append({
                 "image_url": {
@@ -323,7 +323,7 @@ class OpenAIVLM(VisionLanguageModel):
                         seed: Optional[int] = None,
                         max_tokens: int = 32,
                         temperature: float = 0.2,
-                        verbose: bool = False):
+                        verbose: bool = False) -> str:
         """Make an API call to OpenAI."""
         client = openai.OpenAI()
         completion = client.chat.completions.create(
@@ -350,9 +350,10 @@ class OpenAIVLM(VisionLanguageModel):
         seed: int,
         stop_token: Optional[str] = None,
         num_completions: int = 1,
-        max_tokens=512,
+        max_tokens: int = 512,
     ) -> List[str]:
         """Query the model and get responses."""
+        assert imgs is not None
         messages = self.prepare_vision_messages(prefix=prompt,
                                                 images=imgs,
                                                 detail="auto")
