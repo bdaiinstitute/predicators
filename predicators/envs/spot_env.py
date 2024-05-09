@@ -754,7 +754,10 @@ class SpotRearrangementEnv(BaseEnv):
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_dict: Dict[VLMGroundAtom,
                                 bool or None] = vlm_predicate_batch_classify(
-                                    vlm_atoms, rgbds, True)
+                                    vlm_atoms,
+                                    rgbds,
+                                    predicates=vlm_predicates,
+                                    get_dict=True)
             # Update value if atoms in previous obs is None while new is not None
             for atom, result in vlm_atom_dict.items():
                 if curr_obs.vlm_atom_dict[atom] is None and result is not None:
@@ -1045,12 +1048,13 @@ class SpotRearrangementEnv(BaseEnv):
                                          rot=math_helpers.Quat.from_pitch(
                                              np.pi / 3))
         move_hand_to_relative_pose(self._robot, hand_pose)
+        # Input VLM predicates (to filter task-relevant ones) and objects
+        # Obtain detections and additionally VLM ground atoms
         detections, artifacts, vlm_atom_dict = init_search_for_objects(
             self._robot,
             self._localizer,
             detection_ids,
             allowed_regions=self._allowed_regions,
-            # TODO input VLM predicates; to filter task-relevant ones
             vlm_predicates=_VLM_CLASSIFIER_PREDICATES,
             id2object=self._detection_id_to_obj,
         )
@@ -1076,12 +1080,6 @@ class SpotRearrangementEnv(BaseEnv):
     def _generate_goal_description(self) -> GoalDescription:
         """For now, we assume that there's only one goal per environment."""
 
-
-###############################################################################
-#                      VLM Predicate Evaluation Related                       #
-###############################################################################
-
-# TODO: move to a separate file
 
 ###############################################################################
 #                   Shared Types, Predicates, Operators                       #
@@ -1507,13 +1505,13 @@ _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
 #                 _on_classifier)
 _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
-_Inside = Predicate("Inside", [_movable_object_type, _container_type],
-                    _inside_classifier)
+# _Inside = Predicate("Inside", [_movable_object_type, _container_type],
+#                     _inside_classifier)
 _FitsInXY = Predicate("FitsInXY", [_movable_object_type, _base_object_type],
                       _fits_in_xy_classifier)
 # NOTE: use this predicate instead if you want to disable inside checking.
-_FakeInside = Predicate(_Inside.name, _Inside.types,
-                        _create_dummy_predicate_classifier(_Inside))
+# _FakeInside = Predicate(_Inside.name, _Inside.types,
+#                         _create_dummy_predicate_classifier(_Inside))
 _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
                                    [_movable_object_type],
                                    _not_inside_any_container_classifier)
@@ -1528,10 +1526,10 @@ _InView = Predicate("InView", [_robot_type, _movable_object_type],
                     in_general_view_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type],
                        _reachable_classifier)
-_Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
-                      _blocking_classifier)
-_NotBlocked = Predicate("NotBlocked", [_base_object_type],
-                        _not_blocked_classifier)
+# _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
+#                       _blocking_classifier)
+# _NotBlocked = Predicate("NotBlocked", [_base_object_type],
+#                         _not_blocked_classifier)
 _ContainerReadyForSweeping = Predicate(
     "ContainerReadyForSweeping", [_container_type, _immovable_object_type],
     _container_ready_for_sweeping_classifier)
@@ -1550,14 +1548,30 @@ _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
 
+# DEBUG hardcode now; CFG not updated here?!
 # if CFG.spot_vlm_eval_predicate:
-#     _On = VLMPredicate("On", [_movable_object_type, _base_object_type],
-#                        _on_classifier)
-#     # _Inside = VLMPredicate("Inside", [_movable_object_type, _container_type],
-#     #                        _inside_classifier)
+tmp_vlm_flag = True
 
-_On = VLMPredicate("On", [_movable_object_type, _base_object_type],
-                   _on_classifier)
+if tmp_vlm_flag:
+    _On = VLMPredicate("On", [_movable_object_type, _base_object_type], None)
+    _Inside = VLMPredicate("Inside", [_movable_object_type, _container_type],
+                           None)
+    _FakeInside = VLMPredicate(_Inside.name, _Inside.types, None)
+    _Blocking = VLMPredicate("Blocking",
+                             [_base_object_type, _base_object_type], None)
+    _NotBlocked = VLMPredicate("NotBlocked", [_base_object_type], None)
+else:
+    _On = Predicate("On", [_movable_object_type, _base_object_type],
+                    _on_classifier)
+    _Inside = Predicate("Inside", [_movable_object_type, _container_type],
+                        _inside_classifier)
+    # NOTE: use this predicate instead if you want to disable inside checking.
+    _FakeInside = Predicate(_Inside.name, _Inside.types,
+                            _create_dummy_predicate_classifier(_Inside))
+    _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
+                          _blocking_classifier)
+    _NotBlocked = Predicate("NotBlocked", [_base_object_type],
+                            _not_blocked_classifier)
 
 # NOTE: Define all regular or VLM predicates above
 _ALL_PREDICATES = {
