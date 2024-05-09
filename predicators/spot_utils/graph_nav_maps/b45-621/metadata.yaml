@@ -47,3 +47,16 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
+  green_bowl:
+    shape: 2
+    height: 0.2
+    length: 0.2
+    width: 0.2
+    placeable: 0
+    is_sweeper: 0
+
+# NOTE: Not sure what these mean, but have to be there?
+prepare_container_relative_xy:
+  dx: -0.1
+  dy: 0.1
+  angle: -1.5707  # - pi / 2
