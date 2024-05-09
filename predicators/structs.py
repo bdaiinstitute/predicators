@@ -184,7 +184,7 @@ class State:
         """Return whether this state is close enough to another one, i.e., its
         objects are the same, and the features are close."""
         if self.simulator_state is not None or \
-           other.simulator_state is not None:
+                other.simulator_state is not None:
             raise NotImplementedError("Cannot use allclose when "
                                       "simulator_state is not None.")
 
@@ -206,7 +206,7 @@ class State:
             if obj.type not in type_to_table:
                 type_to_table[obj.type] = []
             type_to_table[obj.type].append([obj.name] + \
-                                            list(map(str, self[obj])))
+                                           list(map(str, self[obj])))
         table_strs = []
         for t in sorted(type_to_table):
             headers = ["type: " + t.name] + list(t.feature_names)
@@ -324,6 +324,8 @@ class VLMPredicate(Predicate):
     that generates VLM query, where all VLM predicates will be evaluated
     at once.
     """
+
+    _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
 
     def holds(self, state: State, objects: Sequence[Object]) -> bool:
         """Public method for getting predicate value.
@@ -732,8 +734,8 @@ class STRIPSOperator:
                                           for i, t in enumerate(pred.types))
                 pred_eff_variables_str = " ".join(f"?x{i}"
                                                   for i in range(pred.arity))
-                effects_str += f"(forall ({pred_types_str})" +\
-                    f" (not ({pred.name} {pred_eff_variables_str})))"
+                effects_str += f"(forall ({pred_types_str})" + \
+                               f" (not ({pred.name} {pred_eff_variables_str})))"
                 effects_str += "\n        "
         return f"""(:action {self.name}
     :parameters ({params_str})
@@ -1586,7 +1588,7 @@ class LDLRule:
         # The preconditions and goal preconditions should only use variables in
         # the rule parameters.
         for atom in self.pos_state_preconditions | \
-            self.neg_state_preconditions | self.goal_preconditions:
+                    self.neg_state_preconditions | self.goal_preconditions:
             assert all(v in self.parameters for v in atom.variables)
 
     @lru_cache(maxsize=None)
