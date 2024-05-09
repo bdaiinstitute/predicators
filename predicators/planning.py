@@ -1215,6 +1215,9 @@ def run_task_plan_once(
             raise PlanningFailure(
                 "Skeleton produced by A-star exceeds horizon!")
     elif "fd" in CFG.sesame_task_planner:  # pragma: no cover
+        # Run Fast Downward. See the instructions in the docstring of `_sesame_plan_with_fast_downward`
+        assert "FD_EXEC_PATH" in os.environ, \
+            "Please follow the instructions in the docstring of this method!"
         fd_exec_path = os.environ["FD_EXEC_PATH"]
         exec_str = os.path.join(fd_exec_path, "fast-downward.py")
         timeout_cmd = "gtimeout" if sys.platform == "darwin" \

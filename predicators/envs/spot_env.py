@@ -26,6 +26,8 @@ from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
     visualize_all_artifacts
+from predicators.spot_utils.perception.object_perception import \
+    get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     brush_prompt, bucket_prompt, football_prompt, train_toy_prompt
 from predicators.spot_utils.perception.perception_structs import \
@@ -47,7 +49,8 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
-    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable
+    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
+    VLMGroundAtom, VLMPredicate
 
 ###############################################################################
 #                                Base Class                                   #
@@ -82,6 +85,9 @@ class _SpotObservation:
     # A placeholder until all predicates have classifiers
     nonpercept_atoms: Set[GroundAtom]
     nonpercept_predicates: Set[Predicate]
+    # VLM predicates and ground atoms
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool or None]] = None
+    vlm_predicates: Optional[Set[VLMPredicate]] = None
 
 
 class _PartialPerceptionState(State):
@@ -120,8 +126,14 @@ class _PartialPerceptionState(State):
             "predicates": self._simulator_state_predicates.copy(),
             "atoms": self._simulator_state_atoms.copy()
         }
-        return _PartialPerceptionState(state_copy,
-                                       simulator_state=sim_state_copy)
+        return _PartialPerceptionState(
+            state_copy,
+            simulator_state=sim_state_copy,
+            camera_images=self.camera_images,
+            visible_objects=self.visible_objects,
+            vlm_atom_dict=self.vlm_atom_dict,
+            vlm_predicates=self.vlm_predicates,
+        )
 
 
 def _create_dummy_predicate_classifier(
@@ -545,7 +557,7 @@ class SpotRearrangementEnv(BaseEnv):
             while True:
                 try:
                     next_obs = self._build_realworld_observation(
-                        next_nonpercept)
+                        next_nonpercept, curr_obs=obs)
                     break
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
@@ -609,7 +621,8 @@ class SpotRearrangementEnv(BaseEnv):
         return self._current_task_goal_reached
 
     def _build_realworld_observation(
-            self, ground_atoms: Set[GroundAtom]) -> _SpotObservation:
+            self, nonpercept_atoms: Set[GroundAtom],
+            curr_obs: Optional[_SpotObservation]) -> _SpotObservation:
         """Helper for building a new _SpotObservation() from real-robot data.
 
         This is an environment method because the nonpercept predicates
@@ -703,7 +716,7 @@ class SpotRearrangementEnv(BaseEnv):
             for swept_object in swept_objects:
                 if swept_object not in all_objects_in_view:
                     if container is not None and container in \
-                        all_objects_in_view:
+                            all_objects_in_view:
                         while True:
                             msg = (
                                 f"\nATTENTION! The {swept_object.name} was not "
@@ -731,12 +744,35 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Prepare the non-percepts.
         nonpercept_preds = self.predicates - self.percept_predicates
-        assert all(a.predicate in nonpercept_preds for a in ground_atoms)
+        assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
+
+        # Prepare the VLM predicates and ground atoms
+        if CFG.spot_vlm_eval_predicate:
+            vlm_predicates = _VLM_CLASSIFIER_PREDICATES
+            # Use currently visible objects to generate atom combinations
+            objects = list(all_objects_in_view.keys())
+            vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
+            vlm_atom_dict: Dict[VLMGroundAtom,
+                                bool or None] = vlm_predicate_batch_classify(
+                                    vlm_atoms,
+                                    rgbds,
+                                    predicates=vlm_predicates,
+                                    get_dict=True)
+            # Update value if atoms in previous obs is None while new is not None
+            for atom, result in vlm_atom_dict.items():
+                if curr_obs.vlm_atom_dict[atom] is None and result is not None:
+                    vlm_atom_dict[atom] = result
+
+        else:
+            vlm_predicates = set()
+            vlm_atom_dict = {}
+
         obs = _SpotObservation(rgbds, all_objects_in_view,
                                objects_in_hand_view,
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, ground_atoms, nonpercept_preds)
+                               robot_pos, nonpercept_atoms, nonpercept_preds,
+                               vlm_atom_dict, vlm_predicates)
 
         return obs
 
@@ -827,18 +863,27 @@ class SpotRearrangementEnv(BaseEnv):
         # an initial observation.
         assert self._robot is not None
         assert self._localizer is not None
-        objects_in_view = self._actively_construct_initial_object_views()
+
+        # Prepare and evaluate VLM predicates for the initial state
+        objects_in_view, vlm_atom_dict = self._actively_construct_initial_object_views(
+        )
+        vlm_predicates = _VLM_CLASSIFIER_PREDICATES
+
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
         self._localizer.localize()
         robot_pos = self._localizer.get_last_robot_pose()
+
+        # Update non-percept atoms and predicates
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
+
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, nonpercept_atoms, nonpercept_preds)
+                               robot_pos, nonpercept_atoms, nonpercept_preds,
+                               vlm_atom_dict, vlm_predicates)
         goal_description = self._generate_goal_description()
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
@@ -971,25 +1016,29 @@ class SpotRearrangementEnv(BaseEnv):
         return EnvironmentTask(init_obs, goal)
 
     def _actively_construct_initial_object_views(
-            self) -> Dict[Object, math_helpers.SE3Pose]:
+        self
+    ) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[VLMGroundAtom,
+                                                        bool or None]]:
         assert self._robot is not None
         assert self._localizer is not None
         stow_arm(self._robot)
         go_home(self._robot, self._localizer)
         self._localizer.localize()
         detection_ids = self._detection_id_to_obj.keys()
-        detections = self._run_init_search_for_objects(set(detection_ids))
+        detections, vlm_atom_dict = self._run_init_search_for_objects(
+            set(detection_ids))
         stow_arm(self._robot)
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
         }
         self._last_known_object_poses.update(obj_to_se3_pose)
-        return obj_to_se3_pose
+        return obj_to_se3_pose, vlm_atom_dict
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
-    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+    ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[
+            VLMGroundAtom, bool or None]]:
         """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
@@ -999,11 +1048,16 @@ class SpotRearrangementEnv(BaseEnv):
                                          rot=math_helpers.Quat.from_pitch(
                                              np.pi / 3))
         move_hand_to_relative_pose(self._robot, hand_pose)
-        detections, artifacts = init_search_for_objects(
+        # Input VLM predicates (to filter task-relevant ones) and objects
+        # Obtain detections and additionally VLM ground atoms
+        detections, artifacts, vlm_atom_dict = init_search_for_objects(
             self._robot,
             self._localizer,
             detection_ids,
-            allowed_regions=self._allowed_regions)
+            allowed_regions=self._allowed_regions,
+            vlm_predicates=_VLM_CLASSIFIER_PREDICATES,
+            id2object=self._detection_id_to_obj,
+        )
         if CFG.spot_render_perception_outputs:
             outdir = Path(CFG.spot_perception_outdir)
             time_str = time.strftime("%Y%m%d-%H%M%S")
@@ -1011,7 +1065,7 @@ class SpotRearrangementEnv(BaseEnv):
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             visualize_all_artifacts(artifacts, detections_outfile,
                                     no_detections_outfile)
-        return detections
+        return detections, vlm_atom_dict
 
     @property
     @abc.abstractmethod
@@ -1090,8 +1144,8 @@ def _object_in_xy_classifier(state: State,
 
     spot, = state.get_objects(_robot_type)
     if obj1.is_instance(_movable_object_type) and \
-        _is_placeable_classifier(state, [obj1]) and \
-        _holding_classifier(state, [spot, obj1]):
+            _is_placeable_classifier(state, [obj1]) and \
+            _holding_classifier(state, [spot, obj1]):
         return False
 
     # Check that the center of the object is contained within the surface in
@@ -1108,17 +1162,36 @@ def _object_in_xy_classifier(state: State,
 def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_on, obj_surface = objects
 
-    # Check that the bottom of the object is close to the top of the surface.
-    expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
-    actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
-    classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
+    currently_visible = all([o in state.visible_objects for o in objects])
+    # If object not all visible and choose to use VLM,
+    # then use predicate values of previous time step
+    if CFG.spot_vlm_eval_predicate and not currently_visible:
+        # TODO: add all previous atoms to the state
+        raise NotImplementedError
 
-    # If so, check that the object is within the bounds of the surface.
-    if not _object_in_xy_classifier(
-            state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
-        return False
+    # Call VLM to evaluate predicate value
+    elif CFG.spot_vlm_eval_predicate and currently_visible:
+        # predicate_str = f"""
+        # On({obj_on}, {obj_surface})
+        # (Whether {obj_on} is on {obj_surface} in the image?)
+        # """
+        # return vlm_predicate_classify(predicate_str, state)
+        raise RuntimeError(
+            "VLM predicate classifier should be evaluated in batch!")
 
-    return classification_val
+    else:
+        # Check that the bottom of the object is close to the top of the surface.
+        expect = state.get(obj_surface,
+                           "z") + state.get(obj_surface, "height") / 2
+        actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
+        classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
+
+        # If so, check that the object is within the bounds of the surface.
+        if not _object_in_xy_classifier(
+                state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
+            return False
+
+        return classification_val
 
 
 def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1133,6 +1206,22 @@ def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
 def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_in, obj_container = objects
 
+    # currently_visible = all([o in state.visible_objects for o in objects])
+    # # If object not all visible and choose to use VLM,
+    # # then use predicate values of previous time step
+    # if CFG.spot_vlm_eval_predicate and not currently_visible:
+    #     # TODO: add all previous atoms to the state
+    #     raise NotImplementedError
+    #
+    # # Call VLM to evaluate predicate value
+    # elif CFG.spot_vlm_eval_predicate and currently_visible:
+    #     predicate_str = f"""
+    #     Inside({obj_in}, {obj_container})
+    #     (Whether {obj_in} is inside {obj_container} in the image?)
+    #     """
+    #     return vlm_predicate_classify(predicate_str, state)
+    #
+    # else:
     if not _object_in_xy_classifier(
             state, obj_in, obj_container, buffer=_INSIDE_SURFACE_BUFFER):
         return False
@@ -1244,6 +1333,21 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     if blocker_obj == blocked_obj:
         return False
 
+    # currently_visible = all([o in state.visible_objects for o in objects])
+    # # If object not all visible and choose to use VLM,
+    # # then use predicate values of previous time step
+    # if CFG.spot_vlm_eval_predicate and not currently_visible:
+    #     # TODO: add all previous atoms to the state
+    #     raise NotImplementedError
+    #
+    # # Call VLM to evaluate predicate value
+    # elif CFG.spot_vlm_eval_predicate and currently_visible:
+    #     predicate_str = f"""
+    #     (Whether {blocker_obj} is blocking {blocked_obj} for further manipulation in the image?)
+    #     Blocking({blocker_obj}, {blocked_obj})
+    #     """
+    #     return vlm_predicate_classify(predicate_str, state)
+
     # Only consider draggable (non-placeable, movable) objects to be blockers.
     if not blocker_obj.is_instance(_movable_object_type):
         return False
@@ -1258,7 +1362,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
 
     spot, = state.get_objects(_robot_type)
     if blocked_obj.is_instance(_movable_object_type) and \
-        _holding_classifier(state, [spot, blocked_obj]):
+            _holding_classifier(state, [spot, blocked_obj]):
         return False
 
     # Draw a line between blocked and the robot’s current pose.
@@ -1397,17 +1501,17 @@ def _get_sweeping_surface_for_container(container: Object,
 
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
-_On = Predicate("On", [_movable_object_type, _base_object_type],
-                _on_classifier)
+# _On = Predicate("On", [_movable_object_type, _base_object_type],
+#                 _on_classifier)
 _TopAbove = Predicate("TopAbove", [_base_object_type, _base_object_type],
                       _top_above_classifier)
-_Inside = Predicate("Inside", [_movable_object_type, _container_type],
-                    _inside_classifier)
+# _Inside = Predicate("Inside", [_movable_object_type, _container_type],
+#                     _inside_classifier)
 _FitsInXY = Predicate("FitsInXY", [_movable_object_type, _base_object_type],
                       _fits_in_xy_classifier)
 # NOTE: use this predicate instead if you want to disable inside checking.
-_FakeInside = Predicate(_Inside.name, _Inside.types,
-                        _create_dummy_predicate_classifier(_Inside))
+# _FakeInside = Predicate(_Inside.name, _Inside.types,
+#                         _create_dummy_predicate_classifier(_Inside))
 _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
                                    [_movable_object_type],
                                    _not_inside_any_container_classifier)
@@ -1422,10 +1526,10 @@ _InView = Predicate("InView", [_robot_type, _movable_object_type],
                     in_general_view_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type],
                        _reachable_classifier)
-_Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
-                      _blocking_classifier)
-_NotBlocked = Predicate("NotBlocked", [_base_object_type],
-                        _not_blocked_classifier)
+# _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
+#                       _blocking_classifier)
+# _NotBlocked = Predicate("NotBlocked", [_base_object_type],
+#                         _not_blocked_classifier)
 _ContainerReadyForSweeping = Predicate(
     "ContainerReadyForSweeping", [_container_type, _immovable_object_type],
     _container_ready_for_sweeping_classifier)
@@ -1443,6 +1547,33 @@ _RobotReadyForSweeping = Predicate("RobotReadyForSweeping",
 _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
+
+# DEBUG hardcode now; CFG not updated here?!
+# if CFG.spot_vlm_eval_predicate:
+tmp_vlm_flag = True
+
+if tmp_vlm_flag:
+    _On = VLMPredicate("On", [_movable_object_type, _base_object_type], None)
+    _Inside = VLMPredicate("Inside", [_movable_object_type, _container_type],
+                           None)
+    _FakeInside = VLMPredicate(_Inside.name, _Inside.types, None)
+    _Blocking = VLMPredicate("Blocking",
+                             [_base_object_type, _base_object_type], None)
+    _NotBlocked = VLMPredicate("NotBlocked", [_base_object_type], None)
+else:
+    _On = Predicate("On", [_movable_object_type, _base_object_type],
+                    _on_classifier)
+    _Inside = Predicate("Inside", [_movable_object_type, _container_type],
+                        _inside_classifier)
+    # NOTE: use this predicate instead if you want to disable inside checking.
+    _FakeInside = Predicate(_Inside.name, _Inside.types,
+                            _create_dummy_predicate_classifier(_Inside))
+    _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type],
+                          _blocking_classifier)
+    _NotBlocked = Predicate("NotBlocked", [_base_object_type],
+                            _not_blocked_classifier)
+
+# NOTE: Define all regular or VLM predicates above
 _ALL_PREDICATES = {
     _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
@@ -1451,6 +1582,14 @@ _ALL_PREDICATES = {
     _IsSemanticallyGreaterThan
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
+
+# NOTE: In the future, we may include an attribute to denote whether a predicate
+# is VLM perceptible or not.
+# NOTE: candidates: on, inside, door opened, blocking, not blocked, ...
+_VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
+    p
+    for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
+}
 
 
 ## Operators (needed in the environment for non-percept atom hack)
@@ -2031,7 +2170,6 @@ def _dry_simulate_place_on_top(
         last_obs: _SpotObservation, held_obj: Object, target_surface: Object,
         place_offset: math_helpers.Vec3,
         nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
-
     # Initialize values based on the last observation.
     objects_in_view = last_obs.objects_in_view.copy()
     objects_in_hand_view = set(last_obs.objects_in_hand_view)
