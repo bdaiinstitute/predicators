@@ -207,6 +207,10 @@ class SpotPerceiver(BasePerceiver):
             self._camera_images = observation.images
             self._vlm_atom_dict = observation.vlm_atom_dict
             self._vlm_predicates = observation.vlm_predicates
+        else:
+            self._camera_images = None
+            self._vlm_atom_dict = None
+            self._vlm_predicates = None
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
