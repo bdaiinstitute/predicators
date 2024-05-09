@@ -12,7 +12,6 @@ from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
 import matplotlib
 import numpy as np
 import pbrspot
-import PIL.Image
 from bosdyn.client import RetryableRpcError, create_standard_sdk, math_helpers
 from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
@@ -22,7 +21,6 @@ from scipy.spatial import Delaunay
 
 from predicators import utils
 from predicators.envs import BaseEnv
-from predicators.pretrained_model_interface import OpenAIVLM
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
@@ -101,8 +99,6 @@ class _PartialPerceptionState(State):
     NOTE: these states are only created in the perceiver, but they are used
     in the classifier definitions for the dummy predicates
     """
-
-    # obs_images: Optional[Dict[str, RGBDImageWithContext]] = None
 
     @property
     def _simulator_state_predicates(self) -> Set[Predicate]:
@@ -865,9 +861,11 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._robot is not None
         assert self._localizer is not None
 
-        # TODO add logic for VLM predicates evaluation
+        # Prepare and evaluate VLM predicates for the initial state
         objects_in_view, vlm_atom_dict = self._actively_construct_initial_object_views(
         )
+        vlm_predicates = _VLM_CLASSIFIER_PREDICATES
+
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -878,10 +876,6 @@ class SpotRearrangementEnv(BaseEnv):
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
-
-        # TODO Prepare and query VLM for VLM predicates
-        # vlm_atoms = None
-        vlm_predicates = _VLM_CLASSIFIER_PREDICATES
 
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
