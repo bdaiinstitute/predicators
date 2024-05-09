@@ -263,14 +263,8 @@ class OpenAIVLM(VisionLanguageModel):
         """Initialize with a specific model name."""
         self.model_name = model_name
         self.detail = detail
-        self.set_openai_key()
-
-    def set_openai_key(self, key: Optional[str] = None) -> None:
-        """Set the OpenAI API key."""
-        if key is None:
-            assert "OPENAI_API_KEY" in os.environ
-            key = os.environ["OPENAI_API_KEY"]
-        openai.api_key = key
+        assert "OPENAI_API_KEY" in os.environ
+        openai.api_key = os.getenv("OPENAI_API_KEY")
 
     def prepare_vision_messages(self,
                                 images: List[PIL.Image.Image],
