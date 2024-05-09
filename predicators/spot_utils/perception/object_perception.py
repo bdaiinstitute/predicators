@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, List, Sequence, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 import PIL.Image
 
 from predicators.pretrained_model_interface import OpenAIVLM
+from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.structs import Object, State, VLMGroundAtom, VLMPredicate
@@ -47,6 +48,11 @@ We will use following predicate-style descriptions to ask questions:
     Inside(object1, container)
     Blocking(object1, object2)
     On(object, surface)
+    
+Here are VLM predicates we have, note that they are defined over typed variables.
+Example: (<predicate-name> <obj1-variable>:<obj1-type> ...)
+VLM Predicates (separated by line or newline character):
+{vlm_predicates}
 
 Examples (separated by line or newline character):
 Do these predicates hold in the following images?
@@ -55,11 +61,13 @@ On(apple:object, table:surface)
 Blocking(apple:object, orange:object)
 Blocking(apple:object, apple:object)
 On(apple:object, apple:object)
+On(apple:object, bowl:container)
 
 Answer (in a single word Yes/No/Unknown for each question, unknown if can't tell from given images):
 Yes
 No
 Unknown
+No
 No
 No
 
@@ -95,7 +103,7 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
         seed=int(time.time()),
         num_completions=1,
     )
-    logging.info(f"VLM response 0: {vlm_responses[0]}")
+    logging.debug(f"VLM response 0: {vlm_responses[0]}")
 
     vlm_response = vlm_responses[0].strip().lower()
     if vlm_response == "yes":
@@ -111,8 +119,10 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
 
 
 def vlm_predicate_batch_query(
-        queries: List[str], images: Dict[str,
-                                         RGBDImageWithContext]) -> List[bool]:
+    queries: List[str],
+    images: Dict[str, RGBDImageWithContext],
+    predicate_prompts: Optional[List[str]] = None,
+) -> List[bool]:
     """Use queries generated from VLM predicates to evaluate them via VLM in
     batch.
 
@@ -122,14 +132,19 @@ def vlm_predicate_batch_query(
 
     # Assemble the full prompt
     question = '\n'.join(queries)
-    full_prompt = vlm_predicate_batch_eval_prompt.format(question=question)
+    vlm_predicates = '\n'.join(predicate_prompts) if predicate_prompts else ''
+    full_prompt = vlm_predicate_batch_eval_prompt.format(
+        vlm_predicates=vlm_predicates, question=question)
 
     image_list = [
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images.items()
     ]
 
-    logging.info(f"VLM predicate evaluation for: {question}")
-    logging.info(f"Prompt: {full_prompt}")
+    logging.info(f"VLM predicate evaluation for: \n{question}")
+    if CFG.vlm_eval_verbose:
+        logging.info(f"Prompt: {full_prompt}")
+    else:
+        logging.debug(f"Prompt: {full_prompt}")
 
     vlm_responses = vlm.sample_completions(
         prompt=full_prompt,
@@ -138,7 +153,7 @@ def vlm_predicate_batch_query(
         seed=int(time.time()),
         num_completions=1,
     )
-    logging.info(f"VLM response 0: {vlm_responses[0]}")
+    logging.debug(f"VLM response 0: {vlm_responses[0]}")
 
     # Parse the responses
     responses = vlm_responses[0].strip().lower().split('\n')
@@ -161,11 +176,16 @@ def vlm_predicate_batch_query(
 def vlm_predicate_batch_classify(
         atoms: Set[VLMGroundAtom],
         images: Dict[str, RGBDImageWithContext],
+        predicates: Optional[Set[VLMPredicate]] = None,
         get_dict: bool = True
 ) -> Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom]:
     """Use VLM to evaluate a set of atoms in a given state."""
     # Get the queries for the atoms
     queries = [atom.get_query_str() for atom in atoms]
+    if predicates is not None:
+        predicate_prompts = [p.pddl_str() for p in predicates]
+    else:
+        predicate_prompts = None
 
     if len(queries) == 0:
         return {}
@@ -173,7 +193,7 @@ def vlm_predicate_batch_classify(
     logging.info(f"VLM predicate evaluation queries: {queries}")
 
     # Call VLM to evaluate the queries
-    results = vlm_predicate_batch_query(queries, images)
+    results = vlm_predicate_batch_query(queries, images, predicate_prompts)
 
     # Update the atoms with the results
     if get_dict:
