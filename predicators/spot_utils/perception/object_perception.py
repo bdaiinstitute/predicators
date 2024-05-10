@@ -93,7 +93,7 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images_dict.items()
     ]
 
-    logging.info(f"VLM predicate evaluation for: {question}")
+    logging.info(f"VLM predicate evaluation for: \n{question}")
     logging.info(f"Prompt: {full_prompt}")
 
     vlm_responses = vlm.sample_completions(
@@ -140,7 +140,7 @@ def vlm_predicate_batch_query(
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images.items()
     ]
 
-    logging.info(f"VLM predicate evaluation for: \n{question}")
+    logging.info(f"VLM predicate evaluation input (with prompt): \n{question}")
     if CFG.vlm_eval_verbose:
         logging.info(f"Prompt: {full_prompt}")
     else:
@@ -190,7 +190,8 @@ def vlm_predicate_batch_classify(
     if len(queries) == 0:
         return {}
 
-    logging.info(f"VLM predicate evaluation queries: {queries}")
+    queries_print = [atom.get_query_str(include_prompt=False) for atom in atoms]
+    logging.info(f"VLM predicate evaluation queries: {queries_print}")
 
     # Call VLM to evaluate the queries
     results = vlm_predicate_batch_query(queries, images, predicate_prompts)
