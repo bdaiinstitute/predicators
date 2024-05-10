@@ -768,8 +768,8 @@ class SpotRearrangementEnv(BaseEnv):
                     vlm_atom_return[atom] = result
 
             # Logging
-            print(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
-            print(
+            logging.info(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
+            logging.info(
                 f"True VLM atoms (after updated with current obs): "
                 f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}"
             )
