@@ -1,19 +1,18 @@
 """Interface for finding objects by moving around and running detection."""
-import logging
 import time
 from collections import defaultdict
-from typing import Any, Callable, Collection, Dict, List, Optional, Sequence, \
-    Set, Tuple
+from typing import Any, Collection, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.lease import LeaseClient
 from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.sdk import Robot
-from scipy.spatial import Delaunay
 from rich import print
+from scipy.spatial import Delaunay
 
 from predicators import utils
+from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import detect_objects
 from predicators.spot_utils.perception.object_perception import \
     get_vlm_atom_combinations, vlm_predicate_batch_classify
@@ -82,16 +81,22 @@ def _find_objects_with_choreographed_moves(
         print(f"Remaining objects: {remaining_object_ids}")
 
         # Get VLM queries + Send request
-        if len(all_detections) > 0 and len(vlm_predicates) > 0:
+        # TODO: We may query objects only in current view's images.
+        # Now we query all detected objects in all past views.
+        if CFG.spot_vlm_eval_predicate and len(all_detections) > 0 and len(
+                vlm_predicates) > 0:
             objects = [id2object[id_] for id_ in all_detections]
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_dict = vlm_predicate_batch_classify(
-                vlm_atoms, rgbds, vlm_predicates, True)
+                vlm_atoms, rgbds, predicates=vlm_predicates, get_dict=True)
             # Update value if original is None while new is not None
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
                     all_vlm_atom_dict[atom] = result
-            print(f"Calculated VLM atoms: {dict(all_vlm_atom_dict)}")
+            print(f"Calculated VLM atoms: {dict(vlm_atom_dict)}")
+            print(
+                f"True VLM atoms (with values as True): {dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}"
+            )
         else:
             # No VLM predicates or no objects found yet
             pass
