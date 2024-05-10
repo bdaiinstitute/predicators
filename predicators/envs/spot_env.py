@@ -752,12 +752,12 @@ class SpotRearrangementEnv(BaseEnv):
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_dict: Dict[VLMGroundAtom, bool or None] = vlm_predicate_batch_classify(
-                vlm_atoms,
-                rgbds,
-                predicates=vlm_predicates,
-                get_dict=True
-            )
+            vlm_atom_dict: Dict[VLMGroundAtom,
+                                bool or None] = vlm_predicate_batch_classify(
+                                    vlm_atoms,
+                                    rgbds,
+                                    predicates=vlm_predicates,
+                                    get_dict=True)
             # Update VLM atom value if the ground atom value is not None
             for atom, result in vlm_atom_dict.items():
                 # TODO make sure we can add new vlm atom!
@@ -1556,22 +1556,28 @@ _IsSemanticallyGreaterThan = Predicate(
 tmp_vlm_flag = True
 
 if tmp_vlm_flag:
+    # _On = Predicate("On", [_movable_object_type, _base_object_type],
+    #                 _on_classifier)
     _On = VLMPredicate(
         "On", [_movable_object_type, _base_object_type],
-        prompt="This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
+        prompt=
+        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
     )
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
-        prompt="This typically describes an object inside a container, so it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
+        prompt=
+        "This typically describes an object inside a container, so it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
     )
     _FakeInside = VLMPredicate(
-        _Inside.name, _Inside.types,
+        _Inside.name,
+        _Inside.types,
     )
     # NOTE: Check the classifier; try to make it consistent or document how this VLM predicate is different/better.
     _Blocking = VLMPredicate(
-        "Blocking",
-        [_base_object_type, _base_object_type],
-        prompt="This means if an object is blocking the Spot robot approaching another one.")
+        "Blocking", [_base_object_type, _base_object_type],
+        prompt=
+        "This means if an object is blocking the Spot robot approaching another one."
+    )
     _NotBlocked = VLMPredicate(
         "NotBlocked", [_base_object_type],
         prompt="The given object is not blocked by any other object.")
