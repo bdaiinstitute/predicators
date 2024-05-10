@@ -331,6 +331,10 @@ class VLMPredicate(Predicate):
     # An optional prompt additionally provided for each VLM predicate
     prompt: Optional[str] = None
 
+    def __hash__(self) -> int:
+        """Have to add this to override the default hash method again."""
+        return self._hash
+
     def holds(self, state: State, objects: Sequence[Object]) -> bool:
         """Public method for getting predicate value.
 
