@@ -1260,6 +1260,8 @@ def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
     for obj in objects:
         obj_geom = object_to_top_down_geom(obj, state)
         if isinstance(obj_geom, utils.Rectangle):
+            # DEBUG check default value - why radius not None by default?
+            # DEBUG fix the value
             if obj is contained:
                 radius = max(obj_geom.width / 2, obj_geom.height / 2)
             else:

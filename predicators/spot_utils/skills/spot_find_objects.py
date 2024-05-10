@@ -11,6 +11,7 @@ from bosdyn.client.lease import LeaseClient
 from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.sdk import Robot
 from scipy.spatial import Delaunay
+from rich import print
 
 from predicators import utils
 from predicators.spot_utils.perception.object_detection import detect_objects
