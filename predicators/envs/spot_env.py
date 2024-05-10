@@ -1,5 +1,6 @@
 """Basic environment for the Boston Dynamics Spot Robot."""
 import abc
+import copy
 import functools
 import json
 import logging
@@ -752,28 +753,37 @@ class SpotRearrangementEnv(BaseEnv):
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_dict: Dict[VLMGroundAtom,
+            vlm_atom_new: Dict[VLMGroundAtom,
                                 bool or None] = vlm_predicate_batch_classify(
                                     vlm_atoms,
                                     rgbds,
                                     predicates=vlm_predicates,
                                     get_dict=True)
-            # Update VLM atom value if the ground atom value is not None
-            for atom, result in vlm_atom_dict.items():
-                # TODO make sure we can add new vlm atom!
+
+            # Update VLM atom value if the new ground atom value is not None
+            # Otherwise, use the value in current obs
+            vlm_atom_return = copy.deepcopy(curr_obs.vlm_atom_dict)
+            for atom, result in vlm_atom_new.items():
                 if result is not None:
-                    vlm_atom_dict[atom] = result
+                    vlm_atom_return[atom] = result
+
+            # Logging
+            print(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
+            print(
+                f"True VLM atoms (after updated with current obs): "
+                f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}"
+            )
 
         else:
             vlm_predicates = set()
-            vlm_atom_dict = {}
+            vlm_atom_return = {}
 
         obs = _SpotObservation(rgbds, all_objects_in_view,
                                objects_in_hand_view,
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds,
-                               vlm_atom_dict, vlm_predicates)
+                               vlm_atom_return, vlm_predicates)
 
         return obs
 
