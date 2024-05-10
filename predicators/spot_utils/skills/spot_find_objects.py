@@ -85,7 +85,7 @@ def _find_objects_with_choreographed_moves(
             objects = [id2object[id_] for id_ in all_detections]
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_dict = vlm_predicate_batch_classify(
-                vlm_atoms, rgbds, True)
+                vlm_atoms, rgbds, vlm_predicates, True)
             # Update value if original is None while new is not None
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
