@@ -93,10 +93,6 @@ def _find_objects_with_choreographed_moves(
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
                     all_vlm_atom_dict[atom] = result
-            print(f"Calculated VLM atoms: {dict(vlm_atom_dict)}")
-            print(
-                f"True VLM atoms (with values as True): {dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}"
-            )
         else:
             # No VLM predicates or no objects found yet
             pass
@@ -120,6 +116,13 @@ def _find_objects_with_choreographed_moves(
                                                allowed_regions=allowed_regions)
         all_detections.update(detections)
         all_artifacts.update(artifacts)
+
+    # Logging
+    print(f"Calculated VLM atoms (in all views): {dict(all_vlm_atom_dict)}")
+    print(
+        f"True VLM atoms (in all views; with values as True): "
+        f"{dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}"
+    )
 
     # Close the gripper.
     if open_and_close_gripper:
