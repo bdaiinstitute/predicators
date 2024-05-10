@@ -197,13 +197,11 @@ def vlm_predicate_batch_classify(
 
     # Update the atoms with the results
     if get_dict:
+        # Return all ground atoms with True/False/None
         return {atom: result for atom, result in zip(atoms, results)}
     else:
-        hold_atoms = set()
-        for atom, result in zip(atoms, results):
-            if result:
-                hold_atoms.add(atom)
-        return hold_atoms
+        # Only return True ground atoms
+        return {atom for atom, result in zip(atoms, results) if result}
 
 
 def get_vlm_atom_combinations(objects: Sequence[Object],

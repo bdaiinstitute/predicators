@@ -90,7 +90,7 @@ def _find_objects_with_choreographed_moves(
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
                     all_vlm_atom_dict[atom] = result
-            print(f"Calculated VLM atoms: {all_vlm_atom_dict}")
+            print(f"Calculated VLM atoms: {dict(all_vlm_atom_dict)}")
         else:
             # No VLM predicates or no objects found yet
             pass
