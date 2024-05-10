@@ -463,6 +463,7 @@ class VLMGroundAtom(GroundAtom):
 
     # NOTE: This subclasses GroundAtom to support VLM predicates and classifiers
     predicate: VLMPredicate
+    prompt: Optional[str] = None
 
     def get_query_str(self, without_type: bool = False) -> str:
         """Get a query string for this ground atom.
@@ -476,6 +477,9 @@ class VLMGroundAtom(GroundAtom):
                 o.name for o in self.objects) + ")"
         else:
             string = str(self)
+
+        if self.prompt is not None:
+            string += f" [Prompt: {self.prompt}]"
         return string
 
     def holds(self, state: State) -> bool:
