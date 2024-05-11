@@ -50,6 +50,9 @@ from pyperplan.heuristics.heuristic_base import \
     Heuristic as _PyperplanBaseHeuristic
 from pyperplan.planner import HEURISTICS as _PYPERPLAN_HEURISTICS
 from scipy.stats import beta as BetaRV
+import rich.table
+from rich.console import Console
+from rich.text import Text
 
 from predicators.args import create_arg_parser
 from predicators.pybullet_helpers.joint import JointPositions
@@ -3863,3 +3866,13 @@ def run_ground_nsrt_with_assertions(ground_nsrt: _GroundNSRT,
             assert not atom.holds(state), \
                 f"Delete effect for {ground_nsrt_str} failed: {atom}"
     return state
+
+
+def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
+    """Generate an ascii formatted presentation of a Rich table
+    Eliminates any column styling
+    """
+    console = Console(width=150)
+    with console.capture() as capture:
+        console.print(rich_table)
+    return Text.from_ansi(capture.get())
