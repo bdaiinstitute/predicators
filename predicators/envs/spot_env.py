@@ -18,7 +18,10 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate, setup_logging
 from gym.spaces import Box
+from predicators.utils import log_rich_table
 from scipy.spatial import Delaunay
+from rich.table import Table
+from rich import print
 
 from predicators import utils
 from predicators.envs import BaseEnv
@@ -768,7 +771,29 @@ class SpotRearrangementEnv(BaseEnv):
                     vlm_atom_return[atom] = result
 
             # Logging
-            logging.info(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
+            # logging.info(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
+            # use Rich to print as table!
+            table = Table(title="Evaluated VLM atoms (in current obs)")
+            table.add_column("Atom", style="cyan")
+            table.add_column("Value", style="magenta")
+            for atom, result in vlm_atom_new.items():
+                table.add_row(str(atom), str(result))
+            logging.info(log_rich_table(table))
+
+            # Add table to show value in vlm_atom_new and vlm_atom_return to highlight how they change?
+            table_compare = Table(title="VLM atoms comparison")
+            table_compare.add_column("Atom", style="cyan")
+            table_compare.add_column("Value (Last)", style="blue")
+            table_compare.add_column("Value (New)", style="magenta")
+            vlm_atom_union = set(vlm_atom_new.keys()) | set(curr_obs.vlm_atom_dict.keys())
+            for atom in vlm_atom_union:
+                table_compare.add_row(
+                    str(atom),
+                    str(curr_obs.vlm_atom_dict.get(atom, None)),
+                    str(vlm_atom_new.get(atom, None))
+                )
+            logging.info(log_rich_table(table_compare))
+
             logging.info(
                 f"True VLM atoms (after updated with current obs): "
                 f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}"
@@ -1576,7 +1601,7 @@ if tmp_vlm_flag:
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
         prompt=
-        "This typically describes an object inside a container, so it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
+        "This typically describes an object inside a container (so it's overlapping), and it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
     )
     _FakeInside = VLMPredicate(
         _Inside.name,
