@@ -190,7 +190,9 @@ def vlm_predicate_batch_classify(
     if len(queries) == 0:
         return {}
 
-    queries_print = [atom.get_query_str(include_prompt=False) for atom in atoms]
+    queries_print = [
+        atom.get_query_str(include_prompt=False) for atom in atoms
+    ]
     logging.info(f"VLM predicate evaluation queries: {queries_print}")
 
     # Call VLM to evaluate the queries

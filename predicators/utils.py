@@ -42,6 +42,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pathos.multiprocessing as mp
+import rich.table
 from bosdyn.client import math_helpers
 from gym.spaces import Box
 from matplotlib import patches
@@ -49,10 +50,9 @@ from numpy.typing import NDArray
 from pyperplan.heuristics.heuristic_base import \
     Heuristic as _PyperplanBaseHeuristic
 from pyperplan.planner import HEURISTICS as _PYPERPLAN_HEURISTICS
-from scipy.stats import beta as BetaRV
-import rich.table
 from rich.console import Console
 from rich.text import Text
+from scipy.stats import beta as BetaRV
 
 from predicators.args import create_arg_parser
 from predicators.pybullet_helpers.joint import JointPositions
@@ -3869,8 +3869,9 @@ def run_ground_nsrt_with_assertions(ground_nsrt: _GroundNSRT,
 
 
 def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
-    """Generate an ascii formatted presentation of a Rich table
-    Eliminates any column styling
+    """Generate an ascii formatted presentation of a Rich table.
+
+    Eliminates any column styling.
     """
     console = Console(width=150)
     with console.capture() as capture:

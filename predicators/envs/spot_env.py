@@ -18,10 +18,9 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate, setup_logging
 from gym.spaces import Box
-from predicators.utils import log_rich_table
-from scipy.spatial import Delaunay
-from rich.table import Table
 from rich import print
+from rich.table import Table
+from scipy.spatial import Delaunay
 
 from predicators import utils
 from predicators.envs import BaseEnv
@@ -55,6 +54,7 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
     VLMGroundAtom, VLMPredicate
+from predicators.utils import log_rich_table
 
 ###############################################################################
 #                                Base Class                                   #
@@ -757,11 +757,11 @@ class SpotRearrangementEnv(BaseEnv):
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_new: Dict[VLMGroundAtom,
-                                bool or None] = vlm_predicate_batch_classify(
-                                    vlm_atoms,
-                                    rgbds,
-                                    predicates=vlm_predicates,
-                                    get_dict=True)
+                               bool or None] = vlm_predicate_batch_classify(
+                                   vlm_atoms,
+                                   rgbds,
+                                   predicates=vlm_predicates,
+                                   get_dict=True)
 
             # Update VLM atom value if the new ground atom value is not None
             # Otherwise, use the value in current obs
@@ -785,19 +785,17 @@ class SpotRearrangementEnv(BaseEnv):
             table_compare.add_column("Atom", style="cyan")
             table_compare.add_column("Value (Last)", style="blue")
             table_compare.add_column("Value (New)", style="magenta")
-            vlm_atom_union = set(vlm_atom_new.keys()) | set(curr_obs.vlm_atom_dict.keys())
+            vlm_atom_union = set(vlm_atom_new.keys()) | set(
+                curr_obs.vlm_atom_dict.keys())
             for atom in vlm_atom_union:
                 table_compare.add_row(
-                    str(atom),
-                    str(curr_obs.vlm_atom_dict.get(atom, None)),
-                    str(vlm_atom_new.get(atom, None))
-                )
+                    str(atom), str(curr_obs.vlm_atom_dict.get(atom, None)),
+                    str(vlm_atom_new.get(atom, None)))
             logging.info(log_rich_table(table_compare))
 
             logging.info(
                 f"True VLM atoms (after updated with current obs): "
-                f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}"
-            )
+                f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}")
 
         else:
             vlm_predicates = set()
