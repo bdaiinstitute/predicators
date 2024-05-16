@@ -19,6 +19,8 @@ import logging
 from functools import partial
 from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
+from datetime import datetime
+
 
 try:
     import apriltag
@@ -718,13 +720,19 @@ if __name__ == "__main__":
         assert path.exists()
         localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
         rgbds = capture_images(robot, localizer, TEST_CAMERAS)
-
         language_ids: List[ObjectDetectionID] = [
             LanguageObjectDetectionID(d) for d in TEST_LANGUAGE_DESCRIPTIONS
         ]
         detections, artifacts = detect_objects(language_ids, rgbds)
+
+        with open(f"state_{datetime.now()}.txt", 'w') as file:
+            for obj_id, detection in detections.items():
+                file.write(f"Detected {obj_id} at {detection}\n")
+            file.write(f"Robot pose: {localizer.get_last_robot_pose()}\n")
+
         for obj_id, detection in detections.items():
             print(f"Detected {obj_id} at {detection}")
+        print(f"Robot pose: {localizer.get_last_robot_pose()}")
 
         # Visualize the artifacts.
         detections_outfile = Path(".") / "object_detection_artifacts.png"
