@@ -3079,3 +3079,56 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#                             Test plant demo                            #
+###############################################################################
+
+
+class TestPlantEnv(SpotRearrangementEnv):
+    """TODO; basic demo
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "plant_test_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        green_apple = Object("green_apple", _movable_object_type)
+        green_apple_detection = LanguageObjectDetectionID(
+            "green apple/tennis ball")
+        detection_id_to_obj[green_apple_detection] = green_apple
+        plant = Object("plant", _immovable_object_type)
+        plant_detection = LanguageObjectDetectionID(
+            "potted plant")
+        detection_id_to_obj[plant_detection] = plant
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "place the green apple on the plant"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")

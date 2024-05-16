@@ -996,6 +996,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env",
             "lis_spot_block_floor_env",
+            "plant_test_env"
         }
 
     @classmethod

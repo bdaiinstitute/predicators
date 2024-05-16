@@ -288,7 +288,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env", "lis_spot_block_floor_env"
+            "spot_brush_shelf_env", "lis_spot_block_floor_env", "plant_test_env"
         }
 
     @staticmethod

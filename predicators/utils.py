@@ -526,6 +526,7 @@ class Circle(_Geom2D):
             self,
             rng: np.random.Generator,
             min_dist_from_edge: float = 0.0) -> Tuple[float, float]:
+        import ipdb; ipdb.set_trace()
         assert min_dist_from_edge < self.radius, "min_dist_from_edge is " + \
             "greater than radius"
         rand_mag = rng.uniform(0, self.radius - min_dist_from_edge)

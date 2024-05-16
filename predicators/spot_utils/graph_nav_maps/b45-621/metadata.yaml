@@ -40,10 +40,18 @@ static-object-features:
     length: 10000000  # effectively infinite
     width: 10000000
     flat_top_surface: 1
-  red_block:
+  green_apple:
     shape: 2
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
+  plant:
+    shape: 2
+    height: 0.25
+    length: 0.25
+    width: 0.25
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 1
