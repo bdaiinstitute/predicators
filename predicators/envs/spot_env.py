@@ -1202,8 +1202,7 @@ def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
             "VLM predicate classifier should be evaluated in batch!")
 
     # Check that the bottom of the object is close to the top of the surface.
-    expect = state.get(obj_surface,
-                       "z") + state.get(obj_surface, "height") / 2
+    expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
     actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
     classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
 
