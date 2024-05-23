@@ -315,6 +315,7 @@ class Predicate:
         return not self._classifier(state, objects)
 
 
+@dataclass(frozen=True, order=True, repr=False)
 class VLMPredicate(Predicate):
     """Struct defining a predicate (a lifted classifier over states) that uses
     a VLM for evaluation.
@@ -325,7 +326,14 @@ class VLMPredicate(Predicate):
     at once.
     """
 
+    # A classifier is not needed for VLM predicates
     _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
+    # An optional prompt additionally provided for each VLM predicate
+    prompt: Optional[str] = None
+
+    def __hash__(self) -> int:
+        """Have to add this to override the default hash method again."""
+        return self._hash
 
     def holds(self, state: State, objects: Sequence[Object]) -> bool:
         """Public method for getting predicate value.
@@ -464,7 +472,9 @@ class VLMGroundAtom(GroundAtom):
     # NOTE: This subclasses GroundAtom to support VLM predicates and classifiers
     predicate: VLMPredicate
 
-    def get_query_str(self, without_type: bool = False) -> str:
+    def get_query_str(self,
+                      without_type: bool = False,
+                      include_prompt: bool = True) -> str:
         """Get a query string for this ground atom.
 
         Instead of directly evaluating the ground atom, we will use the
@@ -476,6 +486,9 @@ class VLMGroundAtom(GroundAtom):
                 o.name for o in self.objects) + ")"
         else:
             string = str(self)
+
+        if self.predicate.prompt is not None and include_prompt:
+            string += f" [Prompt: {self.predicate.prompt}]"
         return string
 
     def holds(self, state: State) -> bool:

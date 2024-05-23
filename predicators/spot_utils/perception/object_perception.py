@@ -93,7 +93,7 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images_dict.items()
     ]
 
-    logging.info(f"VLM predicate evaluation for: {question}")
+    logging.info(f"VLM predicate evaluation for: \n{question}")
     logging.info(f"Prompt: {full_prompt}")
 
     vlm_responses = vlm.sample_completions(
@@ -140,7 +140,7 @@ def vlm_predicate_batch_query(
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images.items()
     ]
 
-    logging.info(f"VLM predicate evaluation for: \n{question}")
+    logging.info(f"VLM predicate evaluation input (with prompt): \n{question}")
     if CFG.vlm_eval_verbose:
         logging.info(f"Prompt: {full_prompt}")
     else:
@@ -190,20 +190,21 @@ def vlm_predicate_batch_classify(
     if len(queries) == 0:
         return {}
 
-    logging.info(f"VLM predicate evaluation queries: {queries}")
+    queries_print = [
+        atom.get_query_str(include_prompt=False) for atom in atoms
+    ]
+    logging.info(f"VLM predicate evaluation queries: {queries_print}")
 
     # Call VLM to evaluate the queries
     results = vlm_predicate_batch_query(queries, images, predicate_prompts)
 
     # Update the atoms with the results
     if get_dict:
+        # Return all ground atoms with True/False/None
         return {atom: result for atom, result in zip(atoms, results)}
     else:
-        hold_atoms = set()
-        for atom, result in zip(atoms, results):
-            if result:
-                hold_atoms.add(atom)
-        return hold_atoms
+        # Only return True ground atoms
+        return {atom for atom, result in zip(atoms, results) if result}
 
 
 def get_vlm_atom_combinations(objects: Sequence[Object],

@@ -1,5 +1,6 @@
 """Basic environment for the Boston Dynamics Spot Robot."""
 import abc
+import copy
 import functools
 import json
 import logging
@@ -17,6 +18,8 @@ from bosdyn.client.lease import LeaseClient, LeaseKeepAlive
 from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate, setup_logging
 from gym.spaces import Box
+from rich import print
+from rich.table import Table
 from scipy.spatial import Delaunay
 
 from predicators import utils
@@ -51,6 +54,7 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
     VLMGroundAtom, VLMPredicate
+from predicators.utils import log_rich_table
 
 ###############################################################################
 #                                Base Class                                   #
@@ -752,27 +756,57 @@ class SpotRearrangementEnv(BaseEnv):
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_dict: Dict[VLMGroundAtom,
-                                bool or None] = vlm_predicate_batch_classify(
-                                    vlm_atoms,
-                                    rgbds,
-                                    predicates=vlm_predicates,
-                                    get_dict=True)
-            # Update value if atoms in previous obs is None while new is not None
-            for atom, result in vlm_atom_dict.items():
-                if curr_obs.vlm_atom_dict[atom] is None and result is not None:
-                    vlm_atom_dict[atom] = result
+            vlm_atom_new: Dict[VLMGroundAtom,
+                               bool or None] = vlm_predicate_batch_classify(
+                                   vlm_atoms,
+                                   rgbds,
+                                   predicates=vlm_predicates,
+                                   get_dict=True)
+
+            # Update VLM atom value if the new ground atom value is not None
+            # Otherwise, use the value in current obs
+            vlm_atom_return = copy.deepcopy(curr_obs.vlm_atom_dict)
+            for atom, result in vlm_atom_new.items():
+                if result is not None:
+                    vlm_atom_return[atom] = result
+
+            # Logging
+            # logging.info(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
+            # use Rich to print as table!
+            table = Table(title="Evaluated VLM atoms (in current obs)")
+            table.add_column("Atom", style="cyan")
+            table.add_column("Value", style="magenta")
+            for atom, result in vlm_atom_new.items():
+                table.add_row(str(atom), str(result))
+            logging.info(log_rich_table(table))
+
+            # Add table to show value in vlm_atom_new and vlm_atom_return to highlight how they change?
+            table_compare = Table(title="VLM atoms comparison")
+            table_compare.add_column("Atom", style="cyan")
+            table_compare.add_column("Value (Last)", style="blue")
+            table_compare.add_column("Value (New)", style="magenta")
+            vlm_atom_union = set(vlm_atom_new.keys()) | set(
+                curr_obs.vlm_atom_dict.keys())
+            for atom in vlm_atom_union:
+                table_compare.add_row(
+                    str(atom), str(curr_obs.vlm_atom_dict.get(atom, None)),
+                    str(vlm_atom_new.get(atom, None)))
+            logging.info(log_rich_table(table_compare))
+
+            logging.info(
+                f"True VLM atoms (after updated with current obs): "
+                f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}")
 
         else:
             vlm_predicates = set()
-            vlm_atom_dict = {}
+            vlm_atom_return = {}
 
         obs = _SpotObservation(rgbds, all_objects_in_view,
                                objects_in_hand_view,
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds,
-                               vlm_atom_dict, vlm_predicates)
+                               vlm_atom_return, vlm_predicates)
 
         return obs
 
@@ -1162,36 +1196,22 @@ def _object_in_xy_classifier(state: State,
 def _on_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_on, obj_surface = objects
 
-    currently_visible = all([o in state.visible_objects for o in objects])
-    # If object not all visible and choose to use VLM,
-    # then use predicate values of previous time step
-    if CFG.spot_vlm_eval_predicate and not currently_visible:
-        # TODO: add all previous atoms to the state
-        raise NotImplementedError
-
-    # Call VLM to evaluate predicate value
-    elif CFG.spot_vlm_eval_predicate and currently_visible:
-        # predicate_str = f"""
-        # On({obj_on}, {obj_surface})
-        # (Whether {obj_on} is on {obj_surface} in the image?)
-        # """
-        # return vlm_predicate_classify(predicate_str, state)
+    # NOTE: Legacy version evaluate predicates individually
+    if CFG.spot_vlm_eval_predicate:
         raise RuntimeError(
             "VLM predicate classifier should be evaluated in batch!")
 
-    else:
-        # Check that the bottom of the object is close to the top of the surface.
-        expect = state.get(obj_surface,
-                           "z") + state.get(obj_surface, "height") / 2
-        actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
-        classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
+    # Check that the bottom of the object is close to the top of the surface.
+    expect = state.get(obj_surface, "z") + state.get(obj_surface, "height") / 2
+    actual = state.get(obj_on, "z") - state.get(obj_on, "height") / 2
+    classification_val = abs(actual - expect) < _ONTOP_Z_THRESHOLD
 
-        # If so, check that the object is within the bounds of the surface.
-        if not _object_in_xy_classifier(
-                state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
-            return False
+    # If so, check that the object is within the bounds of the surface.
+    if not _object_in_xy_classifier(
+            state, obj_on, obj_surface, buffer=_ONTOP_SURFACE_BUFFER):
+        return False
 
-        return classification_val
+    return classification_val
 
 
 def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
@@ -1206,22 +1226,11 @@ def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
 def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_in, obj_container = objects
 
-    # currently_visible = all([o in state.visible_objects for o in objects])
-    # # If object not all visible and choose to use VLM,
-    # # then use predicate values of previous time step
-    # if CFG.spot_vlm_eval_predicate and not currently_visible:
-    #     # TODO: add all previous atoms to the state
-    #     raise NotImplementedError
-    #
-    # # Call VLM to evaluate predicate value
-    # elif CFG.spot_vlm_eval_predicate and currently_visible:
-    #     predicate_str = f"""
-    #     Inside({obj_in}, {obj_container})
-    #     (Whether {obj_in} is inside {obj_container} in the image?)
-    #     """
-    #     return vlm_predicate_classify(predicate_str, state)
-    #
-    # else:
+    # NOTE: Legacy version evaluate predicates individually
+    if CFG.spot_vlm_eval_predicate:
+        raise RuntimeError(
+            "VLM predicate classifier should be evaluated in batch!")
+
     if not _object_in_xy_classifier(
             state, obj_in, obj_container, buffer=_INSIDE_SURFACE_BUFFER):
         return False
@@ -1260,6 +1269,8 @@ def _fits_in_xy_classifier(state: State, objects: Sequence[Object]) -> bool:
     for obj in objects:
         obj_geom = object_to_top_down_geom(obj, state)
         if isinstance(obj_geom, utils.Rectangle):
+            # DEBUG check default value - why radius not None by default?
+            # DEBUG fix the value
             if obj is contained:
                 radius = max(obj_geom.width / 2, obj_geom.height / 2)
             else:
@@ -1333,20 +1344,10 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
     if blocker_obj == blocked_obj:
         return False
 
-    # currently_visible = all([o in state.visible_objects for o in objects])
-    # # If object not all visible and choose to use VLM,
-    # # then use predicate values of previous time step
-    # if CFG.spot_vlm_eval_predicate and not currently_visible:
-    #     # TODO: add all previous atoms to the state
-    #     raise NotImplementedError
-    #
-    # # Call VLM to evaluate predicate value
-    # elif CFG.spot_vlm_eval_predicate and currently_visible:
-    #     predicate_str = f"""
-    #     (Whether {blocker_obj} is blocking {blocked_obj} for further manipulation in the image?)
-    #     Blocking({blocker_obj}, {blocked_obj})
-    #     """
-    #     return vlm_predicate_classify(predicate_str, state)
+    # NOTE: Legacy version evaluate predicates individually
+    if CFG.spot_vlm_eval_predicate:
+        raise RuntimeError(
+            "VLM predicate classifier should be evaluated in batch!")
 
     # Only consider draggable (non-placeable, movable) objects to be blockers.
     if not blocker_obj.is_instance(_movable_object_type):
@@ -1553,13 +1554,31 @@ _IsSemanticallyGreaterThan = Predicate(
 tmp_vlm_flag = True
 
 if tmp_vlm_flag:
-    _On = VLMPredicate("On", [_movable_object_type, _base_object_type], None)
-    _Inside = VLMPredicate("Inside", [_movable_object_type, _container_type],
-                           None)
-    _FakeInside = VLMPredicate(_Inside.name, _Inside.types, None)
-    _Blocking = VLMPredicate("Blocking",
-                             [_base_object_type, _base_object_type], None)
-    _NotBlocked = VLMPredicate("NotBlocked", [_base_object_type], None)
+    # _On = Predicate("On", [_movable_object_type, _base_object_type],
+    #                 _on_classifier)
+    _On = VLMPredicate(
+        "On", [_movable_object_type, _base_object_type],
+        prompt=
+        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
+    )
+    _Inside = VLMPredicate(
+        "Inside", [_movable_object_type, _container_type],
+        prompt=
+        "This typically describes an object inside a container (so it's overlapping), and it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
+    )
+    _FakeInside = VLMPredicate(
+        _Inside.name,
+        _Inside.types,
+    )
+    # NOTE: Check the classifier; try to make it consistent or document how this VLM predicate is different/better.
+    _Blocking = VLMPredicate(
+        "Blocking", [_base_object_type, _base_object_type],
+        prompt=
+        "This means if an object is blocking the Spot robot approaching another one."
+    )
+    _NotBlocked = VLMPredicate(
+        "NotBlocked", [_base_object_type],
+        prompt="The given object is not blocked by any other object.")
 else:
     _On = Predicate("On", [_movable_object_type, _base_object_type],
                     _on_classifier)
@@ -3213,6 +3232,59 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "pick up the red block"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+class LISSpotBlockBowlEnv(SpotRearrangementEnv):
+    """An extremely basic environment where a block needs to be placed in a
+    bowl and is specifically used for testing in the LIS Spot room.
+
+    Very simple and mostly just for testing.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_block_bowl_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        red_block = Object("red_block", _movable_object_type)
+        red_block_detection = LanguageObjectDetectionID(
+            "red block/orange block/yellow block")
+        detection_id_to_obj[red_block_detection] = red_block
+
+        green_bowl = Object("green_bowl", _container_type)
+        green_bowl_detection = LanguageObjectDetectionID(
+            "green bowl/greenish bowl")
+        detection_id_to_obj[green_bowl_detection] = green_bowl
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "pick the red block into the green bowl"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:

@@ -9,6 +9,7 @@ from bosdyn.client.lease import LeaseClient
 from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.sdk import Robot
 from rich import print
+from rich.table import Table
 from scipy.spatial import Delaunay
 
 from predicators import utils
@@ -93,10 +94,6 @@ def _find_objects_with_choreographed_moves(
             for atom, result in vlm_atom_dict.items():
                 if all_vlm_atom_dict[atom] is None and result is not None:
                     all_vlm_atom_dict[atom] = result
-            print(f"Calculated VLM atoms: {dict(vlm_atom_dict)}")
-            print(
-                f"True VLM atoms (with values as True): {dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}"
-            )
         else:
             # No VLM predicates or no objects found yet
             pass
@@ -120,6 +117,18 @@ def _find_objects_with_choreographed_moves(
                                                allowed_regions=allowed_regions)
         all_detections.update(detections)
         all_artifacts.update(artifacts)
+
+    # Logging
+    print(f"Calculated VLM atoms (in all views): {dict(all_vlm_atom_dict)}")
+    print(f"True VLM atoms (in all views; with values as True): "
+          f"{dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}")
+
+    table = Table(title="Evaluated VLM atoms (in all views)")
+    table.add_column("Atom", style="cyan")
+    table.add_column("Value", style="magenta")
+    for atom, result in all_vlm_atom_dict.items():
+        table.add_row(str(atom), str(result))
+    print(table)
 
     # Close the gripper.
     if open_and_close_gripper:
@@ -201,13 +210,18 @@ def step_back_to_find_objects(
     # Don't open and close the gripper because we need the object to be
     # in view when the action has finished, and we can't leave the gripper
     # open because then HandEmpty will misfire.
-    _find_objects_with_choreographed_moves(robot,
-                                           localizer,
-                                           object_ids,
-                                           base_moves,
-                                           hand_moves,
-                                           open_and_close_gripper=False,
-                                           allowed_regions=allowed_regions)
+    _find_objects_with_choreographed_moves(
+        robot,
+        localizer,
+        object_ids,
+        base_moves,
+        hand_moves,
+        open_and_close_gripper=False,
+        allowed_regions=allowed_regions,
+        # FIXME need to pass in VLM predicates and id2object
+        vlm_predicates=None,
+        id2object=None,
+    )
 
 
 def find_objects(
