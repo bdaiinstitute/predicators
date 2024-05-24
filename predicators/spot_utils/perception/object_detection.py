@@ -33,7 +33,7 @@ import numpy as np
 import PIL.Image
 import requests
 from bosdyn.client import math_helpers
-from bosdyn.client.frame_helpers import get_a_tform_b
+from bosdyn.client.frame_helpers import get_a_tform_b, BODY_FRAME_NAME
 from matplotlib import pyplot as plt
 from scipy import ndimage
 from scipy.spatial import Delaunay
@@ -727,7 +727,7 @@ if __name__ == "__main__":
         detections, artifacts = detect_objects(language_ids, rgbds)
 
         snapshot = robot.get_frame_tree_snapshot()
-        hand_in_body = get_a_tform_b(snapshot, "hand", "body")
+        hand_in_body = get_a_tform_b(snapshot, BODY_FRAME_NAME, "hand")
         hand_in_world = hand_in_body.mult(localizer.get_last_robot_pose())
 
         with open(f"state_{datetime.now()}.txt", 'w') as file:
