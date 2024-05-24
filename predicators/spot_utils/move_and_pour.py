@@ -27,6 +27,8 @@ from predicators.spot_utils.utils import get_allowed_map_regions, \
     get_collision_geoms_for_nav, load_spot_metadata, object_to_top_down_geom, \
     sample_move_offset_from_target, spot_pose_to_geom2d, get_relative_se2_from_se3
 from predicators.spot_utils.skills.spot_navigation import navigate_to_relative_pose, go_home, navigate_to_absolute_pose
+from predicators.spot_utils.utils import get_robot_state, get_spot_home_pose
+
 
 
 def move_and_hand_reach_relative_transform(robot: Robot, localizer: SpotLocalizer,
@@ -127,3 +129,11 @@ hand_in_world = hand_in_body.mult(localizer.get_last_robot_pose())
 test_hand_pose = math_helpers.SE3Pose(2.691, -0.848, 0.509, math_helpers.Quat(-0.0994, 0.0791, -0.0041, 0.9919))
 move_and_hand_reach_relative_transform(robot, localizer, test_hand_pose, rng)
 # move_and_hand_reach_relative_transform(robot, localizer, hand_in_world, rng)
+
+# Probably easier to just move the body to some absolute pose in the world, and then move the hand to a relative pose....
+# TODO: sample from map.
+
+# Simple reward function example.
+def reward_function(proposed_pose: math_helpers.SE2Pose) -> float:
+    spot_home = get_spot_home_pose()
+    return 1/np.linalg.norm(np.array([spot_home.x, spot_home.y]) - np.array([proposed_pose.x, proposed_pose.y]))
