@@ -43,6 +43,8 @@ TEST_LANGUAGE_DESCRIPTIONS = [
     "green apple/tennis ball",
 ]
 
+# REFERENCE_TRAJ = [(3.5, 0.45), (3.0, 0.45), (3.0, 0.0)]
+
 args = utils.parse_args(env_required=False,
                         seed_required=False,
                         approach_required=False)
@@ -71,24 +73,33 @@ localizer.localize()
 robot_pose = localizer.get_last_robot_pose()
 
 # Simple reward function example.
-def reward_function(proposed_pose: math_helpers.SE2Pose) -> float:
-    spot_home = get_spot_home_pose()
-    return 1/np.linalg.norm(np.array([spot_home.x, spot_home.y]) - np.array([proposed_pose.x, proposed_pose.y]))
+def reward_function(input_traj: List[Tuple[float, float]]) -> float:
+    assert len(input_traj) == 3
+    desired_trajectory = [(3.5, 0.45), (3.0, 0.45), (3.0, 0.0)]
+    reward = 0.0
+    for i, waypoint in enumerate(input_traj):
+        reward += -np.linalg.norm(np.array([desired_trajectory[i][0], desired_trajectory[i][1]]) - np.array([waypoint[0], waypoint[1]]))
+    return reward
 
 # Example sampler.
 spot_home_pose = get_spot_home_pose()
 max_reward = -np.inf
-max_reward_pose = None
+max_reward_traj = None
 rng = np.random.default_rng(0)
-for _ in range(1000):    
-    distance, angle, _ = sample_move_offset_from_target((spot_home_pose.x, spot_home_pose.y), spot_pose_to_geom2d(robot_pose), [], rng, 0.0, 2.5, get_allowed_map_regions())
-    x, y = spot_home_pose.x + np.cos(angle) * distance, spot_home_pose.y + np.sin(angle) * distance
-    candidate_pose = math_helpers.SE2Pose(x, y, 0.0)
-    if reward_function(candidate_pose) > max_reward:
-        max_reward = reward_function(candidate_pose)
-        max_reward_pose = candidate_pose
-assert max_reward_pose is not None
-print(max_reward_pose)
-print(spot_home_pose)
-navigate_to_absolute_pose(robot, localizer, max_reward_pose)
+for _ in range(10000):
+    curr_traj = []
+    for _ in range(3):
+        distance, angle, _ = sample_move_offset_from_target((spot_home_pose.x, spot_home_pose.y), spot_pose_to_geom2d(robot_pose), [], rng, 0.0, 2.5, get_allowed_map_regions())
+        x, y = spot_home_pose.x + np.cos(angle) * distance, spot_home_pose.y + np.sin(angle) * distance
+        curr_traj.append((x, y))
+    if reward_function(curr_traj) > max_reward:
+        max_reward = reward_function(curr_traj)
+        max_reward_traj = curr_traj
+assert max_reward_traj is not None
+
+print(max_reward_traj)
+
+for waypoint in max_reward_traj:
+    navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(waypoint[0], waypoint[1], 0.0))
+    time.sleep(0.5)
 
