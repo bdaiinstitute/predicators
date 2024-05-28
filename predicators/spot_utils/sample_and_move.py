@@ -17,6 +17,7 @@ from bosdyn.client.util import authenticate
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 import time
+import math
 
 from predicators import utils
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -154,9 +155,6 @@ target_pos = math_helpers.Vec3(0.8, 0.0, 0.25)
 # get_grasp_pixel(robot, ) -> returns pixel to grasp 
 # grasp_at_pixel(robot, rgbds[hand_camera], pixel) -> grasps at pixel
 
-
-
-
 # Pouring skill.
 def pour_at_relative_pose(robot: Robot, rel_pos: math_helpers.Vec3) -> None:
     """Assuming the robot is holding something, execute a pour."""
@@ -177,4 +175,27 @@ def pour_at_relative_pose(robot: Robot, rel_pos: math_helpers.Vec3) -> None:
     time.sleep(0.5)
     move_hand_to_relative_pose(robot, init_pose)
 
-pour_at_relative_pose(robot, target_pos)
+stow_arm(robot)
+time.sleep(0.5)
+navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.163, 0.360, math.radians(-74.0)))
+time.sleep(0.5)
+navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(3.271, -0.077, math.radians(-78.6)))
+time.sleep(0.5)
+downward_angle = np.pi / 2.5
+rot = math_helpers.Quat.from_pitch(downward_angle)
+body_tform_goal = math_helpers.SE3Pose(x=target_pos.x,
+                                        y=target_pos.y,
+                                        z=target_pos.z,
+                                        rot=rot)
+move_hand_to_relative_pose(robot, body_tform_goal)
+time.sleep(0.5)
+rgbds = capture_images(robot, localizer, TEST_CAMERAS)
+hand_camera = "hand_color_image"
+pixel = get_pixel_from_user(rgbds[hand_camera].rgb)
+grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+time.sleep(0.5)
+move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.753, 0.018, 0.39, math_helpers.Quat(0.6870, 0.0664, 0.7200, -0.0722)))
+time.sleep(0.5)
+navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.808, -0.908, math.radians(-78.6)))
+time.sleep(0.5)
+pour_at_relative_pose(robot, math_helpers.Vec3(1.086, 0.083, 0.481))

@@ -1,0 +1,3 @@
+Detected LanguageID(green apple/tennis ball) at position -- X: 5.581 Y: -1.269 Z: -0.358 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Robot pose: position -- X: 2.808 Y: -0.908 Yaw: -78.6 deg
+Hand pose: position -- X: 1.086 Y: 0.083 Z: 0.481 rotation -- W: 0.9983 X: 0.0005 Y: 0.0286 Z: 0.0516
