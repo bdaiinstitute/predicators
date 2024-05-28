@@ -729,18 +729,17 @@ if __name__ == "__main__":
 
         snapshot = robot.get_frame_tree_snapshot()
         hand_in_body = get_a_tform_b(snapshot, BODY_FRAME_NAME, "hand")
-        hand_in_world = hand_in_body.mult(localizer.get_last_robot_pose())
 
         with open(f"state_{datetime.now()}.txt", 'w') as file:
             for obj_id, detection in detections.items():
                 file.write(f"Detected {obj_id} at {detection}\n")
-            file.write(f"Robot pose: {localizer.get_last_robot_pose()}\n")
-            file.write(f"Hand pose: {hand_in_world}\n")
+            file.write(f"Robot pose: {localizer.get_last_robot_pose().get_closest_se2_transform()}\n")
+            file.write(f"Hand pose: {hand_in_body}\n")
 
         for obj_id, detection in detections.items():
             print(f"Detected {obj_id} at {detection}")
-        print(f"Robot pose: {localizer.get_last_robot_pose()}")
-        print(f"Hand pose: {hand_in_world}")
+        print(f"Robot pose: {localizer.get_last_robot_pose().get_closest_se2_transform()}")
+        print(f"Hand pose: {hand_in_body}")
 
         # Visualize the artifacts.
         detections_outfile = Path(".") / "object_detection_artifacts.png"
