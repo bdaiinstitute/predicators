@@ -21,14 +21,14 @@ import time
 from predicators import utils
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import verify_estop
+from predicators.spot_utils.utils import verify_estop, get_pixel_from_user
 from predicators.spot_utils.perception.object_detection import detect_objects, get_grasp_pixel, visualize_all_artifacts
 from predicators.spot_utils.skills.spot_hand_move import move_hand_to_relative_pose
 from predicators.spot_utils.utils import get_allowed_map_regions, \
     sample_move_offset_from_target, spot_pose_to_geom2d
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_navigation import navigate_to_absolute_pose
-from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, get_pixel_from_user
+from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.utils import get_spot_home_pose
 
 
