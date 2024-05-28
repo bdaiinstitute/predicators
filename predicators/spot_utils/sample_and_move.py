@@ -21,13 +21,14 @@ from predicators import utils
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import verify_estop
-from predicators.spot_utils.perception.object_detection import detect_objects
+from predicators.spot_utils.perception.object_detection import detect_objects, get_grasp_pixel
 from predicators.spot_utils.skills.spot_hand_move import move_hand_to_relative_pose
 from predicators.spot_utils.utils import get_allowed_map_regions, \
-    get_collision_geoms_for_nav, load_spot_metadata, object_to_top_down_geom, \
-    sample_move_offset_from_target, spot_pose_to_geom2d, get_relative_se2_from_se3
-from predicators.spot_utils.skills.spot_navigation import navigate_to_relative_pose, go_home, navigate_to_absolute_pose
-from predicators.spot_utils.utils import get_robot_state, get_spot_home_pose
+    sample_move_offset_from_target, spot_pose_to_geom2d
+from predicators.spot_utils.skills.spot_stow_arm import stow_arm
+from predicators.spot_utils.skills.spot_navigation import navigate_to_absolute_pose
+from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
+from predicators.spot_utils.utils import get_spot_home_pose
 
 
 
@@ -42,8 +43,6 @@ TEST_LANGUAGE_DESCRIPTIONS = [
     "potted plant",
     "green apple/tennis ball",
 ]
-
-# REFERENCE_TRAJ = [(3.5, 0.45), (3.0, 0.45), (3.0, 0.0)]
 
 args = utils.parse_args(env_required=False,
                         seed_required=False,
@@ -91,28 +90,50 @@ def reward_function(input_traj: List[Tuple[float, float]]) -> float:
 #    return self.cost_nn(traj).item()
 
 # Example sampler.
-spot_home_pose = get_spot_home_pose()
-max_reward = -np.inf
-max_reward_traj = None
+# spot_home_pose = get_spot_home_pose()
+# max_reward = -np.inf
+# max_reward_traj = None
 rng = np.random.default_rng(0)
-for _ in range(10000):
-    curr_traj = []
-    for _ in range(3):
-        distance, angle, _ = sample_move_offset_from_target((spot_home_pose.x, spot_home_pose.y), spot_pose_to_geom2d(robot_pose), [], rng, 0.0, 2.5, get_allowed_map_regions())
-        x, y = spot_home_pose.x + np.cos(angle) * distance, spot_home_pose.y + np.sin(angle) * distance
-        curr_traj.append((x, y))
-    if reward_function(curr_traj) > max_reward:
-        max_reward = reward_function(curr_traj)
-        max_reward_traj = curr_traj
-    # ANDI TO MODIFY + ADD
-    # if calc_cost(curr_traj) < max_cost:
-    #    min_cost = calc_cost(curr_traj)
-    #    min_cost_traj = curr_traj
-assert max_reward_traj is not None
+# for _ in range(10000):
+#     curr_traj = []
+#     for _ in range(3):
+#         distance, angle, _ = sample_move_offset_from_target((spot_home_pose.x, spot_home_pose.y), spot_pose_to_geom2d(robot_pose), [], rng, 0.0, 2.5, get_allowed_map_regions())
+#         x, y = spot_home_pose.x + np.cos(angle) * distance, spot_home_pose.y + np.sin(angle) * distance
+#         curr_traj.append((x, y))
+#     if reward_function(curr_traj) > max_reward:
+#         max_reward = reward_function(curr_traj)
+#         max_reward_traj = curr_traj
+#     # ANDI TO MODIFY + ADD
+#     # if calc_cost(curr_traj) < max_cost:
+#     #    min_cost = calc_cost(curr_traj)
+#     #    min_cost_traj = curr_traj
+# assert max_reward_traj is not None
 
-print(max_reward_traj)
+# print(max_reward_traj)
 
-for waypoint in max_reward_traj:
-    navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(waypoint[0], waypoint[1], 0.0))
-    time.sleep(0.5)
+# for waypoint in max_reward_traj:
+#     navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(waypoint[0], waypoint[1], 0.0))
+#     time.sleep(0.5)
 
+# relative arm move example.
+target_pos = math_helpers.Vec3(0.8, 0.0, 0.25)
+downward_angle = np.pi / 2.5
+rot = math_helpers.Quat.from_pitch(downward_angle)
+body_tform_goal = math_helpers.SE3Pose(x=target_pos.x,
+                                        y=target_pos.y,
+                                        z=target_pos.z,
+                                        rot=rot)
+move_hand_to_relative_pose(robot, body_tform_goal)
+
+# grasping example.
+rgbds = capture_images(robot, localizer, TEST_CAMERAS)
+language_ids: List[ObjectDetectionID] = [
+    LanguageObjectDetectionID(d) for d in TEST_LANGUAGE_DESCRIPTIONS
+]
+hand_camera = "hand_color_image"
+detections, artifacts = detect_objects(language_ids, rgbds)
+
+pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
+                                       hand_camera, rng)
+grasp_at_pixel(robot, rgbds[hand_camera], pixel)
+stow_arm(robot)
