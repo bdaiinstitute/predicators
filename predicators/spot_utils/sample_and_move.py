@@ -28,7 +28,7 @@ from predicators.spot_utils.utils import get_allowed_map_regions, \
     sample_move_offset_from_target, spot_pose_to_geom2d
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_navigation import navigate_to_absolute_pose
-from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
+from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, get_pixel_from_user
 from predicators.spot_utils.utils import get_spot_home_pose
 
 
@@ -141,8 +141,11 @@ no_detections_outfile = Path(".") / "no_detection_artifacts.png"
 visualize_all_artifacts(artifacts, detections_outfile,
                         no_detections_outfile)
 
-pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
-                                       hand_camera, rng)
+# Automatically get grasp pixel via vision
+# pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
+#                                        hand_camera, rng)
+# Get grasp pixel via user query.
+pixel = get_pixel_from_user(rgbds[hand_camera].rgb)
 grasp_at_pixel(robot, rgbds[hand_camera], pixel)
 stow_arm(robot)
 
