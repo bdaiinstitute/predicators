@@ -81,6 +81,15 @@ def reward_function(input_traj: List[Tuple[float, float]]) -> float:
         reward += -np.linalg.norm(np.array([desired_trajectory[i][0], desired_trajectory[i][1]]) - np.array([waypoint[0], waypoint[1]]))
     return reward
 
+# ANDI to modify
+#def reward_network(input_traj: List[Tuple[float, float]]) -> float:
+#    self.cost_nn = MLP(input_dim, 1, [], output_activation=None).to(self.device)
+#    self.optimizer = optim.Adam(self.cost_nn.parameters(), lr=params["lr"])
+
+#def calc_cost(self, traj):
+#    traj = torch.tensor(traj, dtype=torch.float32).to(self.device)
+#    return self.cost_nn(traj).item()
+
 # Example sampler.
 spot_home_pose = get_spot_home_pose()
 max_reward = -np.inf
@@ -95,6 +104,10 @@ for _ in range(10000):
     if reward_function(curr_traj) > max_reward:
         max_reward = reward_function(curr_traj)
         max_reward_traj = curr_traj
+    # ANDI TO MODIFY + ADD
+    # if calc_cost(curr_traj) < max_cost:
+    #    min_cost = calc_cost(curr_traj)
+    #    min_cost_traj = curr_traj
 assert max_reward_traj is not None
 
 print(max_reward_traj)
