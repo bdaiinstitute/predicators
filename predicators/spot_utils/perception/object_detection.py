@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
 from datetime import datetime
 
-
 try:
     import apriltag
     _APRILTAG_IMPORTED = True

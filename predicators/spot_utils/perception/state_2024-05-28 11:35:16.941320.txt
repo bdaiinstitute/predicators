@@ -1,0 +1,5 @@
+Detected LanguageID(potted plant) at position -- X: 2.879 Y: -2.037 Z: 0.549 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Detected LanguageID(water bottle) at position -- X: 3.086 Y: -2.382 Z: 0.436 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Detected LanguageID(green apple/tennis ball) at position -- X: 5.611 Y: -1.271 Z: -0.366 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Robot pose: position -- X: 2.862 Y: -0.508 Yaw: -73.6 deg
+Hand pose: position -- X: 0.553 Y: 0.000 Z: 0.264 rotation -- W: 1.0000 X: -0.0002 Y: 0.0071 Z: 0.0010
