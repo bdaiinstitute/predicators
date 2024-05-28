@@ -5,6 +5,7 @@ from predicators.settings import CFG
 from bosdyn.client.frame_helpers import get_a_tform_b, BODY_FRAME_NAME
 from typing import List, Tuple
 import numpy as np
+from pathlib import Path
 
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
@@ -21,7 +22,7 @@ from predicators import utils
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import verify_estop
-from predicators.spot_utils.perception.object_detection import detect_objects, get_grasp_pixel
+from predicators.spot_utils.perception.object_detection import detect_objects, get_grasp_pixel, visualize_all_artifacts
 from predicators.spot_utils.skills.spot_hand_move import move_hand_to_relative_pose
 from predicators.spot_utils.utils import get_allowed_map_regions, \
     sample_move_offset_from_target, spot_pose_to_geom2d
@@ -42,6 +43,7 @@ TEST_CAMERAS = [
 TEST_LANGUAGE_DESCRIPTIONS = [
     "potted plant",
     "green apple/tennis ball",
+    "measuring tape"
 ]
 
 args = utils.parse_args(env_required=False,
@@ -124,6 +126,7 @@ body_tform_goal = math_helpers.SE3Pose(x=target_pos.x,
                                         z=target_pos.z,
                                         rot=rot)
 move_hand_to_relative_pose(robot, body_tform_goal)
+time.sleep(0.5)
 
 # grasping example.
 rgbds = capture_images(robot, localizer, TEST_CAMERAS)
@@ -133,7 +136,17 @@ language_ids: List[ObjectDetectionID] = [
 hand_camera = "hand_color_image"
 detections, artifacts = detect_objects(language_ids, rgbds)
 
+detections_outfile = Path(".") / "object_detection_artifacts.png"
+no_detections_outfile = Path(".") / "no_detection_artifacts.png"
+visualize_all_artifacts(artifacts, detections_outfile,
+                        no_detections_outfile)
+
 pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
                                        hand_camera, rng)
 grasp_at_pixel(robot, rgbds[hand_camera], pixel)
 stow_arm(robot)
+
+# move to waypoint navigate_to_absolute_pose(robot, localizer, se2_pose(x, y, theta)) x, y relative to map (theta is dir of robot)
+# move_hand_to_relative_pose(robot, se3_pose(x, y, z, quaternion)) # x is forward from robot, y is right from robot, and z is up from robot
+# get_grasp_pixel(robot, ) -> returns pixel to grasp 
+# grasp_at_pixel(robot, rgbds[hand_camera], pixel) -> grasps at pixel

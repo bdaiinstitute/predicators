@@ -692,6 +692,7 @@ if __name__ == "__main__":
     TEST_LANGUAGE_DESCRIPTIONS = [
         "potted plant",
         "green apple/tennis ball",
+        "water bottle"
     ]
 
     def _run_manual_test() -> None:
