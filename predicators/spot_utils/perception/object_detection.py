@@ -691,7 +691,7 @@ if __name__ == "__main__":
     TEST_LANGUAGE_DESCRIPTIONS = [
         "potted plant",
         "green apple/tennis ball",
-        "water bottle"
+        "elephant watering can"
     ]
 
     def _run_manual_test() -> None:
@@ -729,20 +729,24 @@ if __name__ == "__main__":
         snapshot = robot.get_frame_tree_snapshot()
         hand_in_body = get_a_tform_b(snapshot, BODY_FRAME_NAME, "hand")
 
-        with open(f"state_{datetime.now()}.txt", 'w') as file:
+        save_path = Path("./demo")
+        save_path.mkdir(parents=True, exist_ok=True)
+        date = datetime.now()
+
+        with open(f"demo/state_{date}.txt", 'w') as file:
             for obj_id, detection in detections.items():
-                file.write(f"Detected {obj_id} at {detection}\n")
+                file.write(f"Object {obj_id} at {detection}\n")
             file.write(f"Robot pose: {localizer.get_last_robot_pose().get_closest_se2_transform()}\n")
-            file.write(f"Hand pose: {hand_in_body}\n")
+            file.write(f"Robot hand pose: {hand_in_body}\n")
 
         for obj_id, detection in detections.items():
-            print(f"Detected {obj_id} at {detection}")
+            print(f"Object {obj_id} at {detection}")
         print(f"Robot pose: {localizer.get_last_robot_pose().get_closest_se2_transform()}")
-        print(f"Hand pose: {hand_in_body}")
+        print(f"Robot hand pose: {hand_in_body}")
 
         # Visualize the artifacts.
-        detections_outfile = Path(".") / "object_detection_artifacts.png"
-        no_detections_outfile = Path(".") / "no_detection_artifacts.png"
+        detections_outfile = f"./demo/object_detections_image_{date}.png"
+        no_detections_outfile = f"./demo/no_detections_image_{date}.png"
         visualize_all_artifacts(artifacts, detections_outfile,
                                 no_detections_outfile)
 

@@ -1,3 +1,0 @@
-Detected LanguageID(potted plant) at position -- X: 0.220 Y: -0.410 Z: 0.179 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
-Robot pose: position -- X: 3.858 Y: -0.051 Z: 0.151 rotation -- W: -0.1692 X: -0.0010 Y: -0.0006 Z: 0.9856
-Hand pose: position -- X: 3.306 Y: -0.049 Z: -0.069 rotation -- W: -0.1694 X: -0.0076 Y: 0.0005 Z: 0.9855

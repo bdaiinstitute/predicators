@@ -32,8 +32,6 @@ from predicators.spot_utils.skills.spot_navigation import navigate_to_absolute_p
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel
 from predicators.spot_utils.utils import get_spot_home_pose
 
-
-
 TEST_CAMERAS = [
         "hand_color_image",
         "frontleft_fisheye_image",
@@ -44,7 +42,7 @@ TEST_CAMERAS = [
 TEST_LANGUAGE_DESCRIPTIONS = [
     "potted plant",
     "green apple/tennis ball",
-    "measuring tape"
+    "elephant watering can"
 ]
 
 args = utils.parse_args(env_required=False,
@@ -73,6 +71,26 @@ assert path.exists()
 localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
 localizer.localize()
 robot_pose = localizer.get_last_robot_pose()
+
+# Pouring skill.
+def pour_at_relative_pose(robot: Robot, rel_pos: math_helpers.Vec3) -> None:
+    """Assuming the robot is holding something, execute a pour."""
+    # First move the hand to the target pose.
+    init_rot = math_helpers.Quat.from_pitch(np.pi/2)
+    init_pose = math_helpers.SE3Pose(x=rel_pos.x,
+                                           y=rel_pos.y,
+                                           z=rel_pos.z,
+                                           rot=init_rot)
+    move_hand_to_relative_pose(robot, init_pose)
+    time.sleep(0.5)
+    pouring_rot = init_rot * math_helpers.Quat.from_yaw(np.pi / 4.0)
+    pouring_pose = math_helpers.SE3Pose(x=rel_pos.x,
+                                           y=rel_pos.y,
+                                           z=rel_pos.z,
+                                           rot=pouring_rot)
+    move_hand_to_relative_pose(robot, pouring_pose)
+    time.sleep(0.5)
+    move_hand_to_relative_pose(robot, init_pose)
 
 # Simple reward function example.
 def reward_function(input_traj: List[Tuple[float, float]]) -> float:
@@ -118,84 +136,29 @@ rng = np.random.default_rng(0)
 #     navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(waypoint[0], waypoint[1], 0.0))
 #     time.sleep(0.5)
 
-# relative arm move example.
-target_pos = math_helpers.Vec3(0.8, 0.0, 0.25)
+# stow_arm(robot)
+# time.sleep(0.5)
+# navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.163, 0.360, math.radians(-74.0)))
+# time.sleep(0.5)
+# navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(3.271, -0.077, math.radians(-78.6)))
+# time.sleep(0.5)
 # downward_angle = np.pi / 2.5
+# target_pos = math_helpers.Vec3(0.8, 0.0, 0.25)
 # rot = math_helpers.Quat.from_pitch(downward_angle)
-# body_tform_goal = math_helpers.SE3Pose(x=target_pos.x,
-#                                         y=target_pos.y,
-#                                         z=target_pos.z,
-#                                         rot=rot)
+# body_tform_goal = math_helpers.SE3Pose(x=target_pos.x, y=target_pos.y, z=target_pos.z, rot=rot)
 # move_hand_to_relative_pose(robot, body_tform_goal)
 # time.sleep(0.5)
-
-# # grasping example.
 # rgbds = capture_images(robot, localizer, TEST_CAMERAS)
-# language_ids: List[ObjectDetectionID] = [
-#     LanguageObjectDetectionID(d) for d in TEST_LANGUAGE_DESCRIPTIONS
-# ]
 # hand_camera = "hand_color_image"
-# detections, artifacts = detect_objects(language_ids, rgbds)
-
-# detections_outfile = Path(".") / "object_detection_artifacts.png"
-# no_detections_outfile = Path(".") / "no_detection_artifacts.png"
-# visualize_all_artifacts(artifacts, detections_outfile,
-#                         no_detections_outfile)
-
-# # Automatically get grasp pixel via vision
-# # pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
-# #                                        hand_camera, rng)
-# # Get grasp pixel via user query.
 # pixel = get_pixel_from_user(rgbds[hand_camera].rgb)
 # grasp_at_pixel(robot, rgbds[hand_camera], pixel)
-# stow_arm(robot)
-
-# move to waypoint navigate_to_absolute_pose(robot, localizer, se2_pose(x, y, theta)) x, y relative to map (theta is dir of robot)
-# move_hand_to_relative_pose(robot, se3_pose(x, y, z, quaternion)) # x is forward from robot, y is right from robot, and z is up from robot
-# get_grasp_pixel(robot, ) -> returns pixel to grasp 
-# grasp_at_pixel(robot, rgbds[hand_camera], pixel) -> grasps at pixel
-
-# Pouring skill.
-def pour_at_relative_pose(robot: Robot, rel_pos: math_helpers.Vec3) -> None:
-    """Assuming the robot is holding something, execute a pour."""
-    # First move the hand to the target pose.
-    init_rot = math_helpers.Quat.from_pitch(np.pi/2)
-    init_pose = math_helpers.SE3Pose(x=rel_pos.x,
-                                           y=rel_pos.y,
-                                           z=rel_pos.z,
-                                           rot=init_rot)
-    move_hand_to_relative_pose(robot, init_pose)
-    time.sleep(0.5)
-    pouring_rot = init_rot * math_helpers.Quat.from_yaw(np.pi / 4.0)
-    pouring_pose = math_helpers.SE3Pose(x=rel_pos.x,
-                                           y=rel_pos.y,
-                                           z=rel_pos.z,
-                                           rot=pouring_rot)
-    move_hand_to_relative_pose(robot, pouring_pose)
-    time.sleep(0.5)
-    move_hand_to_relative_pose(robot, init_pose)
-
-stow_arm(robot)
+# time.sleep(0.5)
+# #move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.753, 0.018, 0.89, math_helpers.Quat(0.6870, 0.0664, 0.7200, -0.0722)))
+# move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.644, -0.008, 0.734, math_helpers.Quat(0.8861, 0.1572, 0.4129, -0.1398)))
+# time.sleep(0.5)
+# navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.808, -0.908, math.radians(-78.6)))
+# time.sleep(0.5)
+# pour_at_relative_pose(robot, math_helpers.Vec3(1.086, 0.083, 0.481))
+move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.833, 0.150, 0.499, math_helpers.Quat(0.6156, -0.4840, 0.4909, 0.3817)))
 time.sleep(0.5)
-navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.163, 0.360, math.radians(-74.0)))
-time.sleep(0.5)
-navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(3.271, -0.077, math.radians(-78.6)))
-time.sleep(0.5)
-downward_angle = np.pi / 2.5
-rot = math_helpers.Quat.from_pitch(downward_angle)
-body_tform_goal = math_helpers.SE3Pose(x=target_pos.x,
-                                        y=target_pos.y,
-                                        z=target_pos.z,
-                                        rot=rot)
-move_hand_to_relative_pose(robot, body_tform_goal)
-time.sleep(0.5)
-rgbds = capture_images(robot, localizer, TEST_CAMERAS)
-hand_camera = "hand_color_image"
-pixel = get_pixel_from_user(rgbds[hand_camera].rgb)
-grasp_at_pixel(robot, rgbds[hand_camera], pixel)
-time.sleep(0.5)
-move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.753, 0.018, 0.89, math_helpers.Quat(0.6870, 0.0664, 0.7200, -0.0722)))
-time.sleep(0.5)
-navigate_to_absolute_pose(robot, localizer, math_helpers.SE2Pose(2.808, -0.908, math.radians(-78.6)))
-time.sleep(0.5)
-pour_at_relative_pose(robot, math_helpers.Vec3(1.086, 0.083, 0.481))
+move_hand_to_relative_pose(robot, math_helpers.SE3Pose(0.644, -0.325, 0.250, math_helpers.Quat(0.7085, -0.2046, 0.6750, 0.0231)))
