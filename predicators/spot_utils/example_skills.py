@@ -38,3 +38,6 @@ pixel, _ = get_grasp_pixel(rgbds, artifacts, language_ids[-1],
 grasp_at_pixel(robot, rgbds[hand_camera], pixel)
 stow_arm(robot)
 time.sleep(0.5)
+
+# DROP
+place_at_relative_position(robot, body_to_position: math_helpers.Vec3, downward_angle: float = np.pi / 2.5)
