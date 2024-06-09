@@ -1,0 +1,4 @@
+Object LanguageID(green apple) at position -- X: 3.351 Y: -1.868 Z: 0.384 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(plant pot) at position -- X: 2.830 Y: -1.893 Z: 0.563 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Robot pose: position -- X: 2.962 Y: -0.259 Yaw: 172.6 deg
+Robot hand pose: position -- X: 0.582 Y: 0.481 Z: 0.418 rotation -- W: 0.3675 X: -0.6233 Y: 0.1889 Z: 0.6639

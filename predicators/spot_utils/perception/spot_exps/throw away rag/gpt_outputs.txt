@@ -1,0 +1,212 @@
+The key feature that distinguishes the successful trajectory from the failed trajectory is the relative position of the robot's hand to the "textbook" object, specifically the XY position is crucial to ensure that the robot's hand is not directly above the textbook, thereby minimizing the risk of dripping water onto it. 
+
+### Step-by-Step Reasoning with XY Position:
+
+1. **Goal Analysis**:
+   - The goal is to carry a wet towel across a table without dripping water on anything that can be damaged by water.
+   - The "textbook" is an object that can be damaged by water.
+
+2. **Object Positions**:
+   - Textbook position: X: 2.116, Y: -0.317, Z: 0.371
+
+3. **Successful Trajectory Analysis**:
+   - **Timestep 1**:
+     - Robot hand position: X: 3.016 + 0.748 = 3.764, Y: -0.172 - 0.199 = -0.371, Z: 0.570
+     - Horizontal distance to textbook: \( \sqrt{(3.764 - 2.116)^2 + (-0.371 + 0.317)^2} = \sqrt{2.722^2 + 0.054^2} \approx 2.723 \)
+   - **Timestep 2**:
+     - Robot hand position: X: 2.727 + 0.899 = 3.626, Y: -0.171 + 0.296 = 0.125, Z: 0.429
+     - Horizontal distance to textbook: \( \sqrt{(3.626 - 2.116)^2 + (0.125 + 0.317)^2} = \sqrt{2.510^2 + 0.442^2} \approx 2.548 \)
+   - **Timestep 3**:
+     - Robot hand position: X: 2.708 + 0.433 = 3.141, Y: -0.138 + 0.670 = 0.532, Z: 0.328
+     - Horizontal distance to textbook: \( \sqrt{(3.141 - 2.116)^2 + (0.532 + 0.317)^2} = \sqrt{1.025^2 + 0.849^2} \approx 1.324 \)
+
+4. **Failed Trajectory Analysis**:
+   - **Timestep 1**:
+     - Robot hand position: X: 2.727 + 0.899 = 3.626, Y: -0.171 + 0.296 = 0.125, Z: 0.429
+     - Horizontal distance to textbook: \( \sqrt{(3.626 - 2.116)^2 + (0.125 + 0.317)^2} = \sqrt{2.510^2 + 0.442^2} \approx 2.548 \)
+   - **Timestep 2**:
+     - Robot hand position: X: 2.708 + 0.433 = 3.141, Y: -0.138 + 0.670 = 0.532, Z: 0.328
+     - Horizontal distance to textbook: \( \sqrt{(3.141 - 2.116)^2 + (0.532 + 0.317)^2} = \sqrt{1.025^2 + 0.849^2} \approx 1.324 \)
+   - **Timestep 3**:
+     - Robot hand position: X: 2.708 + 0.433 = 3.141, Y: -0.138 + 0.670 = 0.532, Z: 0.328
+     - Horizontal distance to textbook: \( \sqrt{(3.141 - 2.116)^2 + (0.532 + 0.317)^2} = \sqrt{1.025^2 + 0.849^2} \approx 1.324 \)
+
+5. **Key Observation**:
+   - In the successful trajectory, the robot's hand maintains a significant horizontal distance from the textbook, ensuring it is not directly above it.
+   - In the failed trajectory, the robot's hand comes closer horizontally to the textbook, increasing the risk of dripping water onto it.
+
+### Key Feature:
+The key feature is the **horizontal (XY-plane) distance between the robot's hand and the textbook**. Specifically, ensuring that this distance remains sufficiently large to avoid dripping water on the textbook.
+
+- **Feature Definition**: \( \text{Horizontal Distance} = \sqrt{(\text{robot\_hand\_X} - \text{textbook\_X})^2 + (\text{robot\_hand\_Y} - \text{textbook\_Y})^2} \)
+- **Condition for Success**: \( \text{Horizontal Distance} \) should be sufficiently large to avoid any risk of dripping.
+
+This feature is continuous and computable from the state features in the scene, specifically the X and Y positions of the robot's hand and the textbook.
+
+def horizontal_distance_to_textbook(state_vector, textbook_position):
+    # Extract robot's hand pose from the state vector
+    robot_hand_x = state_vector[3]
+    robot_hand_y = state_vector[4]
+    
+    # Extract the object's position from the input
+    textbook_position_x = textbook_position[0]
+    textbook_position_y = textbook_position[1]
+    
+    # Calculate the Euclidean distance in the XY-plane
+    distance = math.sqrt((robot_hand_x - textbook_position_x)**2 + (robot_hand_y - textbook_position_y)**2)
+    
+    return distance
+
+#################################################
+
+To distinguish the successful trajectory from the failed trajectory, we need to identify features that are semantically sensible for the goal of carrying a wet towel across a table without damaging anything that may be damaged by water. Here are the step-by-step features that can be computed from the state features in the scene:
+
+### 1. **Relative Position of Robot Hand to Objects**
+   - **Distance to Plant Pot**: The distance between the robot hand and the plant pot at each timestep. This can be computed as the Euclidean distance between the robot hand position and the plant pot position.
+   - **Distance to Watering Can**: The distance between the robot hand and the watering can at each timestep. This can be computed similarly to the plant pot distance.
+   - **Distance to Textbook**: The distance between the robot hand and the textbook at each timestep. This is crucial since the textbook is likely to be damaged by water.
+
+### 2. **Relative Position of Robot to Objects**
+   - **Distance to Plant Pot**: The distance between the robot base and the plant pot at each timestep.
+   - **Distance to Watering Can**: The distance between the robot base and the watering can at each timestep.
+   - **Distance to Textbook**: The distance between the robot base and the textbook at each timestep.
+
+### 3. **Height of Robot Hand Above Objects**
+   - **Height Above Plant Pot**: The Z-coordinate difference between the robot hand and the plant pot at each timestep.
+   - **Height Above Watering Can**: The Z-coordinate difference between the robot hand and the watering can at each timestep.
+   - **Height Above Textbook**: The Z-coordinate difference between the robot hand and the textbook at each timestep.
+
+### 4. **Relative Rotation of Robot Hand**
+   - **Rotation Alignment with Objects**: The relative rotation of the robot hand with respect to the objects. This can be computed as the difference in the quaternion rotation of the robot hand and a reference rotation aligned with the objects.
+
+### 5. **Trajectory Smoothness**
+   - **Hand Movement Smoothness**: The smoothness of the robot hand's trajectory, which can be computed as the sum of the squared differences in the hand's position between consecutive timesteps. This ensures that the hand moves smoothly without sudden jerks that could cause water to spill.
+
+### 6. **Proximity to Critical Points**
+   - **Proximity to Textbook**: A non-linear feature that increases sharply as the robot hand gets closer to the textbook. This can be modeled as an inverse exponential function of the distance to the textbook.
+
+### 7. **Force Field Around Objects**
+   - **Force Field Around Textbook**: A virtual force field around the textbook that penalizes the robot hand for entering a certain radius around the textbook. This can be computed as a function that increases as the hand gets closer to the textbook.
+
+### 8. **Hand Position Relative to Robot Base**
+   - **Relative Hand Position**: The position of the robot hand relative to the robot base. This ensures that the hand is always in a controlled position relative to the robot's base, avoiding collisions with objects.
+
+### 9. **Yaw Angle of Robot**
+   - **Yaw Angle Consistency**: The consistency of the robot's yaw angle throughout the trajectory. Large changes in yaw angle can indicate instability in the robot's movement, which could lead to water spillage.
+
+### 10. **Distance to Wet Towel**
+   - **Distance to Wet Towel**: The distance between the robot hand and the wet towel. This ensures that the robot hand is correctly positioned to carry the wet towel without dropping it.
+
+By analyzing these features, we can distinguish between successful and failed trajectories. The successful trajectory will maintain safe distances from objects, especially the textbook, ensure smooth hand movements, and keep the hand's height above objects to avoid water damage. The failed trajectory, on the other hand, will likely violate one or more of these features, leading to potential damage to the objects.
+
+def euclidean_distance(point1, point2):
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(point1, point2)))
+
+def distance_to_object(state_vector, object_position):
+    # Extract robot base position from the state vector
+    robot_base_position = state_vector[:3]
+    # Extract hand position relative to the robot base
+    hand_relative_position = state_vector[3:6]
+    # Calculate hand absolute position
+    hand_absolute_position = [robot_base_position[i] + hand_relative_position[i] for i in range(3)]
+    # Calculate the Euclidean distance
+    return euclidean_distance(hand_absolute_position, object_position)
+
+def distance_to_base(state_vector, object_position):
+    # Extract robot base position from the state vector
+    robot_base_position = state_vector[:3]
+    # Calculate the distance from the robot base to the object
+    return euclidean_distance(robot_base_position[:2], object_position[:2])
+
+def height_above_object(state_vector, object_position):
+    # Extract hand position relative to the robot base
+    hand_relative_position = state_vector[3:6]
+    # Calculate the height difference
+    return hand_relative_position[2] - object_position[2]
+
+def trajectory_smoothness(previous_hand_position, current_hand_position):
+    return sum((x - y) ** 2 for x, y in zip(current_hand_position, previous_hand_position))
+
+def proximity_to_textbook(state_vector, textbook_position):
+    distance = distance_to_object(state_vector, textbook_position)
+    return math.exp(-distance)  # Inverse exponential function
+
+def force_field_around_textbook(state_vector, textbook_position, radius=1.0):
+    distance = distance_to_object(state_vector, textbook_position)
+    return max(0, (radius - distance) ** 2)
+
+# Example usage with objects positions
+state_vector = [
+    3.943,  # Robot base X
+    0.074,  # Robot base Y
+    -1.163, # Robot base Yaw
+    0.554,  # Hand relative X
+    0.000,  # Hand relative Y
+    0.263,  # Hand relative Z 
+    1.0000, # Hand rotation W 
+    -0.0031, # Hand rotation X
+    0.0078, # Hand rotation Y
+    0.0001  # Hand rotation Z
+]
+
+plant_pot_position = [1.966, -0.081, 0.520]
+watering_can_position = [2.334, 0.600, 0.148]
+textbook_position = [2.5, 0.0, 0.0]
+
+# 1. Relative Position of Robot Hand to Objects
+distance_hand_plant_pot = distance_to_object(state_vector, plant_pot_position)
+distance_hand_watering_can = distance_to_object(state_vector, watering_can_position)
+distance_hand_textbook = distance_to_object(state_vector, textbook_position)
+
+# 2. Relative Position of Robot to Objects
+distance_robot_plant_pot = distance_to_base(state_vector, plant_pot_position)
+distance_robot_watering_can = distance_to_base(state_vector, watering_can_position)
+distance_robot_textbook = distance_to_base(state_vector, textbook_position)
+
+# 3. Height of Robot Hand Above Objects
+height_hand_plant_pot = height_above_object(state_vector, plant_pot_position)
+height_hand_watering_can = height_above_object(state_vector, watering_can_position)
+height_hand_textbook = height_above_object(state_vector, textbook_position)
+
+# 4. Relative Rotation of Robot Hand
+rotation_hand_alignment = state_vector[6:10]  # Extract quaternion rotation (W, X, Y, Z) as array (alignment calculation not included)
+
+# 5. Trajectory Smoothness
+previous_hand_position = [3.943 + 0.554, 0.074 + 0.000, 0.263]  # Example previous hand position
+current_hand_position = [3.943 + 0.556, 0.074 + 0.000, 0.264]  # Example current hand position
+hand_movement_smoothness = trajectory_smoothness(previous_hand_position, current_hand_position)
+
+# 6. Proximity to Critical Points
+proximity_to_textbook = proximity_to_textbook(state_vector, textbook_position)
+
+# 7. Force Field Around Objects
+force_field_textbook = force_field_around_textbook(state_vector, textbook_position)
+
+# 8. Hand Position Relative to Robot Base
+relative_hand_position = state_vector[3:6]
+
+# 9. Yaw Angle of Robot
+yaw_angle_consistency = state_vector[2]  # Extract Yaw angle (not evaluated here, consistency check not included)
+
+# 10. Distance to Wet Towel (assuming position is known)
+wet_towel_position = [2.0, 0.1, 0.0]  # Example position of the wet towel
+distance_hand_wet_towel = distance_to_object(state_vector, wet_towel_position)
+
+feature_values = {
+    "distance_hand_plant_pot": 0.5,
+    "distance_hand_watering_can": 0.3,
+    "distance_hand_textbook": 1.5,
+    "distance_robot_plant_pot": 0.7,
+    "distance_robot_watering_can": 0.4,
+    "distance_robot_textbook": 2.0,
+    "height_hand_plant_pot": 0.2,
+    "height_hand_watering_can": 0.1,
+    "height_hand_textbook": 0.8,
+    "rotation_hand_alignment": 0.9,
+    "hand_movement_smoothness": 0.03,
+    "proximity_to_textbook": 0.02,
+    "force_field_textbook": 0.5,
+    "relative_hand_position": 1.0,
+    "yaw_angle_consistency": 0.95,
+    "distance_hand_wet_towel": 0.1
+}

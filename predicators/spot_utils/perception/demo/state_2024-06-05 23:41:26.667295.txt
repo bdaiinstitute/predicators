@@ -1,0 +1,5 @@
+Object LanguageID(bin) at position -- X: 3.828 Y: -1.272 Z: 0.075 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(elephant watering can) at position -- X: 3.083 Y: -1.811 Z: 0.480 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(plant pot) at position -- X: 3.344 Y: -1.861 Z: 0.613 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Robot pose: position -- X: 3.350 Y: 0.060 Yaw: -159.1 deg
+Robot hand pose: position -- X: 0.553 Y: -0.000 Z: 0.264 rotation -- W: 1.0000 X: -0.0029 Y: 0.0062 Z: -0.0003

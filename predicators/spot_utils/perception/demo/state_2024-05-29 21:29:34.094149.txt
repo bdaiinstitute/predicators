@@ -1,2 +1,0 @@
-Robot pose: position -- X: 2.759 Y: 0.978 Yaw: 92.6 deg
-Robot hand pose: position -- X: 0.833 Y: 0.150 Z: 0.499 rotation -- W: 0.6156 X: -0.4840 Y: 0.4909 Z: 0.3817

@@ -1,0 +1,17 @@
+Object LanguageID(plant pot) at position -- X: 2.049 Y: 0.186 Z: 0.519 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(bin) at position -- X: 6.034 Y: -3.971 Z: -0.034 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(watering can) at position -- X: 2.663 Y: -1.898 Z: 0.451 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(wet towel) at position -- X: 2.327 Y: -0.800 Z: 0.375 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+
+Timestep 1:
+Robot pose: position -- X: 3.374 Y: -0.786 Yaw: -168.8 deg
+Robot hand pose: position -- X: 0.733 Y: 0.182 Z: 0.548 rotation -- W: 0.7644 X: 0.0012 Y: 0.6448 Z: 0.0016
+
+Timestep 2:
+Robot pose: position -- X: 2.917 Y: -0.209 Yaw: -166.4 deg
+Robot hand pose: position -- X: 0.799 Y: 0.028 Z: 0.544 rotation -- W: 0.7663 X: 0.0012 Y: 0.6420 Z: 0.0238
+
+Timestep 3:
+Timestep 3:
+Robot pose: position -- X: 2.895 Y: -0.135 Yaw: -166.8 deg
+Robot hand pose: position -- X: 0.798 Y: 0.016 Z: 0.545 rotation -- W: 0.7673 X: 0.0040 Y: 0.6413 Z: 0.0063

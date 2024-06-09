@@ -1,3 +1,0 @@
-Detected LanguageID(potted plant) at position -- X: 0.645 Y: -0.424 Z: -0.129 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
-Detected LanguageID(green apple/tennis ball) at position -- X: 2.717 Y: -1.078 Z: -0.321 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
-Robot pose: position -- X: 3.823 Y: 0.344 Z: 0.166 rotation -- W: -0.1006 X: -0.0028 Y: 0.0002 Z: 0.9949

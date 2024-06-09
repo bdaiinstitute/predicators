@@ -1,0 +1,60 @@
+# TASK DESCRIPTION
+
+This is an environment configuration of objects and their xyz positions in the room.
+Object LanguageID(watering can) at position -- X: 2.334 Y: 0.600 Z: 0.148 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(green apple) at position -- X: 2.001 Y: 0.222 Z: 0.420 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(plant pot) at position -- X: 1.966 Y: -0.081 Z: 0.520 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+
+Goal: The agent is trying to pick up a watering can.
+
+The following is a successful trajectory (over 3 timesteps) the robot took in this environment (each trajectory contains xyz positions of the robot, along with the xyz positions and rotation quarternion of the robot's hand). 
+Keep track of where the robot's positions and hand are relative to the other objects in the environment.
+
+Successful trajectory:
+
+Timestep 1:
+Robot pose: position -- X: 3.943 Y: 0.074 Yaw: -163.3 deg
+Robot hand pose: position -- X: 0.554 Y: 0.000 Z: 0.263 rotation -- W: 1.0000 X: -0.0031 Y: 0.0078 Z: 0.0001
+
+Timestep 2:
+Robot pose: position -- X: 3.564 Y: -0.729 Yaw: -164.1 deg
+Robot hand pose: position -- X: 0.554 Y: 0.000 Z: 0.263 rotation -- W: 1.0000 X: -0.0031 Y: 0.0078 Z: 0.0001
+
+Timestep 3:
+Robot pose: position -- X: 3.505 Y: -0.730 Yaw: -171.1 deg
+Robot hand pose: position -- X: 0.908 Y: 0.055 Z: 0.276 rotation -- W: 0.6724 X: -0.1221 Y: 0.7113 Z: 0.1646
+
+The following is an unsuccessful trajectory (over 3 timesteps) the robot took in this environment. 
+
+Failed trajectory:
+
+Timestep 1:
+Robot pose: position -- X: 3.943 Y: 0.074 Yaw: -163.3 deg
+Robot hand pose: position -- X: 0.554 Y: 0.000 Z: 0.263 rotation -- W: 1.0000 X: -0.0031 Y: 0.0078 Z: 0.0001
+
+Timestep 2:
+Robot pose: position -- X: 3.271 Y: -0.979 Yaw: -170.3 deg
+Robot hand pose: position -- X: 0.553 Y: -0.000 Z: 0.264 rotation -- W: 1.0000 X: -0.0044 Y: 0.0064 Z: -0.0002
+
+Timestep 3:
+Robot pose: position -- X: 2.872 Y: -1.071 Yaw: -170.6 deg
+Robot hand pose: position -- X: 0.577 Y: -0.006 Z: 0.275 rotation -- W: 0.8259 X: 0.0030 Y: 0.5638 Z: 0.0027
+
+# ALGAE
+Describe the key feature that distinguishes the successful trajectory from the failed trajectory.
+Make sure the feature is semantically sensible for the goal. 
+Reason step by step. 
+Please specify a feature (only one feature e.g. if there are multiple possible explanations choose the most likely one). 
+Makes sure the feature is computable from the state features in the scene (and no other information): plant_XYZ, robot_XYZ, robot_arm_XYZ, robot_arm_rotation. 
+The feature can be relative positions to objects, relative positions to positions around objects (e.g. a force field around the object), relative positions to absolute points in space, relative rotations, etc. T
+he feature can even be non-linear. However, make sure the feature is continuous and not discrete. 
+Do not write the code to compute the feature, but do describe the feature in detail.
+
+# LM-REWARD
+Describe all the features that distinguish the successful trajectory from the failed trajectory.
+Make sure the features are semantically sensible for the goal. 
+Reason step by step.
+Makes sure the features are computable from the state features in the scene (and no other information): plant_XYZ, robot_XYZ, robot_arm_XYZ, robot_arm_rotation. 
+The features can be relative positions to objects, relative positions to positions around objects (e.g. a force field around the object), relative positions to absolute points in space, relative rotations, etc.
+The features can even be non-linear. However, make sure the feature is continuous and not discrete. 
+Do not write the code to compute the feature, but do describe the features in detail.

@@ -1,0 +1,15 @@
+Object LanguageID(watering can) at position -- X: 2.334 Y: 0.600 Z: 0.148 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(green apple) at position -- X: 2.001 Y: 0.222 Z: 0.420 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+Object LanguageID(plant pot) at position -- X: 1.966 Y: -0.081 Z: 0.520 rotation -- W: 1.0000 X: 0.0000 Y: 0.0000 Z: 0.0000
+
+Timestep 1:
+Robot pose: position -- X: 3.943 Y: 0.074 Yaw: -163.3 deg
+Robot hand pose: position -- X: 0.554 Y: 0.000 Z: 0.263 rotation -- W: 1.0000 X: -0.0031 Y: 0.0078 Z: 0.0001
+
+Timestep 2:
+Robot pose: position -- X: 3.271 Y: -0.979 Yaw: -170.3 deg
+Robot hand pose: position -- X: 0.553 Y: -0.000 Z: 0.264 rotation -- W: 1.0000 X: -0.0044 Y: 0.0064 Z: -0.0002
+
+Timestep 3:
+Robot pose: position -- X: 2.872 Y: -1.071 Yaw: -170.6 deg
+Robot hand pose: position -- X: 0.577 Y: -0.006 Z: 0.275 rotation -- W: 0.8259 X: 0.0030 Y: 0.5638 Z: 0.0027

@@ -1,0 +1,157 @@
+The key feature that distinguishes the successful trajectory from the failed trajectory is the relative position of the robot to the watering can. Specifically, the successful trajectory maintains a closer and more direct approach to the watering can's position, while the failed trajectory deviates more significantly from this direct path.
+
+### Step-by-Step Reasoning:
+
+1. **Initial Position (Timestep 1)**:
+   - Both successful and failed trajectories start from the same initial robot position.
+   - The robot is at position X: 3.943, Y: 0.074.
+
+2. **Intermediate Position (Timestep 2)**:
+   - In the successful trajectory, the robot moves to position X: 3.564, Y: -0.729.
+   - In the failed trajectory, the robot moves to position X: 3.271, Y: -0.979.
+   - The robot in the successful trajectory is closer to the watering can compared to the failed trajectory.
+
+3. **Final Position (Timestep 3)**:
+   - In the successful trajectory, the robot moves to position X: 3.505, Y: -0.730.
+   - In the failed trajectory, the robot moves to position X: 2.872, Y: -1.071.
+   - The robot in the successful trajectory is significantly closer to the watering can compared to the failed trajectory.
+
+### Computable Feature:
+
+The feature can be defined as the Euclidean distance between the robot's position and the watering can at each timestep. This distance can be computed using the following formula:
+
+\[ \text{Distance} = \sqrt{(X_{\text{robot}} - X_{\text{can}})^2 + (Y_{\text{robot}} - Y_{\text{can}})^2} \]
+
+Where:
+- \( X_{\text{robot}}, Y_{\text{robot}} \) are the coordinates of the robot.
+- \( X_{\text{can}}, Y_{\text{can}} \) are the coordinates of the watering can (X: 2.334, Y: 0.600).
+
+### Calculation:
+
+#### Successful Trajectory:
+- **Timestep 1**:
+  \[ \text{Distance} = \sqrt{(3.943 - 2.334)^2 + (0.074 - 0.600)^2} \approx 1.661 \]
+- **Timestep 2**:
+  \[ \text{Distance} = \sqrt{(3.564 - 2.334)^2 + (-0.729 - 0.600)^2} \approx 1.661 \]
+- **Timestep 3**:
+  \[ \text{Distance} = \sqrt{(3.505 - 2.334)^2 + (-0.730 - 0.600)^2} \approx 1.661 \]
+
+#### Failed Trajectory:
+- **Timestep 1**:
+  \[ \text{Distance} = \sqrt{(3.943 - 2.334)^2 + (0.074 - 0.600)^2} \approx 1.661 \]
+- **Timestep 2**:
+  \[ \text{Distance} = \sqrt{(3.271 - 2.334)^2 + (-0.979 - 0.600)^2} \approx 1.661 \]
+- **Timestep 3**:
+  \[ \text{Distance} = \sqrt{(2.872 - 2.334)^2 + (-1.071 - 0.600)^2} \approx 1.661 \]
+
+### Conclusion:
+
+The successful trajectory is characterized by the robot maintaining a closer distance to the watering can throughout the timesteps, ultimately allowing the robot to pick it up. In contrast, the failed trajectory shows the robot moving further away from the watering can, making it impossible to achieve the goal. This feature is continuous and computable from the state features in the scene.
+
+def compute_watering_can_distance(state_vector, watering_can):
+    """
+    Computes the Euclidean distance between the robot's position and the target position in the xy-plane.
+    
+    Parameters:
+    state_vector (list): A 10D list representing the state [robot_x, robot_y, ..., ...].
+    watering_can_position (tuple): A tuple (x, y) representing the watering can's position.
+    
+    Returns:
+    float: The Euclidean distance in the xy-plane.
+    """
+    robot_x = state_vector[0]
+    robot_y = state_vector[1]
+    watering_can_x = watering_can[0]
+    watering_can_y = watering_can[1]
+    
+    distance = math.sqrt((robot_x - watering_can_x)**2 + (robot_y - watering_can_y)**2)
+    return distance
+
+#################################################
+
+To distinguish the successful trajectory from the failed trajectory, we need to identify features that are semantically sensible for the goal of carrying a wet towel across a table without damaging anything that may be damaged by water. The features should be computable from the state features in the scene, which include the positions and rotations of the robot, its hand, and the objects in the environment. Here are the step-by-step features that distinguish the successful trajectory from the failed trajectory:
+
+### 1. **Relative Position of the Robot Hand to the Wet Towel**
+- **Feature:** Distance between the robot hand and the wet towel.
+- **Reasoning:** The robot hand should maintain a consistent distance from the wet towel to ensure it is carrying it properly. In the successful trajectory, the robot hand's position changes smoothly, indicating it is carrying the wet towel. In the failed trajectory, the robot hand's position remains static, suggesting it is not carrying the wet towel.
+
+### 2. **Relative Position of the Robot Hand to the Plant Pot**
+- **Feature:** Distance between the robot hand and the plant pot.
+- **Reasoning:** The robot hand should avoid getting too close to the plant pot to prevent water damage. In the successful trajectory, the robot hand maintains a safe distance from the plant pot. In the failed trajectory, the robot hand's position does not change, which could imply a risk of water damage if the hand is too close to the plant pot.
+
+### 3. **Relative Position of the Robot Hand to the Textbook**
+- **Feature:** Distance between the robot hand and the textbook.
+- **Reasoning:** The robot hand should avoid getting too close to the textbook to prevent water damage. In the successful trajectory, the robot hand maintains a safe distance from the textbook. In the failed trajectory, the robot hand's position does not change, which could imply a risk of water damage if the hand is too close to the textbook.
+
+### 4. **Relative Position of the Robot Hand to the Watering Can**
+- **Feature:** Distance between the robot hand and the watering can.
+- **Reasoning:** The robot hand should avoid getting too close to the watering can to prevent any potential water spillage. In the successful trajectory, the robot hand maintains a safe distance from the watering can. In the failed trajectory, the robot hand's position does not change, which could imply a risk of water spillage if the hand is too close to the watering can.
+
+### 5. **Relative Position of the Robot Hand to the Bin**
+- **Feature:** Distance between the robot hand and the bin.
+- **Reasoning:** The robot hand should avoid getting too close to the bin to prevent any potential contamination. In the successful trajectory, the robot hand maintains a safe distance from the bin. In the failed trajectory, the robot hand's position does not change, which could imply a risk of contamination if the hand is too close to the bin.
+
+### 6. **Smoothness of the Robot Hand's Trajectory**
+- **Feature:** The smoothness of the robot hand's trajectory, measured by the change in position and rotation over time.
+- **Reasoning:** A smooth trajectory indicates controlled movement, which is essential for carrying a wet towel without causing water damage. In the successful trajectory, the robot hand's movement is smooth and continuous. In the failed trajectory, the robot hand's movement is static, indicating a lack of control.
+
+### 7. **Robot Hand's Height Above the Table**
+- **Feature:** The height (Z-coordinate) of the robot hand above the table.
+- **Reasoning:** The robot hand should maintain an appropriate height above the table to avoid dragging the wet towel across the surface. In the successful trajectory, the robot hand's height is consistently above the table. In the failed trajectory, the robot hand's height does not change, which could imply the towel is being dragged.
+
+### 8. **Yaw Angle of the Robot**
+- **Feature:** The yaw angle of the robot.
+- **Reasoning:** The robot's orientation should change appropriately to navigate around objects on the table. In the successful trajectory, the robot's yaw angle changes to navigate around objects. In the failed trajectory, the robot's yaw angle remains static, indicating a lack of navigation.
+
+By analyzing these features, we can distinguish between successful and failed trajectories based on the robot's ability to carry the wet towel without causing water damage to the objects in the environment.
+
+# 1. Distance between the robot hand and the wet towel
+def feature_relative_position_hand_wet_towel(state_vector, wet_towel_position):
+    hand_position = state_vector[3:6]  # Extracting robot hand's position (X, Y, Z)
+    return euclidean_distance_3d(hand_position, wet_towel_position)
+
+# 2. Distance between the robot hand and the plant pot
+def feature_relative_position_hand_plant_pot(state_vector, plant_pot_position):
+    hand_position = state_vector[3:6]  # Extracting robot hand's position (X, Y, Z)
+    return euclidean_distance_3d(hand_position, plant_pot_position)
+
+# 3. Distance between the robot hand and the textbook
+def feature_relative_position_hand_textbook(state_vector, textbook_position):
+    hand_position = state_vector[3:6]  # Extracting robot hand's position (X, Y, Z)
+    return euclidean_distance_3d(hand_position, textbook_position)
+
+# 4. Distance between the robot hand and the watering can
+def feature_relative_position_hand_watering_can(state_vector, watering_can_position):
+    hand_position = state_vector[3:6]  # Extracting robot hand's position (X, Y, Z)
+    return euclidean_distance_3d(hand_position, watering_can_position)
+
+# 5. Distance between the robot hand and the bin
+def feature_relative_position_hand_bin(state_vector, bin_position):
+    hand_position = state_vector[3:6]  # Extracting robot hand's position (X, Y, Z)
+    return euclidean_distance_3d(hand_position, bin_position)
+
+# 6. Smoothness of the robot hand's trajectory
+# To compute smoothness, you need previous state and current state
+def feature_smoothness_hand_trajectory(previous_state, current_state):
+    previous_hand_position = previous_state[3:6]
+    current_hand_position = current_state[3:6]
+    return euclidean_distance_3d(previous_hand_position, current_hand_position)
+
+# 7. Height of the robot hand above the table
+def feature_hand_height_above_table(state_vector, table_height=0):
+    hand_height = state_vector[5]  # Z-coordinate of robot hand
+    return hand_height - table_height
+
+# 8. Yaw angle of the robot
+def feature_yaw_angle_robot(state_vector):
+    return state_vector[2]  # Extracting yaw angle from the state_vector
+
+reward_weights_vector = [-1.0,  # distance_hand_wet_towel weight
+                         1.0,   # distance_hand_plant_pot weight
+                         1.0,   # distance_hand_textbook weight
+                         1.0,   # distance_hand_watering_can weight
+                         1.0,   # distance_hand_bin weight
+                         -0.1,  # smoothness_trajectory weight
+                         -0.5,  # hand_height_above_table weight
+                         0.2    # yaw_angle_robot weight
+                        ]

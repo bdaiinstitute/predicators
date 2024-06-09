@@ -1,0 +1,218 @@
+The key feature that distinguishes the successful trajectory from the failed trajectory is the **vertical alignment and height of the robot's hand relative to the plant pot**.
+
+### Step-by-Step Reasoning:
+
+1. **Goal Analysis**:
+   - The goal is to water a plant in a plant pot. This requires the robot's hand (holding the watering can) to be positioned correctly above the plant pot to pour water into it.
+
+2. **Object Position**:
+   - The plant pot is located at position X: 2.049, Y: 0.186, Z: 0.424.
+
+3. **Successful Trajectory Analysis**:
+   - **Timestep 1**:
+     - Robot hand position: X: 0.747, Y: 0.006, Z: 0.350
+     - Relative to plant pot: X: 2.796, Y: 0.192, Z: -0.074
+   - **Timestep 2**:
+     - Robot hand position: X: 0.798, Y: 0.016, Z: 0.545
+     - Relative to plant pot: X: 2.097, Y: 0.202, Z: 0.121
+   - **Timestep 3**:
+     - Robot hand position: X: 0.798, Y: 0.016, Z: 0.545
+     - Relative to plant pot: X: 2.097, Y: 0.202, Z: 0.121
+
+4. **Failed Trajectory Analysis**:
+   - **Timestep 1**:
+     - Robot hand position: X: 0.733, Y: 0.182, Z: 0.548
+     - Relative to plant pot: X: 2.641, Y: 0.368, Z: 0.124
+   - **Timestep 2**:
+     - Robot hand position: X: 0.799, Y: 0.028, Z: 0.444
+     - Relative to plant pot: X: 2.118, Y: 0.214, Z: 0.020
+   - **Timestep 3**:
+     - Robot hand position: X: 0.798, Y: 0.016, Z: 0.445
+     - Relative to plant pot: X: 2.097, Y: 0.202, Z: 0.021
+
+### Key Feature:
+
+The key feature is the **vertical alignment and height of the robot's hand relative to the plant pot**. Specifically, the Z-coordinate of the robot's hand should be slightly above the Z-coordinate of the plant pot to ensure water can be poured into it.
+
+### Computable Feature:
+
+- **Vertical Alignment (Z-axis)**:
+  - The robot's hand Z-coordinate should be slightly above the plant pot's Z-coordinate.
+  - Optimal feature: \( \text{robot\_hand\_Z} - \text{plant\_pot\_Z} \approx 0.121 \) (as seen in the successful trajectory).
+
+### Detailed Description:
+
+- **Feature Calculation**:
+  - Compute the difference in the Z-coordinate between the robot's hand and the plant pot.
+  - Ensure this difference is within a small positive range to allow for effective watering.
+
+- **Mathematical Representation**:
+  - Let \( Z_{\text{hand}} \) be the Z-coordinate of the robot's hand.
+  - Let \( Z_{\text{pot}} \) be the Z-coordinate of the plant pot.
+  - The feature \( f \) can be defined as:
+    \[
+    f = Z_{\text{hand}} - Z_{\text{pot}}
+    \]
+  - For successful watering, \( f \) should be approximately 0.121.
+
+### Conclusion:
+
+The optimal feature to ensure successful watering of the plant is the vertical alignment and height of the robot's hand relative to the plant pot, specifically maintaining a Z-coordinate difference of approximately 0.121. This ensures the robot's hand is positioned correctly above the plant pot to pour water into it.
+
+def calculate_z_alignment(state_vector, plant_pot_location, optimal_value=0.121):
+      plant_pot_z = plant_pot_location[2]
+      robot_hand_Z = state_vector[5]
+      feature = abs(robot_hand_Z - plant_pot_Z)
+      # Calculate the score as the inverse of the deviation from the optimal value
+      score = 1 / (1 + abs(feature - optimal_value))
+    return score
+
+#################################################
+
+To distinguish the successful trajectory from the failed trajectory, we need to identify features that are semantically sensible for the goal of watering the plant in the plant pot. The features should be computable from the state features in the scene, which include the positions and rotations of the plant, robot, and robot arm. Here are the step-by-step features that distinguish the successful trajectory from the failed trajectory:
+
+### 1. **Proximity to the Plant Pot**
+- **Feature:** Distance between the robot hand and the plant pot.
+- **Description:** The robot hand should be close to the plant pot to water it effectively. This can be computed as the Euclidean distance between the robot hand position and the plant pot position.
+- **Formula:** \( \text{Distance} = \sqrt{(x_{\text{hand}} - x_{\text{plant}})^2 + (y_{\text{hand}} - y_{\text{plant}})^2 + (z_{\text{hand}} - z_{\text{plant}})^2} \)
+
+### 2. **Alignment with the Plant Pot**
+- **Feature:** Relative position of the robot hand to the plant pot in the horizontal plane (XY-plane).
+- **Description:** The robot hand should be aligned horizontally with the plant pot. This can be computed as the difference in the X and Y coordinates between the robot hand and the plant pot.
+- **Formula:** \( \text{Alignment} = (x_{\text{hand}} - x_{\text{plant}}, y_{\text{hand}} - y_{\text{plant}}) \)
+
+### 3. **Height Above the Plant Pot**
+- **Feature:** Vertical distance between the robot hand and the plant pot.
+- **Description:** The robot hand should be at an appropriate height above the plant pot to pour water. This can be computed as the difference in the Z coordinates between the robot hand and the plant pot.
+- **Formula:** \( \text{Height} = z_{\text{hand}} - z_{\text{plant}} \)
+
+### 4. **Orientation of the Robot Hand**
+- **Feature:** Rotation alignment of the robot hand relative to the plant pot.
+- **Description:** The robot hand should be oriented in a way that allows it to pour water into the plant pot. This can be computed as the difference in the rotation quaternions between the robot hand and the plant pot.
+- **Formula:** \( \text{Orientation} = \text{Quaternion Difference}(q_{\text{hand}}, q_{\text{plant}}) \)
+
+### 5. **Trajectory Smoothness**
+- **Feature:** Consistency in the robot hand's position and orientation over time.
+- **Description:** The robot hand should move smoothly towards the plant pot without abrupt changes in position or orientation. This can be computed as the change in the robot hand's position and orientation between consecutive timesteps.
+- **Formula:** \( \text{Smoothness} = \sqrt{(x_{\text{hand}, t} - x_{\text{hand}, t-1})^2 + (y_{\text{hand}, t} - y_{\text{hand}, t-1})^2 + (z_{\text{hand}, t} - z_{\text{hand}, t-1})^2} \)
+
+### 6. **Robot Base Position**
+- **Feature:** Position of the robot base relative to the plant pot.
+- **Description:** The robot base should be positioned such that the robot hand can reach the plant pot comfortably. This can be computed as the Euclidean distance between the robot base position and the plant pot position.
+- **Formula:** \( \text{Base Position} = \sqrt{(x_{\text{robot}} - x_{\text{plant}})^2 + (y_{\text{robot}} - y_{\text{plant}})^2} \)
+
+### 7. **Robot Base Orientation**
+- **Feature:** Yaw angle of the robot base relative to the plant pot.
+- **Description:** The robot base should be oriented towards the plant pot. This can be computed as the difference in the yaw angles between the robot base and the direction towards the plant pot.
+- **Formula:** \( \text{Base Orientation} = \text{Yaw}_{\text{robot}} - \text{Yaw}_{\text{towards plant}} \)
+
+By analyzing these features, we can distinguish the successful trajectory from the failed trajectory. The successful trajectory will have the robot hand close to and aligned with the plant pot, at an appropriate height, with a suitable orientation, and moving smoothly. The robot base will also be positioned and oriented to facilitate this.
+
+### 1. **Proximity to the Plant Pot**
+
+```python
+import math
+
+def proximity_to_plant_pot(state, plant_pot):
+    x_hand, y_hand, z_hand = state[3], state[4], state[5]
+    x_plant, y_plant, z_plant = plant_pot['x'], plant_pot['y'], plant_pot['z']
+
+    distance = math.sqrt((x_hand - x_plant)**2 + (y_hand - y_plant)**2 + (z_hand - z_plant)**2)
+    return distance
+```
+
+### 2. **Alignment with the Plant Pot**
+
+```python
+def alignment_with_plant_pot(state, plant_pot):
+    x_hand, y_hand = state[3], state[4]
+    x_plant, y_plant = plant_pot['x'], plant_pot['y']
+
+    alignment = (x_hand - x_plant, y_hand - y_plant)
+    return alignment
+```
+
+### 3. **Height Above the Plant Pot**
+
+```python
+def height_above_plant_pot(state, plant_pot):
+    z_hand = state[5]
+    z_plant = plant_pot['z']
+    
+    height = z_hand - z_plant
+    return height
+```
+
+### 4. **Orientation of the Robot Hand**
+
+To compute quaternion difference:
+
+```python
+import numpy as np
+
+def quat_difference(q1, q2):
+    # Quaternion conjugate
+    q1_conj = [q1[0], -q1[1], -q1[2], -q1[3]]
+
+    # Hamilton product of q1_conj and q2
+    w = q1_conj[0]*q2[0] - q1_conj[1]*q2[1] - q1_conj[2]*q2[2] - q1_conj[3]*q2[3]
+    x = q1_conj[0]*q2[1] + q1_conj[1]*q2[0] + q1_conj[2]*q2[3] - q1_conj[3]*q2[2]
+    y = q1_conj[0]*q2[2] - q1_conj[1]*q2[3] + q1_conj[2]*q2[0] + q1_conj[3]*q2[1]
+    z = q1_conj[0]*q2[3] + q1_conj[1]*q2[2] - q1_conj[2]*q2[1] + q1_conj[3]*q2[0]
+    
+    return [w, x, y, z]
+
+def orientation_of_robot_hand(state, plant_pot):
+    q_hand = [state[6], state[7], state[8], state[9]]
+    q_plant = [plant_pot['qw'], plant_pot['qx'], plant_pot['qy'], plant_pot['qz']]
+    
+    orientation_diff = quat_difference(q_hand, q_plant)
+    return orientation_diff
+```
+
+### 5. **Trajectory Smoothness**
+
+```python
+def trajectory_smoothness(state_t, state_t_minus_1):
+    x_t, y_t, z_t = state_t[3], state_t[4], state_t[5]
+    x_tm1, y_tm1, z_tm1 = state_t_minus_1[3], state_t_minus_1[4], state_t_minus_1[5]
+    
+    smoothness = math.sqrt((x_t - x_tm1)**2 + (y_t - y_tm1)**2 + (z_t - z_tm1)**2)
+    return smoothness
+```
+
+### 6. **Robot Base Position**
+
+```python
+def robot_base_position(state, plant_pot):
+    x_robot, y_robot = state[0], state[1]
+    x_plant, y_plant = plant_pot['x'], plant_pot['y']
+
+    base_position_distance = math.sqrt((x_robot - x_plant)**2 + (y_robot - y_plant)**2)
+    return base_position_distance
+```
+
+### 7. **Robot Base Orientation**
+
+First, we need a function to compute the direction in which the robot base should be facing to orient towards the plant.
+
+```python
+def yaw_to_target(x_robot, y_robot, x_target, y_target):
+    return math.degrees(math.atan2(y_target - y_robot, x_target - x_robot))
+
+def robot_base_orientation(state, plant_pot):
+    x_robot, y_robot, yaw_robot = state[0], state[1], state[2]
+    x_plant, y_plant = plant_pot['x'], plant_pot['y']
+    
+    yaw_towards_plant = yaw_to_target(x_robot, y_robot, x_plant, y_plant)
+    base_orientation_diff = yaw_robot - yaw_towards_plant
+    return base_orientation_diff
+
+reward_weights_vector = [2.0,  # proximity_to_plant_pot weight
+                         1.0,   # alignment_with_plant_pot weight
+                         2.0,   # height_above_plant_pot weight
+                         1.0,   # orientation_of_robot_hand weight
+                         1.0,   # trajectory_smoothness weight
+                         0.1,  # robot_base_position weight
+                         0.5,  # robot_base_orientation weight
+                        ]

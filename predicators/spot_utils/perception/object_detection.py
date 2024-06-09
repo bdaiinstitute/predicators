@@ -689,9 +689,14 @@ if __name__ == "__main__":
         "frontright_fisheye_image",
     ]
     TEST_LANGUAGE_DESCRIPTIONS = [
-        "potted plant",
-        "green apple/tennis ball",
-        "elephant watering can"
+        "plant pot",
+        "elephant watering can",
+        "Spam",
+        "green apple",
+        "grapes",
+        "pink book",
+        "wet towel",
+        "bin"
     ]
 
     def _run_manual_test() -> None:
