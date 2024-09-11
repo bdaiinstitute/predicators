@@ -18,7 +18,13 @@ from predicators.utils import get_object_combinations
 ###############################################################################
 
 # Initialize VLM
-vlm = OpenAIVLM(model_name="gpt-4-turbo", detail="auto")
+available_choices = [
+    "gpt-4-turbo",
+    "gpt-4o",
+    "gpt-4o-mini"
+]
+vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
+
 
 # Engineer the prompt for VLM
 vlm_predicate_eval_prompt = """
@@ -49,6 +55,10 @@ We will use following predicate-style descriptions to ask questions:
     Blocking(object1, object2)
     On(object, surface)
     
+Some predicates may include 'KnownAsTrue' or 'KnownAsFalse'.
+You should already respond 'Yes' or 'No' but never 'Unknown'.
+If you don't know answer for predicates with 'KnownAsTrue' or 'KnownAsFalse', say 'No'.
+    
 Here are VLM predicates we have, note that they are defined over typed variables.
 Example: (<predicate-name> <obj1-variable>:<obj1-type> ...)
 VLM Predicates (separated by line or newline character):
@@ -56,20 +66,24 @@ VLM Predicates (separated by line or newline character):
 
 Examples (separated by line or newline character):
 Do these predicates hold in the following images?
-Inside(apple:object, bowl:container)
-On(apple:object, table:surface)
-Blocking(apple:object, orange:object)
-Blocking(apple:object, apple:object)
-On(apple:object, apple:object)
-On(apple:object, bowl:container)
+1. Inside(apple:object, bowl:container)
+2. On(apple:object, table:surface)
+3. Blocking(apple:object, orange:object)
+4. Blocking(apple:object, apple:object)
+5. On(apple:object, apple:object)
+6. On(apple:object, bowl:container)
+7. EmptyKnownTrue(bowl:container)
+8. EmptyKnownFalse(bowl:container)
 
-Answer (in a single word Yes/No/Unknown for each question, unknown if can't tell from given images):
-Yes
-No
-Unknown
-No
-No
-No
+Answer (in a single word Yes/No for each question):
+1. Yes
+2. No
+3. Yes
+4. No
+5. No
+6. Yes
+7. Yes
+8. No
 
 Actual questions (separated by line or newline character):
 Do these predicates hold in the following images?
@@ -94,8 +108,9 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
     ]
 
     logging.info(f"VLM predicate evaluation for: \n{question}")
-    logging.info(f"Prompt: {full_prompt}")
+    logging.debug(f"Prompt: {full_prompt}")
 
+    # TODO update the logic here for retrying
     vlm_responses = vlm.sample_completions(
         prompt=full_prompt,
         imgs=images,
@@ -131,7 +146,8 @@ def vlm_predicate_batch_query(
     """
 
     # Assemble the full prompt
-    question = '\n'.join(queries)
+    numbered_queries = [f"{i+1}. {query}" for i, query in enumerate(queries)]
+    question = '\n'.join(numbered_queries)
     vlm_predicates = '\n'.join(predicate_prompts) if predicate_prompts else ''
     full_prompt = vlm_predicate_batch_eval_prompt.format(
         vlm_predicates=vlm_predicates, question=question)
@@ -144,31 +160,41 @@ def vlm_predicate_batch_query(
     if CFG.vlm_eval_verbose:
         logging.info(f"Prompt: {full_prompt}")
     else:
-        logging.debug(f"Prompt: {full_prompt}")
+        logging.debug(f"Prompt: {full_prompt}")        
 
-    vlm_responses = vlm.sample_completions(
-        prompt=full_prompt,
-        imgs=image_list,
-        temperature=0.2,
-        seed=int(time.time()),
-        num_completions=1,
-    )
-    logging.debug(f"VLM response 0: {vlm_responses[0]}")
+    while True:
+        vlm_responses = vlm.sample_completions(
+            prompt=full_prompt,
+            imgs=image_list,
+            temperature=0.1,
+            seed=int(time.time()),
+            num_completions=1,
+        )
+        logging.info(f"VLM response 0: {vlm_responses[0]}")
 
-    # Parse the responses
-    responses = vlm_responses[0].strip().lower().split('\n')
-    results = []
-    for i, r in enumerate(responses):
-        assert r in ['yes', 'no',
-                     'unknown'], f"Invalid response in line {i}: {r}"
-        if r == 'yes':
-            results.append(True)
-        elif r == 'no':
-            results.append(False)
-        else:
-            results.append(None)
-    assert len(results) == len(
-        queries), "Number of responses should match queries."
+        # Parse the responses
+        responses = vlm_responses[0].strip().split('\n')
+        if len(responses) != len(queries):
+            logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
+            print(f"VLM responses: {vlm_responses[0]}")
+            continue
+
+        results = []
+        retry = False
+        for i, r in enumerate(responses):
+            if any(x in r for x in ['Yes', 'No']):
+                if 'Yes' in r:
+                    results.append(True)
+                elif 'No' in r:
+                    results.append(False)
+            else:
+                logging.warning(f"Invalid response in line {i}: {r}. Retrying...")
+                retry = True
+                break
+
+        if not retry:
+            # If no invalid responses, break the while loop
+            break
 
     return results
 
