@@ -1513,9 +1513,9 @@ _FitsInXY = Predicate("FitsInXY", [_movable_object_type, _base_object_type],
 # NOTE: use this predicate instead if you want to disable inside checking.
 # _FakeInside = Predicate(_Inside.name, _Inside.types,
 #                         _create_dummy_predicate_classifier(_Inside))
-_NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
-                                   [_movable_object_type],
-                                   _not_inside_any_container_classifier)
+# _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
+#                                    [_movable_object_type],
+#                                    _not_inside_any_container_classifier)
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
@@ -1570,15 +1570,21 @@ if tmp_vlm_flag:
         _Inside.name,
         _Inside.types,
     )
+    
     # NOTE: Check the classifier; try to make it consistent or document how this VLM predicate is different/better.
     _Blocking = VLMPredicate(
         "Blocking", [_base_object_type, _base_object_type],
-        prompt=
-        "This means if an object is blocking the Spot robot approaching another one."
+        prompt="This means if an object is blocking the Spot robot approaching another one."
     )
     _NotBlocked = VLMPredicate(
         "NotBlocked", [_base_object_type],
         prompt="The given object is not blocked by any other object.")
+
+    _NotInsideAnyContainer = VLMPredicate(
+        "NotInsideAnyContainer", [_movable_object_type],
+        prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
+    )
+    
 else:
     _On = Predicate("On", [_movable_object_type, _base_object_type],
                     _on_classifier)
@@ -1591,6 +1597,12 @@ else:
                           _blocking_classifier)
     _NotBlocked = Predicate("NotBlocked", [_base_object_type],
                             _not_blocked_classifier)
+    _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
+                                       [_movable_object_type],
+                                       _not_inside_any_container_classifier)
+    
+    # NOTE: we won't actually call this
+    # _InHandViewFromTop = None
 
 # NOTE: Define all regular or VLM predicates above
 _ALL_PREDICATES = {
