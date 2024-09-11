@@ -21,6 +21,7 @@ import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
+from predicators.utils import timing
 
 # This is a special string that we assume will never appear in a prompt, and
 # which we use to separate prompt and completion in the cache. The reason to
@@ -105,9 +106,10 @@ class PretrainedLargeModel(abc.ABC):
                 raise ValueError("No cached response found for prompt.")
             logging.debug(f"Querying model {model_id} with new prompt.")
             # Query the model.
-            completions = self._sample_completions(prompt, imgs, temperature,
-                                                   seed, stop_token,
-                                                   num_completions)
+            with timing("[Model API Query]"):
+                completions = self._sample_completions(prompt, imgs, temperature,
+                                                       seed, stop_token,
+                                                       num_completions)
             # Cache the completion.
             cache_str = prompt + _CACHE_SEP + _CACHE_SEP.join(completions)
             with open(cache_filepath, 'w', encoding='utf-8') as f:
@@ -351,11 +353,12 @@ class OpenAIVLM(VisionLanguageModel):
         messages = self.prepare_vision_messages(prefix=prompt,
                                                 images=imgs,
                                                 detail="auto")
-        responses = [
-            self.call_openai_api(messages,
-                                 model=self.model_name,
-                                 max_tokens=max_tokens,
-                                 temperature=temperature)
-            for _ in range(num_completions)
-        ]
+        responses = []
+        for _ in range(num_completions):
+            responses.append(
+                self.call_openai_api(messages,
+                                        model=self.model_name,
+                                        max_tokens=max_tokens,
+                                        temperature=temperature)
+            )
         return responses
