@@ -1,4 +1,5 @@
 """Basic environment for the Boston Dynamics Spot Robot."""
+from __future__ import annotations  # enable new union syntax in Python < 3.10
 import abc
 import copy
 import functools
@@ -451,6 +452,7 @@ class SpotRearrangementEnv(BaseEnv):
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
+        logging.info(f"Current task goal: {self._current_task.goal_description}")
         self._current_observation = self._current_task.init_obs
         self._current_task_goal_reached = False
         self._last_action = None
@@ -756,12 +758,12 @@ class SpotRearrangementEnv(BaseEnv):
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
-            vlm_atom_new: Dict[VLMGroundAtom,
-                               bool or None] = vlm_predicate_batch_classify(
+            vlm_atom_new: Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom] = vlm_predicate_batch_classify(
                                    vlm_atoms,
                                    rgbds,
                                    predicates=vlm_predicates,
                                    get_dict=True)
+            assert isinstance(vlm_atom_new, dict)
 
             # Update VLM atom value if the new ground atom value is not None
             # Otherwise, use the value in current obs
