@@ -50,6 +50,7 @@ from numpy.typing import NDArray
 from pyperplan.heuristics.heuristic_base import \
     Heuristic as _PyperplanBaseHeuristic
 from pyperplan.planner import HEURISTICS as _PYPERPLAN_HEURISTICS
+from rich import print
 from rich.console import Console
 from rich.text import Text
 from scipy.stats import beta as BetaRV
@@ -3877,3 +3878,33 @@ def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
     with console.capture() as capture:
         console.print(rich_table)
     return Text.from_ansi(capture.get())
+
+
+class Timer:
+
+    def __init__(self):
+        self.start_time = time.time()
+        self.start_clock = self._clock()
+
+    def _clock(self):
+        times = os.times()
+        return times[0] + times[1]
+
+    def __str__(self):
+        return "[Timer: %.3fs CPU, %.3fs wall-clock]" % (
+            self._clock() - self.start_clock, time.time() - self.start_time)
+
+
+@contextlib.contextmanager
+def timing(text, block=False):
+    timer = Timer()
+    logger = logging.getLogger(__name__)
+    if block:
+        logger.info("[STARTING] %s...", text)
+    else:
+        logger.info("[STARTING] %s...", text)
+    yield
+    if block:
+        logger.info("[COMPLETED] %s: %s", text, timer)
+    else:
+        logger.info("[COMPLETED] %s", timer)
