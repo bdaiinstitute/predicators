@@ -43,7 +43,7 @@ def _find_objects_with_choreographed_moves(
     vlm_predicates: Optional[Set[VLMPredicate]] = None,
     id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
 ) -> Tuple[Dict[ObjectDetectionID, SE3Pose], Dict[str, Any], Dict[
-        VLMGroundAtom, bool or None]]:
+        VLMGroundAtom, Optional[bool]]]:
     """Helper for object search with hard-coded relative moves."""
 
     if relative_hand_moves is not None:
@@ -58,7 +58,7 @@ def _find_objects_with_choreographed_moves(
     # Save VLMGroundAtoms from all poses
     # NOTE: overwrite if the same atom is found; to improve later
     all_vlm_atom_dict: Dict[VLMGroundAtom,
-                            bool or None] = defaultdict(lambda: None)
+                            Optional[bool]] = defaultdict(lambda: None)
 
     # Open the hand to mitigate possible occlusions.
     if open_and_close_gripper:
@@ -84,8 +84,8 @@ def _find_objects_with_choreographed_moves(
         # Get VLM queries + Send request
         # TODO: We may query objects only in current view's images.
         # Now we query all detected objects in all past views.
-        if CFG.spot_vlm_eval_predicate and len(all_detections) > 0 and len(
-                vlm_predicates) > 0:
+        if CFG.spot_vlm_eval_predicate and len(all_detections) > 0 and vlm_predicates and len(vlm_predicates) > 0:
+            assert id2object is not None
             objects = [id2object[id_] for id_ in all_detections]
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_dict = vlm_predicate_batch_classify(
