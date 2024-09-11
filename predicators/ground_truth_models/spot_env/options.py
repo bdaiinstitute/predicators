@@ -521,6 +521,21 @@ def _move_to_hand_view_object_policy(state: State, memory: Dict,
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
+    
+    
+def _move_to_hand_view_object_from_above_policy(state: State, memory: Dict,
+                                                objects: Sequence[Object],
+                                                params: Array) -> Action:
+    name = "MoveToHandViewObjectFromAbove"
+    distance_param_idx = 0
+    yaw_param_idx = 1
+    robot_obj_idx = 0
+    target_obj_idx = 1
+    do_gaze = True
+    return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
+                                  robot_obj_idx, target_obj_idx, do_gaze,
+                                  state, memory, objects, params)
+
 
 
 def _move_to_body_view_object_policy(state: State, memory: Dict,
@@ -948,6 +963,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
+    "ObserveFromTop": Box(0, 1, (0, )),  # empty
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -955,6 +971,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
+    "MoveToHandViewObjectFromAbove": _move_to_hand_view_object_from_above_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PickObjectToDrag": _pick_object_to_drag_policy,
@@ -971,6 +988,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
+    "ObserveFromTop": _observe_from_top_policy,
 }
 
 
