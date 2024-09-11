@@ -493,6 +493,92 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [block, bowl]),
             }
+        if goal_description == "put the red block into the plastic bin on floor":
+            block = Object("red_block", _movable_object_type)
+            bin = Object("plastic_bin", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [block, bin]),
+            }
+        if goal_description == "put the red block into the box on floor":
+            block = Object("red_block", _movable_object_type)
+            bin = Object("plastic_bin", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [block, bin]),
+            }
+        if goal_description == "put the red block into the cardboard box on floor":
+            block = Object("red_block", _movable_object_type)
+            box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [block, box]),
+            }
+        if goal_description == "put the red block on table into the green bowl on floor":
+            block = Object("red_block", _movable_object_type)
+            bowl = Object("green_bowl", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [block, bowl]),
+            }
+        if goal_description == "put the red block on table into the plastic bin on floor":
+            block = Object("red_block", _movable_object_type)
+            bin = Object("plastic_bin", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [block, bin]),
+            }
+        if goal_description == "put the empty cup into the box, otherwise stay on floor":
+            # TODO can we do: IMPLY AND OR?
+            cup = Object("empty_cup", _movable_object_type)
+            box = Object("box", _container_type)
+            floor = Object("floor", _immovable_object_type)
+            Inside = pred_name_to_pred["Inside"]
+            On = pred_name_to_pred["On"]
+            return {
+                GroundAtom(Inside, [cup, box]),
+                GroundAtom(On, [cup, floor])
+            }
+        if goal_description == "view the object from top":
+            # TODO test
+            robot = Object("robot", _robot_type)
+            object_to_view = Object("red_block", _movable_object_type)
+            InHandViewFromTop = pred_name_to_pred["InHandViewFromTop"]
+            return {
+                GroundAtom(InHandViewFromTop, [robot, object_to_view]),
+            }
+        # if goal_description == "know container not as empty":
+        #     container = Object("container", _container_type)
+        #     ContainingWaterKnownAsTrue = pred_name_to_pred["ContainingWaterKnownAsTrue"]
+        #     return {
+        #         GroundAtom(ContainingWaterKnownAsTrue, [container]),
+        #     }
+        if goal_description == "know container not as empty":
+            # container = Object("container", _container_type)
+            cup = Object("cup", _container_type)
+            # ContainingWaterKnownAsTrue = pred_name_to_pred["ContainingWaterKnownAsTrue"]
+            # return {
+            #     GroundAtom(ContainingWaterKnownAsTrue, [container]),
+            # }
+            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
+            ContainingWater = pred_name_to_pred["ContainingWater"]
+            return {
+                GroundAtom(ContainingWaterKnown, [cup]),
+                GroundAtom(ContainingWater, [cup]),
+            }
+        if goal_description == "know container as empty":
+            cup = Object("cup", _container_type)
+            ContainingWaterKnownAsFalse = pred_name_to_pred["ContainingWaterKnownAsFalse"]
+            return {
+                GroundAtom(ContainingWaterKnownAsFalse, [cup]),
+            }
+        if goal_description == "put the cup into the cardboard box on floor":
+            cup = Object("cup", _container_type)
+            cardboard_box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [cup, cardboard_box]),
+            }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
