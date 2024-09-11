@@ -896,6 +896,25 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
+    
+    
+def _observe_from_top_policy(state: State, memory: Dict,
+                             objects: Sequence[Object],
+                             params: Array) -> Action:
+    name = "ObserveFromTop"
+    # No movement, just update the state to reflect the observation.
+    robot_obj_idx = 0
+    robot = objects[robot_obj_idx]
+    
+    # Assuming the observation updates the robot's internal state.
+    def _fn() -> None:
+        return
+
+    # No simulation function needed.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 
 
 ###############################################################################
@@ -905,6 +924,7 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
 _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReachObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandViewObjectFromAbove": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
