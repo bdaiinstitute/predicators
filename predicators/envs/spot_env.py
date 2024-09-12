@@ -1616,9 +1616,64 @@ _ALL_PREDICATES = {
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
-# NOTE: In the future, we may include an attribute to denote whether a predicate
-# is VLM perceptible or not.
-# NOTE: candidates: on, inside, door opened, blocking, not blocked, ...
+# NOTE: add VLM-only predicates; they are not feasible to implement otherwise
+if tmp_vlm_flag:
+    _door_type = Type(
+        "door", 
+        list(_base_object_type.feature_names) + 
+        ["is_open", "in_hand_view"],
+        parent=_immovable_object_type
+    )
+    
+    _DoorOpenKnownTrue = VLMPredicate(
+        "DoorOpenKnownTrue", [_door_type],
+        prompt="This predicate is true if you believe the door is open."
+    )
+    _DoorOpenKnownFalse = VLMPredicate(
+        "DoorOpenKnownFalse", [_door_type],
+        prompt="This predicate is true if you believe the door is closed."
+    )
+    
+    # TODO try 3 separate predicates, see how they work
+    # TODO change name -> container empty
+    # _ContainingWaterKnownAsTrue = VLMPredicate(
+    #     "ContainingWaterKnownAsTrue", [_container_type],
+    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains water or other experimental objects. If you don't know whether it contains water or not, answer [no]."
+    # )
+    # _ContainingWaterKnownAsFalse = VLMPredicate(
+    #     "ContainingWaterKnownAsFalse", [_container_type],
+    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container does not contain water or other experimental objects. If you don't know whether it contains water or not, answer [no]."
+    # )
+    
+    _ContainingWaterKnown = VLMPredicate(
+        "ContainingWaterKnown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains water or not. If you don't know, answer [no]."
+    )
+    _ContainingWaterUnknown = VLMPredicate(
+        "ContainingWaterUnknown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
+    )
+    _ContainingWater = VLMPredicate(
+        "ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container has water in it. If you know it doesn't have water, answer [no]."
+    )
+    
+    _InHandViewFromTop = VLMPredicate(
+        "InHandViewFromTop", [_robot_type, _movable_object_type],
+        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
+    )
+    
+    # Add these to _ALL_PREDICATES
+    # _ALL_PREDICATES.update({_DoorOpenKnownTrue, _DoorOpenKnownFalse, _ContainingWaterKnownAsTrue, _ContainingWaterKnownAsFalse, _InHandViewFromTop})
+    _ALL_PREDICATES.update({
+        _DoorOpenKnownTrue,
+        _DoorOpenKnownFalse,
+        _ContainingWaterKnown,
+        _ContainingWaterUnknown,
+        _ContainingWater,
+        _InHandViewFromTop  # TODO check why missing
+    })
+
 _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
     p
     for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
@@ -1656,7 +1711,55 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
-
+    
+    # MoveToHandViewObjectFromAbove
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {
+        LiftedAtom(_NotBlocked, [obj]),
+        LiftedAtom(_HandEmpty, [robot])
+    }
+    add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
+    del_effs = set()
+    # TODO check the ignore effs
+    ignore_effs = {_Reachable, _InHandView, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    ignore_effs = set()
+    yield STRIPSOperator("MoveToHandViewObjectFromAbove", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+    
+    # ObserveFromTop
+    robot = Variable("?robot", _robot_type)
+    cup = Variable("?cup", _container_type)  # TODO update
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, cup, surface]
+    preconds = {
+        LiftedAtom(_On, [cup, surface]),
+        LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, cup]),
+        # LiftedAtom(_ContainingWaterKnownAsTrue, [cup]),
+        # LiftedAtom(_ContainingWaterKnownAsFalse, [cup])
+        LiftedAtom(_ContainingWaterUnknown, [cup]),
+    }
+    # add_effs = {
+    #     # or determinized to _ContainingWaterKnownAsFalse
+    #     # LiftedAtom(_ContainingWaterKnownAsTrue, [cup])
+    # }
+    # NOTE: determinized effect: _ContainingWater
+    add_effs = {
+        LiftedAtom(_ContainingWaterKnown, [cup]),
+        LiftedAtom(_ContainingWater, [cup])
+        # TODO add not containing water
+    }
+    del_effs = {
+        LiftedAtom(_ContainingWaterUnknown, [cup])
+    }
+    # TODO check ignore effs
+    ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs, del_effs, ignore_effs)
+    
     # MoveToBodyViewObject
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
