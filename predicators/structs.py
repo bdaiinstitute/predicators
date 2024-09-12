@@ -489,15 +489,15 @@ class Task:
         for atom in self.goal:
             assert isinstance(atom, GroundAtom)
 
-    def goal_holds(self, state: State, vlm: Optional[Any] = None) -> bool:
+    def goal_holds(self, curr_state: State, vlm: Optional[Any] = None, state_history: List[State] = []) -> bool:
         """Return whether the goal of this task holds in the given state."""
         from predicators.utils import query_vlm_for_atom_vals
         vlm_atoms = set(atom for atom in self.goal if isinstance(atom.predicate, VLMPredicate))
         for atom in self.goal:
             if atom not in vlm_atoms:
-                if not atom.holds(state):
+                if not atom.holds(curr_state):
                     return False
-        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, curr_state, vlm)
         return len(true_vlm_atoms) == len(vlm_atoms)
 
     def replace_goal_with_alt_goal(self) -> Task:

@@ -17,6 +17,7 @@ from gym.spaces import Box
 
 from predicators import utils
 from predicators.approaches import BaseApproach, BaseApproachWrapper
+from predicators.approaches.bilevel_planning_approach import BilevelPlanningApproach
 from predicators.envs.spot_env import get_detection_id_for_object, get_robot
 from predicators.spot_utils.skills.spot_find_objects import find_objects
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
@@ -54,6 +55,11 @@ class SpotWrapperApproach(BaseApproachWrapper):
 
         def _policy(state: State) -> Action:
             nonlocal base_approach_policy, need_stow
+
+            approach_state_history = []
+            if isinstance(self._base_approach, BilevelPlanningApproach):
+                approach_state_history = list(self._base_approach._state_history)
+
             # If we think that we're done, return the done action.
             if task.goal_holds(state, self._vlm):
                 extra_info = SpotActionExtraInfo("done", [], None, tuple(),

@@ -2497,7 +2497,8 @@ def parse_model_output_into_option_plan(
 def query_vlm_for_atom_vals(
         vlm_atoms: Collection[GroundAtom],
         state: State,
-        vlm: Optional[VisionLanguageModel] = None) -> Set[GroundAtom]:
+        vlm: Optional[VisionLanguageModel] = None,
+        state_history: List[State] = []) -> Set[GroundAtom]:
     """Given a set of ground atoms, queries a VLM and gets the subset of these
     atoms that are true."""
     true_atoms: Set[GroundAtom] = set()
