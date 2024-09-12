@@ -31,5 +31,7 @@ sas_plan
 side-state-view.png
 top-down-state-view.png
 
-# Jetbrains IDEs
+# IDEs
 .idea/
+.vscode/launch.json
+.run
