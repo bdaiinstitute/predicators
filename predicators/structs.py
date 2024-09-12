@@ -120,7 +120,7 @@ class State:
 
     # Store additional fields for VLM predicate classifiers
     # NOTE: adding in Spot subclass doesn't work; may need fix
-    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool or None]] = None
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None
     vlm_predicates: Optional[Collection[Predicate]] = None
     visible_objects: Optional[Any] = None
     # This is directly copied from the images in raw Observation
