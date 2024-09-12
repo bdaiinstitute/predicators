@@ -319,6 +319,10 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_brush_shelf_env",
             "lis_spot_block_floor_env",
             "lis_spot_block_bowl_env",
+            "lis_spot_block_in_box_env",
+            "lis_spot_table_cup_in_box_env",
+            "lis_spot_block_table_to_bowl_env",
+            "lis_spot_empty_cup_box_env",
         }
 
     @staticmethod
