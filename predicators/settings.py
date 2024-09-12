@@ -469,6 +469,12 @@ class GlobalSettings:
     # observed states match (at the abstract level) the expected states, and
     # replan if not. But for now, we just execute each step without checking.
     bilevel_plan_without_sim = False
+    # The below number indicates how many previously-encountered states will be
+    # used to label an image at test time. If it's 0, then we only use the current state
+    # otherwise, we use several past states.
+    # If you want to make sure that all previously-encountered states will be used,
+    # then just set this number extremely high (e.g. 1000000000000).
+    state_history_for_test_time_labelling_size = 0
 
     # evaluation parameters
     log_dir = "logs"

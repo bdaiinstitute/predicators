@@ -5,7 +5,8 @@ then Execution.
 """
 import abc
 import logging
-from typing import Any, Callable, List, Optional, Set, Tuple
+from typing import Any, Callable, List, Optional, Set, Tuple, Deque
+import collections
 
 from gym.spaces import Box
 
@@ -51,6 +52,7 @@ class BilevelPlanningApproach(BaseApproach):
         self._last_plan: List[_Option] = []  # used if plan WITH sim
         self._last_nsrt_plan: List[_GroundNSRT] = []  # plan WITHOUT sim
         self._last_atoms_seq: List[Set[GroundAtom]] = []  # plan WITHOUT sim
+        self._state_history: Deque[State] = collections.deque(maxlen=CFG.state_history_for_test_time_labelling_size)  # plan WITHOUT sim
 
     def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
         self._num_calls += 1
@@ -89,6 +91,9 @@ class BilevelPlanningApproach(BaseApproach):
 
         def _policy(s: State) -> Action:
             try:
+                if CFG.use_state_history_for_labelling:
+                    assert self._plan_without_sim
+                    self._state_history.append(s)
                 return policy(s)
             except utils.OptionExecutionFailure as e:
                 raise ApproachFailure(e.args[0], e.info)
