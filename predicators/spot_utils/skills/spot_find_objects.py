@@ -245,7 +245,7 @@ def find_objects(
         prompt = ("Hit 'c' to have the robot try to find the object "
                   "by moving to a random pose, or "
                   "take control of the robot and make the object "
-                  "become in its view. Hit the 'Enter' key when you're done!")
+                  "become in its view. Hit the 'Enter' key when you're done!\n")
         user_pref = input(prompt)
         lease_client.take()
         if user_pref == "c":
