@@ -3372,6 +3372,8 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
+            # TODO temp add this
+            # "MoveToHandViewObjectFromAbove",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3390,9 +3392,30 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
         detection_id_to_obj[red_block_detection] = red_block
 
         green_bowl = Object("green_bowl", _container_type)
+        # green_bowl_detection = LanguageObjectDetectionID(
+        #     "green bowl/greenish bowl")
+        # TODO test
         green_bowl_detection = LanguageObjectDetectionID(
-            "green bowl/greenish bowl")
+            "cardboard box/brown box")
         detection_id_to_obj[green_bowl_detection] = green_bowl
+        
+        # # TODO temp test new object sets
+        # green_bowl = Object("green_bowl", _container_type)
+        # green_bowl_detection = LanguageObjectDetectionID(
+        #     "green bowl/greenish bowl")
+        # detection_id_to_obj[green_bowl_detection] = green_bowl
+
+        # Case 1: Mug facing up with no lid
+        # To try more cases below
+        # orange_mug = Object("orange_mug", _movable_object_type)
+        # orange_mug_detection = LanguageObjectDetectionID("orange mug/orange cup/uncovered orange mug")
+        # detection_id_to_obj[orange_mug_detection] = orange_mug
+
+        # TODO just use different prompt - for debugging
+        # red_block = Object("red_block", _movable_object_type)
+        # red_block_detection = LanguageObjectDetectionID(
+        #     "orange mug/orange cup/uncovered orange mug")
+        # detection_id_to_obj[red_block_detection] = red_block
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
@@ -3406,3 +3429,297 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
+    
+    
+class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
+    """An environment where a red block needs to be moved into a cardboard box."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+            # NOTE: add new:
+            "MoveToHandViewObjectFromAbove",
+            "ObserveFromTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_block_in_box_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        # red_block = Object("red_block", _movable_object_type)
+        # # red_block_detection = LanguageObjectDetectionID("red block/orange block/yellow block")
+        # # TODO debug test
+        # # red_block_detection = LanguageObjectDetectionID("blue cup/blue mug/uncovered blue cup")
+        # # TODO debug test
+        # red_block_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
+        # detection_id_to_obj[red_block_detection] = red_block
+        
+        # TODO debug just hack to be cup
+        # cup = Object("cup", _movable_object_type)
+        cup = Object("cup", _container_type)
+        # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
+        # cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
+        # TODO test
+        # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
+        # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")
+        # cup_detection = LanguageObjectDetectionID("green cup/greenish cup")
+        cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
+        detection_id_to_obj[cup_detection] = cup
+
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        # return "put the red block into the cardboard box on floor"
+        # return "view the object from top"
+        # return "know container not as empty"
+        # TODO temp
+        return "put the cup into the cardboard box on floor"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+    
+    
+class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
+    """An environment where a cup on a table needs to be moved into a cardboard box."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+            # NOTE: add new:
+            "MoveToHandViewObjectFromAbove",
+            "ObserveFromTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_table_cup_in_box_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        
+        wooden_table = Object("wooden_table", _immovable_object_type)
+        wooden_table_detection = AprilTagObjectDetectionID(32)
+        detection_id_to_obj[wooden_table_detection] = wooden_table
+
+        cup = Object("cup", _container_type)
+        # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
+        # cup_detection = LanguageObjectDetectionID("blue cup/blue cylinder/blue box")
+        # TODO debug, use both
+        cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
+        detection_id_to_obj[cup_detection] = cup
+
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the cup into the cardboard box on floor"
+        
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+
+class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
+    """An environment where a block needs to be moved from a table into a bowl."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_block_table_to_bowl_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        wooden_table = Object("wooden_table", _immovable_object_type)
+        wooden_table_detection = AprilTagObjectDetectionID(32)
+        detection_id_to_obj[wooden_table_detection] = wooden_table
+
+        red_block = Object("red_block", _movable_object_type)
+        red_block_detection = LanguageObjectDetectionID("red block/orange block/yellow block")
+        detection_id_to_obj[red_block_detection] = red_block
+
+        green_bowl = Object("green_bowl", _container_type)
+        green_bowl_detection = LanguageObjectDetectionID("green bowl")
+        detection_id_to_obj[green_bowl_detection] = green_bowl
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the red block on table into the green bowl on floor"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
+    """An environment designated for testing belief space predicates.
+    
+    The goal is to move a single empty cup on the floor to a cardboard box
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            # "MoveToHandViewObjectFromAbove",  # TODO causing issue?
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_empty_cup_box_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID(
+            "cardboard box/box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+
+        # Case 1: Cup facing up with no lid
+        # To try more cases below
+        blue_cup = Object("blue_cup", _movable_object_type)
+        blue_cup_detection = LanguageObjectDetectionID("blue cup/blue mug/uncovered blue cup")
+        detection_id_to_obj[blue_cup_detection] = blue_cup
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+    
+    
+
+# class LISSpotRemoveOneEmptyCupEnv(SpotRearrangementEnv):
+#     """An environment designated for testing belief space predicates.
+    
+#     The goal is to grasp a single empty cup in the given objects
+#     """
+
+#     def __init__(self, use_gui: bool = True) -> None:
+#         super().__init__(use_gui)
+
+#         op_to_name = {o.name: o for o in _create_operators()}
+#         op_names_to_keep = {
+#             "MoveToReachObject",
+#             "MoveToHandViewObject",
+#             "PickObjectFromTop",
+#             "PlaceObjectOnTop",
+#         }
+#         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+#     @classmethod
+#     def get_name(cls) -> str:
+#         return "lis_spot_grasp_empty_bottles"
+
+#     @property
+#     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+#         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+#         # NOTE Multiple types of containers with/without water
+#         # 1, Transparent container, such as plastic bottle
+#         # It's possible to directly tell whether there is water
+#         # 2, Non-transparent container, such as mug
+#         # Case 1: mug facing up with no lid
+#         # Case 2: mug facing down
+#         # Case 3: mug facing up with a (removable) lid
+        
+#         # 1. Transparent container (plastic bottle)
+#         plastic_bottle = Object("plastic_bottle", _movable_object_type)
+#         plastic_bottle_detection = LanguageObjectDetectionID("plastic bottle/water bottle/transparent bottle")
+#         detection_id_to_obj[plastic_bottle_detection] = plastic_bottle
+
+#         # 2. Non-transparent containers (mugs)
+#         # Case 1: Mug facing up with no lid
+#         open_mug = Object("open_mug", _movable_object_type)
+#         open_mug_detection = LanguageObjectDetectionID("open mug/upright mug/uncovered mug")
+#         detection_id_to_obj[open_mug_detection] = open_mug
+
+#         # Case 2: Mug facing down
+#         inverted_mug = Object("inverted_mug", _movable_object_type)
+#         inverted_mug_detection = LanguageObjectDetectionID("inverted mug/upside-down mug/face-down mug")
+#         detection_id_to_obj[inverted_mug_detection] = inverted_mug
+
+#         # Case 3: Mug facing up with a (removable) lid
+#         lidded_mug = Object("lidded_mug", _movable_object_type)
+#         lidded_mug_detection = LanguageObjectDetectionID("lidded mug/covered mug/mug with lid")
+#         detection_id_to_obj[lidded_mug_detection] = lidded_mug
+
+#         # Additional object: Lid (as it's removable)
+#         mug_lid = Object("mug_lid", _movable_object_type)
+#         mug_lid_detection = LanguageObjectDetectionID("mug lid/cup lid/coffee lid")
+#         detection_id_to_obj[mug_lid_detection] = mug_lid
+
+#         for obj, pose in get_known_immovable_objects().items():
+#             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+#             detection_id_to_obj[detection_id] = obj
+
+#         return detection_id_to_obj
