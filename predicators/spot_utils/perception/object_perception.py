@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from typing import Dict, List, Optional, Sequence, Set
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import PIL.Image
 
@@ -139,6 +140,7 @@ def vlm_predicate_batch_query(
     queries: List[str],
     images: Dict[str, RGBDImageWithContext],
     predicate_prompts: Optional[List[str]] = None,
+    num_runs: int = 3
 ) -> List[bool]:
     """Use queries generated from VLM predicates to evaluate them via VLM in
     batch.
@@ -146,6 +148,45 @@ def vlm_predicate_batch_query(
     The VLM takes a list of queries and images in current observation to
     evaluate them.
     """
+
+    def query_vlm(full_prompt, image_list):
+        while True:
+            vlm_responses = vlm.sample_completions(
+                prompt=full_prompt,
+                imgs=image_list,
+                temperature=0.1,
+                seed=int(time.time()),
+                num_completions=1,
+            )
+            logging.info(f"VLM response 0: {vlm_responses[0]}")
+
+            # Parse the responses
+            responses = vlm_responses[0].strip().split('\n')
+            if len(responses) != len(queries):
+                logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
+                print(f"VLM responses: {vlm_responses[0]}")
+                continue
+
+            results = []
+            retry = False
+            for i, r in enumerate(responses):
+                if any(x in r for x in ['Yes', 'No']):
+                    if 'Yes' in r:
+                        results.append(True)
+                    elif 'No' in r:
+                        results.append(False)
+                else:
+                    logging.warning(f"Invalid response in line {i}: {r}. Retrying...")
+                    retry = True
+                    break
+
+            if not retry:
+                return results
+
+    # Ensure num_runs is at least 3
+    if num_runs < 3:
+        logging.info(f"Number of runs is less than 3 ({num_runs}). Setting it to 3.")
+        num_runs = 3
 
     # Assemble the full prompt
     numbered_queries = [f"{i+1}. {query}" for i, query in enumerate(queries)]
@@ -162,43 +203,20 @@ def vlm_predicate_batch_query(
     if CFG.vlm_eval_verbose:
         logging.info(f"Prompt: {full_prompt}")
     else:
-        logging.debug(f"Prompt: {full_prompt}")        
+        logging.debug(f"Prompt: {full_prompt}")
 
-    while True:
-        vlm_responses = vlm.sample_completions(
-            prompt=full_prompt,
-            imgs=image_list,
-            temperature=0.1,
-            seed=int(time.time()),
-            num_completions=1,
-        )
-        logging.info(f"VLM response 0: {vlm_responses[0]}")
+    # Run the queries in parallel
+    with ThreadPoolExecutor(max_workers=num_runs) as executor:
+        futures = [executor.submit(query_vlm, full_prompt, image_list) for _ in range(num_runs)]
+        results = [future.result() for future in as_completed(futures)]
 
-        # Parse the responses
-        responses = vlm_responses[0].strip().split('\n')
-        if len(responses) != len(queries):
-            logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
-            print(f"VLM responses: {vlm_responses[0]}")
-            continue
+    # Apply voting mechanism
+    final_results = []
+    for i in range(len(queries)):
+        votes = [result[i] for result in results]
+        final_results.append(votes.count(True) > votes.count(False))
 
-        results = []
-        retry = False
-        for i, r in enumerate(responses):
-            if any(x in r for x in ['Yes', 'No']):
-                if 'Yes' in r:
-                    results.append(True)
-                elif 'No' in r:
-                    results.append(False)
-            else:
-                logging.warning(f"Invalid response in line {i}: {r}. Retrying...")
-                retry = True
-                break
-
-        if not retry:
-            # If no invalid responses, break the while loop
-            break
-
-    return results
+    return final_results
 
 
 def vlm_predicate_batch_classify(
@@ -221,7 +239,7 @@ def vlm_predicate_batch_classify(
     queries_print = [
         atom.get_query_str(include_prompt=False) for atom in atoms
     ]
-    logging.info(f"VLM predicate evaluation queries: {queries_print}")
+    logging.debug(f"VLM predicate evaluation queries: {queries_print}")
 
     # Call VLM to evaluate the queries
     results = vlm_predicate_batch_query(queries, images, predicate_prompts)
