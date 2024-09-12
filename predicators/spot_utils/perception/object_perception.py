@@ -74,6 +74,7 @@ Do these predicates hold in the following images?
 6. On(apple:object, bowl:container)
 7. EmptyKnownTrue(bowl:container)
 8. EmptyKnownFalse(bowl:container)
+9. Inside(bowl:container, bowl:container)
 
 Answer (in a single word Yes/No for each question):
 1. Yes
@@ -84,6 +85,7 @@ Answer (in a single word Yes/No for each question):
 6. Yes
 7. Yes
 8. No
+9. No
 
 Actual questions (separated by line or newline character):
 Do these predicates hold in the following images?
