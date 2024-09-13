@@ -526,7 +526,7 @@ def _move_to_hand_view_object_policy(state: State, memory: Dict,
 def _move_to_hand_view_object_from_above_policy(state: State, memory: Dict,
                                                 objects: Sequence[Object],
                                                 params: Array) -> Action:
-    name = "MoveToHandViewObjectFromAbove"
+    name = "MoveToHandObserveObjectFromTop"
     distance_param_idx = 0
     yaw_param_idx = 1
     robot_obj_idx = 0
@@ -939,7 +939,7 @@ def _observe_from_top_policy(state: State, memory: Dict,
 _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReachObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
-    "MoveToHandViewObjectFromAbove": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandObserveObjectFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
@@ -971,7 +971,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
-    "MoveToHandViewObjectFromAbove": _move_to_hand_view_object_from_above_policy,
+    "MoveToHandObserveObjectFromTop": _move_to_hand_view_object_from_above_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PickObjectToDrag": _pick_object_to_drag_policy,
