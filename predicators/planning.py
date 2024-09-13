@@ -326,6 +326,8 @@ def task_plan(
         logging.info(f"Initial atoms: {init_atoms}")
         logging.info(
             f"Reachable atoms not in init: {reachable_atoms - init_atoms}")
+        logging.info(f"Unreachable goal atoms: {goal - reachable_atoms}")
+        logging.info("Ground NSRTs:\n" + "\n".join(f"{i}.\n {nsrt}" for i, nsrt in enumerate(ground_nsrts, start=1)))
         raise PlanningFailure(f"Goal {goal} not dr-reachable")
     dummy_task = Task(DefaultState, goal)
     metrics: Metrics = defaultdict(float)
