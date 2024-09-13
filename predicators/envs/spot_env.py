@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
-import threading
+import multiprocessing as mp
 
 import matplotlib
 import numpy as np
@@ -92,7 +92,7 @@ class _SpotObservation:
     nonpercept_atoms: Set[GroundAtom]
     nonpercept_predicates: Set[Predicate]
     # VLM predicates and ground atoms
-    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool or None]] = None
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None
     vlm_predicates: Optional[Set[VLMPredicate]] = None
 
 
@@ -662,8 +662,10 @@ class SpotRearrangementEnv(BaseEnv):
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
             hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
-            threading.Thread(target=visualize_all_artifacts, args=(all_artifacts, detections_outfile, no_detections_outfile)).start()
-            threading.Thread(target=visualize_all_artifacts, args=(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile)).start()
+            p1 = mp.Process(target=visualize_all_artifacts, args=(all_artifacts, detections_outfile, no_detections_outfile))
+            p2 = mp.Process(target=visualize_all_artifacts, args=(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile))
+            p1.start()
+            p2.start()
 
         # Also, get detections that every camera except the back camera can
         # see. This is important for our 'InView' predicate.
@@ -1651,7 +1653,6 @@ if tmp_vlm_flag:
         "NotContainingWater", [_container_type],
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
     )
-    _ALL_PREDICATES.add(_NotContainingWater)
     
     _InHandViewFromTop = VLMPredicate(
         "InHandViewFromTop", [_robot_type, _movable_object_type],
@@ -1717,7 +1718,8 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
     del_effs = set()
     # TODO check the ignore effs
-    ignore_effs = {_Reachable, _InHandView, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     ignore_effs = set()
     yield STRIPSOperator("MoveToHandViewObjectFromAbove", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
@@ -1732,19 +1734,15 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_NotHolding, [robot, cup]),
-        # LiftedAtom(_ContainingWaterKnownAsTrue, [cup]),
-        # LiftedAtom(_ContainingWaterKnownAsFalse, [cup])
         LiftedAtom(_ContainingWaterUnknown, [cup]),
     }
-    # add_effs = {
-    #     # or determinized to _ContainingWaterKnownAsFalse
-    #     # LiftedAtom(_ContainingWaterKnownAsTrue, [cup])
-    # }
-    # NOTE: determinized effect: _ContainingWater
+    # NOTE: Determinized effect: both Containing and NotContaining
+    # The belief state will be updated after execution
     add_effs = {
         LiftedAtom(_ContainingWaterKnown, [cup]),
-        LiftedAtom(_ContainingWater, [cup])
+        LiftedAtom(_ContainingWater, [cup]),
         # TODO add not containing water
+        LiftedAtom(_NotContainingWater, [cup])
     }
     del_effs = {
         LiftedAtom(_ContainingWaterUnknown, [cup])
@@ -3434,7 +3432,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            # "MoveToHandViewObject",  # TODO already have new version; removing cause NOT dr-reachable; to check
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -3505,7 +3503,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            # "MoveToHandViewObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
