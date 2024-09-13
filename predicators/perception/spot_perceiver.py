@@ -567,7 +567,6 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingWater, [cup]),
             }
         if goal_description == "place empty cup into the box":
-            # TODO
             cup = Object("cup", _container_type)
             cardboard_box = Object("cardboard_box", _container_type)
             ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]

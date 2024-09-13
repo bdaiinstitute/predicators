@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
+import threading
 
 import matplotlib
 import numpy as np
@@ -646,14 +647,6 @@ class SpotRearrangementEnv(BaseEnv):
         all_detections, all_artifacts = detect_objects(
             all_object_detection_ids, rgbds, self._allowed_regions)
 
-        if CFG.spot_render_perception_outputs:
-            outdir = Path(CFG.spot_perception_outdir)
-            time_str = time.strftime("%Y%m%d-%H%M%S")
-            detections_outfile = outdir / f"detections_{time_str}.png"
-            no_detections_outfile = outdir / f"no_detections_{time_str}.png"
-            visualize_all_artifacts(all_artifacts, detections_outfile,
-                                    no_detections_outfile)
-
         # Separately, get detections for the hand in particular.
         hand_rgbd = {
             k: v
@@ -663,10 +656,14 @@ class SpotRearrangementEnv(BaseEnv):
             all_object_detection_ids, hand_rgbd, self._allowed_regions)
 
         if CFG.spot_render_perception_outputs:
-            detections_outfile = outdir / f"hand_detections_{time_str}.png"
-            no_detect_outfile = outdir / f"hand_no_detections_{time_str}.png"
-            visualize_all_artifacts(hand_artifacts, detections_outfile,
-                                    no_detect_outfile)
+            outdir = Path(CFG.spot_perception_outdir)
+            time_str = time.strftime("%Y%m%d-%H%M%S")
+            detections_outfile = outdir / f"detections_{time_str}.png"
+            no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+            hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
+            hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
+            threading.Thread(target=visualize_all_artifacts, args=(all_artifacts, detections_outfile, no_detections_outfile)).start()
+            threading.Thread(target=visualize_all_artifacts, args=(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile)).start()
 
         # Also, get detections that every camera except the back camera can
         # see. This is important for our 'InView' predicate.
