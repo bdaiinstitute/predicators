@@ -44,6 +44,9 @@ from typing import List, Optional, Sequence, Set, Tuple
 from typing import Type as TypingType
 
 import dill as pkl
+import matplotlib
+# NOTE: using non-interactive backend for compatibility issue
+matplotlib.use('Agg')
 
 from predicators import utils
 from predicators.approaches import ApproachFailure, ApproachTimeout, \
