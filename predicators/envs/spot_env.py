@@ -754,8 +754,12 @@ class SpotRearrangementEnv(BaseEnv):
         # Prepare the VLM predicates and ground atoms
         if CFG.spot_vlm_eval_predicate:
             vlm_predicates = _VLM_CLASSIFIER_PREDICATES
+            
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
+            # NOTE: Also have the special robot object for robot-related predicates
+            objects.append(self._spot_object)
+            
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_new: Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom] = vlm_predicate_batch_classify(
                                    vlm_atoms,
@@ -3459,8 +3463,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # red_block_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
         # detection_id_to_obj[red_block_detection] = red_block
         
-        # TODO debug just hack to be cup
-        # cup = Object("cup", _movable_object_type)
+        # NOTE: we view cup as container; 
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
         cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
@@ -3485,7 +3488,6 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # return "put the red block into the cardboard box on floor"
         # return "view the object from top"
         # return "know container not as empty"
-        # TODO temp
         # return "put the cup into the cardboard box on floor"
         return "place empty cup into the box"
 
@@ -3529,7 +3531,6 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
         # cup_detection = LanguageObjectDetectionID("blue cup/blue cylinder/blue box")
-        # TODO debug, use both
         cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
         detection_id_to_obj[cup_detection] = cup
 

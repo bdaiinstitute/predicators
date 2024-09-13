@@ -75,6 +75,9 @@ def _find_objects_with_choreographed_moves(
                                            allowed_regions=allowed_regions)
     all_detections.update(detections)
     all_artifacts.update(artifacts)
+    
+    # NOTE: For hardcode robot object
+    from predicators.spot_utils.utils import _robot_type
 
     for i, relative_pose in enumerate(relative_base_moves):
         remaining_object_ids = set(object_ids) - set(all_detections)
@@ -86,7 +89,12 @@ def _find_objects_with_choreographed_moves(
         # Now we query all detected objects in all past views.
         if CFG.spot_vlm_eval_predicate and len(all_detections) > 0 and vlm_predicates and len(vlm_predicates) > 0:
             assert id2object is not None
+            # NOTE: Get all objects; hardcode Spot robot object here
             objects = [id2object[id_] for id_ in all_detections]
+            # Create constant robot object
+            _robot_object = Object("robot", _robot_type)
+            objects.append(_robot_object)
+            
             vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
             vlm_atom_dict = vlm_predicate_batch_classify(
                 vlm_atoms, rgbds, predicates=vlm_predicates, get_dict=True)
