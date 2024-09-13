@@ -547,19 +547,9 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(InHandViewFromTop, [robot, object_to_view]),
             }
-        # if goal_description == "know container not as empty":
-        #     container = Object("container", _container_type)
-        #     ContainingWaterKnownAsTrue = pred_name_to_pred["ContainingWaterKnownAsTrue"]
-        #     return {
-        #         GroundAtom(ContainingWaterKnownAsTrue, [container]),
-        #     }
         if goal_description == "know container not as empty":
             # container = Object("container", _container_type)
             cup = Object("cup", _container_type)
-            # ContainingWaterKnownAsTrue = pred_name_to_pred["ContainingWaterKnownAsTrue"]
-            # return {
-            #     GroundAtom(ContainingWaterKnownAsTrue, [container]),
-            # }
             ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
             ContainingWater = pred_name_to_pred["ContainingWater"]
             return {
