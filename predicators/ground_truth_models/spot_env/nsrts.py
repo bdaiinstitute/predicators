@@ -98,16 +98,16 @@ def _move_to_hand_view_object_from_top_sampler(state: State, goal: Set[GroundAto
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 0.5
-    max_dist = 0.8
+    min_dist = 1.2
+    max_dist = 1.8
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
     # TODO NOTE: Ensure the angle is set to view from the top
-    # TODO look into the code
-    min_angle, max_angle = -np.pi / 2, np.pi / 2
     # min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
+    # min_angle, max_angle = 0.8 * np.pi, np.pi
+    min_angle, max_angle = -0.2 * np.pi, 0.2 * np.pi
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
