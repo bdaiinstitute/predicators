@@ -119,14 +119,14 @@ def _find_objects_with_choreographed_moves(
         all_artifacts.update(artifacts)
 
     # Logging
-    print(f"Calculated VLM atoms (in all views): {dict(all_vlm_atom_dict)}")
+    print(f"Calculated VLM atoms (in all views): {dict(sorted(all_vlm_atom_dict.items()))}")
     print(f"True VLM atoms (in all views; with values as True): "
-          f"{dict(filter(lambda it: it[1], all_vlm_atom_dict.items()))}")
+          f"{dict(sorted(filter(lambda it: it[1], all_vlm_atom_dict.items())))}")
 
     table = Table(title="Evaluated VLM atoms (in all views)")
     table.add_column("Atom", style="cyan")
     table.add_column("Value", style="magenta")
-    for atom, result in all_vlm_atom_dict.items():
+    for atom, result in sorted(all_vlm_atom_dict.items(), key=lambda item: str(item[0])):
         table.add_row(str(atom), str(result))
     print(table)
 
