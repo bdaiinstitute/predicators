@@ -596,7 +596,7 @@ class SpotRearrangementEnv(BaseEnv):
                     prompt = (
                         "Hit 'c' to have the robot do a random movement "
                         "or take control and move the robot accordingly. "
-                        "Hit the 'Enter' key when you're done!")
+                        "Hit the 'Enter' key when you're done!\n")
                     user_pref = input(prompt)
                     assert self._lease_client is not None
                     self._lease_client.take()
@@ -772,24 +772,25 @@ class SpotRearrangementEnv(BaseEnv):
                 if result is not None:
                     vlm_atom_return[atom] = result
 
-            # Logging
+            # Logging in Rich table
             # logging.info(f"Calculated VLM atoms (in current obs): {dict(vlm_atom_new)}")
-            # use Rich to print as table!
             table = Table(title="Evaluated VLM atoms (in current obs)")
             table.add_column("Atom", style="cyan")
             table.add_column("Value", style="magenta")
-            for atom, result in vlm_atom_new.items():
-                table.add_row(str(atom), str(result))
+            # Sort the atoms via key str for ordered printing
+            for atom in sorted(vlm_atom_new.keys(), key=str):
+                table.add_row(str(atom), str(vlm_atom_new[atom]))
             logging.info(log_rich_table(table))
 
-            # Add table to show value in vlm_atom_new and vlm_atom_return to highlight how they change?
+            # Use Rich table to highlight how they change
             table_compare = Table(title="VLM atoms comparison")
             table_compare.add_column("Atom", style="cyan")
             table_compare.add_column("Value (Last)", style="blue")
             table_compare.add_column("Value (New)", style="magenta")
             vlm_atom_union = set(vlm_atom_new.keys()) | set(
                 curr_obs.vlm_atom_dict.keys())
-            for atom in vlm_atom_union:
+            # Sort the atoms via key str for ordered printing
+            for atom in sorted(vlm_atom_union, key=str):
                 table_compare.add_row(
                     str(atom), str(curr_obs.vlm_atom_dict.get(atom, None)),
                     str(vlm_atom_new.get(atom, None)))
@@ -1566,7 +1567,7 @@ if tmp_vlm_flag:
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
         prompt=
-        "This typically describes an object inside a container (so it's overlapping), and it's in conflict with the object being on a surface. Please check the image and confirm the object is inside the container."
+        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
     )
     _FakeInside = VLMPredicate(
         _Inside.name,
@@ -1634,17 +1635,9 @@ if tmp_vlm_flag:
         prompt="This predicate is true if you believe the door is closed."
     )
     
-    # TODO try 3 separate predicates, see how they work
-    # TODO change name -> container empty
-    # _ContainingWaterKnownAsTrue = VLMPredicate(
-    #     "ContainingWaterKnownAsTrue", [_container_type],
-    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains water or other experimental objects. If you don't know whether it contains water or not, answer [no]."
-    # )
-    # _ContainingWaterKnownAsFalse = VLMPredicate(
-    #     "ContainingWaterKnownAsFalse", [_container_type],
-    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container does not contain water or other experimental objects. If you don't know whether it contains water or not, answer [no]."
-    # )
-    
+
+    # NOTE: How to express the belief-space 3-value predicate using state-space binary predicate is tricky, because the system doesn't support NOT (negation) or OR (disjunction). Thus, it couldn't do "NotKnownAsTrue OR NotKnownAsFalse".
+    # E.g,. _ContainingWaterKnownAsTrue won't work.
     _ContainingWaterKnown = VLMPredicate(
         "ContainingWaterKnown", [_container_type],
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains water or not. If you don't know, answer [no]."
@@ -1657,20 +1650,24 @@ if tmp_vlm_flag:
         "ContainingWater", [_container_type],
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container has water in it. If you know it doesn't have water, answer [no]."
     )
+    _NotContainingWater = VLMPredicate(
+        "NotContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
+    )
+    _ALL_PREDICATES.add(_NotContainingWater)
     
     _InHandViewFromTop = VLMPredicate(
         "InHandViewFromTop", [_robot_type, _movable_object_type],
         prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
     )
     
-    # Add these to _ALL_PREDICATES
-    # _ALL_PREDICATES.update({_DoorOpenKnownTrue, _DoorOpenKnownFalse, _ContainingWaterKnownAsTrue, _ContainingWaterKnownAsFalse, _InHandViewFromTop})
     _ALL_PREDICATES.update({
         _DoorOpenKnownTrue,
         _DoorOpenKnownFalse,
         _ContainingWaterKnown,
         _ContainingWaterUnknown,
         _ContainingWater,
+        _NotContainingWater,
         _InHandViewFromTop  # TODO check why missing
     })
 
@@ -3471,12 +3468,12 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # cup = Object("cup", _movable_object_type)
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        # cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
+        cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
         # TODO test
         # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
         # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")
         # cup_detection = LanguageObjectDetectionID("green cup/greenish cup")
-        cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
+        # cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
         detection_id_to_obj[cup_detection] = cup
 
         cardboard_box = Object("cardboard_box", _container_type)
@@ -3494,7 +3491,8 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # return "view the object from top"
         # return "know container not as empty"
         # TODO temp
-        return "put the cup into the cardboard box on floor"
+        # return "put the cup into the cardboard box on floor"
+        return "place empty cup into the box"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
