@@ -571,26 +571,27 @@ class SpotRearrangementEnv(BaseEnv):
                                     f"was encountered. Trying again.\n{e}")
 
             # Very hacky optimization to force viewing/reaching to work.
-            if action_name in [
-                    "MoveToHandViewObject", "MoveToBodyViewObject",
-                    "MoveToReachObject"
-            ]:
+            # NOTE: enter the check if "move to" "object"; make sure op names in such pattern are always needed to check
+            if "MoveTo" in action_name and "Object" in action_name:
+                logging.warning(f"Entering object detection check with action_name: {action_name}")
                 _, target_obj = action_objs
                 # Retry if each of the types of moving failed in their own way.
-                if action_name == "MoveToHandViewObject":
+                if action_name == "MoveToHandViewObject" or "Hand" in action_name:
                     need_retry = target_obj not in \
                         next_obs.objects_in_hand_view
                 elif action_name == "MoveToBodyViewObject":
                     need_retry = target_obj not in \
                         next_obs.objects_in_any_view_except_back
-                else:
-                    assert action_name == "MoveToReachObject"
+                elif action_name == "MoveToReachObject":
                     obj_pose = self._last_known_object_poses[target_obj]
                     obj_position = math_helpers.Vec3(x=obj_pose.x,
                                                      y=obj_pose.y,
                                                      z=obj_pose.z)
                     need_retry = not _obj_reachable_from_spot_pose(
                         next_obs.robot_pos, obj_position)
+                else:
+                    need_retry = False
+                    logging.info(f"WARNING: object detection check not implemented for this action: {action_name}")
                 if need_retry:
                     logging.warning(f"WARNING: retrying {action_name} because "
                                     f"{target_obj} was not seen/reached.")
@@ -1711,7 +1712,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
     
-    # MoveToHandViewObjectFromAbove
+    # MoveToHandObserveObjectFromTop
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
@@ -1719,13 +1720,19 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_NotBlocked, [obj]),
         LiftedAtom(_HandEmpty, [robot])
     }
-    add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
+    add_effs = {
+        # NOTE: 
+        LiftedAtom(_InHandViewFromTop, [robot, obj]),
+        # NOTE: This is precondition for pick, so necessary
+        # This can be viewed as derived from InHandViewFromTop
+        LiftedAtom(_InHandView, [robot, obj]),
+    }
     del_effs = set()
     # TODO check the ignore effs
-    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
-    ignore_effs = set()
-    yield STRIPSOperator("MoveToHandViewObjectFromAbove", parameters, preconds,
+    ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    # ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+    # ignore_effs = set()
+    yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
     
     # ObserveFromTop
@@ -3369,7 +3376,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
             "PlaceObjectOnTop",
             "DropObjectInside",
             # TODO temp add this
-            # "MoveToHandViewObjectFromAbove",
+            # "MoveToHandObserveObjectFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3436,12 +3443,11 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            # "MoveToHandViewObject",  # TODO already have new version; removing cause NOT dr-reachable; to check
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
-            # NOTE: add new:
-            "MoveToHandViewObjectFromAbove",
+            # NOTE: add new; replacing "MoveToHandViewObject"
+            "MoveToHandObserveObjectFromTop",
             "ObserveFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -3510,7 +3516,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
             "PlaceObjectOnTop",
             "DropObjectInside",
             # NOTE: add new:
-            "MoveToHandViewObjectFromAbove",
+            "MoveToHandObserveObjectFromTop",
             "ObserveFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -3616,7 +3622,7 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
         op_names_to_keep = {
             "MoveToReachObject",
             "MoveToHandViewObject",
-            # "MoveToHandViewObjectFromAbove",  # TODO causing issue?
+            # "MoveToHandObserveObjectFromTop",  # TODO causing issue?
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
