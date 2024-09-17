@@ -24,13 +24,14 @@ from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
-    LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
-    visualize_all_artifacts
+    LanguageObjectDetectionID, ObjectDetectionID, _query_detic_sam2, \
+    detect_objects, visualize_all_artifacts
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     brush_prompt, bucket_prompt, football_prompt, train_toy_prompt
-from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext
-from predicators.spot_utils.perception.spot_cameras import capture_images
+from predicators.spot_utils.perception.perception_structs import RGBDImage, \
+    RGBDImageWithContext, SegmentedBoundingBox
+from predicators.spot_utils.perception.spot_cameras import capture_images, \
+    capture_images_without_context
 from predicators.spot_utils.skills.spot_find_objects import \
     init_search_for_objects
 from predicators.spot_utils.skills.spot_hand_move import \
@@ -47,7 +48,7 @@ from predicators.spot_utils.utils import _base_object_type, _container_type, \
     update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
-    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable
+    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, _Option
 
 ###############################################################################
 #                                Base Class                                   #
@@ -82,6 +83,32 @@ class _SpotObservation:
     # A placeholder until all predicates have classifiers
     nonpercept_atoms: Set[GroundAtom]
     nonpercept_predicates: Set[Predicate]
+
+
+@dataclass(frozen=True)
+class _TruncatedSpotObservation:
+    """An observation for a SpotEnv."""
+    # Camera name to image
+    rgbd_images: Dict[str, RGBDImageWithContext]
+    # Objects in the environment
+    objects_in_view: Set[Object]
+    # Objects seen only by the hand camera
+    objects_in_hand_view: Set[Object]
+    # Objects seen by any camera except the back camera
+    objects_in_any_view_except_back: Set[Object]
+    # Expose the robot object.
+    robot: Object
+    # Status of the robot gripper.
+    gripper_open_percentage: float
+    # # Robot SE3 Pose
+    # robot_pos: math_helpers.SE3Pose
+    # # Ground atoms without ground-truth classifiers
+    # # A placeholder until all predicates have classifiers
+    # nonpercept_atoms: Set[GroundAtom]
+    # nonpercept_predicates: Set[Predicate]
+    # Object detections per camera in self.rgbd_images.
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID, SegmentedBoundingBox]]]
+    executed_skill: Optional[_Option] = None
 
 
 class _PartialPerceptionState(State):
@@ -158,7 +185,23 @@ def get_robot(
                                      return_at_exit=True)
     assert path.exists()
     localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+    # localizer = None
     return robot, localizer, lease_client
+
+
+@functools.lru_cache(maxsize=None)
+def get_robot_only() -> Tuple[Optional[Robot], Optional[LeaseClient]]:
+    hostname = CFG.spot_robot_ip
+    sdk = create_standard_sdk("PredicatorsClient-")
+    robot = sdk.create_robot(hostname)
+    robot.authenticate("user", "bbbdddaaaiii")
+    verify_estop(robot)
+    lease_client = robot.ensure_client(LeaseClient.default_service_name)
+    lease_client.take()
+    lease_keepalive = LeaseKeepAlive(lease_client,
+                                     must_acquire=True,
+                                     return_at_exit=True)
+    return robot, lease_client
 
 
 @functools.lru_cache(maxsize=None)
@@ -1443,12 +1486,38 @@ _RobotReadyForSweeping = Predicate("RobotReadyForSweeping",
 _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
+
+
+def _get_vlm_query_str(pred_name: str, objects: Sequence[Object]) -> str:
+    return pred_name + "(" + ", ".join(
+        str(obj.name) for obj in objects) + ")"  # pragma: no cover
+
+
+_VLMOn = utils.create_vlm_predicate("VLMOn",
+                                    [_movable_object_type, _base_object_type],
+                                    lambda o: _get_vlm_query_str("VLMOn", o))
+_Upright = utils.create_vlm_predicate(
+    "Upright", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Upright", o))
+_Toasted = utils.create_vlm_predicate(
+    "Toasted", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Toasted", o))
+_VLMIn = utils.create_vlm_predicate(
+    "VLMIn", [_movable_object_type, _immovable_object_type],
+    lambda o: _get_vlm_query_str("In", o))
+_Open = utils.create_vlm_predicate("Open", [_movable_object_type],
+                                   lambda o: _get_vlm_query_str("Open", o))
+_Stained = utils.create_vlm_predicate(
+    "Stained", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Stained", o))
+
 _ALL_PREDICATES = {
     _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan
+    _IsSemanticallyGreaterThan, _VLMOn, _Upright, _Toasted, _VLMIn, _Open,
+    _Stained
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -2370,6 +2439,283 @@ def _dry_simulate_pick_and_dump_container(
         nonpercept_predicates=last_obs.nonpercept_predicates,
     )
     return next_obs
+
+
+###############################################################################
+#                                 VLM Test Env                                #
+###############################################################################
+class VLMTestEnv(SpotRearrangementEnv):
+    """An environment to start testing the VLM pipeline."""
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        # return set(p for p in _ALL_PREDICATES if p.name in ["VLMOn", "Holding", "HandEmpty", "Pourable", "Toasted", "VLMIn", "Open"])
+        return set(p for p in _ALL_PREDICATES
+                   if p.name in ["VLMOn", "Holding", "HandEmpty"])
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_test_env"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("No dry task for VLMTestEnv.")
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("pan", _movable_object_type),
+            Object("cup", _movable_object_type),
+            Object("chair", _movable_object_type),
+            Object("bowl", _movable_object_type),
+            Object("table", _movable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        # Pick object
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        table = Variable("?table", _movable_object_type)
+        parameters = [robot, obj, table]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, table])
+        }
+        add_effs: Set[LiftedAtom] = {LiftedAtom(_Holding, [robot, obj])}
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, table])
+        }
+        ignore_effs: Set[LiftedAtom] = set()
+        yield STRIPSOperator("Pick", parameters, preconds, add_effs, del_effs,
+                             ignore_effs)
+
+        # Place object
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        pan = Variable("?pan", _container_type)
+        parameters = [robot, obj, pan]
+        preconds: Set[LiftedAtom] = {LiftedAtom(_Holding, [robot, obj])}
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, pan])
+        }
+        del_effs: Set[LiftedAtom] = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs: Set[LiftedAtom] = set()
+        yield STRIPSOperator("Place", parameters, preconds, add_effs, del_effs,
+                             ignore_effs)
+
+    # def _generate_train_tasks(self) -> List[EnvironmentTask]:
+    #     goal = self._generate_goal_description()  # currently just one goal
+    #     return [
+    #         EnvironmentTask(None, goal) for _ in range(CFG.num_train_tasks)
+    #     ]
+
+    def _generate_test_tasks(self) -> List[EnvironmentTask]:
+        goal = self._generate_goal_description()  # currently just one goal
+        return [EnvironmentTask(None, goal) for _ in range(CFG.num_test_tasks)]
+
+    def _generate_train_tasks(self) -> List[EnvironmentTask]:
+        goal = self._generate_goal_description()  # currently just one goal
+        return [
+            EnvironmentTask(None, goal) for _ in range(CFG.num_train_tasks)
+        ]
+
+    def __init__(self, use_gui: bool = True) -> None:
+        robot, lease_client = get_robot_only()
+        self._robot = robot
+        self._lease_client = lease_client
+        self._strips_operators: Set[STRIPSOperator] = set()
+        # Used to do [something] when the agent thinks the goal is reached
+        # but the human says it is not.
+        self._current_task_goal_reached = False
+        # Used when we want to doa special check for a specific
+        # action.
+        self._last_action: Optional[Action] = None
+        # Create constant objects.
+        self._spot_object = Object("robot", _robot_type)
+        op_to_name = {o.name: o for o in self._create_operators()}
+        op_names_to_keep = {"Pick", "Place"}
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+        self._train_tasks = []
+        self._test_tasks = []
+    
+    def detect_objects(self, rgbd_images: Dict[str, RGBDImage]) -> Dict[str, List[Tuple[ObjectDetectionID, SegmentedBoundingBox]]]:
+        object_ids = self._detection_id_to_obj.keys()
+        object_id_to_img_detections = _query_detic_sam2(object_ids, rgbd_images)
+        # This ^ is currently a mapping of object_id -> camera_name -> SegmentedBoundingBox.
+        # We want to do our annotations by camera image, so let's turn this into a
+        # mapping of camera_name -> object_id -> SegmentedBoundingBox. 
+        detections = {k: [] for k in rgbd_images.keys()}
+        for object_id, d in object_id_to_img_detections.items():
+            for camera_name, seg_bb in d.items():
+                detections[camera_name].append((object_id, seg_bb))
+        return detections
+    
+    def _actively_construct_env_task(self) -> EnvironmentTask:
+        assert self._robot is not None
+        rgbd_images = capture_images_without_context(self._robot)
+        # import PIL
+        # imgs = [v.rgb for _, v in rgbd_images.items()]
+        # rot_imgs = [v.rotated_rgb for _, v in rgbd_images.items()]
+        # ex1 = PIL.Image.fromarray(imgs[0])
+        # ex2 = PIL.Image.fromarray(rot_imgs[0])
+        # import pdb; pdb.set_trace()
+        gripper_open_percentage = get_robot_gripper_open_percentage(self._robot)
+        objects_in_view = []
+
+        # Perform object detection.
+        object_detections_per_camera = self.detect_objects(rgbd_images)
+
+
+        # artifacts = {"language": {"rgbds": rgbd_images, "object_id_to_img_detections": ret}}
+        # detections_outfile = Path(".") / "object_detection_artifacts.png"
+        # no_detections_outfile = Path(".") / "no_detection_artifacts.png"
+        # visualize_all_artifacts(artifacts, detections_outfile, no_detections_outfile)
+
+        # # Draw object bounding box on images.
+        # rgbds = artifacts["language"]["rgbds"]
+        # detections = artifacts["language"]["object_id_to_img_detections"]
+        # flat_detections: List[Tuple[RGBDImage,
+        #                             LanguageObjectDetectionID,
+        #                             SegmentedBoundingBox]] = []
+        # for obj_id, img_detections in detections.items():
+        #     for camera, seg_bb in img_detections.items():
+        #         rgbd = rgbds[camera]
+        #         flat_detections.append((rgbd, obj_id, seg_bb))
+        
+        # # For now assume we only have 1 image, front-left.
+        # import pdb; pdb.set_trace()
+        # import PIL
+        # from PIL import ImageDraw, ImageFont
+        # bb_pil_imgs = []
+        # img = list(rgbd_images.values())[0].rotated_rgb
+        # pil_img = PIL.Image.fromarray(img)
+        # draw = ImageDraw.Draw(pil_img)
+        # for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
+        #     # img = rgbd.rotated_rgb
+        #     # pil_img = PIL.Image.fromarray(img)
+        #     x0, y0, x1, y1 = seg_bb.bounding_box
+        #     draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+        #     text = f"{obj_id.language_id}"
+        #     font = ImageFont.load_default()
+        #     # font = utils.get_scaled_default_font(draw, 4)
+        #     # text_width, text_height = draw.textsize(text, font)
+        #     # text_width = draw.textlength(text, font)
+        #     # text_height = font.getsize("hg")[1] 
+        #     text_mask = font.getmask(text)
+        #     text_width, text_height = text_mask.size
+        #     text_bbox = [(x0, y0 - text_height - 2), (x0 + text_width + 2, y0)]
+        #     draw.rectangle(text_bbox, fill='green')
+        #     draw.text((x0 + 1, y0 - text_height - 1), text, fill='white', font=font)
+
+        # import pdb; pdb.set_trace()
+        
+        obs = _TruncatedSpotObservation(
+            rgbd_images,
+            set(objects_in_view),
+            set(),
+            set(),
+            self._spot_object,
+            gripper_open_percentage,
+            object_detections_per_camera,
+            None
+        )
+        goal_description = self._generate_goal_description()
+        task = EnvironmentTask(obs, goal_description)
+        return task
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the cup in the pan"
+
+    def reset(self, train_or_test: str, task_idx: int) -> Observation:
+        prompt = f"Please set up {train_or_test} task {task_idx}!"
+        utils.prompt_user(prompt)
+        assert self._lease_client is not None
+        # Automatically retry if a retryable error is encountered.
+        while True:
+            try:
+                self._lease_client.take()
+                self._current_task = self._actively_construct_env_task()
+                break
+            except RetryableRpcError as e:
+                logging.warning("WARNING: the following retryable error "
+                                f"was encountered. Trying again.\n{e}")
+        self._current_observation = self._current_task.init_obs
+        self._current_task_goal_reached = False
+        self._last_action = None
+        return self._current_task.init_obs
+
+    def step(self, action: Action) -> Observation:
+        assert self._robot is not None
+        action_name = action.extra_info.action_name
+        # Special case: the action is "done", indicating that the robot
+        # believes it has finished the task. Used for goal checking.
+        if action_name == "done":
+            while True:
+                goal_description = self._current_task.goal_description
+                logging.info(f"The goal is: {goal_description}")
+                prompt = "Is the goal accomplished? Answer y or n. "
+                response = utils.prompt_user(prompt).strip()
+                if response == "y":
+                    self._current_task_goal_reached = True
+                    break
+                if response == "n":
+                    self._current_task_goal_reached = False
+                    break
+                logging.info("Invalid input, must be either 'y' or 'n'")
+            return _TruncatedSpotObservation(
+                                    self._current_observation.rgbd_images,
+                                    self._current_observation.objects_in_view,
+                                    set(),
+                                    set(),
+                                    self._spot_object,
+                                    self._current_observation.gripper_open_percentage,
+                                    self._current_observation.object_detections_per_camera,
+                                    action
+                                )
+
+        # Execute the action in the real environment. Automatically retry
+        # if a retryable error is encountered.
+        action_fn = action.extra_info.real_world_fn
+        action_fn_args = action.extra_info.real_world_fn_args
+        while True:
+            try:
+                action_fn(*action_fn_args)  # type: ignore
+                break
+            except RetryableRpcError as e:
+                logging.warning("WARNING: the following retryable error "
+                                f"was encountered. Trying again.\n{e}")
+        rgbd_images = capture_images_without_context(self._robot)
+        gripper_open_percentage = get_robot_gripper_open_percentage(self._robot)
+        objects_in_view = []
+        # Perform object detection.
+        object_detections_per_camera = self.detect_objects(rgbd_images)
+
+        obs = _TruncatedSpotObservation(
+            rgbd_images,
+            set(objects_in_view),
+            set(),
+            set(),
+            self._spot_object,
+            gripper_open_percentage,
+            object_detections_per_camera,
+            action
+        )
+        return obs
 
 
 ###############################################################################
