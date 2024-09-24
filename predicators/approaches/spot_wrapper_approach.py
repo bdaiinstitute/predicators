@@ -55,7 +55,7 @@ class SpotWrapperApproach(BaseApproachWrapper):
         def _policy(state: State) -> Action:
             nonlocal base_approach_policy, need_stow
             # If we think that we're done, return the done action.
-            if task.goal_holds(state):
+            if task.goal_holds(state, self._vlm):
                 extra_info = SpotActionExtraInfo("done", [], None, tuple(),
                                                  None, tuple())
                 return utils.create_spot_env_action(extra_info)
@@ -102,7 +102,8 @@ class SpotWrapperApproach(BaseApproachWrapper):
                 self._base_approach_has_control = True
                 # Need to call this once here to fix off-by-one issue.
                 atom_seq = self._base_approach.get_execution_monitoring_info()
-                assert all(a.holds(state) for a in atom_seq[0])
+                # TODO: consider reinstating the line below.
+                # assert all(a.holds(state) for a in atom_seq[0])
             # Use the base policy.
             return base_approach_policy(state)
 

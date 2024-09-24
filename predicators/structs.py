@@ -430,6 +430,8 @@ class LiftedAtom(_Atom):
 
     def ground(self, sub: VarToObjSub) -> GroundAtom:
         """Create a GroundAtom with a given substitution."""
+        # if not set(self.variables).issubset(set(sub.keys())):
+        #     import pdb; pdb.set_trace()
         assert set(self.variables).issubset(set(sub.keys()))
         return GroundAtom(self.predicate, [sub[v] for v in self.variables])
 
@@ -489,9 +491,20 @@ class Task:
         for atom in self.goal:
             assert isinstance(atom, GroundAtom)
 
-    def goal_holds(self, state: State) -> bool:
+    def goal_holds(self, state: State, vlm: Optional[Any] = None) -> bool:
         """Return whether the goal of this task holds in the given state."""
-        return all(goal_atom.holds(state) for goal_atom in self.goal)
+        if "abstract_state" in state.simulator_state:
+            abstract_state = state.simulator_state["abstract_state"]
+            return self.goal.issubset(abstract_state)
+        from predicators.utils import query_vlm_for_atom_vals
+        vlm_atoms = set(atom for atom in self.goal
+                        if isinstance(atom.predicate, VLMPredicate))
+        for atom in self.goal:
+            if atom not in vlm_atoms:
+                if not atom.holds(state):
+                    return False
+        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        return len(true_vlm_atoms) == len(vlm_atoms)
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
@@ -1007,6 +1020,13 @@ class NSRT:
         assert all(
             o.is_instance(p.type) for o, p in zip(objects, self.parameters))
         sub = dict(zip(self.parameters, objects))
+        # try:
+        #     preconditions = {atom.ground(sub) for atom in self.preconditions}
+        #     add_effects = {atom.ground(sub) for atom in self.add_effects}
+        #     delete_effects = {atom.ground(sub) for atom in self.delete_effects}
+        #     option_objs = [sub[v] for v in self.option_vars]
+        # except:
+        #     import pdb; pdb.set_trace()
         preconditions = {atom.ground(sub) for atom in self.preconditions}
         add_effects = {atom.ground(sub) for atom in self.add_effects}
         delete_effects = {atom.ground(sub) for atom in self.delete_effects}
