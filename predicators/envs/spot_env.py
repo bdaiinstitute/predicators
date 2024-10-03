@@ -1671,7 +1671,7 @@ if tmp_vlm_flag:
         _ContainingWaterUnknown,
         _ContainingWater,
         _NotContainingWater,
-        _InHandViewFromTop  # TODO check why missing
+        _InHandViewFromTop
     })
 
 _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
@@ -1728,10 +1728,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_InHandView, [robot, obj]),
     }
     del_effs = set()
-    # TODO check the ignore effs
     ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    # ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
-    # ignore_effs = set()
     yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
     
@@ -3399,7 +3396,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
         #     "green bowl/greenish bowl")
         # TODO test
         green_bowl_detection = LanguageObjectDetectionID(
-            "cardboard box/brown box")
+            "cardboard box/paper box")
         detection_id_to_obj[green_bowl_detection] = green_bowl
         
         # # TODO temp test new object sets
@@ -3472,16 +3469,17 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # NOTE: we view cup as container; 
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
+        # cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
         # TODO test
         # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
         # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")
-        # cup_detection = LanguageObjectDetectionID("green cup/greenish cup")
+        # cup_detection = LanguageObjectDetectionID("green cup/greenish cup/green cylinder")
+        cup_detection = LanguageObjectDetectionID("green block/greenish block")
         # cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
         detection_id_to_obj[cup_detection] = cup
 
         cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/paper box")
         detection_id_to_obj[cardboard_box_detection] = cardboard_box
 
         for obj, pose in get_known_immovable_objects().items():
@@ -3541,7 +3539,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         detection_id_to_obj[cup_detection] = cup
 
         cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/paper box")
         detection_id_to_obj[cardboard_box_detection] = cardboard_box
 
         for obj, pose in get_known_immovable_objects().items():
