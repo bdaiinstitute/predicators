@@ -507,9 +507,9 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [block, bin]),
             }
-        if goal_description == "put the red block into the cardboard box on floor":
+        if goal_description == "put the red block into the plastic bin on floor":
             block = Object("red_block", _movable_object_type)
-            box = Object("cardboard_box", _container_type)
+            box = Object("plastic_bin", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [block, box]),
@@ -558,14 +558,14 @@ class SpotPerceiver(BasePerceiver):
             }
         if goal_description == "place empty cup into the box":
             cup = Object("cup", _container_type)
-            cardboard_box = Object("cardboard_box", _container_type)
+            plastic_bin = Object("plastic_bin", _container_type)
             ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
             NotContainingWater = pred_name_to_pred["NotContainingWater"]
             Inside = pred_name_to_pred["Inside"]
             return {
-                GroundAtom(ContainingWaterKnown, [cup]),
-                GroundAtom(NotContainingWater, [cup]),
-                GroundAtom(Inside, [cup, cardboard_box]),
+                #GroundAtom(ContainingWaterKnown, [cup]),
+                #GroundAtom(NotContainingWater, [cup]),
+                GroundAtom(Inside, [cup, plastic_bin]),
             }
         if goal_description == "know container as empty":
             cup = Object("cup", _container_type)
@@ -575,12 +575,12 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingWaterKnown, [cup]),
                 GroundAtom(NotContainingWater, [cup]),
             }
-        if goal_description == "put the cup into the cardboard box on floor":
+        if goal_description == "put the cup into the plastic bin on floor":
             cup = Object("cup", _container_type)
-            cardboard_box = Object("cardboard_box", _container_type)
+            plastic_bin = Object("plastic_bin", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
-                GroundAtom(Inside, [cup, cardboard_box]),
+                GroundAtom(Inside, [cup, plastic_bin]),
             }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)

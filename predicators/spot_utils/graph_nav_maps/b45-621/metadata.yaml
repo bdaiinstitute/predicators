@@ -60,7 +60,7 @@ static-object-features:
     length: 1.2
     width: 0.8
     flat_top_surface: 1
-  cardboard_box: # adopted from floor8-v2
+  plastic_bin: # adopted from floor8-v2
     shape: 1
     height: 0.5 # TODO check
     width: 0.4

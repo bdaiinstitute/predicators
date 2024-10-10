@@ -1571,7 +1571,7 @@ if tmp_vlm_flag:
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
         prompt=
-        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
+        "This typically describes when an object (obj1:type, first arg) is inside another object/container (obj2:type, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. Inside(obj1:type, obj2:type) means obj1 is inside obj2, so obj1 should be smaller than obj2."
     )
     _FakeInside = VLMPredicate(
         _Inside.name,
@@ -3399,7 +3399,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
         #     "green bowl/greenish bowl")
         # TODO test
         green_bowl_detection = LanguageObjectDetectionID(
-            "cardboard box/brown box")
+            "plastic bin/white box")
         detection_id_to_obj[green_bowl_detection] = green_bowl
         
         # # TODO temp test new object sets
@@ -3435,7 +3435,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
     
     
 class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
-    """An environment where a red block needs to be moved into a cardboard box."""
+    """An environment where a red block needs to be moved into a plastic bin."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3480,9 +3480,9 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
         detection_id_to_obj[cup_detection] = cup
 
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+        plastic_bin = Object("plastic_bin", _container_type)
+        plastic_bin_detection = LanguageObjectDetectionID("plastic bin/white box")
+        detection_id_to_obj[plastic_bin_detection] = plastic_bin
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
@@ -3491,10 +3491,10 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        # return "put the red block into the cardboard box on floor"
+        # return "put the red block into the plastic bin on floor"
         # return "view the object from top"
         # return "know container not as empty"
-        # return "put the cup into the cardboard box on floor"
+        # return "put the cup into the plastic bin on floor"
         return "place empty cup into the box"
 
     def _get_dry_task(self, train_or_test: str,
@@ -3503,7 +3503,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
     
     
 class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
-    """An environment where a cup on a table needs to be moved into a cardboard box."""
+    """An environment where a cup on a table needs to be moved into a plastic bin."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3540,9 +3540,9 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
         detection_id_to_obj[cup_detection] = cup
 
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+        plastic_bin = Object("plastic_bin", _container_type)
+        plastic_bin_detection = LanguageObjectDetectionID("plastic bin/white box")
+        detection_id_to_obj[plastic_bin_detection] = plastic_bin
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
@@ -3551,7 +3551,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the cup into the cardboard box on floor"
+        return "put the cup into the plastic bin on floor"
         
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -3612,7 +3612,7 @@ class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
 class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
     """An environment designated for testing belief space predicates.
     
-    The goal is to move a single empty cup on the floor to a cardboard box
+    The goal is to move a single empty cup on the floor to a plastic bin
     """
 
     def __init__(self, use_gui: bool = True) -> None:
@@ -3638,10 +3638,10 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID(
-            "cardboard box/box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+        plastic_bin = Object("plastic_bin", _container_type)
+        plastic_bin_detection = LanguageObjectDetectionID(
+            "plastic bin/box")
+        detection_id_to_obj[plastic_bin_detection] = plastic_bin
 
         # Case 1: Cup facing up with no lid
         # To try more cases below
