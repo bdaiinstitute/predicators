@@ -80,6 +80,8 @@ class CogMan:
             logging.info("[CogMan] Termination triggered.")
             return None
         # Check if we should replan.
+        self._exec_monitor.perceiver = self._perceiver
+        self._exec_monitor.env_task = self._current_env_task
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
             assert self._current_goal is not None

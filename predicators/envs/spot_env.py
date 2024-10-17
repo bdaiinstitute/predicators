@@ -1641,22 +1641,22 @@ if tmp_vlm_flag:
     
 
     # NOTE: How to express the belief-space 3-value predicate using state-space binary predicate is tricky, because the system doesn't support NOT (negation) or OR (disjunction). Thus, it couldn't do "NotKnownAsTrue OR NotKnownAsFalse".
-    # E.g,. _ContainingWaterKnownAsTrue won't work.
-    _ContainingWaterKnown = VLMPredicate(
-        "ContainingWaterKnown", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains water or not. If you don't know, answer [no]."
+    # E.g,. _ContainingFoodKnownAsTrue won't work.
+    _ContainingFoodKnown = VLMPredicate(
+        "ContainingFoodKnown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the steel bowl has anything in it or not. If you don't know, answer [no]."
     )
-    _ContainingWaterUnknown = VLMPredicate(
-        "ContainingWaterUnknown", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
+    _ContainingFoodUnknown = VLMPredicate(
+        "ContainingFoodUnknown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the steel bowl has anything in it or not. If you know, answer [no]."
     )
-    _ContainingWater = VLMPredicate(
-        "ContainingWater", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container has water in it. If you know it doesn't have water, answer [no]."
+    _ContainingFood = VLMPredicate(
+        "ContainingFood", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the steel bowl has anything in it. If you know it doesn't have anything, answer [no]."
     )
-    _NotContainingWater = VLMPredicate(
-        "NotContainingWater", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
+    _NotContainingFood = VLMPredicate(
+        "NotContainingFood", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the steel bowl does not have anything in it. If it has anything, answer [no]."
     )
     
     _InHandViewFromTop = VLMPredicate(
@@ -1667,10 +1667,10 @@ if tmp_vlm_flag:
     _ALL_PREDICATES.update({
         _DoorOpenKnownTrue,
         _DoorOpenKnownFalse,
-        _ContainingWaterKnown,
-        _ContainingWaterUnknown,
-        _ContainingWater,
-        _NotContainingWater,
+        _ContainingFoodKnown,
+        _ContainingFoodUnknown,
+        _ContainingFood,
+        _NotContainingFood,
         _InHandViewFromTop  # TODO check why missing
     })
 
@@ -1745,18 +1745,18 @@ def _create_operators() -> Iterator[STRIPSOperator]:
         LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
         LiftedAtom(_HandEmpty, [robot]),
         LiftedAtom(_NotHolding, [robot, cup]),
-        LiftedAtom(_ContainingWaterUnknown, [cup]),
+        LiftedAtom(_ContainingFoodUnknown, [cup]),
     }
     # NOTE: Determinized effect: both Containing and NotContaining
     # The belief state will be updated after execution
     add_effs = {
-        LiftedAtom(_ContainingWaterKnown, [cup]),
-        LiftedAtom(_ContainingWater, [cup]),
+        LiftedAtom(_ContainingFoodKnown, [cup]),
+        LiftedAtom(_ContainingFood, [cup]),
         # TODO add not containing water
-        LiftedAtom(_NotContainingWater, [cup])
+        LiftedAtom(_NotContainingFood, [cup])
     }
     del_effs = {
-        LiftedAtom(_ContainingWaterUnknown, [cup])
+        LiftedAtom(_ContainingFoodUnknown, [cup])
     }
     # TODO check ignore effs
     ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
@@ -3472,7 +3472,8 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # NOTE: we view cup as container; 
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
+        # cup_detection = LanguageObjectDetectionID("steel bowl/metal bowl/shiny-metallic bowl")
+        cup_detection = LanguageObjectDetectionID("blue cup/blue cylinder/blue-ish mug")
         # TODO test
         # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
         # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")

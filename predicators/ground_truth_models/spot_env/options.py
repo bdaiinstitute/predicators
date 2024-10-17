@@ -38,7 +38,8 @@ from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_POSE, \
     DEFAULT_HAND_PRE_DUMP_LIFT_POSE, DEFAULT_HAND_PRE_DUMP_POSE, \
-    get_relative_se2_from_se3, load_spot_metadata, object_to_top_down_geom
+    get_relative_se2_from_se3, load_spot_metadata, object_to_top_down_geom, \
+    DEFAULT_HAND_LOOK_FROM_TOP
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, SpotActionExtraInfo, State, Type
 
@@ -531,7 +532,9 @@ def _move_to_hand_view_object_from_above_policy(state: State, memory: Dict,
     yaw_param_idx = 1
     robot_obj_idx = 0
     target_obj_idx = 1
-    do_gaze = True
+    do_gaze = False
+    robot, localizer, _ = get_robot()
+    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FROM_TOP)
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)

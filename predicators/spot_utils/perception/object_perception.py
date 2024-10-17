@@ -216,6 +216,7 @@ def vlm_predicate_batch_query(
         votes = [result[i] for result in results]
         final_results.append(votes.count(True) > votes.count(False))
 
+    import ipdb; ipdb.set_trace()
     return final_results
 
 

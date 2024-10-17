@@ -31,6 +31,11 @@ class ExpectedAtomsExecutionMonitor(BaseExecutionMonitor):
         # If the expected atoms are a subset of the current atoms, then
         # we don't have to replan.
         unsat_atoms = {a for a in next_expected_atoms if not a.holds(state)}
+        # Check goal
+        assert self.perceiver is not None and self.env_task is not None
+        goal = self.perceiver._create_goal(state, self.env_task.goal_description)
+        import ipdb; ipdb.set_trace()
+        #
         if not unsat_atoms:
             return False
         logging.info(

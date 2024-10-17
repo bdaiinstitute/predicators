@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Collection
 
 import imageio.v2 as iio
 import numpy as np
@@ -14,7 +14,7 @@ from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotCubeEnv, SpotRearrangementEnv, _drafting_table_type, \
-    _PartialPerceptionState, _SpotObservation, in_general_view_classifier
+    _PartialPerceptionState, _SpotObservation, in_general_view_classifier, _ALL_TYPES
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, \
@@ -23,6 +23,7 @@ from predicators.spot_utils.utils import _container_type, \
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video
+from predicators.spot_utils.perception.object_perception import vlm
 
 
 class SpotPerceiver(BasePerceiver):
@@ -311,7 +312,6 @@ class SpotPerceiver(BasePerceiver):
 
     def _create_goal(self, state: State,
                      goal_description: GoalDescription) -> Set[GroundAtom]:
-        del state  # not used
         # Unfortunate hack to deal with the fact that the state is actually
         # not yet set. Hopefully one day other cleanups will enable cleaning.
         assert self._curr_env is not None
@@ -550,30 +550,34 @@ class SpotPerceiver(BasePerceiver):
         if goal_description == "know container not as empty":
             # container = Object("container", _container_type)
             cup = Object("cup", _container_type)
-            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
-            ContainingWater = pred_name_to_pred["ContainingWater"]
+            ContainingFoodKnown = pred_name_to_pred["ContainingFoodKnown"]
+            ContainingFood = pred_name_to_pred["ContainingFood"]
             return {
-                GroundAtom(ContainingWaterKnown, [cup]),
-                GroundAtom(ContainingWater, [cup]),
+                GroundAtom(ContainingFoodKnown, [cup]),
+                GroundAtom(ContainingFood, [cup]),
             }
         if goal_description == "place empty cup into the box":
             cup = Object("cup", _container_type)
             plastic_bin = Object("plastic_bin", _container_type)
-            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
-            NotContainingWater = pred_name_to_pred["NotContainingWater"]
+            ContainingFoodKnown = pred_name_to_pred["ContainingFoodKnown"]
+            NotContainingFood = pred_name_to_pred["NotContainingFood"]
             Inside = pred_name_to_pred["Inside"]
-            return {
-                #GroundAtom(ContainingWaterKnown, [cup]),
-                #GroundAtom(NotContainingWater, [cup]),
-                GroundAtom(Inside, [cup, plastic_bin]),
-            }
+            if state.data == {}:
+                return {
+                    #GroundAtom(ContainingFoodKnown, [cup]),
+                    #GroundAtom(NotContainingFood, [cup]),
+                    GroundAtom(Inside, [cup, plastic_bin]),
+                }
+            object_name_to_object = {}
+            self._parse_vlm_goal_from_state(state, goal_description, object_name_to_object)
+            import ipdb; ipdb.set_trace()
         if goal_description == "know container as empty":
             cup = Object("cup", _container_type)
-            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
-            NotContainingWater = pred_name_to_pred["NotContainingWater"]
+            ContainingFoodKnown = pred_name_to_pred["ContainingFoodKnown"]
+            NotContainingFood = pred_name_to_pred["NotContainingFood"]
             return {
-                GroundAtom(ContainingWaterKnown, [cup]),
-                GroundAtom(NotContainingWater, [cup]),
+                GroundAtom(ContainingFoodKnown, [cup]),
+                GroundAtom(NotContainingFood, [cup]),
             }
         if goal_description == "put the cup into the plastic bin on floor":
             cup = Object("cup", _container_type)
@@ -695,3 +699,45 @@ class SpotPerceiver(BasePerceiver):
         logging.info(f"Wrote out to {outfile}")
         plt.close()
         return [img]
+
+    def _get_language_goal_prompt_prefix(self,
+                                         object_names: Collection[str]) -> str:
+        # pylint:disable=line-too-long
+        available_predicates = ", ".join([p for p in sorted([pred.pretty_str()[1] for pred in self._curr_env.goal_predicates])])
+        available_object_types = ", ".join(sorted([t.name for t in _ALL_TYPES]))
+        # We could extract the object names, but this is simpler.
+        prompt = f"""# The available predicates are: {available_predicates}
+# The available object types are: {available_object_types}
+# Use the available predicates and object types to convert natural language goals into JSON goals.
+        
+# I want a sandwich with a patty, cheese, and lettuce, and get ready to give me a glass of milk.
+{{"Holding": [["robot", "milk"]], "On": [["bread0", "board"], ["bread1", "lettuce0"], ["lettuce0", "cheese0"], ["cheese0", "patty0"], ["patty0", "bread0"]]}}
+"""
+        return prompt
+
+    def _parse_vlm_goal_from_state(
+            self, state: State, language_goal: str,
+            id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
+        """Helper for parsing language-based goals from JSON task specs."""
+        object_names = set(id_to_obj)
+        prompt_prefix = self._get_language_goal_prompt_prefix(object_names)
+        prompt = prompt_prefix + f"\n# {language_goal}"
+        import ipdb; ipdb.set_trace()
+        image_list = [
+            PIL.Image.fromarray(v.rotated_rgb) for _, v in rgbds.items()
+        ]
+        responses = vlm.sample_completions(
+                prompt=prompt,
+                imgs=image_list,
+                temperature=0.1,
+                seed=int(time.time()),
+                num_completions=1,
+            )
+        response = responses[0]
+        import ipdb; ipdb.set_trace()
+        # Currently assumes that the LLM is perfect. In the future, will need
+        # to handle various errors and perhaps query the LLM for multiple
+        # responses until we find one that can be parsed.
+        goal_spec = json.loads(response)
+        return self._curr_env._parse_goal_from_json(goal_spec, id_to_obj)
+
