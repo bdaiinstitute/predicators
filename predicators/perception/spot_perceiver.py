@@ -4,11 +4,13 @@ import logging
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Collection
+import json
 
 import imageio.v2 as iio
 import numpy as np
 from bosdyn.client import math_helpers
 from matplotlib import pyplot as plt
+import PIL.Image
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
@@ -569,8 +571,7 @@ class SpotPerceiver(BasePerceiver):
                     GroundAtom(Inside, [cup, plastic_bin]),
                 }
             object_name_to_object = {}
-            self._parse_vlm_goal_from_state(state, goal_description, object_name_to_object)
-            import ipdb; ipdb.set_trace()
+            return self._parse_vlm_goal_from_state(state, goal_description, object_name_to_object)
         if goal_description == "know container as empty":
             cup = Object("cup", _container_type)
             ContainingFoodKnown = pred_name_to_pred["ContainingFoodKnown"]
@@ -722,9 +723,8 @@ class SpotPerceiver(BasePerceiver):
         object_names = set(id_to_obj)
         prompt_prefix = self._get_language_goal_prompt_prefix(object_names)
         prompt = prompt_prefix + f"\n# {language_goal}"
-        import ipdb; ipdb.set_trace()
         image_list = [
-            PIL.Image.fromarray(v.rotated_rgb) for _, v in rgbds.items()
+            PIL.Image.fromarray(v.rotated_rgb) for _, v in state.camera_images.items()
         ]
         responses = vlm.sample_completions(
                 prompt=prompt,
@@ -734,10 +734,13 @@ class SpotPerceiver(BasePerceiver):
                 num_completions=1,
             )
         response = responses[0]
-        import ipdb; ipdb.set_trace()
         # Currently assumes that the LLM is perfect. In the future, will need
         # to handle various errors and perhaps query the LLM for multiple
         # responses until we find one that can be parsed.
-        goal_spec = json.loads(response)
+        try:
+            goal_spec = json.loads(response)
+        except json.JSONDecodeError as e:
+            goal_spec = json.loads(response.replace('`', '').replace('json', ''))
+        
         return self._curr_env._parse_goal_from_json(goal_spec, id_to_obj)
 
