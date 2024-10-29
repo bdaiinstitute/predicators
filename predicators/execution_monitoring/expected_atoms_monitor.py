@@ -33,9 +33,14 @@ class ExpectedAtomsExecutionMonitor(BaseExecutionMonitor):
         unsat_atoms = {a for a in next_expected_atoms if not a.holds(state)}
         # Check goal
         assert self.perceiver is not None and self.env_task is not None
-        goal = self.perceiver._create_goal(state, self.env_task.goal_description)
-        import ipdb; ipdb.set_trace()
-        #
+        new_goal = self.perceiver._create_goal(state, self.env_task.goal_description)
+        if new_goal != self._curr_goal:
+            logging.info(
+                "Expected atoms execution monitor triggered replanning "
+                "because the goal has changed.")
+            logging.info(f"Old goal: {self._curr_goal}")
+            logging.info(f"New goal: {new_goal}")
+            self._curr_goal = new_goal
         if not unsat_atoms:
             return False
         logging.info(

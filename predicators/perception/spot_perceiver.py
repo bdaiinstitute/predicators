@@ -720,6 +720,9 @@ class SpotPerceiver(BasePerceiver):
             self, state: State, language_goal: str,
             id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
         """Helper for parsing language-based goals from JSON task specs."""
+        ###
+        language_goal = 'place empty cups into the plastic_bin'
+        ###
         object_names = set(id_to_obj)
         prompt_prefix = self._get_language_goal_prompt_prefix(object_names)
         prompt = prompt_prefix + f"\n# {language_goal}"
@@ -741,6 +744,17 @@ class SpotPerceiver(BasePerceiver):
             goal_spec = json.loads(response)
         except json.JSONDecodeError as e:
             goal_spec = json.loads(response.replace('`', '').replace('json', ''))
-        
-        return self._curr_env._parse_goal_from_json(goal_spec, id_to_obj)
+
+        for pred, args in goal_spec.items():
+            for arg in args:
+                for obj_name in arg:
+                    if 'robot' in obj_name:
+                        id_to_obj[obj_name] = Object(obj_name, _robot_type)
+                    elif any([name in obj_name for name in ['cup', 'box', 'bin']]):
+                        id_to_obj[obj_name] = Object(obj_name, _container_type)
+                    else:
+                        id_to_obj[obj_name] = Object(obj_name, _movable_object_type)
+
+        new_goal = self._curr_env._parse_goal_from_json(goal_spec, id_to_obj)
+        return new_goal
 

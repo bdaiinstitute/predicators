@@ -315,7 +315,10 @@ class BaseEnv(abc.ABC):
         for pred, args in pred_to_args.items():
             for id_args in args:
                 obj_args = [id_to_obj[a] for a in id_args]
-                goal_atom = GroundAtom(pred, obj_args)
+                try:
+                    goal_atom = GroundAtom(pred, obj_args)
+                except AssertionError as e:
+                    import ipdb; ipdb.set_trace()
                 goal.add(goal_atom)
         return goal
 

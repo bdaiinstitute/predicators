@@ -12,6 +12,7 @@ class BaseExecutionMonitor(abc.ABC):
     def __init__(self) -> None:
         self._approach_info: List[Any] = []
         self._curr_plan_timestep = 0
+        self._curr_goal = None
 
     @classmethod
     @abc.abstractmethod
