@@ -84,34 +84,34 @@ class CogMan:
         self._exec_monitor.env_task = self._current_env_task
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
-            import jellyfish
-            def map_goal_to_state(goal_predicates, state_data):
-                goal_to_state_mapping = {}
-                state_usage_count = {state_obj: 0 for state_obj in state_data.keys()}
-                for pred in goal_predicates:
-                    for goal_obj in pred.objects:
-                        goal_obj_name = str(goal_obj)
-                        closest_state_obj = None
-                        min_distance = float('inf')
-                        for state_obj in state_data.keys():
-                            state_obj_name = str(state_obj)
-                            distance = jellyfish.levenshtein_distance(goal_obj_name, state_obj_name)
-                            if distance < min_distance:
-                                min_distance = distance
-                                closest_state_obj = state_obj
-                        if state_usage_count[closest_state_obj] > 0:
-                            virtual_obj = Object(f"{closest_state_obj}_{state_usage_count[closest_state_obj]}", closest_state_obj.type)
-                            goal_to_state_mapping[goal_obj] = virtual_obj
-                        else:
-                            goal_to_state_mapping[goal_obj] = closest_state_obj
-                        state_usage_count[closest_state_obj] += 1
-                return goal_to_state_mapping
-            mapping = map_goal_to_state(self._exec_monitor._curr_goal, state.data)
-            new_goal = set()
-            for pred in self._exec_monitor._curr_goal:
-                new_goal.add(GroundAtom(pred.predicate, [mapping[obj] for obj in pred.objects]))
-            import ipdb; ipdb.set_trace()
-            self._current_goal = new_goal
+            # import jellyfish
+            # def map_goal_to_state(goal_predicates, state_data):
+            #     goal_to_state_mapping = {}
+            #     state_usage_count = {state_obj: 0 for state_obj in state_data.keys()}
+            #     for pred in goal_predicates:
+            #         for goal_obj in pred.objects:
+            #             goal_obj_name = str(goal_obj)
+            #             closest_state_obj = None
+            #             min_distance = float('inf')
+            #             for state_obj in state_data.keys():
+            #                 state_obj_name = str(state_obj)
+            #                 distance = jellyfish.levenshtein_distance(goal_obj_name, state_obj_name)
+            #                 if distance < min_distance:
+            #                     min_distance = distance
+            #                     closest_state_obj = state_obj
+            #             if state_usage_count[closest_state_obj] > 0:
+            #                 virtual_obj = Object(f"{closest_state_obj}_{state_usage_count[closest_state_obj]}", closest_state_obj.type)
+            #                 goal_to_state_mapping[goal_obj] = virtual_obj
+            #             else:
+            #                 goal_to_state_mapping[goal_obj] = closest_state_obj
+            #             state_usage_count[closest_state_obj] += 1
+            #     return goal_to_state_mapping
+            # mapping = map_goal_to_state(self._exec_monitor._curr_goal, state.data)
+            # new_goal = set()
+            # for pred in self._exec_monitor._curr_goal:
+            #     new_goal.add(GroundAtom(pred.predicate, [mapping[obj] for obj in pred.objects]))
+            # import ipdb; ipdb.set_trace()
+            # self._current_goal = new_goal
             assert self._current_goal is not None
             task = Task(state, self._current_goal)
             self._reset_policy(task)

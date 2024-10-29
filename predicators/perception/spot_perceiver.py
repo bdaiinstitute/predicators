@@ -566,9 +566,9 @@ class SpotPerceiver(BasePerceiver):
             Inside = pred_name_to_pred["Inside"]
             if state.data == {}:
                 return {
-                    #GroundAtom(ContainingFoodKnown, [cup]),
-                    #GroundAtom(NotContainingFood, [cup]),
-                    GroundAtom(Inside, [cup, plastic_bin]),
+                    GroundAtom(ContainingFoodKnown, [cup]),
+                    GroundAtom(NotContainingFood, [cup]),
+                    #GroundAtom(Inside, [cup, plastic_bin]),
                 }
             object_name_to_object = {}
             return self._parse_vlm_goal_from_state(state, goal_description, object_name_to_object)
