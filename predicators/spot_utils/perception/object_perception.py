@@ -259,4 +259,6 @@ def get_vlm_atom_combinations(objects: Sequence[Object],
     for pred in preds:
         for choice in get_object_combinations(objects, pred.types):
             atoms.add(VLMGroundAtom(pred, choice))
+    # NOTE: under debug: get atoms sorted by predicate name and object names
+    # return sorted(atoms, key=lambda atom: (atom.predicate.name, [obj.name for obj in atom.objects]))
     return atoms
