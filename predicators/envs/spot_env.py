@@ -1373,7 +1373,7 @@ def _blocking_classifier(state: State, objects: Sequence[Object]) -> bool:
             _holding_classifier(state, [spot, blocked_obj]):
         return False
 
-    # Draw a line between blocked and the robot’s current pose.
+    # Draw a line between blocked and the robot's current pose.
     # Check if blocker intersects that line.
     robot_x = state.get(spot, "x")
     robot_y = state.get(spot, "y")
@@ -3308,6 +3308,52 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 ###############################################################################
 
 
+# Potential Tasks
+"""
+# LISSpotBlockFloorEnv - pick only
+- "pick up the red block"
+
+# LISSpotBlockBowlEnv - pick place
+- "pick the red block into the green bowl"
+
+# LISSpotBlockInBoxEnv - pick place with info gatheirng
+- "put the red block into the cardboard box on floor"
+- "view the object from top"
+- "know container not as empty"
+- "put the cup into the cardboard box on floor"
+- "place empty cup into the box"
+
+# LISSpotTableCupInBoxEnv - pick place with info gathering
+- "put the cup into the cardboard box on floor"
+
+# LISSpotBlockTableInBowlEnv - pick place with info gathering
+- "put the red block on table into the green bowl on floor"
+"""
+
+
+# Object detection prompt mappings for LIS environments
+_OBJECT_PROMPTS = {
+    # Movable objects
+    "red_block": "red block/orange block/yellow block",
+    
+    # Containers
+    "green_bowl": "green bowl/greenish bowl",
+    "cardboard_box": "cardboard box/paper box",
+    "cup": "orange cup/orange cylinder/orange-ish mug",
+    "blue_cup": "blue cup/blue mug/uncovered blue cup",
+    
+    # Fixed objects with AprilTags
+    "wooden_table": 32,  # AprilTag ID
+}
+
+def _get_detection_id(obj_name: str) -> ObjectDetectionID:
+    """Get the appropriate detection ID for an object name."""
+    prompt = _OBJECT_PROMPTS[obj_name]
+    if isinstance(prompt, int):
+        return AprilTagObjectDetectionID(prompt)
+    return LanguageObjectDetectionID(prompt)
+
+
 class LISSpotBlockFloorEnv(SpotRearrangementEnv):
     """An extremely basic environment where a block needs to be picked up and
     is specifically used for testing in the LIS Spot room.
@@ -3372,8 +3418,6 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
-            # TODO temp add this
-            # "MoveToHandObserveObjectFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3458,14 +3502,6 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
-        # red_block = Object("red_block", _movable_object_type)
-        # # red_block_detection = LanguageObjectDetectionID("red block/orange block/yellow block")
-        # # TODO debug test
-        # # red_block_detection = LanguageObjectDetectionID("blue cup/blue mug/uncovered blue cup")
-        # # TODO debug test
-        # red_block_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        # detection_id_to_obj[red_block_detection] = red_block
-        
         # NOTE: we view cup as container; 
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
@@ -3513,7 +3549,6 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
-            # NOTE: add new:
             "MoveToHandObserveObjectFromTop",
             "ObserveFromTop",
         }
