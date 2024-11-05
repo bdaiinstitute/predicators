@@ -18,7 +18,7 @@ from predicators.perception import BasePerceiver
 from predicators.settings import CFG
 from predicators.structs import Action, Dataset, EnvironmentTask, GroundAtom, \
     InteractionRequest, InteractionResult, LowLevelTrajectory, Metrics, \
-    Observation, State, Task, Video
+    Observation, State, Task, Video, Object
 
 
 class CogMan:
@@ -38,6 +38,8 @@ class CogMan:
         self._episode_action_history: List[Action] = []
         self._episode_images: Video = []
         self._episode_num = -1
+        self._last_goal = None
+        self._last_act = None
 
     def reset(self, env_task: EnvironmentTask) -> None:
         """Start a new episode of environment interaction."""
@@ -60,6 +62,9 @@ class CogMan:
     def step(self, observation: Observation) -> Optional[Action]:
         """Receive an observation and produce an action, or None for done."""
         state = self._perceiver.step(observation)
+        print("State: ", state, "\n")
+        print("Abstract State:", utils.abstract(state, self._approach._initial_predicates))
+        print("\n\n")
         if CFG.make_cogman_videos:
             assert self._current_env_task is not None
             imgs = self._perceiver.render_mental_images(
@@ -84,35 +89,14 @@ class CogMan:
         self._exec_monitor.env_task = self._current_env_task
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
-            # import jellyfish
-            # def map_goal_to_state(goal_predicates, state_data):
-            #     goal_to_state_mapping = {}
-            #     state_usage_count = {state_obj: 0 for state_obj in state_data.keys()}
-            #     for pred in goal_predicates:
-            #         for goal_obj in pred.objects:
-            #             goal_obj_name = str(goal_obj)
-            #             closest_state_obj = None
-            #             min_distance = float('inf')
-            #             for state_obj in state_data.keys():
-            #                 state_obj_name = str(state_obj)
-            #                 distance = jellyfish.levenshtein_distance(goal_obj_name, state_obj_name)
-            #                 if distance < min_distance:
-            #                     min_distance = distance
-            #                     closest_state_obj = state_obj
-            #             if state_usage_count[closest_state_obj] > 0:
-            #                 virtual_obj = Object(f"{closest_state_obj}_{state_usage_count[closest_state_obj]}", closest_state_obj.type)
-            #                 goal_to_state_mapping[goal_obj] = virtual_obj
-            #             else:
-            #                 goal_to_state_mapping[goal_obj] = closest_state_obj
-            #             state_usage_count[closest_state_obj] += 1
-            #     return goal_to_state_mapping
-            # mapping = map_goal_to_state(self._exec_monitor._curr_goal, state.data)
-            # new_goal = set()
-            # for pred in self._exec_monitor._curr_goal:
-            #     new_goal.add(GroundAtom(pred.predicate, [mapping[obj] for obj in pred.objects]))
-            # import ipdb; ipdb.set_trace()
-            # self._current_goal = new_goal
+            self._last_goal = self._current_goal
+            try:
+                self._last_act = self._current_policy(state)
+            except Exception as e:
+                import ipdb; ipdb.set_trace()
+            self._current_goal = self._exec_monitor._curr_goal
             assert self._current_goal is not None
+            state = self._perceiver.step(observation)
             task = Task(state, self._current_goal)
             self._reset_policy(task)
             self._exec_monitor.reset(task)
@@ -124,7 +108,11 @@ class CogMan:
             if self._override_policy is None:
                 assert not self._exec_monitor.step(state)
         assert self._current_policy is not None
-        act = self._current_policy(state)
+        try:
+            act = self._current_policy(state)
+        except Exception as e:
+            assert self._last_act is not None
+            act = self._last_act
         self._perceiver.update_perceiver_with_action(act)
         self._exec_monitor.update_approach_info(
             self._approach.get_execution_monitoring_info())

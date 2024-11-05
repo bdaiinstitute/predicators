@@ -49,7 +49,7 @@ DEFAULT_HAND_POST_DUMP_POSE = math_helpers.SE3Pose(
 DEFAULT_SIM_ROBOT_Z_OFFSET = 0.6
 DEFAULT_HAND_LOOK_FROM_TOP = math_helpers.SE3Pose(x=0.80,
                                          y=0.0,
-                                         z=0.75,
+                                         z=0.1,
                                          rot=math_helpers.Quat.from_pitch(
                                              5*np.pi / 12))
 

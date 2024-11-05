@@ -57,6 +57,8 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
     VLMGroundAtom, VLMPredicate
 from predicators.utils import log_rich_table
+from predicators.spot_utils.perception.object_perception import vlm
+import PIL.Image
 
 ###############################################################################
 #                                Base Class                                   #
@@ -268,6 +270,9 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+
+        # Used for novel objects
+        self._novel_objects_with_query: Set[Tuple[Object, str]] = set()
 
     def _initialize_pybullet(self) -> None:
         # First, check if we have any connections to pybullet already,
@@ -628,6 +633,63 @@ class SpotRearrangementEnv(BaseEnv):
     def goal_reached(self) -> bool:
         return self._current_task_goal_reached
 
+    def _get_vlm_goal_prompt_prefix(self,
+                                         object_names: Collection[str]) -> str:
+        # pylint:disable=line-too-long
+        available_predicates = ", ".join([p for p in sorted([pred.pretty_str()[1] for pred in self.goal_predicates if 'Inside(' in pred.pretty_str()[1]])])
+        available_object_types = ", ".join(sorted([t.name for t in _ALL_TYPES]))
+        # We could extract the object names, but this is simpler.
+        prompt = f"""# The available predicates are: {available_predicates}
+# The available object types are: {available_object_types}
+# Use the available predicates and object types to convert natural language goals into JSON goals.
+        
+# I want a sandwich with a patty, cheese, and lettuce, and get ready to give me a glass of milk.
+{{"Holding": [["robot", "milk"]], "On": [["bread0", "board"], ["bread1", "lettuce0"], ["lettuce0", "cheese0"], ["cheese0", "patty0"], ["patty0", "bread0"]]}}
+"""
+        return prompt
+
+    def _parse_vlm_objects_from_rgbds(
+            self, rgbds: Dict[str, RGBDImageWithContext], language_goal: str,
+            id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
+        """Helper for parsing language-based goals from JSON task specs."""
+        ###
+        language_goal = 'place empty cups into the cardboard_box'
+        ###
+        object_names = set(id_to_obj)
+        prompt_prefix = self._get_vlm_goal_prompt_prefix(object_names)
+        prompt = prompt_prefix + f"\n# {language_goal}"
+        image_list = [
+            PIL.Image.fromarray(v.rotated_rgb) for k, v in rgbds.items() if 'hand' in k
+        ]
+        responses = vlm.sample_completions(
+                prompt=prompt,
+                imgs=image_list,
+                temperature=0.1,
+                seed=int(time.time()),
+                num_completions=1,
+            )
+        response = responses[0]
+        # Currently assumes that the LLM is perfect. In the future, will need
+        # to handle various errors and perhaps query the LLM for multiple
+        # responses until we find one that can be parsed.
+        try:
+            goal_spec = json.loads(response)
+        except json.JSONDecodeError as e:
+            goal_spec = json.loads(response.replace('`', '').replace('json', ''))
+
+        for pred, args in goal_spec.items():
+            for arg in args:
+                for obj_name in arg:
+                    if 'robot' in obj_name:
+                        id_to_obj[obj_name] = Object(obj_name, _robot_type)
+                    elif any([name in obj_name for name in ['cup', 'box', 'bin']]):
+                        id_to_obj[obj_name] = Object(obj_name, _container_type)
+                    else:
+                        id_to_obj[obj_name] = Object(obj_name, _movable_object_type)
+
+        new_goal = self._parse_goal_from_json(goal_spec, id_to_obj)
+        return new_goal
+
     def _build_realworld_observation(
             self, nonpercept_atoms: Set[GroundAtom],
             curr_obs: Optional[_SpotObservation]) -> _SpotObservation:
@@ -640,14 +702,21 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._robot is not None
         assert self._localizer is not None
         self._localizer.localize()
-        # Get the universe of all object detections.
-        all_object_detection_ids = set(self._detection_id_to_obj)
         # Get the camera images.
         time.sleep(0.5)
         rgbds = capture_images(self._robot, self._localizer)
+
+        ## TODO: get novel objects here
+        new_goal_from_vlm = self._parse_vlm_objects_from_rgbds(rgbds, self._current_task.goal_description, {})
+        # ADD objects to _novel_objects_with_query
+        self._novel_objects_with_query.add((Object("cup1", _container_type), "red toy cup/red cup/small red cylinder/red plastic circle"))
+        #self._novel_objects_with_query.add((Object("cup2", _container_type), "blue cup/blue cylinder/blue plastic circle/blue toy cup"))
+        # self._novel_objects_with_query.add((Object("cup3", _container_type), "green cup/green mug/uncovered green cup"))
+        ##
+        # Get the universe of all object detections.
+        all_object_detection_ids = set(self._detection_id_to_obj)
         all_detections, all_artifacts = detect_objects(
             all_object_detection_ids, rgbds, self._allowed_regions)
-
         # Separately, get detections for the hand in particular.
         hand_rgbd = {
             k: v
@@ -1233,10 +1302,15 @@ def _top_above_classifier(state: State, objects: Sequence[Object]) -> bool:
 def _inside_classifier(state: State, objects: Sequence[Object]) -> bool:
     obj_in, obj_container = objects
 
-    # NOTE: Legacy version evaluate predicates individually
-    if CFG.spot_vlm_eval_predicate:
-        raise RuntimeError(
-            "VLM predicate classifier should be evaluated in batch!")
+    # # NOTE: Legacy version evaluate predicates individually
+    # if CFG.spot_vlm_eval_predicate:
+    #     raise RuntimeError(
+    #         "VLM predicate classifier should be evaluated in batch!")
+    if "cup" in obj_in.name and "cup" in obj_container.name:
+        return False
+    
+    # if "cup1" in obj_in.name and "cardboard" in obj_container.name:
+    #     return False
 
     if not _object_in_xy_classifier(
             state, obj_in, obj_container, buffer=_INSIDE_SURFACE_BUFFER):
@@ -1530,6 +1604,8 @@ _NotHolding = Predicate("NotHolding", [_robot_type, _base_object_type],
                         _not_holding_classifier)
 _InHandView = Predicate("InHandView", [_robot_type, _movable_object_type],
                         in_hand_view_classifier)
+_InHandViewFromTop = Predicate("InHandViewFromTop", [_robot_type, _movable_object_type],
+                                 in_hand_view_classifier)
 _InView = Predicate("InView", [_robot_type, _movable_object_type],
                     in_general_view_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type],
@@ -1558,7 +1634,7 @@ _IsSemanticallyGreaterThan = Predicate(
 
 # DEBUG hardcode now; CFG not updated here?!
 # if CFG.spot_vlm_eval_predicate:
-tmp_vlm_flag = True
+tmp_vlm_flag = False
 
 if tmp_vlm_flag:
     # _On = Predicate("On", [_movable_object_type, _base_object_type],
@@ -1571,7 +1647,7 @@ if tmp_vlm_flag:
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
         prompt=
-        "This typically describes when an object (obj1:type, first arg) is inside another object/container (obj2:type, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. Inside(obj1:type, obj2:type) means obj1 is inside obj2, so obj1 should be smaller than obj2."
+        "This describes when an object (obj1:type, first arg) is inside another object/container (obj2:type, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. Inside(obj1:type, obj2:type) means obj1 is inside obj2, so obj1 should be smaller than obj2."
     )
     _FakeInside = VLMPredicate(
         _Inside.name,
@@ -1673,6 +1749,29 @@ if tmp_vlm_flag:
         _NotContainingFood,
         _InHandViewFromTop  # TODO check why missing
     })
+else:
+    _door_type = Type(
+        "door", 
+        list(_base_object_type.feature_names) + 
+        ["is_open", "in_hand_view"],
+        parent=_immovable_object_type
+    )
+    _DoorOpenKnownTrue = Predicate("DoorOpenKnownTrue", [_door_type], lambda s, o: True)
+    _DoorOpenKnownFalse = Predicate("DoorOpenKnownFalse", [_door_type], lambda s, o: False)
+    _ContainingFoodKnown = Predicate("ContainingFoodKnown", [_container_type], lambda s, o: True)
+    _ContainingFoodUnknown = Predicate("ContainingFoodUnknown", [_container_type], lambda s, o: False)
+    _ContainingFood = Predicate("ContainingFood", [_container_type], lambda s, o: False)
+    _NotContainingFood = Predicate("NotContainingFood", [_container_type], lambda s, o: True)
+    _ALL_PREDICATES.update({
+        _DoorOpenKnownTrue,
+        _DoorOpenKnownFalse,
+        _ContainingFoodKnown,
+        _ContainingFoodUnknown,
+        _ContainingFood,
+        _NotContainingFood,
+        _InHandViewFromTop  # TODO check why missing
+    })
+
 
 _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
     p
@@ -3399,7 +3498,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
         #     "green bowl/greenish bowl")
         # TODO test
         green_bowl_detection = LanguageObjectDetectionID(
-            "plastic bin/white box")
+            "cardboard box/brown  box")
         detection_id_to_obj[green_bowl_detection] = green_bowl
         
         # # TODO temp test new object sets
@@ -3435,7 +3534,7 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
     
     
 class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
-    """An environment where a red block needs to be moved into a plastic bin."""
+    """An environment where a red block needs to be moved into a cardboard box."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3473,7 +3572,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         cup = Object("cup", _container_type)
         # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
         # cup_detection = LanguageObjectDetectionID("steel bowl/metal bowl/shiny-metallic bowl")
-        cup_detection = LanguageObjectDetectionID("blue cup/blue cylinder/blue-ish mug")
+        cup_detection = LanguageObjectDetectionID("green toy cup/green cup/small green cylinder/green plastic circle")
         # TODO test
         # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
         # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")
@@ -3481,21 +3580,28 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         # cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
         detection_id_to_obj[cup_detection] = cup
 
-        plastic_bin = Object("plastic_bin", _container_type)
-        plastic_bin_detection = LanguageObjectDetectionID("plastic bin/white box")
-        detection_id_to_obj[plastic_bin_detection] = plastic_bin
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown  box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
 
+        ### TODO: add novel objects to state
+        if len(self._novel_objects_with_query) > 0:
+            #logging.info(f"Env: Novel objects with query: {self._novel_objects_with_query}")
+            for obj, query in self._novel_objects_with_query:
+                detection_id_to_obj[LanguageObjectDetectionID(query)] = obj
+        ###
+
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        # return "put the red block into the plastic bin on floor"
+        # return "put the red block into the cardboard box on floor"
         # return "view the object from top"
         # return "know container not as empty"
-        # return "put the cup into the plastic bin on floor"
+        # return "put the cup into the cardboard box on floor"
         return "place empty cup into the box"
 
     def _get_dry_task(self, train_or_test: str,
@@ -3504,7 +3610,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
     
     
 class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
-    """An environment where a cup on a table needs to be moved into a plastic bin."""
+    """An environment where a cup on a table needs to be moved into a cardboard box."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3541,9 +3647,9 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
         detection_id_to_obj[cup_detection] = cup
 
-        plastic_bin = Object("plastic_bin", _container_type)
-        plastic_bin_detection = LanguageObjectDetectionID("plastic bin/white box")
-        detection_id_to_obj[plastic_bin_detection] = plastic_bin
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/brown  box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
@@ -3552,7 +3658,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the cup into the plastic bin on floor"
+        return "put the cup into the cardboard box on floor"
         
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -3613,7 +3719,7 @@ class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
 class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
     """An environment designated for testing belief space predicates.
     
-    The goal is to move a single empty cup on the floor to a plastic bin
+    The goal is to move a single empty cup on the floor to a cardboard box
     """
 
     def __init__(self, use_gui: bool = True) -> None:
@@ -3639,10 +3745,10 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
-        plastic_bin = Object("plastic_bin", _container_type)
-        plastic_bin_detection = LanguageObjectDetectionID(
-            "plastic bin/box")
-        detection_id_to_obj[plastic_bin_detection] = plastic_bin
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID(
+            "cardboard box/box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
 
         # Case 1: Cup facing up with no lid
         # To try more cases below

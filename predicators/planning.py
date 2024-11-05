@@ -1138,7 +1138,6 @@ def _sesame_plan_with_fast_downward(
     sas_file = generate_sas_file_for_fd(task, nsrts, predicates, types,
                                         timeout, timeout_cmd, alias_flag,
                                         exec_str, objects, init_atoms)
-
     while True:
         skeleton, atoms_sequence, metrics = fd_plan_from_sas_file(
             sas_file, timeout_cmd, timeout, exec_str, alias_flag, start_time,

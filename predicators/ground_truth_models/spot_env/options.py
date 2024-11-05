@@ -535,6 +535,7 @@ def _move_to_hand_view_object_from_above_policy(state: State, memory: Dict,
     do_gaze = False
     robot, localizer, _ = get_robot()
     move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FROM_TOP)
+    #open_gripper(robot)
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)

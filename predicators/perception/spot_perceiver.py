@@ -11,6 +11,7 @@ import numpy as np
 from bosdyn.client import math_helpers
 from matplotlib import pyplot as plt
 import PIL.Image
+import multiprocessing as mp
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
@@ -26,6 +27,8 @@ from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video
 from predicators.spot_utils.perception.object_perception import vlm
+from predicators.spot_utils.perception.object_detection import detect_objects, \
+    ObjectDetectionID, LanguageObjectDetectionID, visualize_all_artifacts
 
 
 class SpotPerceiver(BasePerceiver):
@@ -48,7 +51,9 @@ class SpotPerceiver(BasePerceiver):
             0, 0, 0, math_helpers.Quat())
         self._lost_objects: Set[Object] = set()
         self._curr_env: Optional[BaseEnv] = None
+        self._curr_observation: Optional[_SpotObservation] = None
         self._waiting_for_observation = True
+        self._novel_objects_with_query: Set[Tuple[Object, str]] = set()
         self._ordered_objects: List[Object] = []  # list of all known objects
         # Keep track of objects that are contained (out of view) in another
         # object, like a bag or bucket. This is important not only for gremlins
@@ -95,6 +100,7 @@ class SpotPerceiver(BasePerceiver):
         self._prev_action = action
 
     def step(self, observation: Observation) -> State:
+        self._curr_observation = observation
         self._update_state_from_observation(observation)
         # Update the curr held item when applicable.
         assert self._curr_env is not None
@@ -109,7 +115,8 @@ class SpotPerceiver(BasePerceiver):
             # operator!
             if "pick" in controller_name.lower():
                 if self._held_object is not None:
-                    assert CFG.spot_run_dry
+                    # assert CFG.spot_run_dry
+                    pass
                 else:
                     # We know that the object that we attempted to grasp was
                     # the second argument to the controller.
@@ -173,6 +180,7 @@ class SpotPerceiver(BasePerceiver):
         assert isinstance(observation, _SpotObservation)
         # If a container is being updated, change the poses for contained
         # objects.
+
         for container in observation.objects_in_view:
             if container not in self._container_to_contained_objects:
                 continue
@@ -232,6 +240,37 @@ class SpotPerceiver(BasePerceiver):
                 "qz": self._robot_pos.rot.z,
             },
         }
+        
+        ### TODO: add novel objects to state
+        # TODO (wmcclinton): get the novel objects from the observation or assert that they exist
+        # Note: the environment keeps track of its own novel objects to run its VLM predicates on
+        if len(self._novel_objects_with_query) > 0:
+            # logging.info(f"Perceiver: Novel objects with query: {self._novel_objects_with_query}")
+            detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+            for obj, query in self._novel_objects_with_query:
+                detection_id_to_obj[LanguageObjectDetectionID(query)] = obj
+                
+            all_object_detection_ids = set(detection_id_to_obj)
+            all_detections, all_artifacts = detect_objects(
+                all_object_detection_ids, self._curr_observation.images, get_allowed_map_regions())
+
+            # if CFG.spot_render_perception_outputs:
+            #     outdir = Path(CFG.spot_perception_outdir)
+            #     time_str = time.strftime("%Y%m%d-%H%M%S")
+            #     detections_outfile = outdir / f"new_obj_detections_{time_str}.png"
+            #     no_detections_outfile = outdir / f"new_obj_no_detections_{time_str}.png"
+            #     p1 = mp.Process(target=visualize_all_artifacts, args=(all_artifacts, detections_outfile, no_detections_outfile))
+            #     p1.start()
+
+            all_objects_in_view = {
+                detection_id_to_obj[det_id]: val
+                for (det_id, val) in all_detections.items()
+            }
+
+            for obj, pose in all_objects_in_view.items():
+                self._known_object_poses[obj] = pose
+        ###
+
         # Add new objects to the list of known objects.
         known_objs = set(self._ordered_objects)
         for obj in sorted(set(self._known_object_poses) - known_objs):
@@ -248,6 +287,15 @@ class SpotPerceiver(BasePerceiver):
                 "qz": pose.rot.z,
                 "object_id": object_id,
             }
+            if obj.type is _container_type:
+                state_dict[obj]["shape"] = 2
+                state_dict[obj]["height"] = 0.1
+                state_dict[obj]["length"] = 0.1
+                state_dict[obj]["width"] = 0.1
+                state_dict[obj]["placeable"] = 1
+                state_dict[obj]["is_sweeper"] = 0
+                state_dict[obj]["radius"] = 0.1
+
             # Add static object features.
             static_feats = self._static_object_features.get(obj.name, {})
             state_dict[obj].update(static_feats)
@@ -495,23 +543,23 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [block, bowl]),
             }
-        if goal_description == "put the red block into the plastic bin on floor":
+        if goal_description == "put the red block into the cardboard box on floor":
             block = Object("red_block", _movable_object_type)
-            bin = Object("plastic_bin", _container_type)
+            bin = Object("cardboard_box", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [block, bin]),
             }
         if goal_description == "put the red block into the box on floor":
             block = Object("red_block", _movable_object_type)
-            bin = Object("plastic_bin", _container_type)
+            bin = Object("cardboard_box", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [block, bin]),
             }
-        if goal_description == "put the red block into the plastic bin on floor":
+        if goal_description == "put the red block into the cardboard box on floor":
             block = Object("red_block", _movable_object_type)
-            box = Object("plastic_bin", _container_type)
+            box = Object("cardboard_box", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [block, box]),
@@ -523,9 +571,9 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [block, bowl]),
             }
-        if goal_description == "put the red block on table into the plastic bin on floor":
+        if goal_description == "put the red block on table into the cardboard box on floor":
             block = Object("red_block", _movable_object_type)
-            bin = Object("plastic_bin", _container_type)
+            bin = Object("cardboard_box", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [block, bin]),
@@ -560,15 +608,15 @@ class SpotPerceiver(BasePerceiver):
             }
         if goal_description == "place empty cup into the box":
             cup = Object("cup", _container_type)
-            plastic_bin = Object("plastic_bin", _container_type)
+            cardboard_box = Object("cardboard_box", _container_type)
             ContainingFoodKnown = pred_name_to_pred["ContainingFoodKnown"]
             NotContainingFood = pred_name_to_pred["NotContainingFood"]
             Inside = pred_name_to_pred["Inside"]
             if state.data == {}:
                 return {
-                    GroundAtom(ContainingFoodKnown, [cup]),
-                    GroundAtom(NotContainingFood, [cup]),
-                    #GroundAtom(Inside, [cup, plastic_bin]),
+                    #GroundAtom(ContainingFoodKnown, [cup]),
+                    #GroundAtom(NotContainingFood, [cup]),
+                    GroundAtom(Inside, [cup, cardboard_box]),
                 }
             object_name_to_object = {}
             return self._parse_vlm_goal_from_state(state, goal_description, object_name_to_object)
@@ -580,12 +628,12 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingFoodKnown, [cup]),
                 GroundAtom(NotContainingFood, [cup]),
             }
-        if goal_description == "put the cup into the plastic bin on floor":
+        if goal_description == "put the cup into the cardboard box on floor":
             cup = Object("cup", _container_type)
-            plastic_bin = Object("plastic_bin", _container_type)
+            cardboard_box = Object("cardboard_box", _container_type)
             Inside = pred_name_to_pred["Inside"]
             return {
-                GroundAtom(Inside, [cup, plastic_bin]),
+                GroundAtom(Inside, [cup, cardboard_box]),
             }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
@@ -716,18 +764,37 @@ class SpotPerceiver(BasePerceiver):
 """
         return prompt
 
+    def _get_vlm_goal_prompt_prefix(self,
+                                         object_names: Collection[str]) -> str:
+        # pylint:disable=line-too-long
+        available_predicates = ", ".join([p for p in sorted([pred.pretty_str()[1] for pred in self._curr_env.goal_predicates if 'Inside(' in pred.pretty_str()[1]])])
+        available_object_types = ", ".join(sorted([t.name for t in _ALL_TYPES]))
+        # We could extract the object names, but this is simpler.
+        prompt = f"""# The available predicates are: {available_predicates}
+# The available object types are: {available_object_types}
+# Use the available predicates and object types to convert natural language goals into JSON goals.
+        
+# I want a sandwich with a patty, cheese, and lettuce, and get ready to give me a glass of milk.
+{{"Holding": [["robot", "milk"]], "On": [["bread0", "board"], ["bread1", "lettuce0"], ["lettuce0", "cheese0"], ["cheese0", "patty0"], ["patty0", "bread0"]]}}
+"""
+        return prompt
+
     def _parse_vlm_goal_from_state(
             self, state: State, language_goal: str,
             id_to_obj: Dict[str, Object]) -> Set[GroundAtom]:
         """Helper for parsing language-based goals from JSON task specs."""
         ###
-        language_goal = 'place empty cups into the plastic_bin'
+        language_goal = 'place two empty cups into the cardboard box'
+        pred_name_to_pred = {p.name: p for p in self._curr_env.predicates}
+        Inside = pred_name_to_pred["Inside"]
+        return {GroundAtom(Inside, [Object("cup", _container_type), Object("cardboard_box", _container_type)]), 
+            GroundAtom(Inside, [Object("cup1", _container_type), Object("cardboard_box", _container_type)])}
         ###
         object_names = set(id_to_obj)
-        prompt_prefix = self._get_language_goal_prompt_prefix(object_names)
+        prompt_prefix = self._get_vlm_goal_prompt_prefix(object_names)
         prompt = prompt_prefix + f"\n# {language_goal}"
         image_list = [
-            PIL.Image.fromarray(v.rotated_rgb) for _, v in state.camera_images.items()
+            PIL.Image.fromarray(v.rotated_rgb) for k, v in state.camera_images.items()
         ]
         responses = vlm.sample_completions(
                 prompt=prompt,
