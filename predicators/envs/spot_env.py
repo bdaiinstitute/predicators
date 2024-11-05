@@ -3304,29 +3304,32 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 
 
 ###############################################################################
-#                             LIS Test Block Floor                            #
+#                              LIS Envs and Tasks                             #
 ###############################################################################
 
-
-# Potential Tasks
+# Tasks
 """
-# LISSpotBlockFloorEnv - pick only
+# LISSpotBlockFloorEnv - pick only, FO
 - "pick up the red block"
 
-# LISSpotBlockBowlEnv - pick place
+# LISSpotBlockBowlEnv - pick place, FO
 - "pick the red block into the green bowl"
 
-# LISSpotBlockInBoxEnv - pick place with info gatheirng
+# LISSpotBlockInBoxEnv - pick place, FO
 - "put the red block into the cardboard box on floor"
 - "view the object from top"
-- "know container not as empty"
+
+NOTE: Partially Observable (PO) tasks need specialized operators to handle 
+information gathering.
+# - pick only, PO with info gathering
+- "know container not as empty" / "know whether the cup is empty"
+- "pick up the empty cup"
+
+# LISSpotTableCupInBoxEnv - pick place, PO with info gathering
 - "put the cup into the cardboard box on floor"
 - "place empty cup into the box"
 
-# LISSpotTableCupInBoxEnv - pick place with info gathering
-- "put the cup into the cardboard box on floor"
-
-# LISSpotBlockTableInBowlEnv - pick place with info gathering
+# LISSpotBlockTableInBowlEnv - pick place, PO with info gathering
 - "put the red block on table into the green bowl on floor"
 """
 
@@ -3477,6 +3480,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         super().__init__(use_gui)
 
         op_to_name = {o.name: o for o in _create_operators()}
+        # NOTE: use MoveToHandObserveObjectFromTop if we need to gather information on cups' emptiness
         op_names_to_keep = {
             "MoveToReachObject",
             "PickObjectFromTop",
