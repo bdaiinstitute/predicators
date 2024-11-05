@@ -3307,30 +3307,43 @@ class SpotBallAndCupStickyTableEnv(SpotRearrangementEnv):
 #                              LIS Envs and Tasks                             #
 ###############################################################################
 
-# Tasks
 """
-# LISSpotBlockFloorEnv - pick only, FO
+Tasks:
+### 1. Fully Observable (FO) Tasks
+
+# Pick Only
+LISSpotBlockFloorEnv:
 - "pick up the red block"
 
-# LISSpotBlockBowlEnv - pick place, FO
+# Pick and Place
+LISSpotBlockBowlEnv:
 - "pick the red block into the green bowl"
 
-# LISSpotBlockInBoxEnv - pick place, FO
+LISSpotBlockInBoxEnv:
 - "put the red block into the cardboard box on floor"
-- "view the object from top"
+- "view the object from top"  # Verify info gathering operator
 
-NOTE: Partially Observable (PO) tasks need specialized operators to handle 
-information gathering.
-# - pick only, PO with info gathering
-- "know container not as empty" / "know whether the cup is empty"
-- "pick up the empty cup"
+### 2. Partially Observable (PO) Tasks with Information Gathering
+NOTE: PO tasks require specialized operators (e.g., MoveToHandObserveObjectFromTop) to handle information gathering 
+about object states before manipulation.
 
-# LISSpotTableCupInBoxEnv - pick place, PO with info gathering
-- "put the cup into the cardboard box on floor"
-- "place empty cup into the box"
+# Pick Only with Info Gathering
+LISSpotEmptyCupPickEnv:
+- "know whether the cup is empty"  # Info gathering goal
+- "pick up the empty cup"          # Main goal
 
-# LISSpotBlockTableInBowlEnv - pick place, PO with info gathering
-- "put the red block on table into the green bowl on floor"
+# Pick and Place with Info Gathering
+LISSpotEmptyCupBoxEnv:
+- "place empty cup into the box"   # Requires verifying cup is empty first
+
+LISSpotTableCupInBoxEnv:
+- "put the cup into the cardboard box on floor"  # Requires checking cup state
+
+LISSpotBlockTableInBowlEnv:
+- "put the red block on table into the green bowl on floor"  # Requires checking table state
+
+# Pick Place in more open space
+- TODO
 """
 
 
@@ -3345,6 +3358,7 @@ _OBJECT_PROMPTS = {
     
     # Movable objects: cups, potentially with lids and non-empty
     "cup": "orange cup/orange cylinder/orange-ish mug",
+    "orange_cup": "orange cup/orange cylinder/orange-ish mug",
     "blue_cup": "blue cup/blue mug/uncovered blue cup",
     "green_cup": "green cup/greenish cup/green cylinder",
     
