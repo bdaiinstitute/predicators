@@ -3313,15 +3313,15 @@ Tasks:
 
 # Pick Only
 LISSpotBlockFloorEnv:
-- "pick up the red block"
+- "pick up the (red) block"
 
 # Pick and Place
 LISSpotBlockBowlEnv:
-- "pick the red block into the green bowl"
+- "pick the (red) block into the (green) bowl"
 
 LISSpotBlockInBoxEnv:
-- "put the red block into the cardboard box on floor"
-- "view the object from top"  # Verify info gathering operator
+- "put the (red) block into the cardboard box on floor"
+- "view the block (object) from top"  # Verify info gathering operator
 
 ### 2. Partially Observable (PO) Tasks with Information Gathering
 NOTE: PO tasks require specialized operators (e.g., MoveToHandObserveObjectFromTop) to handle information gathering 
@@ -3340,7 +3340,7 @@ LISSpotTableCupInBoxEnv:
 - "put the cup into the cardboard box on floor"  # Requires checking cup state
 
 LISSpotBlockTableInBowlEnv:
-- "put the red block on table into the green bowl on floor"  # Requires checking table state
+- "put the (red) block on table into the green bowl on floor"  # Requires checking table state
 
 # Pick Place in more open space
 - TODO
@@ -3405,7 +3405,7 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
-        # List objects used in this env
+        # List object identifier, object name (to find prompt), and type
         objects_to_detect = [
             ("red_block", _movable_object_type),
         ]
@@ -3459,16 +3459,16 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
-        # List objects used in this env
+        # List object identifier, object name (to find prompt), and type
         objects_to_detect = [
-            ("red_block", _movable_object_type),
-            ("green_bowl", _container_type),
-            # ("orange_mug", _movable_object_type),  # Case 1: Mug facing up with no lid
+            ("block", "red_block", _movable_object_type),
+            ("bowl", "green_bowl", _container_type),
+            # ("mug", "orange_mug", _movable_object_type),  # Case 1: Mug facing up with no lid
         ]
         
-        # Add detection IDs for each object
-        for obj_name, obj_type in objects_to_detect:
-            obj = Object(obj_name, obj_type)
+        # Add detection object prompt and save object identifier
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
             detection_id = _get_detection_id(obj_name)
             detection_id_to_obj[detection_id] = obj
             
@@ -3488,19 +3488,18 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
     
     
 class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
-    """An environment where a red block needs to be moved into a cardboard box."""
+    """A fully-observable environment where a block needs to be moved into a cardboard box."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
 
         op_to_name = {o.name: o for o in _create_operators()}
-        # NOTE: use MoveToHandObserveObjectFromTop if we need to gather information on cups' emptiness
         op_names_to_keep = {
             "MoveToReachObject",
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
-            "MoveToHandObserveObjectFromTop",  # NOTE: replacing "MoveToHandViewObject"
+            "MoveToHandViewObject",
             "ObserveFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -3511,25 +3510,28 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
-
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-
-        # NOTE: we view cup as container; 
-        cup = Object("cup", _container_type)
-        # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        # cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
-        # TODO test
-        # cup_detection = LanguageObjectDetectionID("spam box/spam container/spam-ish box")
-        # cup_detection = LanguageObjectDetectionID("yellow apple/yellowish apple")
-        # cup_detection = LanguageObjectDetectionID("green cup/greenish cup/green cylinder")
-        cup_detection = LanguageObjectDetectionID("green block/greenish block")
-        # cup_detection = LanguageObjectDetectionID("green apple/greenish apple")
-        detection_id_to_obj[cup_detection] = cup
-
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/paper box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
-
+        
+        # List object identifier, object name (to find prompt), and type
+        objects_to_detect = [
+            ("cardboard_box", "cardboard_box", _container_type),
+            ("block", "red_block", _movable_object_type),
+            # DEBUG objects:
+            # ("block", "orange_cup", _container_type),
+            # ("block", "spam_box", _container_type), 
+            # ("block", "yellow_apple", _movable_object_type),
+            # ("block", "green_cup", _container_type),
+            # ("block", "green_block", _movable_object_type),
+            # ("block", "green_apple", _movable_object_type),
+        ]
+        
+        # Add detection object prompt and save object identifier  
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
+            
+        # Add known immovable objects
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
@@ -3537,11 +3539,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        # return "put the red block into the cardboard box on floor"
-        # return "view the object from top"
-        # return "know container not as empty"
-        # return "put the cup into the cardboard box on floor"
-        return "place empty cup into the box"
+        return "put the block into the cardboard box on floor"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -3549,7 +3547,7 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
     
     
 class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
-    """An environment where a cup on a table needs to be moved into a cardboard box."""
+    """A partially observable environment where a cup (with certain property) on a table needs to be moved into a cardboard box."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3557,11 +3555,10 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            # "MoveToHandViewObject",
-            "PickObjectFromTop",
+            "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            "MoveToHandObserveObjectFromTop",
+            "MoveToHandViewObject",
             "ObserveFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
@@ -3572,23 +3569,27 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
-
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
+        # List object identifier, object name (to find prompt), and type
+        objects_to_detect = [
+            ("cardboard_box", "cardboard_box", _container_type),
+            ("cup", "orange_cup", _movable_object_type),
+            ("box", "box", _container_type),
+        ]
+        
+        # Add detection object prompt and save object identifier  
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
+        
+        # AprilTag object
         wooden_table = Object("wooden_table", _immovable_object_type)
         wooden_table_detection = AprilTagObjectDetectionID(32)
         detection_id_to_obj[wooden_table_detection] = wooden_table
-
-        cup = Object("cup", _container_type)
-        # cup_detection = LanguageObjectDetectionID("green bowl/greenish bowl")
-        # cup_detection = LanguageObjectDetectionID("blue cup/blue cylinder/blue box")
-        cup_detection = LanguageObjectDetectionID("orange cup/orange cylinder/orange-ish mug")
-        detection_id_to_obj[cup_detection] = cup
-
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID("cardboard box/paper box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
-
+            
+        # Add known immovable objects
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
