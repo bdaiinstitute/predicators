@@ -3339,9 +3339,6 @@ LISSpotEmptyCupBoxEnv:
 LISSpotTableCupInBoxEnv:
 - "put the cup into the cardboard box on floor"  # Requires checking cup state
 
-LISSpotBlockTableInBowlEnv:
-- "put the (red) block on table into the green bowl on floor"  # Requires checking table state
-
 # Pick Place in more open space
 - TODO
 """
@@ -3605,7 +3602,7 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
 
 
 
-class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
+class LISSpotTableBlockInBowlEnv(SpotRearrangementEnv):
     """An environment where a block needs to be moved from a table into a bowl."""
 
     def __init__(self, use_gui: bool = True) -> None:
@@ -3622,7 +3619,7 @@ class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
 
     @classmethod
     def get_name(cls) -> str:
-        return "lis_spot_block_table_to_bowl_env"
+        return "lis_spot_table_block_in_bowl_env"
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
@@ -3648,7 +3645,7 @@ class LISSpotBlockTableInBowlEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "put the red block on table into the green bowl on floor"
+        return "put the block on table into the bowl on floor"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
