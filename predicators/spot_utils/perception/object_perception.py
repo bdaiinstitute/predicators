@@ -170,6 +170,7 @@ def vlm_predicate_batch_query(
             results = []
             retry = False
             for i, r in enumerate(responses):
+                # FIXME add logic here
                 if any(x in r for x in ['Yes', 'No']):
                     if 'Yes' in r:
                         results.append(True)
