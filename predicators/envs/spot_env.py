@@ -3667,8 +3667,7 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
-            # "MoveToHandObserveObjectFromTop",  # TODO causing issue?
+            "MoveToHandObserveObjectFromTop",  # TODO check
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -3684,16 +3683,18 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         
-        cardboard_box = Object("cardboard_box", _container_type)
-        cardboard_box_detection = LanguageObjectDetectionID(
-            "cardboard box/box")
-        detection_id_to_obj[cardboard_box_detection] = cardboard_box
-
-        # Case 1: Cup facing up with no lid
-        # To try more cases below
-        blue_cup = Object("blue_cup", _movable_object_type)
-        blue_cup_detection = LanguageObjectDetectionID("blue cup/blue mug/uncovered blue cup")
-        detection_id_to_obj[blue_cup_detection] = blue_cup
+        # List object identifier, object name (to find prompt), and type
+        objects_to_detect = [
+            ("cardboard_box", "cardboard_box", _container_type),
+            # Case 1: Cup facing up without lid
+            ("cup", "orange_cup", _movable_object_type),
+        ]
+        
+        # Add detection object prompt and save object identifier  
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
