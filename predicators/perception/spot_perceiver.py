@@ -615,6 +615,11 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [cup1, cardboard_box]),
             }
+        if goal_description == "pick up the cup1":
+            cup1 = Object("cup1", _container_type)
+            robot = Object("robot", _robot_type)
+            Holding = pred_name_to_pred["Holding"]
+            return {GroundAtom(Holding, [robot, cup1])}
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
