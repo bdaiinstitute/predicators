@@ -30,10 +30,10 @@ april-tag-offsets:
 # points.
 allowed-regions:
   spot-room:
-  - [0.25, 1.9]
-  - [1.2, -2.5]
-  - [5.7, -1.5]
-  - [5.0, 2.7]
+  - [ 0.25, 1.9 ]
+  - [ 1.2, -2.5 ]
+  - [ 5.7, -1.5 ]
+  - [ 5.0, 2.7 ]
 
 # Known immovable objects. Assuming default rotations.
 # TODO note: later we can add static objects like tables, chairs, etc. here
@@ -60,14 +60,15 @@ static-object-features:
     length: 1.2
     width: 0.8
     flat_top_surface: 1
-  cardboard_box: # adopted from floor8-v2
+  cardboard_box:
+    # adopted from floor8-v2
     shape: 1
     height: 0.5 # TODO check
     width: 0.4
     length: 0.4
     placeable: 1
     is_sweeper: 0
-    radius: 0.2 # TODO ?
+    radius: 0.3 # TODO ?
     # Important for TopAbove that the bucket appears to always be on the ground
     # z: -0.45
     # Rotation can't be detected.
@@ -83,6 +84,14 @@ static-object-features:
     placeable: 1
     is_sweeper: 0
     radius: 0.1 # TODO quick fix
+  block:
+    shape: 2
+    height: 0.02
+    length: 0.02
+    width: 0.02
+    placeable: 1
+    is_sweeper: 0
+    radius: 0.1
   green_bowl:
     shape: 2
     height: 0.5
@@ -93,23 +102,23 @@ static-object-features:
     radius: 0.2 # TODO quick fix
   orange_mug:
     shape: 2
-    height: 0.1
-    length: 0.1
-    width: 0.1
+    height: 0.02
+    length: 0.02
+    width: 0.02
     placeable: 1
     is_sweeper: 0
     radius: 0.1
   cup:
     shape: 2
-    height: 0.1
-    length: 0.1
-    width: 0.1
+    height: 0.02
+    length: 0.02
+    width: 0.02
     placeable: 1
     is_sweeper: 0
     radius: 0.1
 
 # NOTE: Not sure what these mean, but have to be there?
 prepare_container_relative_xy:
-  dx: -1.0
+  dx: -1
   dy: 0.1
   angle: -1.5707 # - pi / 2
