@@ -486,6 +486,11 @@ class SpotPerceiver(BasePerceiver):
             block = Object("red_block", _movable_object_type)
             Holding = pred_name_to_pred["Holding"]
             return {GroundAtom(Holding, [robot, block])}
+        if goal_description == "pick up the block":
+            robot = Object("robot", _robot_type)
+            block = Object("block", _movable_object_type)
+            Holding = pred_name_to_pred["Holding"]
+            return {GroundAtom(Holding, [robot, block])}
         if goal_description == "pick the red block into the green bowl":
             block = Object("red_block", _movable_object_type)
             bowl = Object("green_bowl", _container_type)
@@ -602,6 +607,13 @@ class SpotPerceiver(BasePerceiver):
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [cup, cardboard_box]),
+            }
+        if goal_description == "put the cup1 into the cardboard box on floor":
+            cup1 = Object("cup1", _container_type)
+            cardboard_box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [cup1, cardboard_box]),
             }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
