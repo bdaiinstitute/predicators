@@ -63,12 +63,12 @@ static-object-features:
   cardboard_box:
     # adopted from floor8-v2
     shape: 1
-    height: 0.5 # TODO check
-    width: 0.4
-    length: 0.4
+    height: 0.2 # TODO check
+    width: 0.2
+    length: 0.2
     placeable: 1
     is_sweeper: 0
-    radius: 0.3 # TODO ?
+    radius: 0.2 # TODO ?
     # Important for TopAbove that the bucket appears to always be on the ground
     # z: -0.45
     # Rotation can't be detected.
