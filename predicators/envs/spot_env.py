@@ -3533,10 +3533,11 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
             ("cardboard_box", "cardboard_box", _container_type),
             # ("block", "red_block", _movable_object_type),
             # DEBUG objects:
-            # ("block", "orange_cup", _container_type),
-            # ("block", "spam_box", _container_type), 
+            # NOTE: should use movable type, because the goal for this task assumes movable
+            # ("block", "orange_cup", _movable_object_type),
+            # ("block", "spam_box", _movable_object_type), 
             # ("block", "yellow_apple", _movable_object_type),
-            ("block", "green_cup", _container_type),
+            ("block", "green_cup", _movable_object_type),
             # ("block", "green_block", _movable_object_type),
             # ("block", "green_apple", _movable_object_type),
         ]
