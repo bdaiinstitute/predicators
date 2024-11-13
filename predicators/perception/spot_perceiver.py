@@ -582,6 +582,20 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingWaterKnown, [cup]),
                 GroundAtom(ContainingWater, [cup]),
             }
+        if goal_description == "know cup1-3 emptiness":
+            cup1 = Object("cup1", _container_type)
+            # cup2 = Object("cup2", _container_type)
+            # cup3 = Object("cup3", _container_type)
+            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
+            ContainingWater = pred_name_to_pred["ContainingWater"]
+            return {
+                GroundAtom(ContainingWaterKnown, [cup1]),
+                GroundAtom(ContainingWater, [cup1]),
+                # GroundAtom(ContainingWaterKnown, [cup2]),
+                # GroundAtom(ContainingWater, [cup2]),
+                # GroundAtom(ContainingWaterKnown, [cup3]),
+                # GroundAtom(ContainingWater, [cup3]),
+            }
         if goal_description == "place empty cup into the box":
             cup = Object("cup", _container_type)
             cardboard_box = Object("cardboard_box", _container_type)

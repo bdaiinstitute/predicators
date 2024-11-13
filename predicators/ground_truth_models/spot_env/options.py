@@ -1040,6 +1040,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "lis_spot_table_multi_cup_in_box_env",
             "lis_spot_table_block_in_bowl_env",
             "lis_spot_empty_cup_box_env",
+            "lis_spot_gather_cup_emptiness_env",
         }
 
     @classmethod
