@@ -1644,8 +1644,12 @@ if tmp_vlm_flag:
     # E.g,. _ContainingWaterKnownAsTrue won't work.
     _ContainingWaterKnown = VLMPredicate(
         "ContainingWaterKnown", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains water or not. If you don't know, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains stuff or not. If you don't know, answer [no]."
     )
+    # _ContainerContentKnown = VLMPredicate(
+    #     "ContainerContentKnown", [_container_type],
+    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container is empty or contains objects/contents inside. If you cannot tell, answer [no]."
+    # )
     _ContainingWaterUnknown = VLMPredicate(
         "ContainingWaterUnknown", [_container_type],
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
@@ -1735,6 +1739,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     # ObserveFromTop
     robot = Variable("?robot", _robot_type)
     cup = Variable("?cup", _container_type)  # TODO update
+    # cup = Variable("?cup", _movable_object_type)  # TODO update
     surface = Variable("?surface", _immovable_object_type)
     parameters = [robot, cup, surface]
     preconds = {
@@ -3750,10 +3755,12 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandObserveObjectFromTop",  # TODO check
-            "PickObjectFromTop",
+            "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
+            # "MoveToHandViewObject",
+            "MoveToHandObserveObjectFromTop",  # For checking if cup is empty
+            "ObserveFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3789,6 +3796,66 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
     
     def _generate_goal_description(self) -> GoalDescription:
         return "place empty cup into the box"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+    
+    
+
+class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
+    """An environment designated for testing belief space predicates.
+    
+    The goal is to check emptiness of cups.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "PickObjectFromTop", 
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+            # "MoveToHandViewObject",
+            "MoveToHandObserveObjectFromTop",  # For checking if cup is empty
+            "ObserveFromTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_gather_cup_emptiness_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        
+        # List object identifier, object name (to find prompt), and type
+        # NOTE: cup is container type
+        objects_to_detect = [
+            ("cup1", "red_cup", _container_type),
+            ("cup2", "yellow_cup", _container_type), 
+            ("cup3", "green_cup", _container_type),
+        ]
+        
+        # Add detection object prompt and save object identifier
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
+            
+        # Add known immovable objects
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+            
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        # return "pick up the empty cup"
+        return "know cup1-3 emptiness"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
