@@ -285,7 +285,7 @@ def _query_detic_sam(
         try:
             r = requests.post("http://localhost:5550/batch_predict",
                               files=buf_dict,
-                              data={"classes": ",".join(classes)})
+                              data={"classes": ",".join(classes), "threshold": detection_threshold})
             break
         except requests.exceptions.ConnectionError:
             continue
