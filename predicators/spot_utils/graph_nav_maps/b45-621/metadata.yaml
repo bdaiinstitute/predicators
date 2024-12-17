@@ -13,7 +13,9 @@
 spot-home-pose:
   x: 2.5
   y: 0.0
-  angle: -1.57
+  angle: -1.57  # NOTE: facing fudicial 1
+  # angle: -2.8 # NOTE: facing fudicial 6
+  # angle: -2.1  # NOTE: facing fudicial 3
 
 april-tag-offsets:
   # smooth table
@@ -143,6 +145,6 @@ static-object-features:
 
 # NOTE: Not sure what these mean, but have to be there?
 prepare_container_relative_xy:
-  dx: -1
-  dy: 0.1
+  dx: 0.01
+  dy: 0.01
   angle: -1.5707 # - pi / 2
