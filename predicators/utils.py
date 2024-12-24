@@ -3881,18 +3881,34 @@ def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
 
 
 class Timer:
+    """
+    Timer context manager to measure the execution time of a block of code.
+    """
 
-    def __init__(self):
+    def __init__(self, enable_print=True, name="Block"):
+        self.enable_print = enable_print
+        self.name = name
+        # self.elapsed_time = 0  # Initialize elapsed_time
+
+    def get_elapsed_time(self):
+        """Get the elapsed time in seconds even in the context."""
+        return time.time() - self.start_time
+
+    def __enter__(self):
         self.start_time = time.time()
-        self.start_clock = self._clock()
+        return self  # Returning self to access its attributes
 
-    def _clock(self):
-        times = os.times()
-        return times[0] + times[1]
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Get the elapsed time when exiting the context."""
+        self.elapsed_time = self.get_elapsed_time()
+        if self.enable_print:
+            print(f"[{self.name}] executed in {self.elapsed_time:.4f} seconds")
 
-    def __str__(self):
-        return "[Timer: %.3fs CPU, %.3fs wall-clock]" % (
-            self._clock() - self.start_clock, time.time() - self.start_time)
+    @staticmethod
+    def get_current_time():
+        from datetime import datetime
+
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
 @contextlib.contextmanager
