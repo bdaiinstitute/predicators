@@ -692,6 +692,9 @@ if __name__ == "__main__":
     TEST_LANGUAGE_DESCRIPTIONS = [
         "small basketball toy/stuffed toy basketball/small orange ball",
         "small football toy/stuffed toy football/small brown ball",
+        "blue block",
+        "blue cup",
+        "red cup",
     ]
 
     def _run_manual_test() -> None:
