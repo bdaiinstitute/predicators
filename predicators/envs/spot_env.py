@@ -3363,13 +3363,13 @@ _OBJECT_PROMPTS = {
     "orange_cup": "orange cup/orange cylinder/orange-ish mug",
     "blue_cup": "blue cup/blue mug/uncovered blue cup",
     # "green_cup": "green cup/greenish cup/green cylinder",
-    "green_cup": "green cup",
-    "red_cup": "red cup",
-    "yellow_cup": "yellow cup",
+    "green_cup": "green cup on a flat surface",
+    "red_cup": "red cup on a flat surface",
+    "yellow_cup": "yellow cup on a flat surface",
     
     # Containers
     "green_bowl": "green bowl/greenish bowl",
-    "cardboard_box": "cardboard box/paper box",
+    "cardboard_box": "cardboard (paper) box on the ground",
     
     # Fixed objects with AprilTags
     "wooden_table": 32,  # AprilTag ID
