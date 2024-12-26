@@ -201,8 +201,15 @@ def _process_molmo_sam2_results(
         logging.info(f"\nResult {res_idx + 1}:")
         logging.info(f"Camera: {camera_name}, Prompt: {obj_id.language_id}")
 
-        boxes = res.get("boxes", [])
-        masks = res.get("masks", [])
+        # Check if points were detected
+        points = res.get("points", [])
+        if not points:
+            logging.warning(f"No points detected for {obj_id.language_id} in {camera_name}")
+            continue
+
+        # Get boxes and masks, which might be None if no points were detected
+        boxes = res.get("boxes") or []  # This handles both None and missing key
+        masks = res.get("masks") or []  # This handles both None and missing key
 
         logging.info(f"Found {len(boxes)} boxes and {len(masks)} masks")
         if boxes:
@@ -810,11 +817,13 @@ if __name__ == "__main__":
         # "small football toy/stuffed toy football/small brown ball",
         # "blue block",
         # "blue cup",
-        "red cup",
-        "green cup",
-        "yellow tape",
+        # "red cup",
         # "point at the blue block",
         # "point at the blue cup",
+        "green cup on the floor",
+        # "yellow tape",
+        "cardboard box on the floor",
+        "black handle of the cabinet made with black tape"
     ]
 
     def _run_manual_test() -> None:
