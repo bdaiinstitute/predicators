@@ -17,7 +17,7 @@ The key idea is to:
 
 ### States
 Each state in the environment consists of:
-- An optional image (path to a PNG file)
+- Set of camera images
 - Set of objects in view
 - Set of objects in hand
 - Gripper state (open/closed)
