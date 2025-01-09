@@ -1,67 +1,131 @@
 """Task definition for mock Spot environment."""
 
-from typing import List, Set, Dict, Optional, Tuple, Sequence
+from typing import List, Set, Dict, Optional, Tuple, Sequence, cast
 import numpy as np
 
-from predicators.structs import Object, State, EnvironmentTask, GoalDescription
+from predicators.structs import Object, State, EnvironmentTask, GoalDescription, Type, Predicate, GroundAtom
 from predicators.envs.mock_spot_env import MockSpotEnv, MockSpotObservation
+from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
 
 
-class MockSpotTask:
+class MockSpotTask(EnvironmentTask):
     """Task definition for mock Spot environment.
     
-    This defines task-specific logic like:
-    - Goal descriptions
-    - Task generation
-    - Converting observations to states
+    A task consists of:
+    - Initial state configuration
+    - Goal conditions
+    - Available operators and predicates
+    - Objects and their types
+
+    TODO: Fix State constructor call in observation_to_state()
+    The State constructor expects:
+    - state_dict: Dict[Object, np.ndarray]
+    - vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None  
+    - simulator_state: Any = None
+    - goal_description: Optional[Set[GroundAtom]] = None
+    Reference: Looking at PDDL environment (predicators/envs/pddl_env.py), 
+    it uses simulator_state to store ground atoms directly
+
+    TODO: Fix GoalDescription instantiation in get_goal()
+    The GoalDescription constructor expects a Set[GroundAtom]
+    The "Any cannot be instantiated" error suggests we need to handle the type properly
+    Reference: Looking at test_mock_spot_env.py shows goal atoms are passed directly
     """
 
-    def __init__(self) -> None:
-        self.env: Optional[MockSpotEnv] = None
+    def __init__(self, env: MockSpotEnv, goal_description: Optional[GoalDescription] = None) -> None:
+        """Initialize the task with a mock Spot environment."""
+        super().__init__(env, goal_description)
+        self._env = env
+        self._objects: Set[Object] = set()
+        self._init_state: Optional[State] = None
+        self._goal = goal_description
+        self._initialize_task()
 
-    def set_environment(self, env: MockSpotEnv) -> None:
-        """Set the environment for this task."""
-        self.env = env
+    def _initialize_task(self) -> None:
+        """Initialize task components."""
+        # Create basic objects (robot always exists)
+        types = {t.name: t for t in self._env.types}
+        robot = Object("robot", types["robot"])
+        self._objects.add(robot)
+
+        # Get NSRTs for operators
+        factory = MockSpotGroundTruthNSRTFactory()
+        predicates = {p.name: p for p in self._env.predicates}
+        self._nsrts = factory.get_nsrts(
+            self._env.get_name(),
+            types,
+            predicates,
+            {}  # Options not needed for task definition
+        )
+
+    def get_objects(self) -> Set[Object]:
+        """Get all objects in the task."""
+        return self._objects
+
+    def update_objects(self, objects_in_view: Set[str]) -> None:
+        """Update task objects based on perception."""
+        # Add new objects with appropriate types
+        types = {t.name: t for t in self._env.types}
+        for obj_name in objects_in_view:
+            if obj_name == "robot":
+                continue
+            # Determine object type based on name
+            if "table" in obj_name:
+                type_name = "immovable_object"
+            elif "container" in obj_name:
+                type_name = "container"
+            else:
+                type_name = "movable_object"
+            obj = Object(obj_name, types[type_name])
+            self._objects.add(obj)
+
+    def get_init_state(self) -> State:
+        """Get initial state."""
+        if self._init_state is None:
+            # Create initial state from current environment state
+            obs = self._env.get_observation()  # Using get_observation instead of get_current_observation
+            self._init_state = self.observation_to_state(obs)
+        return self._init_state
 
     def observation_to_state(self, obs: MockSpotObservation) -> State:
-        """Convert observation to symbolic state."""
-        if self.env is None:
-            raise ValueError("Environment not set")
-            
-        # Create objects
-        objects = {Object(name, self.env._movable_object_type) for name in obs.objects_in_view}
-        robot = Object("robot", self.env._robot_type)
-        objects.add(robot)
-        
-        # Create object data dictionary
-        data = {}
-        for obj in objects:
-            if obj.type == self.env._robot_type:
-                data[obj] = np.array([
-                    float(obs.gripper_open),  # gripper_open_percentage
-                    0.0,  # x
-                    0.0,  # y 
-                    0.0,  # z
-                ], dtype=np.float32)
-            else:
-                # For mock environment, we don't track actual positions
-                data[obj] = np.array([
-                    0.0,  # x
-                    0.0,  # y
-                    0.0,  # z
-                ], dtype=np.float32)
-                
-        return State(data)
+        """Convert observation to state."""
+        # Update objects based on observation
+        self.update_objects(obs.objects_in_view)
 
-    def generate_goal_description(self) -> GoalDescription:
-        """Generate goal description for the task."""
-        # This should be overridden by specific task implementations
-        raise NotImplementedError("Subclasses must implement generate_goal_description")
+        # Create state atoms based on observation
+        atoms: Set[GroundAtom] = set()
+        predicates = {p.name: p for p in self._env.predicates}
+        robot = next(obj for obj in self._objects if obj.type.name == "robot")
 
-    def get_dry_task(self, train_or_test: str, task_idx: int) -> EnvironmentTask:
-        """Generate a dry run task.
-        
-        This should be overridden by specific task implementations to create
-        tasks with appropriate initial states and goals.
-        """
-        raise NotImplementedError("Subclasses must implement get_dry_task") 
+        # Add HandEmpty/Holding predicates
+        if not obs.objects_in_hand:
+            atoms.add(GroundAtom(predicates["HandEmpty"], [robot]))
+        else:
+            for obj_name in obs.objects_in_hand:
+                obj = next(o for o in self._objects if o.name == obj_name)
+                atoms.add(GroundAtom(predicates["Holding"], [robot, obj]))
+
+        # Add InView predicates
+        for obj_name in obs.objects_in_view:
+            obj = next(o for o in self._objects if o.name == obj_name)
+            atoms.add(GroundAtom(predicates["InView"], [robot, obj]))
+
+        # Create state with atoms in simulator_state
+        # Keep a dummy state dict so we know what objects are in the state
+        dummy_state_dict = {o: np.zeros(0, dtype=np.float32) for o in self._objects}
+        # FIXME: fix VLM Atoms init
+        return State(dummy_state_dict, set(), atoms, set())
+
+    def get_goal(self) -> GoalDescription:
+        """Get goal description."""
+        if self._goal is None:
+            # Create a default goal (can be overridden)
+            predicates = {p.name: p for p in self._env.predicates}
+            robot = next(obj for obj in self._objects if obj.type.name == "robot")
+            goal_atoms = {GroundAtom(predicates["HandEmpty"], [robot])}
+            self._goal = goal_atoms
+        return self._goal
+
+    def set_goal(self, goal: GoalDescription) -> None:
+        """Set a new goal for the task."""
+        self._goal = goal 
