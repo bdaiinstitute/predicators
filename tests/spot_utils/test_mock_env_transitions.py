@@ -1,7 +1,6 @@
 """Tests for mock environment transition graph calculation."""
 
 import os
-import tempfile
 import numpy as np
 from predicators.envs.mock_spot_env import (
     MockSpotEnv, _robot_type, _container_type, _immovable_object_type,
@@ -16,18 +15,18 @@ from predicators.settings import CFG
 def test_two_object_pick_place():
     """Test transition graph calculation for a two-object pick-and-place task."""
     # Set up configuration
-    temp_dir = tempfile.mkdtemp()
+    test_name = "test_two_object_pick_place"
     utils.reset_config({
         "env": "mock_spot",
         "approach": "oracle",
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": temp_dir
+        "mock_env_data_dir": os.path.join("mock_env_data", test_name)
     })
     
     # Create environment creator
-    creator = ManualMockEnvCreator(temp_dir)
+    creator = ManualMockEnvCreator(os.path.join("mock_env_data", test_name))
     
     # Create objects
     robot = Object("robot", _robot_type)
@@ -65,7 +64,7 @@ def test_two_object_pick_place():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "two_object_pick_place")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
     
     # Verify output file exists
-    assert os.path.exists(os.path.join(creator.transitions_dir, "two_object_pick_place.png")) 
+    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png")) 
