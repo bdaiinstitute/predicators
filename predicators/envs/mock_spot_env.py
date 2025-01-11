@@ -1,4 +1,18 @@
-"""Mock environment for Spot robot."""
+"""Mock environment for Spot robot.
+
+This module provides a mock environment for the Spot robot that simulates:
+- States and transitions for pick-and-place tasks
+- RGB-D observations with object detections
+- Gripper state and object tracking
+
+The environment stores its data (graph, images, etc.) in a directory specified by CFG.mock_env_data_dir.
+If not specified, it defaults to "mock_env_data". The data includes:
+- graph.json: Contains state transitions and observations
+- images/: Directory containing RGB-D images for each state
+
+Configuration:
+    mock_env_data_dir (str): Directory to store environment data (default: "mock_env_data")
+"""
 
 import logging
 import json
@@ -14,6 +28,7 @@ from predicators.envs import BaseEnv
 from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext
 from predicators.structs import Action, State, Object, Type, EnvironmentTask, Video, Image
 from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate
+from predicators.settings import CFG
 from bosdyn.client import math_helpers
 
 
@@ -41,34 +56,38 @@ _NotInsideAnyContainer = Predicate("NotInsideAnyContainer", [_movable_object_typ
 _FitsInXY = Predicate("FitsInXY", [_movable_object_type, _base_object_type], _dummy_classifier)
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _dummy_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type], _dummy_classifier)
-_NotHolding = Predicate("NotHolding", [_robot_type, _base_object_type], _dummy_classifier)
-_InHandView = Predicate("InHandView", [_robot_type, _movable_object_type], _dummy_classifier)
-_InView = Predicate("InView", [_robot_type, _movable_object_type], _dummy_classifier)
+_NotHolding = Predicate("NotHolding", [_robot_type, _movable_object_type], _dummy_classifier)
+_InHandView = Predicate("InHandView", [_robot_type, _base_object_type], _dummy_classifier)
+_InView = Predicate("InView", [_robot_type, _base_object_type], _dummy_classifier)
 _Reachable = Predicate("Reachable", [_robot_type, _base_object_type], _dummy_classifier)
 _Blocking = Predicate("Blocking", [_base_object_type, _base_object_type], _dummy_classifier)
 _NotBlocked = Predicate("NotBlocked", [_base_object_type], _dummy_classifier)
-_ContainerReadyForSweeping = Predicate("ContainerReadyForSweeping", [_container_type, _immovable_object_type], _dummy_classifier)
+_ContainerReadyForSweeping = Predicate("ContainerReadyForSweeping", [_container_type], _dummy_classifier)
 _IsPlaceable = Predicate("IsPlaceable", [_movable_object_type], _dummy_classifier)
 _IsNotPlaceable = Predicate("IsNotPlaceable", [_movable_object_type], _dummy_classifier)
 _IsSweeper = Predicate("IsSweeper", [_movable_object_type], _dummy_classifier)
-_HasFlatTopSurface = Predicate("HasFlatTopSurface", [_immovable_object_type], _dummy_classifier)
-_RobotReadyForSweeping = Predicate("RobotReadyForSweeping", [_robot_type, _movable_object_type], _dummy_classifier)
-_ContainingWaterUnknown = Predicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
-_ContainingWaterKnown = Predicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
-_ContainingWater = Predicate("ContainingWater", [_container_type], _dummy_classifier)
-_NotContainingWater = Predicate("NotContainingWater", [_container_type], _dummy_classifier)
-_InHandViewFromTop = Predicate("InHandViewFromTop", [_robot_type, _movable_object_type], _dummy_classifier)
+_HasFlatTopSurface = Predicate("HasFlatTopSurface", [_base_object_type], _dummy_classifier)
+_RobotReadyForSweeping = Predicate("RobotReadyForSweeping", [_robot_type], _dummy_classifier)
+
+# Add new predicates for cup emptiness
+# TODO: Re-enable these predicates after fixing base pick-place functionality
+# _ContainingWaterUnknown = Predicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
+# _ContainingWaterKnown = Predicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
+# _ContainingWater = Predicate("ContainingWater", [_container_type], _dummy_classifier)
+# _NotContainingWater = Predicate("NotContainingWater", [_container_type], _dummy_classifier)
+# _InHandViewFromTop = Predicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
 
 # Export all predicates
 PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
-             _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-             _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater,
-             _NotContainingWater, _InHandViewFromTop}
+             _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping}
+             # TODO: Add these predicates back after fixing base pick-place functionality
+             # _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater,
+             # _NotContainingWater, _InHandViewFromTop}
 
 # Export goal predicates
-GOAL_PREDICATES = {_Inside, _On}
+GOAL_PREDICATES = {_On, _Inside}  # TODO: Add _ContainingWaterKnown back after fixing base pick-place functionality
 
 
 @dataclass
@@ -88,6 +107,15 @@ class MockSpotEnv(BaseEnv):
     - States are latent (we don't know actual states and don't need to know)
     - Observations are RGB-D images + gripper state + object detections
     - Actions can succeed or fail based on available images
+    
+    The environment stores its data in a directory specified by CFG.mock_env_data_dir.
+    This includes:
+    - State transition graph (graph.json)
+    - RGB-D images for each state (images/)
+    - Observation metadata (gripper state, objects in view/hand)
+    
+    Args:
+        use_gui (bool): Whether to use GUI for visualization. Defaults to True.
     """
 
     @classmethod
@@ -160,8 +188,16 @@ class MockSpotEnv(BaseEnv):
         """Generate test tasks."""
         return []  # No test tasks in mock environment
 
-    def __init__(self, data_dir: str = "spot_mock_data") -> None:
-        super().__init__()
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the mock Spot environment.
+        
+        Args:
+            use_gui: Whether to use GUI for visualization
+        """
+        super().__init__(use_gui)
+        
+        # Get data directory from config
+        data_dir = CFG.mock_env_data_dir if hasattr(CFG, "mock_env_data_dir") else "mock_env_data"
         
         # Create data directories
         self._data_dir = Path(data_dir)
@@ -339,6 +375,42 @@ class MockSpotEnv(BaseEnv):
         ignore_effs = set()
         yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
+
+        # TODO: Re-enable these operators after fixing base pick-place functionality
+        # # MoveToHandObserveObjectFromTop
+        # robot = Variable("?robot", _robot_type)
+        # obj = Variable("?object", _container_type)
+        # parameters = [robot, obj]
+        # preconds = {
+        #     LiftedAtom(_NotBlocked, [obj]),
+        #     LiftedAtom(_HandEmpty, [robot]),
+        #     LiftedAtom(_ContainingWaterUnknown, [obj])
+        # }
+        # add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
+        # del_effs = set()
+        # ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+        # yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
+        #                     add_effs, del_effs, ignore_effs)
+
+        # # ObserveFromTop
+        # robot = Variable("?robot", _robot_type)
+        # obj = Variable("?object", _container_type)
+        # parameters = [robot, obj]
+        # preconds = {
+        #     LiftedAtom(_InHandViewFromTop, [robot, obj]),
+        #     LiftedAtom(_ContainingWaterUnknown, [obj])
+        # }
+        # add_effs = {
+        #     LiftedAtom(_ContainingWaterKnown, [obj]),
+        #     LiftedAtom(_ContainingWater, [obj])
+        # }
+        # del_effs = {
+        #     LiftedAtom(_ContainingWaterUnknown, [obj]),
+        #     LiftedAtom(_InHandViewFromTop, [robot, obj])
+        # }
+        # ignore_effs = set()
+        # yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs,
+        #                     del_effs, ignore_effs)
 
     def add_state(self, 
                  rgbd: Optional[RGBDImageWithContext] = None,
