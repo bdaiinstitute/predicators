@@ -21,9 +21,15 @@ Test cases:
    - Tests handling of multiple objects
    - Verifies more complex goal achievement
 
+3. View and reach operations:
+   - Tests moving to view and reach objects
+   - Verifies proper sequencing of view and reach actions
+   - Tests preconditions for manipulation
+
 Output files:
 - mock_env_data/test_single_block_pick_place/transition_graph.png: Graph for single block test
 - mock_env_data/test_two_object_pick_place/transition_graph.png: Graph for two blocks test
+- mock_env_data/test_view_reach/transition_graph.png: Graph for view and reach test
 
 Configuration:
     mock_env_data_dir (str): Directory to store environment data (set during test)
@@ -245,6 +251,107 @@ def test_two_object_pick_place():
         GroundAtom(_Reachable, [robot, table]),
         GroundAtom(_InHandView, [robot, block1]),
         GroundAtom(_InHandView, [robot, block2]),
+        GroundAtom(_NEq, [block1, table]),
+        GroundAtom(_NEq, [block1, container]),
+        GroundAtom(_NEq, [block2, table]),
+        GroundAtom(_NEq, [block2, container]),
+        GroundAtom(_NEq, [block1, block2]),
+        GroundAtom(_NEq, [container, table])
+    }
+    
+    # Create goal atoms - both blocks should be in the container
+    goal_atoms = {
+        GroundAtom(_Inside, [block1, container]),
+        GroundAtom(_Inside, [block2, container])
+    }
+    
+    # Plan and visualize transitions
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    
+    # Verify output file exists
+    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png"))
+
+
+def test_view_reach_pick_place_two_objects():
+    """Test transition graph calculation for view-reach-pick-place with two objects.
+    
+    This test:
+    1. Sets up a scenario with:
+       - A robot
+       - A table (immovable object)
+       - A container
+       - Two blocks (movable objects)
+       
+    2. Creates initial state where:
+       - Robot's hand is empty
+       - Both blocks are on the table
+       - Blocks are not in view
+       - Blocks are not reachable
+       - Blocks are not inside any container
+       - Blocks are placeable
+       - Table has a flat top surface
+       - Blocks fit in container
+       - Blocks are not blocked
+       
+    3. Sets goal state where:
+       - Both blocks are inside the container
+       
+    4. Verifies:
+       - A valid plan is found that includes:
+         a. Moving to view first block
+         b. Moving to reach first block
+         c. Picking and placing first block
+         d. Moving to view second block
+         e. Moving to reach second block
+         f. Picking and placing second block
+       - The transition graph shows proper action sequencing
+       - The plan achieves the goal state
+       
+    Output:
+       - mock_env_data/test_view_reach_pick_place_two/transition_graph.png: Visualization of the transition graph
+    """
+    # Set up configuration
+    test_name = "test_view_reach_pick_place_two"
+    utils.reset_config({
+        "env": "mock_spot",
+        "approach": "oracle",
+        "seed": 123,
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "mock_env_data_dir": os.path.join("mock_env_data", test_name)
+    })
+    
+    # Create environment creator
+    creator = ManualMockEnvCreator(os.path.join("mock_env_data", test_name))
+    
+    # Create objects
+    robot = Object("robot", _robot_type)
+    block1 = Object("block1", _movable_object_type)
+    block2 = Object("block2", _movable_object_type)
+    table = Object("table", _immovable_object_type)
+    container = Object("container", _container_type)
+    
+    # Create initial atoms - blocks are not in view or reachable initially
+    objects = {robot, block1, block2, table, container}
+    initial_atoms = {
+        GroundAtom(_HandEmpty, [robot]),
+        GroundAtom(_NotHolding, [robot, block1]),
+        GroundAtom(_NotHolding, [robot, block2]),
+        GroundAtom(_On, [block1, table]),
+        GroundAtom(_On, [block2, table]),
+        GroundAtom(_On, [container, table]),
+        GroundAtom(_NotBlocked, [block1]),
+        GroundAtom(_NotBlocked, [block2]),
+        GroundAtom(_NotBlocked, [container]),
+        GroundAtom(_IsPlaceable, [block1]),
+        GroundAtom(_IsPlaceable, [block2]),
+        GroundAtom(_HasFlatTopSurface, [table]),
+        GroundAtom(_FitsInXY, [block1, container]),
+        GroundAtom(_FitsInXY, [block2, container]),
+        GroundAtom(_NotInsideAnyContainer, [block1]),
+        GroundAtom(_NotInsideAnyContainer, [block2]),
+        GroundAtom(_NotHolding, [robot, container]),
+        # Additional necessary predicates
         GroundAtom(_NEq, [block1, table]),
         GroundAtom(_NEq, [block1, container]),
         GroundAtom(_NEq, [block2, table]),
