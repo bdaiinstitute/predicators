@@ -13,20 +13,21 @@ from predicators.spot_utils.perception.perception_structs import RGBDImageWithCo
 
 def test_mock_spot_env():
     """Tests for mock Spot environment."""
-    # Set up configuration
-    utils.reset_config({
-        "env": "mock_spot",
-        "approach": "oracle",
-        "seed": 123,
-        "num_train_tasks": 0,
-        "num_test_tasks": 1
-    })
-
     # Create a temporary directory for testing
     temp_dir = tempfile.mkdtemp()
     try:
         # Initialize environment
-        env = MockSpotEnv(data_dir=temp_dir)
+        utils.reset_config({
+            "env": "mock_spot",
+            "approach": "oracle",
+            "seed": 123,
+            "num_train_tasks": 0,
+            "num_test_tasks": 1,
+            "mock_env_data_dir": temp_dir
+        })
+        
+        # Initialize environment
+        env = MockSpotEnv()
         
         # Test basic properties
         assert env.get_name() == "mock_spot"
@@ -53,43 +54,44 @@ def test_mock_spot_env():
             InHandViewFromTop = sorted(env.predicates)
         
         # Test operators
-        assert len(env.strips_operators) == 5
-        MoveToReachObject, MoveToHandViewObject, PickObjectFromTop, \
-            PlaceObjectOnTop, DropObjectInside = sorted(env.strips_operators)
+        assert len(env.strips_operators) == 7
+        MoveToReachObject, MoveToHandViewObject, MoveToHandObserveObjectFromTop, \
+            ObserveFromTop, PickObjectFromTop, PlaceObjectOnTop, \
+            DropObjectInside = sorted(env.strips_operators)
         
         # Test state creation and transitions
         state_id_1 = env.add_state(
             rgbd=None,
             gripper_open=True,
-            objects_in_view={"cup", "table"},
+            objects_in_view={"cup1", "cup2", "table"},
             objects_in_hand=set()
         )
         assert state_id_1 == "0"
         
         state_id_2 = env.add_state(
             rgbd=None,
-            gripper_open=False,
-            objects_in_view={"cup", "table"},
-            objects_in_hand={"cup"}
+            gripper_open=True,
+            objects_in_view={"cup1", "cup2", "table"},
+            objects_in_hand=set()
         )
         assert state_id_2 == "1"
         
-        # Test adding valid transition
-        env.add_transition(state_id_1, "PickObjectFromTop", state_id_2)
+        # Test adding valid transitions
+        env.add_transition(state_id_1, "MoveToHandObserveObjectFromTop", state_id_2)
         
         # Test adding invalid transitions
         with pytest.raises(ValueError):
-            env.add_transition("invalid_id", "PickObjectFromTop", state_id_2)
+            env.add_transition("invalid_id", "MoveToHandObserveObjectFromTop", state_id_2)
         
         with pytest.raises(ValueError):
             env.add_transition(state_id_1, "InvalidOperator", state_id_2)
         
         # Test graph data persistence
         # Create new environment instance with same data directory
-        env2 = MockSpotEnv(data_dir=temp_dir)
+        env2 = MockSpotEnv()
         assert len(env2._observations) == 2
         assert len(env2._transitions) == 1
-        assert env2._transitions[state_id_1]["PickObjectFromTop"] == state_id_2
+        assert env2._transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
         
     finally:
         # Clean up temporary directory
