@@ -184,6 +184,9 @@ class GlobalSettings:
     # Evaluate some predicates with VLM; need additional setup; WIP
     spot_vlm_eval_predicate = False
     vlm_eval_verbose = False
+    
+    # Mock robot environment ("MockSpotEnv") parameters
+    mock_env_data_dir = "mock_env_data"
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3
