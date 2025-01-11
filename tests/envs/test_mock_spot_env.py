@@ -95,4 +95,116 @@ def test_mock_spot_env():
         
     finally:
         # Clean up temporary directory
+        shutil.rmtree(temp_dir)
+
+
+def test_pick_from_top():
+    """Test pick-from-top operation sequence."""
+    # Create a temporary directory for testing
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Initialize environment
+        utils.reset_config({
+            "env": "mock_spot",
+            "approach": "oracle",
+            "seed": 123,
+            "num_train_tasks": 0,
+            "num_test_tasks": 1,
+            "mock_env_data_dir": temp_dir
+        })
+        
+        # Initialize environment
+        env = MockSpotEnv()
+        
+        # Test pick-from-top sequence
+        # Initial state: robot hand empty, block on table
+        state_id_1 = env.add_state(
+            rgbd=None,
+            gripper_open=True,
+            objects_in_view={"block", "table"},
+            objects_in_hand=set()
+        )
+        
+        # State after moving to reach block
+        state_id_2 = env.add_state(
+            rgbd=None,
+            gripper_open=True,
+            objects_in_view={"block", "table"},
+            objects_in_hand=set()
+        )
+        
+        # State after picking block
+        state_id_3 = env.add_state(
+            rgbd=None,
+            gripper_open=False,
+            objects_in_view={"block", "table"},
+            objects_in_hand={"block"}
+        )
+        
+        # Add transitions
+        env.add_transition(state_id_1, "MoveToReachObject", state_id_2)
+        env.add_transition(state_id_2, "PickObjectFromTop", state_id_3)
+        
+        # Verify transitions
+        assert env._transitions[state_id_1]["MoveToReachObject"] == state_id_2
+        assert env._transitions[state_id_2]["PickObjectFromTop"] == state_id_3
+        
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(temp_dir)
+
+
+def test_move_to_view_from_top():
+    """Test move-to-view-from-top operation sequence."""
+    # Create a temporary directory for testing
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Initialize environment
+        utils.reset_config({
+            "env": "mock_spot",
+            "approach": "oracle",
+            "seed": 123,
+            "num_train_tasks": 0,
+            "num_test_tasks": 1,
+            "mock_env_data_dir": temp_dir
+        })
+        
+        # Initialize environment
+        env = MockSpotEnv()
+        
+        # Test move-to-view-from-top sequence
+        # Initial state: robot hand empty, cup on table
+        state_id_1 = env.add_state(
+            rgbd=None,
+            gripper_open=True,
+            objects_in_view={"cup", "table"},
+            objects_in_hand=set()
+        )
+        
+        # State after moving to view cup from top
+        state_id_2 = env.add_state(
+            rgbd=None,
+            gripper_open=True,
+            objects_in_view={"cup", "table"},
+            objects_in_hand=set()
+        )
+        
+        # State after observing cup from top
+        state_id_3 = env.add_state(
+            rgbd=None,
+            gripper_open=True,
+            objects_in_view={"cup", "table"},
+            objects_in_hand=set()
+        )
+        
+        # Add transitions
+        env.add_transition(state_id_1, "MoveToHandObserveObjectFromTop", state_id_2)
+        env.add_transition(state_id_2, "ObserveFromTop", state_id_3)
+        
+        # Verify transitions
+        assert env._transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
+        assert env._transitions[state_id_2]["ObserveFromTop"] == state_id_3
+        
+    finally:
+        # Clean up temporary directory
         shutil.rmtree(temp_dir) 
