@@ -23,6 +23,28 @@ Configuration:
     sesame_max_skeletons_optimized (int): Maximum number of skeletons to optimize
     sesame_use_necessary_atoms (bool): Whether to use necessary atoms in planning
     sesame_check_expected_atoms (bool): Whether to check expected atoms in planning
+
+Example usage:
+    ```python
+    # Create environment creator
+    creator = ManualMockEnvCreator("path/to/data_dir")
+    
+    # Create objects and predicates
+    robot = Object("robot", creator.types["robot"])
+    block = Object("block", creator.types["movable_object"])
+    
+    # Create initial and goal atoms
+    init_atoms = {
+        GroundAtom(creator.predicates["HandEmpty"], [robot]),
+        GroundAtom(creator.predicates["On"], [block, table])
+    }
+    goal_atoms = {
+        GroundAtom(creator.predicates["Inside"], [block, container])
+    }
+    
+    # Plan and visualize transitions
+    creator.plan_and_visualize(init_atoms, goal_atoms, objects)
+    ```
 """
 
 import os
