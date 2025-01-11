@@ -275,7 +275,7 @@ class MockSpotEnv(BaseEnv):
         """Create operators for the mock environment."""
         # MoveToReachObject
         robot = Variable("?robot", _robot_type)
-        obj = Variable("?object", _base_object_type)
+        obj = Variable("?object", _movable_object_type)
         parameters = [robot, obj]
         preconds = {
             LiftedAtom(_NotBlocked, [obj]),
