@@ -4,7 +4,8 @@ import os
 import numpy as np
 from predicators.envs.mock_spot_env import (
     MockSpotEnv, _robot_type, _container_type, _immovable_object_type,
-    _HandEmpty, _NotHolding, _On, _NotBlocked, _InHandView, _Reachable
+    _HandEmpty, _NotHolding, _On, _NotBlocked, _InHandView, _Reachable,
+    _Inside, _IsPlaceable, _HasFlatTopSurface, _FitsInXY, _NotInsideAnyContainer
 )
 from predicators.structs import Object, GroundAtom, State, Task
 from predicators.spot_utils.mock_env.mock_env_creator_manual import ManualMockEnvCreator
