@@ -15,17 +15,18 @@ from predicators.settings import CFG
 def test_view_operators():
     """Test transition graph calculation for view operators."""
     # Set up configuration
+    test_name = "test_view_operators"
     utils.reset_config({
         "env": "mock_spot",
         "approach": "oracle",
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": "mock_env_data"
+        "mock_env_data_dir": os.path.join("mock_env_data", test_name)
     })
     
     # Create environment creator
-    creator = ManualMockEnvCreator("mock_env_data")
+    creator = ManualMockEnvCreator(os.path.join("mock_env_data", test_name))
     
     # Create objects
     robot = Object("robot", _robot_type)
@@ -48,7 +49,7 @@ def test_view_operators():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "view_operators")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
     
     # Verify output file exists
-    assert os.path.exists(os.path.join(creator.transitions_dir, "view_operators.png")) 
+    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png")) 
