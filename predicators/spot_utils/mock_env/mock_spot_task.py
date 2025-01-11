@@ -16,20 +16,6 @@ class MockSpotTask(EnvironmentTask):
     - Goal conditions
     - Available operators and predicates
     - Objects and their types
-
-    TODO: Fix State constructor call in observation_to_state()
-    The State constructor expects:
-    - state_dict: Dict[Object, np.ndarray]
-    - vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None  
-    - simulator_state: Any = None
-    - goal_description: Optional[Set[GroundAtom]] = None
-    Reference: Looking at PDDL environment (predicators/envs/pddl_env.py), 
-    it uses simulator_state to store ground atoms directly
-
-    TODO: Fix GoalDescription instantiation in get_goal()
-    The GoalDescription constructor expects a Set[GroundAtom]
-    The "Any cannot be instantiated" error suggests we need to handle the type properly
-    Reference: Looking at test_mock_spot_env.py shows goal atoms are passed directly
     """
 
     def __init__(self, env: MockSpotEnv, goal_description: Optional[GoalDescription] = None) -> None:
@@ -72,7 +58,7 @@ class MockSpotTask(EnvironmentTask):
             # Determine object type based on name
             if "table" in obj_name:
                 type_name = "immovable_object"
-            elif "container" in obj_name:
+            elif "container" in obj_name or "cup" in obj_name:
                 type_name = "container"
             else:
                 type_name = "movable_object"
@@ -113,8 +99,15 @@ class MockSpotTask(EnvironmentTask):
         # Create state with atoms in simulator_state
         # Keep a dummy state dict so we know what objects are in the state
         dummy_state_dict = {o: np.zeros(0, dtype=np.float32) for o in self._objects}
-        # FIXME: fix VLM Atoms init
-        return State(dummy_state_dict, set(), atoms, set())
+        
+        # Create empty VLM atom dict since we don't use VLM in mock env
+        vlm_atom_dict = {}
+        
+        return State(
+            data=dummy_state_dict,
+            simulator_state=atoms,
+            vlm_atom_dict=vlm_atom_dict
+        )
 
     def get_goal(self) -> GoalDescription:
         """Get goal description."""
