@@ -42,6 +42,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
+        """Get the env names that this factory builds options for."""
         return {"mock_spot"}
 
     @classmethod
@@ -75,7 +76,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
             policy = cls._create_policy(strips_op.name)
             option = ParameterizedOption(
                 name=strips_op.name,
-                types=tuple(p.type for p in strips_op.parameters),
+                types=[p.type for p in strips_op.parameters],  # Changed to list instead of tuple
                 params_space=Box(0, 1, (1,)),  # Dummy parameter space
                 policy=policy,
                 initiable=lambda s, m, o, p: True,  # Always initiable
