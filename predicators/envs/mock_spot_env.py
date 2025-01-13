@@ -70,24 +70,29 @@ _HasFlatTopSurface = Predicate("HasFlatTopSurface", [_base_object_type], _dummy_
 _RobotReadyForSweeping = Predicate("RobotReadyForSweeping", [_robot_type], _dummy_classifier)
 
 # Add new predicates for cup emptiness
-# TODO: Re-enable these predicates after fixing base pick-place functionality
-# _ContainingWaterUnknown = Predicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
-# _ContainingWaterKnown = Predicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
-# _ContainingWater = Predicate("ContainingWater", [_container_type], _dummy_classifier)
-# _NotContainingWater = Predicate("NotContainingWater", [_container_type], _dummy_classifier)
-# _InHandViewFromTop = Predicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
+_ContainingWaterUnknown = Predicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
+_ContainingWaterKnown = Predicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
+_ContainingWater = Predicate("ContainingWater", [_container_type], _dummy_classifier)
+_NotContainingWater = Predicate("NotContainingWater", [_container_type], _dummy_classifier)
+_InHandViewFromTop = Predicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
+
+# Group belief-space predicates
+BELIEF_PREDICATES = {
+    _ContainingWaterUnknown,
+    _ContainingWaterKnown,
+    _ContainingWater,
+    _NotContainingWater,
+    _InHandViewFromTop
+}
 
 # Export all predicates
 PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
              _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping}
-             # TODO: Add these predicates back after fixing base pick-place functionality
-             # _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater,
-             # _NotContainingWater, _InHandViewFromTop}
 
 # Export goal predicates
-GOAL_PREDICATES = {_On, _Inside}  # TODO: Add _ContainingWaterKnown back after fixing base pick-place functionality
+GOAL_PREDICATES = {_On, _Inside, _ContainingWaterKnown}
 
 
 @dataclass
@@ -117,6 +122,8 @@ class MockSpotEnv(BaseEnv):
     Args:
         use_gui (bool): Whether to use GUI for visualization. Defaults to True.
     """
+    # Class attribute to control belief-space operators
+    use_belief_space_operators: ClassVar[bool] = False
 
     @classmethod
     def get_name(cls) -> str:
@@ -166,7 +173,10 @@ class MockSpotEnv(BaseEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         """Get the predicates used in this environment."""
-        return PREDICATES
+        preds = PREDICATES.copy()
+        if self.use_belief_space_operators:
+            preds.update(BELIEF_PREDICATES)
+        return preds
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
@@ -272,8 +282,40 @@ class MockSpotEnv(BaseEnv):
             logging.error("Failed to save graph data: %s", e)
 
     def _create_operators(self) -> Iterator[STRIPSOperator]:
-        """Create operators for the mock environment."""
-        # MoveToReachObject
+        """Create STRIPS operators for this environment.
+        
+        The operators are divided into two categories:
+        1. Base Operators:
+           - MoveToReachObject: Move robot to reach a movable object
+           - MoveToHandViewObject: Move robot's hand to view an object
+           - PickObjectFromTop: Pick up an object from a surface from above
+           - PlaceObjectOnTop: Place a held object on a surface
+           - DropObjectInside: Drop a held object inside a container
+           
+        2. Belief-Space Operators (enabled when use_belief_space_operators=True):
+           - MoveToHandObserveObjectFromTop: Move to observe a container from above
+           - ObserveContainerContent: Observe if a container has water
+        
+        Example Sequences:
+        1. Basic Pick and Place:
+           MoveToReachObject -> MoveToHandViewObject -> PickObjectFromTop -> 
+           MoveToReachObject -> PlaceObjectOnTop
+        
+        2. Place in Container:
+           MoveToReachObject -> MoveToHandViewObject -> PickObjectFromTop -> 
+           MoveToReachObject -> DropObjectInside
+           
+        3. Check Container Contents:
+           MoveToHandObserveObjectFromTop -> ObserveContainerContent
+           
+        4. Pick After Checking:
+           MoveToHandObserveObjectFromTop -> ObserveContainerContent ->
+           MoveToHandViewObject -> PickObjectFromTop
+        """
+        # First yield the base operators
+        # MoveToReachObject: Move robot to a position where it can reach an object
+        # Preconditions: Object not blocked, robot not holding it
+        # Effects: Object becomes reachable
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
         parameters = [robot, obj]
@@ -287,7 +329,9 @@ class MockSpotEnv(BaseEnv):
         yield STRIPSOperator("MoveToReachObject", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
 
-        # MoveToHandViewObject
+        # MoveToHandViewObject: Move robot's hand to view an object
+        # Preconditions: Object not blocked, hand empty
+        # Effects: Object in hand's view
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
         parameters = [robot, obj]
@@ -301,7 +345,9 @@ class MockSpotEnv(BaseEnv):
         yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                             add_effs, del_effs, ignore_effs)
 
-        # PickObjectFromTop
+        # PickObjectFromTop: Pick up an object from a surface from above
+        # Preconditions: Object on surface, hand empty, object in view, not in container
+        # Effects: Robot holding object, no longer on surface
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
         surface = Variable("?surface", _immovable_object_type)
@@ -327,7 +373,9 @@ class MockSpotEnv(BaseEnv):
         yield STRIPSOperator("PickObjectFromTop", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
 
-        # PlaceObjectOnTop
+        # PlaceObjectOnTop: Place a held object on a surface
+        # Preconditions: Robot holding object, surface reachable and flat
+        # Effects: Object on surface, hand empty
         robot = Variable("?robot", _robot_type)
         held = Variable("?held", _movable_object_type)
         surface = Variable("?surface", _immovable_object_type)
@@ -352,7 +400,9 @@ class MockSpotEnv(BaseEnv):
         yield STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
 
-        # DropObjectInside
+        # DropObjectInside: Drop a held object inside a container
+        # Preconditions: Robot holding object, container reachable
+        # Effects: Object inside container, hand empty
         robot = Variable("?robot", _robot_type)
         held = Variable("?held", _movable_object_type)
         container = Variable("?container", _container_type)
@@ -376,41 +426,67 @@ class MockSpotEnv(BaseEnv):
         yield STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
 
-        # TODO: Re-enable these operators after fixing base pick-place functionality
-        # # MoveToHandObserveObjectFromTop
-        # robot = Variable("?robot", _robot_type)
-        # obj = Variable("?object", _container_type)
-        # parameters = [robot, obj]
-        # preconds = {
-        #     LiftedAtom(_NotBlocked, [obj]),
-        #     LiftedAtom(_HandEmpty, [robot]),
-        #     LiftedAtom(_ContainingWaterUnknown, [obj])
-        # }
-        # add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
-        # del_effs = set()
-        # ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
-        # yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
-        #                     add_effs, del_effs, ignore_effs)
+        if not self.use_belief_space_operators:
+            return
 
-        # # ObserveFromTop
-        # robot = Variable("?robot", _robot_type)
-        # obj = Variable("?object", _container_type)
-        # parameters = [robot, obj]
-        # preconds = {
-        #     LiftedAtom(_InHandViewFromTop, [robot, obj]),
-        #     LiftedAtom(_ContainingWaterUnknown, [obj])
-        # }
-        # add_effs = {
-        #     LiftedAtom(_ContainingWaterKnown, [obj]),
-        #     LiftedAtom(_ContainingWater, [obj])
-        # }
-        # del_effs = {
-        #     LiftedAtom(_ContainingWaterUnknown, [obj]),
-        #     LiftedAtom(_InHandViewFromTop, [robot, obj])
-        # }
-        # ignore_effs = set()
-        # yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs,
-        #                     del_effs, ignore_effs)
+        # MoveToHandObserveObjectFromTop: Move to observe a container from above
+        # Preconditions: Container not blocked, hand empty, content unknown
+        # Effects: Container in view from top
+        parameters = [
+            Variable("?robot", _robot_type),
+            Variable("?container", _container_type),
+        ]
+
+        preconditions = {
+            LiftedAtom(_NotBlocked, [parameters[1]]),
+            LiftedAtom(_HandEmpty, [parameters[0]]),
+            LiftedAtom(_ContainingWaterUnknown, [parameters[1]])
+        }
+
+        add_effects = {
+            LiftedAtom(_InHandViewFromTop, [parameters[0], parameters[1]])
+        }
+
+        delete_effects = set()
+
+        ignore_effects = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+
+        yield STRIPSOperator("MoveToHandObserveObjectFromTop",
+                            parameters,
+                            preconditions,
+                            add_effects,
+                            delete_effects,
+                            ignore_effects)
+
+        # ObserveContainerContent: Observe if a container has water
+        # Preconditions: Container in view from top, content unknown
+        # Effects: Content becomes known
+        parameters = [
+            Variable("?robot", _robot_type),
+            Variable("?container", _container_type),
+        ]
+
+        preconditions = {
+            LiftedAtom(_InHandViewFromTop, [parameters[0], parameters[1]]),
+            LiftedAtom(_ContainingWaterUnknown, [parameters[1]]),
+        }
+
+        add_effects = {
+            LiftedAtom(_ContainingWaterKnown, [parameters[1]]),
+        }
+
+        delete_effects = {
+            LiftedAtom(_ContainingWaterUnknown, [parameters[1]]),
+        }
+
+        ignore_effects = set()  # No effects to ignore for this operator
+
+        yield STRIPSOperator("ObserveContainerContent",
+                            parameters,
+                            preconditions,
+                            add_effects,
+                            delete_effects,
+                            ignore_effects)
 
     def add_state(self, 
                  rgbd: Optional[RGBDImageWithContext] = None,
