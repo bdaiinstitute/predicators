@@ -9,7 +9,7 @@ This module provides a base class for creating mock Spot environments with:
 
 The environment data is stored in a directory specified by CFG.mock_env_data_dir.
 This includes:
-- graph.json: Contains state transitions and observations
+- plan.yaml: Contains objects, states, and transitions
 - images/: Directory containing RGB-D images for each state
 - transitions/: Directory containing transition graph visualizations
 - transitions/transitions.png: Main transition graph visualization
@@ -55,6 +55,10 @@ from rich.panel import Panel
 from rich.table import Table
 import numpy as np
 from gym.spaces import Box
+import yaml
+import matplotlib.pyplot as plt
+from graphviz import Digraph
+from rich.progress import Progress
 
 from predicators.envs.mock_spot_env import MockSpotEnv
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
@@ -63,7 +67,6 @@ from predicators.structs import (
     ParameterizedOption, NSRT, Object, Variable, LiftedAtom, STRIPSOperator,
     Action
 )
-from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext
 from predicators.ground_truth_models import get_gt_options
 from predicators import utils
 from predicators.settings import CFG
@@ -74,7 +77,7 @@ class MockEnvCreatorBase(ABC):
     """Base class for mock environment creators.
     
     This class provides functionality to:
-    - Create and configure mock Spot environments
+    - Create and configure mock environments
     - Add states with RGB-D observations
     - Define transitions between states
     - Generate task-specific state sequences
@@ -83,7 +86,7 @@ class MockEnvCreatorBase(ABC):
     
     The environment data is stored in a directory specified by CFG.mock_env_data_dir,
     which is set during initialization. This includes:
-    - State transition graph (graph.json)
+    - Plan data (plan.yaml)
     - RGB-D images for each state (images/)
     - Observation metadata (gripper state, objects in view/hand)
     - Transition graph visualization (transitions/)
@@ -92,11 +95,11 @@ class MockEnvCreatorBase(ABC):
         path_dir (str): Base directory for environment data
         image_dir (str): Directory for RGB-D images
         transitions_dir (str): Directory for transition graph visualizations
-        env (MockSpotEnv): Mock Spot environment instance
+        env (MockSpotEnv): Mock environment instance
         types (Dict[str, Type]): Available object types
         predicates (Dict[str, Predicate]): Available predicates (including belief predicates if enabled)
         options (Dict[str, ParameterizedOption]): Available options
-        nsrts (Set[NSRT]): Available NSRTs
+        nsrts (Set[NSRT]): Available NSRTs (including belief space operators when enabled)
         console (Console): Rich console for pretty printing
     """
 
@@ -115,6 +118,10 @@ class MockEnvCreatorBase(ABC):
         self.transitions_dir = os.path.join(path_dir, "transitions")
         os.makedirs(self.image_dir, exist_ok=True)
         os.makedirs(self.transitions_dir, exist_ok=True)
+        
+        # Initialize state storage
+        self.states: Dict[str, Dict[str, Any]] = {}
+        self.transitions: List[Tuple[str, str, Any]] = []
         
         # Set data directory in config for environment to use
         utils.reset_config({
@@ -146,19 +153,284 @@ class MockEnvCreatorBase(ABC):
         """
         # Get NSRTs from factory
         factory = MockSpotGroundTruthNSRTFactory()
+        # This now uses predicates from env including belief ones if enabled
         base_nsrts = factory.get_nsrts(
             self.env.get_name(),
             self.types,
             self.predicates,  # This now uses predicates from env including belief ones if enabled
             self.options
         )
-        
         return base_nsrts
 
+    def add_state(self, state_id: str, views: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                 objects_in_view: Optional[List[str]] = None,
+                 objects_in_hand: Optional[List[str]] = None,
+                 gripper_open: bool = True) -> None:
+        """Add a state to the environment.
+        
+        Args:
+            state_id: Unique identifier for this state
+            views: Dict mapping view names to camera names to image names and arrays
+                Example: {
+                    "view1": {
+                        "cam1": {
+                            "image1": array1,
+                            "image2": array2
+                        },
+                        "cam2": {
+                            "image1": array1
+                        }
+                    }
+                }
+            objects_in_view: List of object names visible in the image
+            objects_in_hand: List of object names being held
+            gripper_open: Whether the gripper is open
+        """
+        # Create state directory
+        state_dir = os.path.join(self.image_dir, state_id)
+        os.makedirs(state_dir, exist_ok=True)
+        
+        # Save images for each view and camera
+        for view_name, cameras in views.items():
+            # Create view directory
+            view_dir = os.path.join(state_dir, view_name)
+            os.makedirs(view_dir, exist_ok=True)
+            
+            for camera_name, images in cameras.items():
+                # Save each image
+                for image_name, image_data in images.items():
+                    image_path = os.path.join(view_dir, f"{camera_name}_{image_name}.npy")
+                    np.save(image_path, image_data)
+        
+        # Create state metadata
+        state_data = {
+            "objects_in_view": objects_in_view or [],
+            "objects_in_hand": objects_in_hand or [],
+            "gripper_open": gripper_open,
+            "views": {
+                view_name: {
+                    camera_name: {
+                        f"{image_name}_path": os.path.join(view_name, f"{camera_name}_{image_name}.npy")
+                        for image_name in images.keys()
+                    }
+                    for camera_name, images in cameras.items()
+                }
+                for view_name, cameras in views.items()
+            }
+        }
+        
+        # Save state metadata
+        metadata_path = os.path.join(state_dir, "metadata.yaml")
+        with open(metadata_path, "w") as f:
+            yaml.safe_dump(state_data, f, default_flow_style=False, sort_keys=False)
+
+    def load_state(self, state_id: str) -> Tuple[Dict[str, Dict[str, Dict[str, np.ndarray]]], 
+                                                List[str], List[str], bool]:
+        """Load a state's images and metadata.
+        
+        Args:
+            state_id: ID of state to load
+            
+        Returns:
+            Tuple containing:
+            - Dict mapping view names to camera names to image names and arrays
+            - List of objects in view
+            - List of objects in hand
+            - Gripper open state
+            
+        Raises:
+            FileNotFoundError: If state directory or metadata doesn't exist
+        """
+        state_dir = os.path.join(self.image_dir, state_id)
+        if not os.path.exists(state_dir):
+            raise FileNotFoundError(f"State directory not found: {state_dir}")
+            
+        # Load metadata
+        metadata_path = os.path.join(state_dir, "metadata.yaml")
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+            
+        with open(metadata_path, "r") as f:
+            metadata = yaml.safe_load(f)
+            
+        # Load images for each view and camera
+        views = {}
+        for view_name, cameras in metadata["views"].items():
+            views[view_name] = {}
+            view_dir = os.path.join(state_dir, view_name)
+            for camera_name, paths in cameras.items():
+                views[view_name][camera_name] = {}
+                
+                # Load each image
+                for path_key, rel_path in paths.items():
+                    image_name = path_key.replace("_path", "")
+                    image_path = os.path.join(state_dir, rel_path)
+                    views[view_name][camera_name][image_name] = np.load(image_path)
+                
+        return (
+            views,
+            metadata["objects_in_view"],
+            metadata["objects_in_hand"],
+            metadata["gripper_open"]
+        )
+
+    def save_plan(self, plan: List[Any], states: List[Set[GroundAtom]], 
+                 init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
+                 objects: Set[Object]) -> None:
+        """Save the plan and state sequence.
+        
+        Args:
+            plan: List of operators
+            states: List of states (sets of ground atoms)
+            init_atoms: Initial state atoms
+            goal_atoms: Goal state atoms
+            objects: Objects in the environment
+        """
+        plan_data = {
+            "objects": {
+                obj.name: {
+                    "type": obj.type.name
+                }
+                for obj in objects
+            },
+            "initial_state": [str(atom) for atom in init_atoms],
+            "goal_state": [str(atom) for atom in goal_atoms],
+            "states": [
+                {
+                    "id": str(i),
+                    "atoms": [str(atom) for atom in state_atoms],
+                    "operator": operator.name if operator else None,
+                    "operator_objects": [obj.name for obj in operator.objects] if operator else None
+                }
+                for i, (state_atoms, operator) in enumerate(zip(states, plan + [None]))
+            ]
+        }
+        
+        # Save plan data
+        plan_path = os.path.join(self.path_dir, "plan.yaml")
+        with open(plan_path, "w") as f:
+            yaml.safe_dump(plan_data, f, default_flow_style=False, sort_keys=False)
+
+    def load_plan(self) -> Optional[Tuple[List[Any], List[Set[GroundAtom]], 
+                                        Set[GroundAtom], Set[GroundAtom], Set[Object]]]:
+        """Load the saved plan and state sequence.
+        
+        Returns:
+            If plan exists, tuple containing:
+            - List of operators
+            - List of states (sets of ground atoms)
+            - Initial state atoms
+            - Goal state atoms
+            - Objects in the environment
+            
+            None if no plan is saved
+        """
+        plan_path = os.path.join(self.path_dir, "plan.yaml")
+        if not os.path.exists(plan_path):
+            return None
+            
+        with open(plan_path, "r") as f:
+            plan_data = yaml.safe_load(f)
+            
+        # Recreate objects
+        objects = {
+            Object(
+                name=name,
+                type=self.types[data["type"]]
+            )
+            for name, data in plan_data["objects"].items()
+        }
+        
+        # Parse atoms using predicates
+        def parse_atom(atom_str: str) -> GroundAtom:
+            # Example format: "Predicate(obj1, obj2)"
+            pred_name = atom_str.split("(")[0]
+            obj_names = [n.strip(" )") for n in atom_str.split("(")[1].split(",")]
+            return GroundAtom(
+                self.predicates[pred_name],
+                [next(obj for obj in objects if obj.name == name) for name in obj_names]
+            )
+        
+        init_atoms = {parse_atom(s) for s in plan_data["initial_state"]}
+        goal_atoms = {parse_atom(s) for s in plan_data["goal_state"]}
+        
+        # Recreate states and operators
+        states = []
+        plan = []
+        for state_data in plan_data["states"][:-1]:  # Last state has no operator
+            states.append({parse_atom(s) for s in state_data["atoms"]})
+            if state_data["operator"]:
+                operator_objects = [
+                    next(obj for obj in objects if obj.name == name)
+                    for name in state_data["operator_objects"]
+                ]
+                # Create empty params array for operator
+                params = np.zeros(self.options[state_data["operator"]].params_space.shape, dtype=np.float32)
+                plan.append(self.options[state_data["operator"]].ground(operator_objects, params))
+                
+        # Add final state
+        states.append({parse_atom(s) for s in plan_data["states"][-1]["atoms"]})
+        
+        return plan, states, init_atoms, goal_atoms, objects
+
+    def plan(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
+             objects: Set[Object], timeout: float = 10.0) -> Optional[Tuple[List[Any], List[Set[GroundAtom]], Dict[str, Any]]]:
+        """Plan a sequence of actions to achieve the goal.
+        
+        Args:
+            init_atoms: Initial ground atoms
+            goal_atoms: Goal ground atoms
+            objects: Objects in the environment
+            timeout: Planning timeout in seconds
+            
+        Returns:
+            If plan found, tuple containing:
+            - List of operators (the plan)
+            - List of states (sets of ground atoms)
+            - Metrics dictionary
+            None if no plan found
+        """
+        # Ground NSRTs and get reachable atoms
+        ground_nsrts, reachable_atoms = task_plan_grounding(
+            init_atoms=init_atoms,
+            objects=objects,
+            nsrts=self.nsrts,
+            allow_noops=False
+        )
+        
+        # Create heuristic for planning
+        heuristic = utils.create_task_planning_heuristic(
+            CFG.sesame_task_planning_heuristic,
+            init_atoms,
+            goal_atoms,
+            ground_nsrts,
+            self.predicates.values(),
+            objects
+        )
+        
+        # Create and run planner
+        try:
+            plan_gen = task_plan(
+                init_atoms=init_atoms,
+                goal=goal_atoms,
+                ground_nsrts=ground_nsrts,
+                reachable_atoms=reachable_atoms,
+                heuristic=heuristic,
+                seed=CFG.seed,
+                timeout=timeout,
+                max_skeletons_optimized=CFG.sesame_max_skeletons_optimized,
+                use_visited_state_set=True
+            )
+            plan, atoms_sequence, metrics = next(plan_gen)
+            return plan, atoms_sequence, metrics
+        except StopIteration:
+            return None
+
     def plan_and_visualize(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], 
-                          objects: Set[Object], output_file: str = "transitions",
+                         objects: Set[Object], *, task_name: str = "task",
+                         show_metrics: bool = True, show_state_viz: bool = True,
                           timeout: float = 10.0) -> None:
-        """Plan a sequence of actions and visualize the transition graph.
+        """Plan and visualize a task, showing progress and creating transition graphs.
         
         This method:
         1. Displays available options and NSRTs
@@ -166,18 +438,21 @@ class MockEnvCreatorBase(ABC):
         3. Grounds NSRTs and shows reachable atoms
         4. Creates a plan to achieve the goal
         5. Visualizes the plan steps and transitions
-        6. Saves the transition graph
+        6. Creates transition graph visualizations:
+           - Main graph showing all transitions (transitions/transitions.png)
+           - Task-specific graphs (e.g. transitions/cup_emptiness.png for belief tasks)
+        
+        For belief space planning tasks, this will show belief state transitions
+        and create belief-specific visualizations.
         
         Args:
-            init_atoms: Initial state atoms
-            goal_atoms: Goal state atoms
+            init_atoms: Initial ground atoms
+            goal_atoms: Goal ground atoms
             objects: Objects in the environment
-            output_file: Name of output file (without extension)
+            task_name: Name of task for visualization files
+            show_metrics: Whether to show plan metrics after completion
+            show_state_viz: Whether to show state visualizations during execution
             timeout: Planning timeout in seconds
-            
-        Raises:
-            StopIteration: If no valid plan is found
-            AssertionError: If the plan does not achieve the goal
         """
         # Create options table
         options_table = Table(title="Available Options")
@@ -210,44 +485,6 @@ class MockEnvCreatorBase(ABC):
             border_style="green"
         )
         self.console.print(init_atoms_panel)
-
-        # Ground NSRTs and get reachable atoms
-        ground_nsrts, reachable_atoms = task_plan_grounding(
-            init_atoms=init_atoms,
-            objects=objects,
-            nsrts=self.nsrts,
-            allow_noops=False
-        )
-        self.console.print(f"\n[bold cyan]Grounded {len(ground_nsrts)} NSRTs")
-        
-        # Create grounded NSRTs tree
-        ground_nsrts_tree = Tree("[bold blue]Grounded NSRTs")
-        for i, nsrt in enumerate(ground_nsrts, 1):
-            nsrt_node = ground_nsrts_tree.add(f"[cyan]{i}. {nsrt.name}")
-            nsrt_node.add(f"[green]Objects: {[obj.name for obj in nsrt.objects]}")
-            nsrt_node.add(f"[yellow]Preconditions: {nsrt.preconditions}")
-            nsrt_node.add(f"[red]Add effects: {nsrt.add_effects}")
-            nsrt_node.add(f"[magenta]Delete effects: {nsrt.delete_effects}")
-        self.console.print(ground_nsrts_tree)
-        
-        # Create reachable atoms panel
-        reachable_atoms_panel = Panel(
-            "\n".join(str(atom) for atom in sorted(reachable_atoms, key=str)),
-            title="Reachable Atoms",
-            border_style="yellow"
-        )
-        self.console.print(reachable_atoms_panel)
-        
-        # Create heuristic for planning
-        heuristic = utils.create_task_planning_heuristic(
-            CFG.sesame_task_planning_heuristic,
-            init_atoms,
-            goal_atoms,
-            ground_nsrts,
-            self.predicates.values(),
-            objects
-        )
-        self.console.print(f"\n[bold green]Created heuristic: {CFG.sesame_task_planning_heuristic}")
         
         # Create goal atoms panel
         goal_atoms_panel = Panel(
@@ -257,22 +494,17 @@ class MockEnvCreatorBase(ABC):
         )
         self.console.print(goal_atoms_panel)
         
-        # Generate plan using task planning
-        plan_gen = task_plan(
-            init_atoms=init_atoms,
-            goal=goal_atoms,
-            ground_nsrts=ground_nsrts,
-            reachable_atoms=reachable_atoms,
-            heuristic=heuristic,
-            seed=CFG.seed,
-            timeout=timeout,
-            max_skeletons_optimized=CFG.sesame_max_skeletons_optimized,
-            use_visited_state_set=True
-        )
-        
-        # Get first valid plan
-        plan, atoms_sequence, metrics = next(plan_gen)
-        self.console.print("\n[bold blue]Found plan:")
+        # Plan
+        result = self.plan(init_atoms, goal_atoms, objects, timeout)
+        if result is None:
+            self.console.print("[red]No plan found!")
+            return
+            
+        plan, atoms_sequence, metrics = result
+            
+        # Show plan metrics if requested
+        if show_metrics:
+            self.console.print(f"[green]Plan found with {len(plan)} steps!")
         
         # Create plan table
         plan_table = Table(title="Plan Steps")
@@ -302,15 +534,27 @@ class MockEnvCreatorBase(ABC):
         )
         self.console.print(metrics_panel)
         
-        # Create transition graph
-        self.visualize_transitions(atoms_sequence, plan, goal_atoms, output_file)
+        # Execute plan and visualize states
+        state = init_atoms
+        for i, op in enumerate(plan):
+            if show_state_viz:
+                self.console.print(f"\nStep {i}: {op}")
+                self._visualize_state(state)
+            # Apply operator effects
+            state = state - op.delete_effects | op.add_effects
+            
+        # Save plan data
+        self.save_plan(plan, atoms_sequence, init_atoms, goal_atoms, objects)
+            
+        # Create transition graph visualizations
+        self.visualize_transitions(atoms_sequence, plan, goal_atoms, task_name)
         
         # Verify plan achieves goal
         assert goal_atoms.issubset(atoms_sequence[-1])
 
     def visualize_transitions(self, atoms_sequence: List[Set[GroundAtom]], 
                             plan: List[Any], goal_atoms: Set[GroundAtom],
-                            output_file: str = "transitions") -> None:
+                            task_name: str = "task") -> None:
         """Visualize the transition graph.
         
         Creates a graphviz visualization showing:
@@ -323,13 +567,13 @@ class MockEnvCreatorBase(ABC):
             atoms_sequence: Sequence of atom sets representing states
             plan: Sequence of operators
             goal_atoms: Goal state atoms for coloring final state
-            output_file: Name of output file (without extension)
+            task_name: Name of task for visualization file
             
         The graph is saved in the transitions directory with format:
-            {transitions_dir}/{output_file}.png
+            {transitions_dir}/{task_name}.png
         """
         # Create a new directed graph
-        dot = graphviz.Digraph(comment='Transition Graph for Pick and Place Task')
+        dot = graphviz.Digraph(comment='Transition Graph')
         dot.attr(rankdir='LR')  # Left to right layout
         dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
         
@@ -383,14 +627,104 @@ class MockEnvCreatorBase(ABC):
                 )
         
         # Save graph in transitions directory
-        output_path = os.path.join(self.transitions_dir, output_file)
+        output_path = os.path.join(self.transitions_dir, task_name)
         dot.render(output_path, format='png', cleanup=True)
         self.console.print(f"\n[bold green]Saved transition graph to: {output_path}.png")
 
+    def _get_state_color(self, atoms: Set[GroundAtom]) -> str:
+        """Get color for state visualization based on its atoms.
+        
+        Args:
+            atoms: Ground atoms in the state
+            
+        Returns:
+            Hex color code for the state
+        """
+        # Default colors for common predicates
+        colors = {
+            "HandEmpty": "#90EE90",  # Light green
+            "Holding": "#FFB6C1",    # Light pink
+            "On": "#ADD8E6",         # Light blue
+            "Inside": "#DDA0DD",     # Plum
+        }
+        
+        # Special colors for belief predicates
+        belief_colors = {
+            "ContainingWaterUnknown": "#F0E68C",  # Khaki
+            "ContainingWaterKnown": "#98FB98",    # Pale green
+            "Empty": "#FFA07A",                   # Light salmon
+        }
+        
+        # Find matching predicate
+        for atom in atoms:
+            if atom.predicate.name in colors:
+                return colors[atom.predicate.name]
+            if atom.predicate.name in belief_colors:
+                return belief_colors[atom.predicate.name]
+                
+        return "#FFFFFF"  # White default
+
+    def _create_planner(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
+                       objects: Set[Object]) -> Any:
+        """Create a planner for task planning.
+        
+        Args:
+            init_atoms: Initial ground atoms
+            goal_atoms: Goal ground atoms
+            objects: Objects in the environment
+            
+        Returns:
+            A planner instance that supports plan() method
+        """
+        # Ground NSRTs and get reachable atoms
+        ground_nsrts, reachable_atoms = task_plan_grounding(
+            init_atoms=init_atoms,
+            objects=objects,
+            nsrts=self.nsrts,
+            allow_noops=False
+        )
+        
+        # Create heuristic for planning
+        heuristic = utils.create_task_planning_heuristic(
+            CFG.sesame_task_planning_heuristic,
+            init_atoms,
+            goal_atoms,
+            ground_nsrts,
+            self.predicates.values(),
+            objects
+        )
+        
+        # Return planner generator
+        return lambda: task_plan(
+            init_atoms=init_atoms,
+            goal=goal_atoms,
+            ground_nsrts=ground_nsrts,
+            reachable_atoms=reachable_atoms,
+            heuristic=heuristic,
+            seed=CFG.seed,
+            timeout=10.0,
+            max_skeletons_optimized=CFG.sesame_max_skeletons_optimized,
+            use_visited_state_set=True
+        )
+        
+    def _visualize_state(self, state: Set[GroundAtom]) -> None:
+        """Visualize a state's atoms.
+        
+        Args:
+            state: Set of ground atoms in the state
+        """
+        # Create state panel
+        state_panel = Panel(
+            "\n".join(str(atom) for atom in sorted(state, key=str)),
+            title="Current State",
+            border_style="cyan"
+        )
+        self.console.print(state_panel)
+
     @abstractmethod
     def create_rgbd_image(self, rgb: np.ndarray, depth: np.ndarray,
-                         camera_name: str = "hand_color") -> RGBDImageWithContext:
-        """Create an RGBDImageWithContext from RGB and depth arrays.
+                         camera_name: str = "hand_color") -> Any:
+        """Create an RGBD image from RGB and depth arrays.
         
         Args:
             rgb: RGB image array
@@ -398,6 +732,6 @@ class MockEnvCreatorBase(ABC):
             camera_name: Name of camera that captured the image
             
         Returns:
-            RGBDImageWithContext instance
+            RGBD image object (implementation specific)
         """
         pass 
