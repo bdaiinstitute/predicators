@@ -283,7 +283,7 @@ def test_plan_check_and_pick_cup():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
@@ -382,7 +382,7 @@ def test_plan_check_and_place_cup():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
@@ -470,7 +470,7 @@ def test_view_pick_and_place_cup():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
@@ -590,7 +590,7 @@ def test_observe_two_cups_and_place_empty():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / "transition_graph.png"

@@ -166,7 +166,7 @@ def test_single_block_pick_place():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify output file exists
     assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png"))
@@ -266,7 +266,7 @@ def test_two_object_pick_place():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify output file exists
     assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png"))
@@ -367,7 +367,7 @@ def test_view_reach_pick_place_two_objects():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, "transition_graph")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
     
     # Verify output file exists
     assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png")) 
