@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Dict, List, Optional, Sequence, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 import PIL.Image
 
@@ -18,14 +19,23 @@ from predicators.utils import get_object_combinations
 #                      VLM Predicate Evaluation Related                       #
 ###############################################################################
 
-# Initialize VLM
+# Available VLM models
 available_choices = [
     "gpt-4-turbo",
     "gpt-4o",
     "gpt-4o-mini"
 ]
-vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
 
+# Global VLM instance
+_vlm = None
+
+def get_vlm():
+    """Get or create the VLM instance."""
+    global _vlm
+    if _vlm is None:
+        if "OPENAI_API_KEY" in os.environ:
+            _vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
+    return _vlm
 
 # Engineer the prompt for VLM
 vlm_predicate_eval_prompt = """
@@ -104,8 +114,17 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
 
     TODO: Next, try include visual hints via segmentation ("Set of Masks")
     """
+    vlm = get_vlm()
+    if vlm is None:
+        logging.warning("VLM not initialized (no API key). Returning None.")
+        return None
+
     full_prompt = vlm_predicate_eval_prompt.format(question=question)
-    images_dict: Dict[str, RGBDImageWithContext] = state.camera_images
+    images_dict = state.camera_images
+    if images_dict is None:
+        logging.warning("No camera images in state. Returning None.")
+        return None
+
     images = [
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images_dict.items()
     ]
@@ -148,6 +167,10 @@ def vlm_predicate_batch_query(
     The VLM takes a list of queries and images in current observation to
     evaluate them.
     """
+    vlm = get_vlm()
+    if vlm is None:
+        logging.warning("VLM not initialized (no API key). Returning all False.")
+        return [False] * len(queries)
 
     def query_vlm(full_prompt, image_list):
         while True:
@@ -235,7 +258,7 @@ def vlm_predicate_batch_classify(
         predicate_prompts = None
 
     if len(queries) == 0:
-        return {}
+        return {} if get_dict else set()
 
     queries_print = [
         atom.get_query_str(include_prompt=False) for atom in atoms
@@ -250,16 +273,16 @@ def vlm_predicate_batch_classify(
         # Return all ground atoms with True/False/None
         return {atom: result for atom, result in zip(atoms, results)}
     else:
-        # Only return True ground atoms
+        # Return only ground atoms that are True
         return {atom for atom, result in zip(atoms, results) if result}
 
 
 def get_vlm_atom_combinations(objects: Sequence[Object],
-                              preds: Set[VLMPredicate]) -> Set[VLMGroundAtom]:
+                         preds: Set[VLMPredicate]) -> Set[VLMGroundAtom]:
+    """Get all possible combinations of objects for each predicate."""
     atoms = set()
     for pred in preds:
-        for choice in get_object_combinations(objects, pred.types):
-            atoms.add(VLMGroundAtom(pred, choice))
-    # NOTE: under debug: get atoms sorted by predicate name and object names
-    # return sorted(atoms, key=lambda atom: (atom.predicate.name, [obj.name for obj in atom.objects]))
+        param_objects = get_object_combinations(objects, pred.types)
+        for objs in param_objects:
+            atoms.add(VLMGroundAtom(pred, objs))
     return atoms
