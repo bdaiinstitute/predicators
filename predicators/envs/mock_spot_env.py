@@ -341,7 +341,7 @@ class MockSpotEnv(BaseEnv):
         }
         add_effs = {LiftedAtom(_InHandView, [robot, obj])}
         del_effs = set()
-        ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+        ignore_effs = {_InHandView, _InView, _RobotReadyForSweeping}
         yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                             add_effs, del_effs, ignore_effs)
 
@@ -449,7 +449,7 @@ class MockSpotEnv(BaseEnv):
 
         delete_effects = set()
 
-        ignore_effects = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
+        ignore_effects = {_InHandView, _InView, _RobotReadyForSweeping}  # Only ignore view-related effects
 
         yield STRIPSOperator("MoveToHandObserveObjectFromTop",
                             parameters,
