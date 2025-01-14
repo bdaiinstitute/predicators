@@ -469,6 +469,12 @@ class MockEnvCreatorBase(ABC):
             max_horizon=float("inf")
         )
         
+        # Print state sequence
+        self.console.print("\n[bold magenta]State Sequence:[/bold magenta]")
+        for i, state_atoms in enumerate(atoms_sequence):
+            self.console.print(f"\n[bold]State {i}:[/bold]")
+            self._visualize_state(state_atoms)
+        
         # Print plan steps
         self.console.print("\n[bold magenta]Plan Steps:[/bold magenta]")
         table = Table(show_header=True, header_style="bold")
@@ -497,6 +503,37 @@ class MockEnvCreatorBase(ABC):
             )
         
         self.console.print(table)
+        
+        # Print shortest path with full state information
+        self.console.print("\n[bold magenta]Shortest Path to Goal:[/bold magenta]")
+        path_tree = Tree("[bold cyan]Initial State[/bold cyan]")
+        current_node = path_tree
+        
+        for i, (state_atoms, operator) in enumerate(zip(atoms_sequence, plan + [None])):
+            # Get state changes
+            prev_atoms = atoms_sequence[i-1] if i > 0 else init_atoms
+            removed = prev_atoms - state_atoms
+            added = state_atoms - prev_atoms
+            
+            # Create state description
+            state_desc = []
+            if removed:
+                state_desc.extend([f"[red]- {atom}[/red]" for atom in sorted(removed, key=str)])
+            if added:
+                state_desc.extend([f"[green]+ {atom}[/green]" for atom in sorted(added, key=str)])
+                
+            # Add operator and next state as child nodes
+            if operator:
+                op_node = current_node.add(f"[yellow]{operator}[/yellow]")
+                state_label = "Goal State" if i == len(plan) else f"State {i+1}"
+                current_node = op_node.add(f"[cyan]{state_label}[/cyan]")
+                if state_desc:
+                    for change in state_desc:
+                        current_node.add(change)
+                else:
+                    current_node.add("[dim]No changes[/dim]")
+        
+        self.console.print(path_tree)
         
         # Print metrics if available
         if metrics:
