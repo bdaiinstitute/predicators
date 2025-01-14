@@ -506,7 +506,16 @@ class MockEnvCreatorBase(ABC):
         if show_metrics:
             self.console.print(f"[green]Plan found with {len(plan)} steps!")
         
-        # Create plan table
+        # Track which predicates actually change (fluents)
+        fluent_predicates = set()
+        for i in range(len(atoms_sequence) - 1):
+            curr_atoms = atoms_sequence[i]
+            next_atoms = atoms_sequence[i + 1]
+            changed_atoms = curr_atoms.symmetric_difference(next_atoms)
+            for atom in changed_atoms:
+                fluent_predicates.add(atom.predicate.name)
+        
+        # Create plan table showing only fluents
         plan_table = Table(title="Plan Steps")
         plan_table.add_column("Step", style="cyan")
         plan_table.add_column("Operator", style="green")
@@ -515,8 +524,8 @@ class MockEnvCreatorBase(ABC):
         
         for i, (nsrt, atoms) in enumerate(zip(plan, atoms_sequence[1:]), 1):
             prev_atoms = atoms_sequence[i-1]
-            new_atoms = atoms - prev_atoms
-            removed_atoms = prev_atoms - atoms
+            new_atoms = {a for a in (atoms - prev_atoms) if a.predicate.name in fluent_predicates}
+            removed_atoms = {a for a in (prev_atoms - atoms) if a.predicate.name in fluent_predicates}
             
             plan_table.add_row(
                 str(i),
@@ -592,15 +601,22 @@ class MockEnvCreatorBase(ABC):
             state_id = str(i)
             state_label = f"State {i}\\n"
             
-            # Only show fluents and key predicates
-            important_atoms = []
+            # Group important atoms by object
+            atoms_by_obj = {}
             for atom in sorted(atoms, key=str):
                 if (atom.predicate.name in fluent_predicates or 
                     atom.predicate.name in key_predicates):
-                    important_atoms.append(str(atom))
+                    # Get the first object as the key object
+                    obj_name = atom.objects[0].name
+                    if obj_name not in atoms_by_obj:
+                        atoms_by_obj[obj_name] = []
+                    atoms_by_obj[obj_name].append(str(atom))
             
-            if important_atoms:
-                state_label += "\\n" + "\\n".join(important_atoms)
+            # Add grouped atoms to label
+            for obj_name, obj_atoms in sorted(atoms_by_obj.items()):
+                if obj_atoms:  # Only add groups that have atoms
+                    state_label += f"\\n{obj_name}:\\n  "
+                    state_label += "\\n  ".join(obj_atoms)
             
             # Color nodes based on state type
             fillcolor = 'lightblue'  # Intermediate state
