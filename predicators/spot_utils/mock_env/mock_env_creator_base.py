@@ -59,6 +59,7 @@ import yaml
 import matplotlib.pyplot as plt
 from graphviz import Digraph
 from rich.progress import Progress
+from collections import deque
 
 from predicators.envs.mock_spot_env import MockSpotEnv
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
@@ -70,7 +71,7 @@ from predicators.structs import (
 from predicators.ground_truth_models import get_gt_options
 from predicators import utils
 from predicators.settings import CFG
-from predicators.planning import task_plan_grounding, task_plan
+from predicators.planning import task_plan_grounding, task_plan, run_task_plan_once
 
 
 class MockEnvCreatorBase(ABC):
@@ -431,280 +432,245 @@ class MockEnvCreatorBase(ABC):
             return None
 
     def plan_and_visualize(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], 
-                         objects: Set[Object], *, task_name: str = "task",
-                         show_metrics: bool = True, show_state_viz: bool = True,
-                          timeout: float = 10.0) -> None:
-        """Plan and visualize a task, showing progress and creating transition graphs.
-        
-        This method:
-        1. Displays available options and NSRTs
-        2. Shows initial state and goal atoms
-        3. Grounds NSRTs and shows reachable atoms
-        4. Creates a plan to achieve the goal
-        5. Visualizes the plan steps and transitions
-        6. Creates transition graph visualizations:
-           - Main graph showing all transitions (transitions/transitions.png)
-           - Task-specific graphs (e.g. transitions/cup_emptiness.png for belief tasks)
-        
-        For belief space planning tasks, this will show belief state transitions
-        and create belief-specific visualizations.
+                          objects: List[Object], task_name: str = "task") -> None:
+        """Plan and visualize transitions from initial state to goal.
         
         Args:
-            init_atoms: Initial ground atoms
-            goal_atoms: Goal ground atoms
-            objects: Objects in the environment
-            task_name: Name of task for visualization files
-            show_metrics: Whether to show plan metrics after completion
-            show_state_viz: Whether to show state visualizations during execution
-            timeout: Planning timeout in seconds
-        """
-        # Create options table
-        options_table = Table(title="Available Options")
-        options_table.add_column("Option", style="cyan")
-        options_table.add_column("Types", style="green")
-        options_table.add_column("Parameter Space", style="yellow")
-        
-        for name, option in self.options.items():
-            options_table.add_row(
-                name,
-                ", ".join(t.name for t in option.types),
-                str(option.params_space)
-            )
-        self.console.print(options_table)
-
-        # Create NSRTs tree
-        nsrts_tree = Tree("[bold blue]Created NSRTs")
-        for i, nsrt in enumerate(self.nsrts, 1):
-            nsrt_node = nsrts_tree.add(f"[cyan]{i}. {nsrt.name}")
-            nsrt_node.add(f"[green]Parameters: {[p.name for p in nsrt.parameters]}")
-            nsrt_node.add(f"[yellow]Preconditions: {nsrt.preconditions}")
-            nsrt_node.add(f"[red]Add effects: {nsrt.add_effects}")
-            nsrt_node.add(f"[magenta]Delete effects: {nsrt.delete_effects}")
-        self.console.print(nsrts_tree)
-        
-        # Create initial state panel
-        init_atoms_panel = Panel(
-            "\n".join(str(atom) for atom in sorted(init_atoms, key=str)),
-            title="Initial State Atoms",
-            border_style="green"
-        )
-        self.console.print(init_atoms_panel)
-        
-        # Create goal atoms panel
-        goal_atoms_panel = Panel(
-            "\n".join(str(atom) for atom in goal_atoms),
-            title="Goal Atoms",
-            border_style="red"
-        )
-        self.console.print(goal_atoms_panel)
-        
-        # Plan
-        result = self.plan(init_atoms, goal_atoms, objects, timeout)
-        if result is None:
-            self.console.print("[red]No plan found!")
-            return
-            
-        plan, atoms_sequence, metrics = result
-            
-        # Show plan metrics if requested
-        if show_metrics:
-            self.console.print(f"[green]Plan found with {len(plan)} steps!")
-        
-        # Track which predicates actually change (fluents)
-        fluent_predicates = set()
-        for i in range(len(atoms_sequence) - 1):
-            curr_atoms = atoms_sequence[i]
-            next_atoms = atoms_sequence[i + 1]
-            changed_atoms = curr_atoms.symmetric_difference(next_atoms)
-            for atom in changed_atoms:
-                fluent_predicates.add(atom.predicate.name)
-        
-        # Create plan table showing only fluents
-        plan_table = Table(title="Plan Steps")
-        plan_table.add_column("Step", style="cyan")
-        plan_table.add_column("Operator", style="green")
-        plan_table.add_column("Added Atoms", style="bold green")
-        plan_table.add_column("Removed Atoms", style="bold red")
-        
-        for i, (nsrt, atoms) in enumerate(zip(plan, atoms_sequence[1:]), 1):
-            prev_atoms = atoms_sequence[i-1]
-            new_atoms = {a for a in (atoms - prev_atoms) if a.predicate.name in fluent_predicates}
-            removed_atoms = {a for a in (prev_atoms - atoms) if a.predicate.name in fluent_predicates}
-            
-            plan_table.add_row(
-                str(i),
-                nsrt.name,
-                "\n".join(str(atom) for atom in sorted(new_atoms, key=str)),
-                "\n".join(str(atom) for atom in sorted(removed_atoms, key=str))
-            )
-        self.console.print(plan_table)
-        
-        # Create metrics panel
-        metrics_panel = Panel(
-            "\n".join(f"{key}: {value}" for key, value in metrics.items()),
-            title="Plan Metrics",
-            border_style="blue"
-        )
-        self.console.print(metrics_panel)
-        
-        # Execute plan and visualize states
-        state = init_atoms
-        for i, op in enumerate(plan):
-            if show_state_viz:
-                self.console.print(f"\nStep {i}: {op}")
-                self._visualize_state(state)
-            # Apply operator effects
-            state = state - op.delete_effects | op.add_effects
-            
-        # Save plan data
-        self.save_plan(plan, atoms_sequence, init_atoms, goal_atoms, objects)
-            
-        # Create transition graph visualizations
-        self.visualize_transitions(atoms_sequence, plan, goal_atoms, task_name)
-        
-        # Verify plan achieves goal
-        assert goal_atoms.issubset(atoms_sequence[-1])
-
-    def visualize_transitions(self, atoms_sequence: List[Set[GroundAtom]], 
-                            plan: List[Any], goal_atoms: Set[GroundAtom],
-                            task_name: str = "task", metrics: Optional[Dict[str, Any]] = None) -> None:
-        """Visualize the transition graph.
-        
-        Creates a graphviz visualization showing:
-        - States as nodes with their ground atoms
-        - Transitions as edges with operator names
-        - Objects and their states grouped together
-        - Color coding for initial, intermediate, and goal states
-        
-        Args:
-            atoms_sequence: Sequence of atom sets representing states
-            plan: Sequence of operators
-            goal_atoms: Goal state atoms for coloring final state
+            init_atoms: Initial state atoms
+            goal_atoms: Goal state atoms
+            objects: List of objects in environment
             task_name: Name of task for visualization file
-            
-        The graph is saved in the transitions directory with format:
-            {transitions_dir}/{task_name}.png
         """
-        # Create a new directed graph
-        dot = graphviz.Digraph(comment='Transition Graph')
-        dot.attr(rankdir='TB')  # Top to bottom layout
-        dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
+        # Create initial state with empty data
+        state_dict = {obj: np.zeros(obj.type.dim, dtype=np.float32) for obj in objects}
+        init_state = State(state_dict, simulator_state=init_atoms)
         
-        # Track which predicates actually change (fluents)
-        all_atoms = set().union(*atoms_sequence)
-        self.fluent_predicates = set()
+        # Create task
+        task = Task(init_state, goal_atoms)
         
-        # Find predicates that change
-        for i in range(len(atoms_sequence) - 1):
-            curr_atoms = atoms_sequence[i]
-            next_atoms = atoms_sequence[i + 1]
-            changed_atoms = curr_atoms.symmetric_difference(next_atoms)
-            for atom in changed_atoms:
-                self.fluent_predicates.add(atom.predicate.name)
+        # Print initial state
+        self.console.print("\n[bold cyan]Initial State:[/bold cyan]")
+        self._visualize_state(init_atoms)
         
-        # Track visited states to merge common nodes
-        visited_states = {}
+        # Print goal state
+        self.console.print("\n[bold green]Goal State:[/bold green]")
+        self._visualize_state(goal_atoms)
         
-        def get_state_id(atoms: Set[GroundAtom]) -> str:
-            # Hash the state based on fluent predicates only
-            state_key = frozenset(a for a in atoms 
-                                if a.predicate.name in (self.fluent_predicates | self.key_predicates))
-            if state_key not in visited_states:
-                visited_states[state_key] = str(len(visited_states))
-            return visited_states[state_key]
+        # Run task planning
+        self.console.print("\n[bold yellow]Planning...[/bold yellow]")
+        plan, atoms_sequence, metrics = run_task_plan_once(
+            task,
+            self.nsrts,
+            set(self.predicates.values()),
+            set(self.types.values()),
+            timeout=10.0,
+            seed=CFG.seed,
+            task_planning_heuristic="hadd",
+            max_horizon=float("inf")
+        )
         
-        # Add nodes and edges for main plan
-        for i, (atoms, nsrt) in enumerate(zip(atoms_sequence, plan + [None])):
-            state_id = get_state_id(atoms)
+        # Print plan steps
+        self.console.print("\n[bold magenta]Plan Steps:[/bold magenta]")
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Step", style="dim")
+        table.add_column("Action")
+        table.add_column("State Changes")
+        
+        for i, (state_atoms, operator) in enumerate(zip(atoms_sequence, plan + [None])):
+            # Get state changes
+            prev_atoms = atoms_sequence[i-1] if i > 0 else init_atoms
+            removed = prev_atoms - state_atoms
+            added = state_atoms - prev_atoms
             
-            # Only create node if not seen before
-            if state_id == str(len(visited_states) - 1):
-                state_label = f"State {state_id}\\n"
-                
-                # Group important atoms by object
-                atoms_by_obj = {}
-                for atom in sorted(atoms, key=str):
-                    if (atom.predicate.name in self.fluent_predicates or 
-                        atom.predicate.name in self.key_predicates):
-                        obj_name = atom.objects[0].name
-                        if obj_name not in atoms_by_obj:
-                            atoms_by_obj[obj_name] = []
-                        atoms_by_obj[obj_name].append(str(atom))
-                
-                # Add grouped atoms to label
-                for obj_name, obj_atoms in sorted(atoms_by_obj.items()):
-                    if obj_atoms:
-                        state_label += f"\\n{obj_name}:\\n  "
-                        state_label += "\\n  ".join(obj_atoms)
-                
-                # Color nodes based on state type
-                fillcolor = 'lightblue'
-                if i == 0:
-                    fillcolor = 'lightgreen'
-                elif i == len(atoms_sequence) - 1:
-                    fillcolor = 'lightpink' if not goal_atoms.issubset(atoms) else 'lightgreen'
-                
-                dot.node(state_id, state_label, fillcolor=fillcolor, margin='0.3')
+            # Format changes
+            changes = []
+            if removed:
+                changes.extend([f"[red]- {atom}[/red]" for atom in sorted(removed, key=str)])
+            if added:
+                changes.extend([f"[green]+ {atom}[/green]" for atom in sorted(added, key=str)])
             
-            # Add edge if not at end
-            if nsrt is not None:
-                next_atoms = atoms_sequence[i + 1]
-                next_id = get_state_id(next_atoms)
-                
-                # Find atom changes
-                added_atoms = {a for a in (next_atoms - atoms) 
-                             if a.predicate.name in (self.fluent_predicates | self.key_predicates)}
-                removed_atoms = {a for a in (atoms - next_atoms)
-                               if a.predicate.name in (self.fluent_predicates | self.key_predicates)}
-                
-                # Create edge label
-                edge_label = f"{nsrt.name}"
-                if added_atoms:
-                    edge_label += "\\n+ " + "\\n+ ".join(str(a) for a in sorted(added_atoms))
-                if removed_atoms:
-                    edge_label += "\\n- " + "\\n- ".join(str(a) for a in sorted(removed_atoms))
-                
-                dot.edge(state_id, next_id, label=edge_label, fontsize='8', 
-                        color='darkblue', penwidth='2.0')
+            # Add row
+            table.add_row(
+                str(i),
+                str(operator) if operator else "[green]Goal Reached[/green]",
+                "\n".join(changes) if changes else "[dim]No changes[/dim]"
+            )
         
-        # Add alternative paths if available
-        if metrics is not None and "alternative_plans" in metrics:
-            for alt_plan, alt_sequence in metrics["alternative_plans"]:
-                for i, (atoms, nsrt) in enumerate(zip(alt_sequence, alt_plan + [None])):
-                    if nsrt is not None:
-                        curr_id = get_state_id(atoms)
-                        next_atoms = alt_sequence[i + 1]
-                        next_id = get_state_id(next_atoms)
-                        
-                        # Only add edge if it's a new path
-                        edge_exists = False
-                        for e in dot.body:
-                            if isinstance(e, str) and curr_id in e and next_id in e:
-                                edge_exists = True
-                                break
-                        
-                        if not edge_exists:
-                            # Find atom changes
-                            added_atoms = {a for a in (next_atoms - atoms) 
-                                         if a.predicate.name in (self.fluent_predicates | self.key_predicates)}
-                            removed_atoms = {a for a in (atoms - next_atoms)
-                                           if a.predicate.name in (self.fluent_predicates | self.key_predicates)}
-                            
-                            # Create edge label
-                            edge_label = f"{nsrt.name}"
-                            if added_atoms:
-                                edge_label += "\\n+ " + "\\n+ ".join(str(a) for a in sorted(added_atoms))
-                            if removed_atoms:
-                                edge_label += "\\n- " + "\\n- ".join(str(a) for a in sorted(removed_atoms))
-                            
-                            dot.edge(curr_id, next_id, label=edge_label, fontsize='8',
-                                   color='gray', style='dashed')
+        self.console.print(table)
+        
+        # Print metrics if available
+        if metrics:
+            self.console.print("\n[bold blue]Planning Metrics:[/bold blue]")
+            metrics_table = Table(show_header=True, header_style="bold")
+            metrics_table.add_column("Metric")
+            metrics_table.add_column("Value")
+            
+            for key, value in metrics.items():
+                metrics_table.add_row(key, str(value))
+            
+            self.console.print(metrics_table)
+        
+        # Visualize transitions
+        self.console.print("\n[bold]Generating transition graph...[/bold]")
+        self.visualize_transitions(task_name, init_atoms, goal_atoms, objects, metrics)
+
+    def visualize_transitions(self, task_name: str, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], 
+                            objects: List[Object], metrics: Optional[Dict[str, Any]] = None) -> None:
+        """Visualize all possible transitions from initial state to goal states.
+        
+        Creates a graph showing all reachable states and transitions between them.
+        States are labeled with their atoms, grouped by object.
+        Edges show the operator name and atom changes.
+        The main path to the goal is highlighted.
+        
+        Args:
+            task_name: Name of task for output file
+            init_atoms: Initial state atoms
+            goal_atoms: Goal state atoms 
+            objects: List of objects in environment
+            metrics: Optional metrics to display
+        """
+        # Explore all possible states
+        self.console.print("\n[bold]Exploring possible states...[/bold]")
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Exploring...", total=None)
+            all_states = self.explore_all_states(init_atoms, objects)
+            progress.update(task, completed=True)
+        
+        self.console.print(f"Found {len(all_states)} reachable states")
+        
+        # Create graph
+        self.console.print("\n[bold]Creating transition graph...[/bold]")
+        dot = Digraph(comment=f'Transitions for {task_name}')
+        dot.attr(rankdir='TB')
+        
+        # Track visited states to avoid duplicates
+        visited_states = set()
+        visited_edges = set()
+        
+        # Helper to get state label
+        def get_state_label(atoms: Set[GroundAtom]) -> str:
+            # Group atoms by object
+            atoms_by_obj = {}
+            for atom in atoms:
+                # Only show fluents and key predicates
+                if atom.predicate.name not in self.fluent_predicates and \
+                   atom.predicate.name not in self.key_predicates:
+                    continue
+                    
+                # Group by first object
+                obj = atom.objects[0].name
+                if obj not in atoms_by_obj:
+                    atoms_by_obj[obj] = []
+                atoms_by_obj[obj].append(str(atom))
+            
+            # Format label
+            label = ""
+            for obj, obj_atoms in sorted(atoms_by_obj.items()):
+                label += f"{obj}:\n"
+                for atom in sorted(obj_atoms):
+                    label += f"  {atom}\n"
+            return label
+        
+        # Helper to get edge label
+        def get_edge_label(src_atoms: Set[GroundAtom], dst_atoms: Set[GroundAtom], op: STRIPSOperator) -> str:
+            # Get atom changes
+            removed = src_atoms - dst_atoms
+            added = dst_atoms - src_atoms
+            
+            # Only show fluents and key predicates
+            removed = {a for a in removed if a.predicate.name in self.fluent_predicates or 
+                                          a.predicate.name in self.key_predicates}
+            added = {a for a in added if a.predicate.name in self.fluent_predicates or
+                                       a.predicate.name in self.key_predicates}
+            
+            label = op.name + "\n"
+            if removed:
+                label += "Removed:\n"
+                for atom in sorted(removed, key=str):
+                    label += f"  - {atom}\n"
+            if added:
+                label += "Added:\n" 
+                for atom in sorted(added, key=str):
+                    label += f"  + {atom}\n"
+            return label
+        
+        # Add all states and transitions
+        with Progress() as progress:
+            # Add states
+            state_task = progress.add_task("[cyan]Adding states...", total=len(all_states))
+            for state_id, state_atoms in all_states.items():
+                # Add state if not visited
+                state_key = frozenset(state_atoms)
+                if state_key not in visited_states:
+                    visited_states.add(state_key)
+                    
+                    # Check if this is initial, goal or intermediate state
+                    is_init = state_atoms == init_atoms
+                    is_goal = goal_atoms.issubset(state_atoms)
+                    
+                    # Set node attributes
+                    attrs = {
+                        'shape': 'box',
+                        'style': 'filled',
+                        'fillcolor': 'lightblue' if is_init else 'lightgreen' if is_goal else 'white',
+                        'margin': '0.3,0.2'
+                    }
+                    
+                    # Add node
+                    dot.node(state_id, get_state_label(state_atoms), **attrs)
+                progress.update(state_task, advance=1)
+            
+            # Add transitions
+            edge_task = progress.add_task("[cyan]Adding transitions...", total=len(self.transitions))
+            for src_id, dst_id, op in self.transitions:
+                edge_key = (src_id, dst_id)
+                if edge_key not in visited_edges:
+                    visited_edges.add(edge_key)
+                    
+                    # Get source and destination states
+                    src_atoms = all_states[src_id]
+                    dst_atoms = all_states[dst_id]
+                    
+                    # Add edge with style based on whether it's part of the shortest path
+                    is_shortest_path = metrics and (src_id, dst_id) in metrics.get("shortest_path_edges", set())
+                    edge_attrs = {
+                        'style': 'solid' if is_shortest_path else 'dashed',
+                        'color': 'black' if is_shortest_path else 'gray',
+                        'penwidth': '2.0' if is_shortest_path else '1.0'
+                    }
+                    
+                    # Add edge
+                    dot.edge(src_id, dst_id, get_edge_label(src_atoms, dst_atoms, op), **edge_attrs)
+                progress.update(edge_task, advance=1)
         
         # Save graph
-        output_path = os.path.join(self.transitions_dir, task_name)
-        dot.render(output_path, format='png', cleanup=True)
-        self.console.print(f"\n[bold green]Saved transition graph to: {output_path}.png")
-        self.console.print(f"\n[bold yellow]Fluent predicates detected: {sorted(self.fluent_predicates)}")
+        self.console.print("\n[bold]Saving transition graph...[/bold]")
+        output_path = os.path.join(self.transitions_dir, f"{task_name}")
+        dot.render(output_path, format='png', view=False, cleanup=True)
+        
+        # Print summary
+        self.console.print(f"\n[bold cyan]Fluent predicates detected:[/bold cyan]")
+        for pred in sorted(self.fluent_predicates):
+            self.console.print(f"  - {pred}")
+        
+        # Print shortest path if available
+        if metrics and "shortest_path" in metrics:
+            self.console.print("\n[bold magenta]Shortest Path:[/bold magenta]")
+            path_table = Table(show_header=True, header_style="bold")
+            path_table.add_column("Step", style="dim")
+            path_table.add_column("State")
+            path_table.add_column("Action")
+            
+            for i, (state_id, op) in enumerate(metrics["shortest_path"]):
+                state_atoms = all_states[state_id]
+                path_table.add_row(
+                    str(i),
+                    get_state_label(state_atoms),
+                    str(op) if op else "[green]Goal Reached[/green]"
+                )
+            
+            self.console.print(path_table)
 
     def _get_state_color(self, atoms: Set[GroundAtom]) -> str:
         """Get color for state visualization based on its atoms.
@@ -825,3 +791,69 @@ class MockEnvCreatorBase(ABC):
             RGBD image object (implementation specific)
         """
         pass 
+
+    def _get_state_id(self, atoms: Set[GroundAtom]) -> str:
+        """Get a unique ID for a state based on its atoms.
+        
+        Args:
+            atoms: The atoms in the state.
+            
+        Returns:
+            A unique string ID.
+        """
+        return str(hash(frozenset(str(a) for a in atoms)))
+
+    def explore_all_states(self, init_atoms: Set[GroundAtom], objects: List[Object]) -> Dict[str, Set[GroundAtom]]:
+        """Explore all possible states from the initial state using BFS.
+        
+        Args:
+            init_atoms: The initial state atoms.
+            objects: The objects in the environment.
+            
+        Returns:
+            A dictionary mapping state IDs to sets of ground atoms.
+        """
+        # Initialize variables for state exploration
+        frontier = deque([init_atoms])
+        visited = {self._get_state_id(init_atoms)}
+        states = {self._get_state_id(init_atoms): init_atoms}
+        self.fluent_predicates = set()
+        self.transitions = []  # Reset transitions
+
+        # Create initial state with zero features
+        init_state = State({obj: np.zeros(obj.type.dim, dtype=np.float32) for obj in objects})
+
+        # Explore states using BFS
+        while frontier:
+            state_atoms = frontier.popleft()
+            state_id = self._get_state_id(state_atoms)
+
+            # Get all ground NSRTs
+            ground_nsrts = set()
+            for nsrt in self.nsrts:
+                ground_nsrts.update(utils.all_ground_nsrts(nsrt, objects))
+
+            # Get applicable operators in current state
+            applicable_ops = utils.get_applicable_operators(ground_nsrts, state_atoms)
+
+            # Apply each operator to get successor states
+            for op in applicable_ops:
+                next_atoms = utils.apply_operator(op, state_atoms)
+                next_state_id = self._get_state_id(next_atoms)
+
+                # Track which predicates change
+                for atom in next_atoms - state_atoms:
+                    self.fluent_predicates.add(atom.predicate.name)
+                for atom in state_atoms - next_atoms:
+                    self.fluent_predicates.add(atom.predicate.name)
+
+                # Add new state if not visited
+                if next_state_id not in visited:
+                    visited.add(next_state_id)
+                    frontier.append(next_atoms)
+                    states[next_state_id] = next_atoms
+
+                # Record transition
+                self.transitions.append((state_id, next_state_id, op))
+
+        return states 
