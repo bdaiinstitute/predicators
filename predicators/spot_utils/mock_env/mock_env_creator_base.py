@@ -555,48 +555,52 @@ class MockEnvCreatorBase(ABC):
     def visualize_transitions(self, atoms_sequence: List[Set[GroundAtom]], 
                             plan: List[Any], goal_atoms: Set[GroundAtom],
                             task_name: str = "task") -> None:
-        """Visualize the transition graph.
+        """Visualize the transition graph focusing on fluents and key predicates.
         
         Creates a graphviz visualization showing:
-        - States as nodes with their ground atoms
+        - States as nodes with only changed predicates
         - Transitions as edges with operator names
-        - Objects and their states grouped together
         - Color coding for initial, intermediate, and goal states
+        - Vertical layout for better readability
         
         Args:
             atoms_sequence: Sequence of atom sets representing states
             plan: Sequence of operators
             goal_atoms: Goal state atoms for coloring final state
             task_name: Name of task for visualization file
-            
-        The graph is saved in the transitions directory with format:
-            {transitions_dir}/{task_name}.png
         """
         # Create a new directed graph
         dot = graphviz.Digraph(comment='Transition Graph')
-        dot.attr(rankdir='LR')  # Left to right layout
+        dot.attr(rankdir='TB')  # Top to bottom layout
         dot.attr('node', shape='box', style='rounded,filled', fontsize='10')
+        
+        # Track which predicates actually change (fluents)
+        all_atoms = set().union(*atoms_sequence)
+        fluent_predicates = set()
+        key_predicates = {'Holding', 'Inside', 'On', 'HandEmpty', 'ContainingWaterKnown'}
+        
+        # Find predicates that change
+        for i in range(len(atoms_sequence) - 1):
+            curr_atoms = atoms_sequence[i]
+            next_atoms = atoms_sequence[i + 1]
+            changed_atoms = curr_atoms.symmetric_difference(next_atoms)
+            for atom in changed_atoms:
+                fluent_predicates.add(atom.predicate.name)
         
         # Add nodes and edges
         for i, (atoms, nsrt) in enumerate(zip(atoms_sequence, plan + [None])):
-            # Create node label with state atoms
             state_id = str(i)
             state_label = f"State {i}\\n"
             
-            # Group atoms by object for better readability
-            key_atoms_by_obj = {}
+            # Only show fluents and key predicates
+            important_atoms = []
             for atom in sorted(atoms, key=str):
-                atom_str = str(atom)
-                if any(p in atom_str for p in ['Holding', 'Inside', 'On']):
-                    obj_name = atom.objects[0].name
-                    if obj_name not in key_atoms_by_obj:
-                        key_atoms_by_obj[obj_name] = []
-                    key_atoms_by_obj[obj_name].append(atom_str)
+                if (atom.predicate.name in fluent_predicates or 
+                    atom.predicate.name in key_predicates):
+                    important_atoms.append(str(atom))
             
-            # Add atoms grouped by object
-            for obj_name, obj_atoms in sorted(key_atoms_by_obj.items()):
-                state_label += f"\\n{obj_name}:\\n  "
-                state_label += "\\n  ".join(obj_atoms)
+            if important_atoms:
+                state_label += "\\n" + "\\n".join(important_atoms)
             
             # Color nodes based on state type
             fillcolor = 'lightblue'  # Intermediate state
@@ -609,14 +613,25 @@ class MockEnvCreatorBase(ABC):
             dot.node(
                 state_id, 
                 state_label,
-                fillcolor=fillcolor
+                fillcolor=fillcolor,
+                margin='0.3'
             )
             
             # Add edge if not at end
             if nsrt is not None:
-                # Create edge label with operator and objects
-                edge_label = f"{nsrt.name}\\n"
-                edge_label += "\\n".join(obj.name for obj in nsrt.objects)
+                # Find atom changes
+                next_atoms = atoms_sequence[i + 1]
+                added_atoms = {a for a in (next_atoms - atoms) 
+                             if a.predicate.name in (fluent_predicates | key_predicates)}
+                removed_atoms = {a for a in (atoms - next_atoms)
+                               if a.predicate.name in (fluent_predicates | key_predicates)}
+                
+                # Create edge label with operator and atom changes
+                edge_label = f"{nsrt.name}"
+                if added_atoms:
+                    edge_label += "\\n+ " + "\\n+ ".join(str(a) for a in sorted(added_atoms))
+                if removed_atoms:
+                    edge_label += "\\n- " + "\\n- ".join(str(a) for a in sorted(removed_atoms))
                 
                 dot.edge(
                     state_id, 
@@ -630,6 +645,7 @@ class MockEnvCreatorBase(ABC):
         output_path = os.path.join(self.transitions_dir, task_name)
         dot.render(output_path, format='png', cleanup=True)
         self.console.print(f"\n[bold green]Saved transition graph to: {output_path}.png")
+        self.console.print(f"\n[bold yellow]Fluent predicates detected: {sorted(fluent_predicates)}")
 
     def _get_state_color(self, atoms: Set[GroundAtom]) -> str:
         """Get color for state visualization based on its atoms.
