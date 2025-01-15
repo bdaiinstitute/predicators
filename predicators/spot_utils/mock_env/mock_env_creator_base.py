@@ -603,7 +603,7 @@ class MockEnvCreatorBase(ABC):
         state_self_loops = {}  # Track self-loops for each state
         
         # Initialize frontier with initial state
-        frontier: List[Tuple[Set[GroundAtom], Optional[Union[_GroundNSRT, None]]]] = [(init_atoms, None)]
+        frontier: List[Tuple[Set[GroundAtom], Optional[_GroundNSRT]]] = [(init_atoms, None)]
         
         # Track state numbers for consistent labeling
         state_count = 0
@@ -1015,7 +1015,7 @@ class MockEnvCreatorBase(ABC):
             Set of tuples (source_atoms, operator, dest_atoms) representing transitions
         """
         transitions = set()
-        frontier = [(init_atoms, None)]  # (state_atoms, parent_op)
+        frontier: List[Tuple[Set[GroundAtom], Optional[_GroundNSRT]]] = [(init_atoms, None)]  # (state_atoms, parent_op)
         visited = {frozenset(init_atoms)}
         
         while frontier:
@@ -1035,7 +1035,7 @@ class MockEnvCreatorBase(ABC):
                 # Add to frontier if not visited
                 if next_atoms_frozen not in visited:
                     visited.add(next_atoms_frozen)
-                    frontier.append((next_atoms, op))
+                    frontier.append((next_atoms, None))  # Use None for parent_op to match type
         
         return transitions
 
