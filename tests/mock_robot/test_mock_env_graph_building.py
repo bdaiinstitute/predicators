@@ -359,5 +359,5 @@ def test_transitions_match_edges():
         assert edge in transitions, f"Edge {edge} not found in transitions"
     
     # Verify graph file exists
-    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
+    graph_file = Path(test_dir) / "transitions" / f"Transition Graph, {test_name.replace('_', ' ').title()}.png"
     assert graph_file.exists(), "Transition graph file not generated" 
