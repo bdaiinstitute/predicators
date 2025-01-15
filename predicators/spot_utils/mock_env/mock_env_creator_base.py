@@ -75,6 +75,9 @@ from predicators import utils
 from predicators.settings import CFG
 from predicators.planning import task_plan_grounding, task_plan, run_task_plan_once
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 class MockEnvCreatorBase(ABC):
     """Base class for mock environment creators.
@@ -523,6 +526,7 @@ class MockEnvCreatorBase(ABC):
         state_count = 0
         
         if plan is not None:
+            logger.info("Checking transitions from plan...")
             curr_atoms = init_atoms
             shortest_path_states.add(frozenset(curr_atoms))
             prev_atoms = curr_atoms
@@ -530,6 +534,12 @@ class MockEnvCreatorBase(ABC):
             state_count += 1
             
             for op in plan:
+                # Verify operator preconditions
+                preconditions_satisfied = all(precond in curr_atoms for precond in op.preconditions)
+                logger.info(f"Plan operator {op}: preconditions satisfied = {preconditions_satisfied}")
+                if not preconditions_satisfied:
+                    logger.warning(f"Invalid transition in plan! Operator {op} preconditions not met in state {state_count-1}")
+                
                 curr_atoms = self._get_next_atoms(curr_atoms, op)
                 # Track predicates that change
                 added = curr_atoms - prev_atoms
@@ -637,46 +647,27 @@ class MockEnvCreatorBase(ABC):
             # Get applicable operators
             applicable_ops = self._get_applicable_operators(current_atoms, set(objects))
             
-            # Add transitions only for operators whose preconditions are satisfied
+            # Add transitions to next states
             for op in applicable_ops:
-                # Skip if operator preconditions are not met
-                if not self._check_operator_preconditions(current_atoms, op):
-                    continue
-                    
                 next_atoms = self._get_next_atoms(current_atoms, op)
                 next_id = self._get_state_id(next_atoms)
                 
-                # Skip self-loops and duplicate transitions
-                if current_id == next_id or (current_id, next_id, op.name) in transitions:
-                    continue
+                # Add transition if not already present
+                transition = (current_id, next_id, op)
+                if transition not in transitions:
+                    transitions.add(transition)
+                    # Format operator name with just the name and arguments
+                    op_label = op.name
+                    if op.objects:
+                        op_label += f"({','.join(obj.name for obj in op.objects)})"
+                    # Add edge with simplified operator name as label
+                    edge_attrs = {
+                        'label': op_label,
+                        'style': 'solid' if frozenset(current_atoms) in shortest_path_states else 'dashed'
+                    }
+                    dot.edge(current_id, next_id, **edge_attrs)
                 
-                # Format operator name with arguments
-                op_label = op.name
-                if op.objects:
-                    op_label += f"({','.join(obj.name for obj in op.objects)})"
-                
-                # Add edge
-                edge_attrs = {
-                    'label': op_label,
-                }
-                
-                # Style edges on shortest path
-                if (frozenset(current_atoms) in shortest_path_states and 
-                    frozenset(next_atoms) in shortest_path_states and
-                    plan is not None and
-                    any(p.name == op.name and p.objects == op.objects for p in plan)):
-                    edge_attrs['style'] = 'solid'
-                    edge_attrs['color'] = 'black'
-                    edge_attrs['penwidth'] = '2.0'
-                else:
-                    edge_attrs['style'] = 'dashed'
-                    edge_attrs['color'] = 'gray60'
-                    edge_attrs['penwidth'] = '1.0'
-                
-                dot.edge(current_id, next_id, **edge_attrs)
-                transitions.add((current_id, next_id, op.name))
-                
-                # Add to frontier if not visited
+                # Add next state to frontier if not visited
                 if next_id not in visited:
                     frontier.append((next_atoms, op))
         
