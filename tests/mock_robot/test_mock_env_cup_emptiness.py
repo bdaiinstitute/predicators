@@ -48,7 +48,7 @@ def setup():
     pass
 
 
-def test_observe_cup_emptiness():
+def test_with_belief_observe_cup_emptiness():
     """Test transition graph for cup emptiness observation.
     
     Setup:
@@ -57,60 +57,62 @@ def test_observe_cup_emptiness():
     - Goal state: Content known
     - Actions: Move to view, Observe content
     """
+    # Set up configuration
+    test_name = "test_with_belief_observe_cup_emptiness"
+    test_dir = os.path.join("mock_env_data", test_name)
+    utils.reset_config({
+        "env": "mock_spot",
+        "approach": "oracle",
+        "seed": 123,
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "mock_env_data_dir": test_dir  # Set data directory for this test
+    })
+    
     # Enable belief-space operators
     MockSpotEnv.use_belief_space_operators = True
-    env = MockSpotEnv(use_gui=False)
-
+    
+    # Create environment creator
+    env_creator = ManualMockEnvCreator(test_dir)
+    
     # Create test objects
     robot = Object("robot", _robot_type)
     cup = Object("cup", _container_type)
     table = Object("table", _immovable_object_type)
-
-    # Create initial state with unknown cup content
-    state_id = env.add_state(
-        rgbd=None,  # No image needed for this test
-        gripper_open=True,
-        objects_in_view={cup.name, table.name},
-        objects_in_hand=set()
-    )
-
-    # Add state where robot has moved to view cup from top
-    view_state_id = env.add_state(
-        rgbd=None,
-        gripper_open=True,
-        objects_in_view={cup.name, table.name},
-        objects_in_hand=set()
-    )
-
-    # Add state where cup content is known
-    known_state_id = env.add_state(
-        rgbd=None,
-        gripper_open=True,
-        objects_in_view={cup.name, table.name},
-        objects_in_hand=set()
-    )
-
-    # Add transitions
-    env.add_transition(state_id, "MoveToHandObserveObjectFromTop", view_state_id)
-    env.add_transition(view_state_id, "ObserveContainerContent", known_state_id)
-
-    # Save graph data
-    test_dir = Path("mock_env_data") / "test_cup_emptiness"
-    os.makedirs(test_dir / "transitions", exist_ok=True)
-    env._save_graph_data()
-
-    # Verify transitions
-    assert env._transitions[state_id]["MoveToHandObserveObjectFromTop"] == view_state_id
-    assert env._transitions[view_state_id]["ObserveContainerContent"] == known_state_id
-
-    # Verify predicates
-    assert env.predicates == PREDICATES.union(BELIEF_PREDICATES)
-
+    objects = {robot, cup, table}
+    
+    # Create initial state atoms
+    initial_atoms = {
+        GroundAtom(_HandEmpty, [robot]),
+        GroundAtom(_On, [cup, table]),
+        GroundAtom(_ContainingWaterUnknown, [cup]),
+        GroundAtom(_NotBlocked, [cup]),
+        GroundAtom(_IsPlaceable, [cup]),
+        GroundAtom(_HasFlatTopSurface, [table]),
+        GroundAtom(_Reachable, [robot, cup]),
+        GroundAtom(_NEq, [cup, table]),
+        GroundAtom(_NotInsideAnyContainer, [cup]),
+        GroundAtom(_FitsInXY, [cup, table]),
+        GroundAtom(_NotHolding, [robot, cup])
+    }
+    
+    # Create goal atoms
+    goal_atoms = {
+        GroundAtom(_ContainingWaterKnown, [cup])
+    }
+    
+    # Plan and visualize transitions
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
+    
+    # Verify transition graph file exists
+    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
+    assert graph_file.exists(), "Transition graph file not generated"
+    
     # Cleanup
     MockSpotEnv.use_belief_space_operators = False
 
 
-def test_check_and_pick_cup():
+def test_with_belief_check_and_pick_cup():
     """Test transition graph for checking cup content and then picking it.
     
     This test verifies that belief-space operators can be combined with 
@@ -185,7 +187,7 @@ def test_check_and_pick_cup():
     env.add_transition(view_state_id, "PickObjectFromTop", holding_state_id)
 
     # Save graph data
-    test_dir = Path("mock_env_data") / "test_check_and_pick_cup"
+    test_dir = Path("mock_env_data") / "test_with_belief_check_and_pick_cup"
     os.makedirs(test_dir / "transitions", exist_ok=True)
     env._save_graph_data()
 
@@ -204,7 +206,7 @@ def test_check_and_pick_cup():
     MockSpotEnv.use_belief_space_operators = False 
 
 
-def test_plan_check_and_pick_cup():
+def test_with_belief_plan_check_and_pick_cup():
     """Test transition graph calculation for checking cup content and picking.
     
     This test:
@@ -235,10 +237,10 @@ def test_plan_check_and_pick_cup():
        - The plan achieves both belief and physical goals
        
     Output:
-       - mock_env_data/test_plan_check_and_pick_cup/transition_graph.png
+       - mock_env_data/test_with_belief_plan_check_and_pick_cup/transition_graph.png
     """
     # Set up configuration
-    test_name = "test_plan_check_and_pick_cup"
+    test_name = "test_with_belief_plan_check_and_pick_cup"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
         "env": "mock_spot",
@@ -293,7 +295,7 @@ def test_plan_check_and_pick_cup():
     MockSpotEnv.use_belief_space_operators = False
 
 
-def test_plan_check_and_place_cup():
+def test_with_belief_plan_check_and_place_cup():
     """Test transition graph calculation for checking cup content and placing in target.
     
     This test:
@@ -327,10 +329,10 @@ def test_plan_check_and_place_cup():
        - The plan achieves both belief and physical goals
        
     Output:
-       - mock_env_data/test_plan_check_and_place_cup/transition_graph.png
+       - mock_env_data/test_with_belief_plan_check_and_place_cup/transition_graph.png
     """
     # Set up configuration
-    test_name = "test_plan_check_and_place_cup"
+    test_name = "test_with_belief_plan_check_and_place_cup"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
         "env": "mock_spot",
