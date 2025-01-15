@@ -550,10 +550,10 @@ class MockEnvCreatorBase(ABC):
             'fontsize': '16',
             'label': f'Transition Graph for {task_name}',
             'labelloc': 't',  # Place title at top
-            'nodesep': '1.2',  # Increase spacing between nodes
-            'ranksep': '1.0',  # Increase spacing between ranks
-            'splines': 'curved',  # Use curved lines
-            'concentrate': 'true',  # Merge parallel edges
+            'nodesep': '1.0',  # Reduce horizontal space
+            'ranksep': '1.2',  # Moderate vertical space
+            'splines': 'curved',  # Or: Use straight lines for clearer labels
+            'concentrate': 'false'  # Don't merge edges
         })
         
         # Set default node attributes
@@ -573,7 +573,13 @@ class MockEnvCreatorBase(ABC):
             'fontname': 'Arial',
             'fontsize': '9',
             'arrowsize': '0.8',
-            'penwidth': '1.0'
+            'penwidth': '1.0',
+            'len': '1.5',  # Shorter edges for compactness
+            'decorate': 'true',  # Add connector lines from labels to edges
+            'labelfloat': 'false',  # Keep labels on the line
+            'labelangle': '0',  # Keep labels horizontal
+            'labeldistance': '1.2',  # Keep labels closer to edges
+            'minlen': '1'  # Allow shorter edges
         })
         
         # Track visited states and transitions
@@ -631,8 +637,12 @@ class MockEnvCreatorBase(ABC):
             # Get applicable operators
             applicable_ops = self._get_applicable_operators(current_atoms, set(objects))
             
-            # Add transitions
+            # Add transitions only for operators whose preconditions are satisfied
             for op in applicable_ops:
+                # Skip if operator preconditions are not met
+                if not self._check_operator_preconditions(current_atoms, op):
+                    continue
+                    
                 next_atoms = self._get_next_atoms(current_atoms, op)
                 next_id = self._get_state_id(next_atoms)
                 
@@ -673,6 +683,14 @@ class MockEnvCreatorBase(ABC):
         # Save graph
         graph_path = os.path.join(self.transitions_dir, f"{task_name}")
         dot.render(graph_path, format='png', cleanup=True)
+
+    def _check_operator_preconditions(self, state_atoms: Set[GroundAtom], operator: _GroundNSRT) -> bool:
+        """Check if operator preconditions are satisfied in the current state."""
+        # Get operator preconditions
+        preconditions = operator.preconditions
+        
+        # Check if all preconditions are satisfied
+        return all(precond in state_atoms for precond in preconditions)
 
     def _get_state_color(self, atoms: Set[GroundAtom]) -> str:
         """Get color for state visualization based on its atoms.
@@ -922,43 +940,37 @@ class MockEnvCreatorBase(ABC):
         init_state = State(state_data, init_atoms)
         return EnvironmentTask(init_state, goal_atoms) 
 
-    def _get_state_label(self, atoms: Set[GroundAtom], fluent_predicates: Optional[Set] = None, state_num: Optional[int] = None, is_initial: bool = False, is_goal: bool = False) -> str:
-        """Get a concise label for a state."""
-        # Add state number and type to label
-        header = []
-        if is_initial:
-            header.append("START")
-        if is_goal:
-            header.append("GOAL")
-        if state_num is not None:
-            header.append(f"State {state_num}")
-        
-        # Group atoms by object
+    def _get_state_label(self, atoms: Set[GroundAtom], fluent_predicates: Set[Predicate], state_num: int, is_initial: bool, is_goal: bool) -> str:
+        """Get formatted label for a state node."""
+        # Group atoms by first object (key object)
         atoms_by_obj = {}
         for atom in sorted(atoms, key=str):
-            # Skip non-fluent predicates if fluents are provided
-            if fluent_predicates is not None and atom.predicate not in fluent_predicates:
+            # Only include fluent predicates
+            if atom.predicate not in fluent_predicates:
                 continue
-            # Get the main object (first argument)
-            main_obj = atom.objects[0].name if atom.objects else "other"
-            if main_obj not in atoms_by_obj:
-                atoms_by_obj[main_obj] = []
-            # Format predicate with other objects as arguments
-            pred_str = atom.predicate.name
-            if len(atom.objects) > 1:
-                args = [obj.name for obj in atom.objects[1:]]
-                pred_str += f"({','.join(args)})"
-            atoms_by_obj[main_obj].append(pred_str)
+            if not atom.objects:
+                continue
+            key_obj = atom.objects[0]
+            if key_obj not in atoms_by_obj:
+                atoms_by_obj[key_obj] = []
+            atoms_by_obj[key_obj].append(atom)
         
-        # Create state label with object grouping
-        label_parts = []
-        if header:
-            label_parts.append(" | ".join(header))
-            label_parts.append("-" * max(len(h) for h in header))
+        # Create label with state info using HTML-like formatting
+        prefix = "START | " if is_initial else ""
+        prefix = "GOAL | " if is_goal else prefix
+        label = f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">\n'
+        label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">{prefix}State {state_num}</FONT></TD></TR>\n'
         
-        for obj_name, preds in sorted(atoms_by_obj.items()):
-            if preds:  # Only show objects that have predicates
-                label_parts.append(f"{obj_name}:")
-                label_parts.extend(f"  {pred}" for pred in sorted(preds))
+        # Add atoms grouped by their key object with headers
+        for key_obj, obj_atoms in sorted(atoms_by_obj.items(), key=lambda x: str(x[0])):
+            # Add header for key object
+            label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"><B>{key_obj.name}:</B></FONT></TD></TR>\n'
+            # Add predicates under this key object
+            for atom in sorted(obj_atoms, key=str):
+                # Keep all objects in predicate, including key object
+                args_str = ", ".join(f'<B>{obj.name}</B>' for obj in atom.objects)
+                pred_str = f'{atom.predicate.name}({args_str})'
+                label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">  - {pred_str}</FONT></TD></TR>\n'
         
-        return "\n".join(label_parts) 
+        label += '</TABLE>>'
+        return label 
