@@ -168,7 +168,8 @@ def test_transitions_match_edges():
     }
     
     # Plan and visualize first to generate the graph
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=test_name)
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Get all possible operator transitions
     transitions = creator.get_operator_transitions(initial_atoms, objects)

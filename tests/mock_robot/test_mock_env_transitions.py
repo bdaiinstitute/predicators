@@ -56,6 +56,7 @@ from predicators.settings import CFG
 from rich.console import Console
 from rich.logging import RichHandler
 import logging
+from pathlib import Path
 
 # Configure rich logging
 logging.basicConfig(
@@ -166,10 +167,12 @@ def test_single_block_pick_place():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png"))
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
+    assert graph_file.exists(), "Transition graph file not generated"
 
 
 def test_two_object_pick_place():
@@ -266,10 +269,12 @@ def test_two_object_pick_place():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png"))
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
+    assert graph_file.exists(), "Transition graph file not generated"
 
 
 def test_view_reach_pick_place_two_objects():
@@ -367,7 +372,9 @@ def test_view_reach_pick_place_two_objects():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png")) 
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
+    assert graph_file.exists(), "Transition graph file not generated" 

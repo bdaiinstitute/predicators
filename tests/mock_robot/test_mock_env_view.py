@@ -50,7 +50,7 @@ def test_view_operators():
     }
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name="transition_graph")
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=f'Transition Graph, {test_name.replace("_", " ").title()}')
     
     # Verify output file exists
     assert os.path.exists(os.path.join(creator.transitions_dir, "transition_graph.png")) 
