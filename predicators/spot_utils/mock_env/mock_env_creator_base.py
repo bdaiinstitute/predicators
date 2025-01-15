@@ -584,17 +584,23 @@ class MockEnvCreatorBase(ABC):
             'fontsize': '9',
             'arrowsize': '0.8',
             'penwidth': '1.0',
-            'len': '1.5',  # Shorter edges for compactness
+            'len': '1.2',  # Shorter edges for denser graph
             'decorate': 'true',  # Add connector lines from labels to edges
-            'labelfloat': 'false',  # Keep labels on the line
-            'labelangle': '0',  # Keep labels horizontal
-            'labeldistance': '1.2',  # Keep labels closer to edges
-            'minlen': '1'  # Allow shorter edges
+            'labelfloat': 'true',  # Allow labels to float for better placement
+            'labelangle': '25',  # Angle labels to avoid edge overlap
+            'labeldistance': '1.5',  # Keep labels moderately distant
+            'minlen': '1',  # Allow shorter edges
+            'color': '#4A90E2',  # Blue edges
+            'fontcolor': '#E74C3C',  # Red
+            'arrowhead': 'normal',
+            'arrowcolor': '#E74C3C',  # Red arrows
+            'weight': '1.0'  # Give edges uniform weight
         })
         
         # Track visited states and transitions
         visited = set()
         transitions = set()  # Use set to avoid duplicates
+        state_self_loops = {}  # Track self-loops for each state
         
         # Initialize frontier with initial state
         frontier: List[Tuple[Set[GroundAtom], Optional[Union[_GroundNSRT, None]]]] = [(init_atoms, None)]
@@ -616,14 +622,61 @@ class MockEnvCreatorBase(ABC):
                 state_numbers[frozenset(current_atoms)] = state_num
                 state_count += 1
             
-            # Add node for current state
+            # Get applicable operators
+            applicable_ops = self._get_applicable_operators(current_atoms, set(objects))
+            
+            # Track self-loops for this state
+            self_loops = []
+            
+            # Add transitions to next states
+            for op in applicable_ops:
+                next_atoms = self._get_next_atoms(current_atoms, op)
+                next_id = self._get_state_id(next_atoms)
+                
+                # Format operator name
+                op_label = op.name
+                if op.objects:
+                    op_label += f"({','.join(obj.name for obj in op.objects)})"
+                
+                # Check if this is a self-loop
+                if current_id == next_id:
+                    self_loops.append(op_label)
+                    continue
+                
+                # Add non-self-loop transition if not already present
+                transition = (current_id, next_id, op)
+                if transition not in transitions:
+                    transitions.add(transition)
+                    edge_attrs = {
+                        'label': op_label,
+                        'style': 'solid' if frozenset(current_atoms) in shortest_path_states else 'dashed',
+                        'color': '#4A90E2',  # Blue for edges
+                        'fontcolor': '#2E5894',  # Darker blue for labels
+                        'arrowhead': 'normal',
+                        'arrowcolor': '#E74C3C',  # Red arrows
+                        'labelfloat': 'true',
+                        'decorate': 'true',
+                        'labelangle': '25',
+                        'labeldistance': '1.5'
+                    }
+                    dot.edge(current_id, next_id, **edge_attrs)
+                
+                # Add next state to frontier if not visited
+                if next_id not in visited:
+                    frontier.append((next_atoms, op))
+            
+            # Store self-loops for this state
+            if self_loops:
+                state_self_loops[current_id] = self_loops
+            
+            # Add node for current state with self-loops in label
             is_initial = (current_atoms == init_atoms)
             is_goal = goal.issubset(current_atoms)
             is_shortest_path = frozenset(current_atoms) in shortest_path_states
             
-            # Set node style based on state type
             node_attrs = {
-                'label': self._get_state_label(current_atoms, fluent_predicates, state_num, is_initial, is_goal),
+                'label': self._get_state_label(state_num, current_atoms, fluent_predicates, 
+                                              is_initial, is_goal, state_self_loops.get(current_id)),
                 'style': 'rounded,filled'
             }
             
@@ -643,33 +696,6 @@ class MockEnvCreatorBase(ABC):
                 node_attrs['style'] = 'rounded,filled,dashed'
             
             dot.node(current_id, **node_attrs)
-            
-            # Get applicable operators
-            applicable_ops = self._get_applicable_operators(current_atoms, set(objects))
-            
-            # Add transitions to next states
-            for op in applicable_ops:
-                next_atoms = self._get_next_atoms(current_atoms, op)
-                next_id = self._get_state_id(next_atoms)
-                
-                # Add transition if not already present
-                transition = (current_id, next_id, op)
-                if transition not in transitions:
-                    transitions.add(transition)
-                    # Format operator name with just the name and arguments
-                    op_label = op.name
-                    if op.objects:
-                        op_label += f"({','.join(obj.name for obj in op.objects)})"
-                    # Add edge with simplified operator name as label
-                    edge_attrs = {
-                        'label': op_label,
-                        'style': 'solid' if frozenset(current_atoms) in shortest_path_states else 'dashed'
-                    }
-                    dot.edge(current_id, next_id, **edge_attrs)
-                
-                # Add next state to frontier if not visited
-                if next_id not in visited:
-                    frontier.append((next_atoms, op))
         
         # Save graph
         graph_path = os.path.join(self.transitions_dir, f"{task_name}")
@@ -931,37 +957,44 @@ class MockEnvCreatorBase(ABC):
         init_state = State(state_data, init_atoms)
         return EnvironmentTask(init_state, goal_atoms) 
 
-    def _get_state_label(self, atoms: Set[GroundAtom], fluent_predicates: Set[Predicate], state_num: int, is_initial: bool, is_goal: bool) -> str:
-        """Get formatted label for a state node."""
-        # Group atoms by first object (key object)
-        atoms_by_obj = {}
+    def _get_state_label(self, state_num: int, atoms: Set[GroundAtom], fluent_predicates: Set[Predicate],
+                       is_init: bool = False, is_goal: bool = False,
+                       self_loop_ops: Optional[List[str]] = None) -> str:
+        """Get the label for a state node in the transition graph."""
+        # Add state header
+        prefix = ""
+        if is_init:
+            prefix = "Initial "
+        elif is_goal:
+            prefix = "Goal "
+        label = [f"{prefix}State {state_num}"]
+        label.append("─" * 30)  # Separator line
+        
+        # Group atoms by predicate
+        atoms_by_pred: Dict[Predicate, List[GroundAtom]] = {}
         for atom in sorted(atoms, key=str):
-            # Only include fluent predicates
             if atom.predicate not in fluent_predicates:
                 continue
-            if not atom.objects:
-                continue
-            key_obj = atom.objects[0]
-            if key_obj not in atoms_by_obj:
-                atoms_by_obj[key_obj] = []
-            atoms_by_obj[key_obj].append(atom)
+            if atom.predicate not in atoms_by_pred:
+                atoms_by_pred[atom.predicate] = []
+            atoms_by_pred[atom.predicate].append(atom)
         
-        # Create label with state info using HTML-like formatting
-        prefix = "START | " if is_initial else ""
-        prefix = "GOAL | " if is_goal else prefix
-        label = f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">\n'
-        label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="12">{prefix}State {state_num}</FONT></TD></TR>\n'
+        # Add predicates
+        if not atoms_by_pred:
+            label.append("No predicates")
+        else:
+            for pred, pred_atoms in sorted(atoms_by_pred.items(), key=lambda x: str(x[0])):
+                for atom in sorted(pred_atoms, key=str):
+                    # Format objects in bold
+                    args_str = ", ".join(obj.name for obj in atom.objects)
+                    pred_str = f"{pred.name}({args_str})"
+                    label.append(pred_str)
         
-        # Add atoms grouped by their key object with headers
-        for key_obj, obj_atoms in sorted(atoms_by_obj.items(), key=lambda x: str(x[0])):
-            # Add header for key object
-            label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10"><B>{key_obj.name}:</B></FONT></TD></TR>\n'
-            # Add predicates under this key object
-            for atom in sorted(obj_atoms, key=str):
-                # Keep all objects in predicate, including key object
-                args_str = ", ".join(f'<B>{obj.name}</B>' for obj in atom.objects)
-                pred_str = f'{atom.predicate.name}({args_str})'
-                label += f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10">  - {pred_str}</FONT></TD></TR>\n'
+        # Add self-loop operators if any
+        if self_loop_ops:
+            label.append("─" * 30)  # Separator line
+            label.append("Self-loop operators:")
+            for op in sorted(self_loop_ops):
+                label.append(op)
         
-        label += '</TABLE>>'
-        return label 
+        return "\n".join(label) 
