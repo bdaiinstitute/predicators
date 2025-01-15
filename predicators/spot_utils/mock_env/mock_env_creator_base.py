@@ -554,19 +554,19 @@ class MockEnvCreatorBase(ABC):
         dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
         dot.attr(rankdir='TB')  # Top to bottom layout
         
-        # Set global graph attributes
+        # Set global graph attributes        # Set graph attributes
         dot.attr('graph', {
             'fontname': 'Arial',
             'fontsize': '16',
             'label': f'Transition Graph for {task_name}',
-            'labelloc': 't',  # Place title at top
-            'nodesep': '1.0',  # Reduce horizontal space
-            'ranksep': '1.2',  # Moderate vertical space
-            'splines': 'curved',  # Or: Use straight lines for clearer labels
-            'concentrate': 'false'  # Don't merge edges
+            'labelloc': 't',
+            'nodesep': '1.0',
+            'ranksep': '1.2',
+            'splines': 'curved',
+            'concentrate': 'false'
         })
         
-        # Set default node attributes
+        # Set node attributes
         dot.attr('node', {
             'fontname': 'Arial',
             'fontsize': '10',
@@ -578,23 +578,23 @@ class MockEnvCreatorBase(ABC):
             'height': '1.5'
         })
         
-        # Set default edge attributes
+        # Set edge attributes
         dot.attr('edge', {
             'fontname': 'Arial',
             'fontsize': '9',
             'arrowsize': '0.8',
             'penwidth': '1.0',
-            'len': '1.2',  # Shorter edges for denser graph
-            'decorate': 'true',  # Add connector lines from labels to edges
-            'labelfloat': 'true',  # Allow labels to float for better placement
-            'labelangle': '25',  # Angle labels to avoid edge overlap
-            'labeldistance': '1.5',  # Keep labels moderately distant
-            'minlen': '1',  # Allow shorter edges
-            'color': '#4A90E2',  # Blue edges
-            'fontcolor': '#E74C3C',  # Red
+            'len': '1.2',
+            'decorate': 'true',
+            'labelfloat': 'true',
+            'labelangle': '25',
+            'labeldistance': '1.5',
+            'minlen': '1',
+            'color': '#4A90E2',
+            'fontcolor': '#E74C3C',
             'arrowhead': 'normal',
-            'arrowcolor': '#E74C3C',  # Red arrows
-            'weight': '1.0'  # Give edges uniform weight
+            'arrowcolor': '#E74C3C',
+            'weight': '1.0'
         })
         
         # Track visited states and transitions
