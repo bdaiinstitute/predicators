@@ -605,7 +605,11 @@ class MockEnvCreatorBase(ABC):
         # Initialize frontier with initial state
         frontier: List[Tuple[Set[GroundAtom], Optional[Union[_GroundNSRT, None]]]] = [(init_atoms, None)]
         
-        # Explore all possible states
+        # Track state numbers for consistent labeling
+        state_count = 0
+        state_numbers: Dict[FrozenSet[GroundAtom], int] = {}
+        
+        # Explore states following operator flow
         while frontier:
             current_atoms, prev_operator = frontier.pop(0)
             current_id = self._get_state_id(current_atoms)
@@ -622,7 +626,7 @@ class MockEnvCreatorBase(ABC):
                 state_numbers[frozenset(current_atoms)] = state_num
                 state_count += 1
             
-            # Get applicable operators
+            # Get applicable operators that follow from current state
             applicable_ops = self._get_applicable_operators(current_atoms, set(objects))
             
             # Track self-loops for this state
@@ -630,6 +634,7 @@ class MockEnvCreatorBase(ABC):
             
             # Add transitions to next states
             for op in applicable_ops:
+                # Calculate next state
                 next_atoms = self._get_next_atoms(current_atoms, op)
                 next_id = self._get_state_id(next_atoms)
                 
@@ -643,8 +648,8 @@ class MockEnvCreatorBase(ABC):
                     self_loops.append(op_label)
                     continue
                 
-                # Add non-self-loop transition if not already present
-                transition = (current_id, next_id, op)
+                # Only add transition if it follows operator flow
+                transition = (current_id, next_id, op.name, tuple(obj.name for obj in op.objects))
                 if transition not in transitions:
                     transitions.add(transition)
                     edge_attrs = {
@@ -660,10 +665,10 @@ class MockEnvCreatorBase(ABC):
                         'labeldistance': '1.5'
                     }
                     dot.edge(current_id, next_id, **edge_attrs)
-                
-                # Add next state to frontier if not visited
-                if next_id not in visited:
-                    frontier.append((next_atoms, op))
+                    
+                    # Add next state to frontier if not visited
+                    if next_id not in visited:
+                        frontier.append((next_atoms, op))
             
             # Store self-loops for this state
             if self_loops:
@@ -998,3 +1003,82 @@ class MockEnvCreatorBase(ABC):
                 label.append(op)
         
         return "\n".join(label) 
+
+    def get_operator_transitions(self, init_atoms: Set[GroundAtom], objects: Set[Object]) -> Set[Tuple[FrozenSet[GroundAtom], _GroundNSRT, FrozenSet[GroundAtom]]]:
+        """Get all possible operator transitions from initial state.
+        
+        Args:
+            init_atoms: Initial ground atoms
+            objects: Objects in the environment
+            
+        Returns:
+            Set of tuples (source_atoms, operator, dest_atoms) representing transitions
+        """
+        transitions = set()
+        frontier = [(init_atoms, None)]  # (state_atoms, parent_op)
+        visited = {frozenset(init_atoms)}
+        
+        while frontier:
+            curr_atoms, _ = frontier.pop(0)
+            
+            # Get applicable operators
+            applicable_ops = self._get_applicable_operators(curr_atoms, objects)
+            
+            for op in applicable_ops:
+                # Get next state
+                next_atoms = self._get_next_atoms(curr_atoms, op)
+                next_atoms_frozen = frozenset(next_atoms)
+                
+                # Add transition
+                transitions.add((frozenset(curr_atoms), op, next_atoms_frozen))
+                
+                # Add to frontier if not visited
+                if next_atoms_frozen not in visited:
+                    visited.add(next_atoms_frozen)
+                    frontier.append((next_atoms, op))
+        
+        return transitions
+
+    def get_graph_edges(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: Set[Object]) -> Set[Tuple[FrozenSet[GroundAtom], _GroundNSRT, FrozenSet[GroundAtom]]]:
+        """Get edges in the transition graph based on initial and goal states.
+        
+        Args:
+            init_atoms: Initial ground atoms
+            goal_atoms: Goal ground atoms
+            objects: Objects in the environment
+            
+        Returns:
+            Set of tuples (source_atoms, operator, dest_atoms) representing edges
+        """
+        edges = set()
+        visited = set()
+        frontier: List[Tuple[Set[GroundAtom], Optional[_GroundNSRT]]] = [(init_atoms, None)]
+        
+        # Explore all reachable states and transitions
+        while frontier:
+            curr_atoms, _ = frontier.pop(0)
+            curr_id = frozenset(curr_atoms)
+            
+            if curr_id in visited:
+                continue
+                
+            visited.add(curr_id)
+            
+            # Get applicable operators
+            applicable_ops = self._get_applicable_operators(curr_atoms, objects)
+            
+            # Add transitions to next states
+            for op in applicable_ops:
+                next_atoms = self._get_next_atoms(curr_atoms, op)
+                next_id = frozenset(next_atoms)
+                
+                # Add edge
+                edges.add((curr_id, op, next_id))
+                
+                # Add next state to frontier if not visited
+                if next_id not in visited:
+                    # Use type annotation to avoid type error
+                    next_op: Optional[_GroundNSRT] = op
+                    frontier.append((next_atoms, next_op))
+        
+        return edges 
