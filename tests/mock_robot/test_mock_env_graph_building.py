@@ -1,4 +1,42 @@
-"""Test graph building functionality in mock environment."""
+"""Test graph building functionality in mock environment.
+
+This module provides tests and visualization tools for transition graphs in the mock environment.
+It includes both static (graphviz) and interactive (Cytoscape.js) visualizations.
+
+Key components:
+- State transitions: Shows how operators transform environment states
+- Graph visualization: Both static PNG and interactive HTML outputs
+- State comparison: Verifies transitions match expected behavior
+
+The interactive visualization provides:
+- Draggable nodes and zoomable canvas
+- State details on click
+- Toggles for shortest path and edge visibility
+- Consistent styling with graphviz output
+
+Example usage:
+    ```python
+    # Create environment and objects
+    creator = ManualMockEnvCreator(test_dir)
+    robot = Object("robot", _robot_type)
+    cup = Object("cup", _container_type)
+    
+    # Set up initial and goal states
+    initial_atoms = {...}
+    goal_atoms = {...}
+    
+    # Generate visualizations
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects)
+    
+    # Get graph data for custom visualization
+    graph_data = creator._build_transition_graph(...)
+    create_interactive_visualization(graph_data, "graph.html")
+    ```
+
+Output files:
+- mock_env_data/test_name/transitions/transition_graph.png: Static graph
+- mock_env_data/test_name/transitions/interactive_graph.html: Interactive visualization
+"""
 
 import os
 from pathlib import Path
@@ -16,7 +54,8 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
 from rich.box import HEAVY
-from typing import Set, Tuple
+from typing import Set, Tuple, Dict, Any
+import json
 
 def _format_atoms(atoms: set) -> str:
     """Format atoms for display, focusing on key predicates."""
@@ -42,11 +81,18 @@ def _format_atoms(atoms: set) -> str:
     return "\n".join(lines)
 
 def plot_transition_graph(transitions: Set[Tuple[str, str, tuple, str]], task_name: str) -> None:
-    """Plot a simple graph showing state transitions.
+    """Plot a simple graph showing state transitions using graphviz.
+    
+    This function creates a simplified version of the transition graph
+    that focuses on the basic structure without detailed state information.
+    Useful for quick visualization of the transition structure.
     
     Args:
         transitions: Set of (source_state_id, operator_name, operator_objects, dest_state_id) tuples
         task_name: Name of the task for the output file
+        
+    Output:
+        Saves a PNG file at mock_env_data/{task_name}/transitions/simple_transition_graph.png
     """
     import graphviz
     import os
@@ -109,6 +155,354 @@ def plot_transition_graph(transitions: Set[Tuple[str, str, tuple, str]], task_na
     graph_path = os.path.join(graph_dir, "simple_transition_graph")
     dot.render(graph_path, format='png', cleanup=True)
 
+def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
+    """Create an interactive HTML visualization of the transition graph.
+    
+    Args:
+        graph_data: Dictionary containing nodes, edges, and metadata for the graph
+        output_path: Path to save the HTML file
+    """
+    # Convert data to JSON serializable format
+    def make_serializable(obj: Any) -> Any:
+        if isinstance(obj, set):
+            return [make_serializable(x) for x in obj]
+        elif isinstance(obj, dict):
+            return {k: make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, str) and obj.startswith('[') and obj.endswith(']'):
+            # Parse string that looks like a JSON array
+            try:
+                return json.loads(obj.replace("'", '"'))  # Replace single quotes with double quotes
+            except json.JSONDecodeError:
+                return obj
+        elif hasattr(obj, '__str__'):
+            return str(obj)
+        return obj
+
+    # Create a copy of the data to modify
+    processed_data = dict(graph_data)
+    
+    # Process the data
+    processed_data = make_serializable(processed_data)
+
+    # Convert to JSON
+    graph_data_json = json.dumps(processed_data)
+
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Create HTML template with proper string formatting
+    html_template = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Transition Graph Visualization</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }}
+        #cy {{
+            width: 100%;
+            height: 800px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }}
+        .controls {{
+            margin-bottom: 20px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }}
+        .node-info {{
+            position: fixed;
+            right: 20px;
+            top: 20px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+        }}
+        .controls label:hover {{
+            cursor: pointer;
+            color: #4A90E2;
+        }}
+        .controls input[type="checkbox"] {{
+            margin-right: 5px;
+        }}
+        .controls, .node-info {{
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h2>Transition Graph: {processed_data['metadata']['task_name']}</h2>
+        <label>
+            <input type="checkbox" id="showShortestPath" checked>
+            Highlight Shortest Path
+        </label>
+        <label style="margin-left: 20px;">
+            <input type="checkbox" id="showAllEdges" checked>
+            Show All Edges
+        </label>
+        <label style="margin-left: 20px;">
+            <input type="checkbox" id="useAnimation" checked>
+            Animate Layout Changes
+        </label>
+    </div>
+    <div id="cy"></div>
+    <div class="node-info" id="nodeInfo">
+        <h3>State Information</h3>
+        <div id="nodeContent"></div>
+    </div>
+    <script>
+        // Register dagre layout
+        cytoscape.use(cytoscapeDagre);
+
+        // Graph data from Python
+        const graphData = {graph_data_json};
+
+        // Parse edges if they're a string
+        if (typeof graphData.edges === 'string') {{
+            graphData.edges = JSON.parse(graphData.edges.replace(/'/g, '"'));
+        }}
+
+        // Create Cytoscape instance
+        const cy = cytoscape({{
+            container: document.getElementById('cy'),
+            elements: {{
+                nodes: Object.values(graphData.nodes).map(node => ({{
+                    data: {{
+                        id: node.id,
+                        label: `State ${{node.state_num}}`,
+                        isInitial: node.is_initial === "True",
+                        isGoal: node.is_goal === "True",
+                        isShortestPath: node.is_shortest_path === "True",
+                        fullLabel: node.label,
+                        selfLoops: node.self_loops || []
+                    }}
+                }})),
+                edges: graphData.edges.map(edge => ({{
+                    data: {{
+                        id: `${{edge.source}}-${{edge.target}}`,
+                        source: edge.source,
+                        target: edge.target,
+                        label: edge.operator,
+                        isShortestPath: edge.is_shortest_path
+                    }}
+                }}))
+            }},
+            style: [
+                {{
+                    selector: 'node',
+                    style: {{
+                        'label': 'data(label)',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'background-color': '#fff',
+                        'border-width': 2,
+                        'border-color': '#666',
+                        'shape': 'rectangle',
+                        'width': '120px',
+                        'height': '40px',
+                        'padding': '10px',
+                        'transition-property': 'background-color, border-width, border-color',
+                        'transition-duration': '0.3s'
+                    }}
+                }},
+                {{
+                    selector: 'node[?isInitial]',
+                    style: {{
+                        'background-color': '#ADD8E6',
+                        'border-width': 3
+                    }}
+                }},
+                {{
+                    selector: 'node[?isGoal]',
+                    style: {{
+                        'background-color': '#90EE90',
+                        'border-width': 3
+                    }}
+                }},
+                {{
+                    selector: 'node[?isShortestPath]',
+                    style: {{
+                        'background-color': '#FFFF99'
+                    }}
+                }},
+                {{
+                    selector: 'node:selected',
+                    style: {{
+                        'border-color': '#4A90E2',
+                        'border-width': 4
+                    }}
+                }},
+                {{
+                    selector: 'edge',
+                    style: {{
+                        'width': 2,
+                        'line-color': '#666',
+                        'target-arrow-color': '#666',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'label': 'data(label)',
+                        'text-background-color': '#fff',
+                        'text-background-opacity': 1,
+                        'text-background-padding': '3px',
+                        'text-rotation': 'autorotate',
+                        'font-size': '10px',
+                        'transition-property': 'line-color, target-arrow-color, width',
+                        'transition-duration': '0.3s'
+                    }}
+                }},
+                {{
+                    selector: 'edge[?isShortestPath]',
+                    style: {{
+                        'line-color': '#E74C3C',
+                        'target-arrow-color': '#E74C3C',
+                        'width': 3
+                    }}
+                }},
+                {{
+                    selector: 'edge:selected',
+                    style: {{
+                        'line-color': '#4A90E2',
+                        'target-arrow-color': '#4A90E2',
+                        'width': 4
+                    }}
+                }}
+            ],
+            layout: {{
+                name: 'dagre',
+                rankDir: 'LR',
+                nodeSep: 100,
+                rankSep: 150,
+                animate: true,
+                animationDuration: 500
+            }}
+        }});
+
+        // Add event listeners
+        cy.on('tap', 'node', function(evt) {{
+            const node = evt.target;
+            const nodeInfo = document.getElementById('nodeInfo');
+            const nodeContent = document.getElementById('nodeContent');
+            
+            // Update node info panel
+            nodeContent.innerHTML = node.data('fullLabel').replace(/\\[bold\\]/g, '<strong>').replace(/\\[\\/bold\\]/g, '</strong>');
+            nodeInfo.style.display = 'block';
+        }});
+
+        cy.on('tap', function(evt) {{
+            if (evt.target === cy) {{
+                document.getElementById('nodeInfo').style.display = 'none';
+            }}
+        }});
+
+        // Add toggle controls
+        document.getElementById('showShortestPath').addEventListener('change', function(evt) {{
+            const show = evt.target.checked;
+            cy.style()
+                .selector('node[?isShortestPath]')
+                .style({{
+                    'background-color': show ? '#FFFF99' : '#fff'
+                }})
+                .selector('edge[?isShortestPath]')
+                .style({{
+                    'line-color': show ? '#E74C3C' : '#666',
+                    'target-arrow-color': show ? '#E74C3C' : '#666',
+                    'width': show ? 3 : 2
+                }})
+                .update();
+        }});
+
+        document.getElementById('showAllEdges').addEventListener('change', function(evt) {{
+            const show = evt.target.checked;
+            cy.edges().style({{
+                'display': show ? 'element' : 'none'
+            }});
+        }});
+
+        document.getElementById('useAnimation').addEventListener('change', function(evt) {{
+            const useAnimation = evt.target.checked;
+            cy.layout({{
+                name: 'dagre',
+                rankDir: 'LR',
+                nodeSep: 100,
+                rankSep: 150,
+                animate: useAnimation,
+                animationDuration: useAnimation ? 500 : 0
+            }}).run();
+        }});
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(evt) {{
+            switch(evt.key.toLowerCase()) {{
+                case 'h':  // Toggle help
+                    alert(`Keyboard Shortcuts:
+h: Show this help
+e: Toggle edge labels
+a: Toggle animation
+r: Reset view`);
+                    break;
+                case 'e':  // Toggle edge labels
+                    cy.style()
+                        .selector('edge')
+                        .style({{
+                            'label': cy.edges().first().style('label') ? '' : 'data(label)'
+                        }})
+                        .update();
+                    break;
+                case 'a':  // Toggle animation
+                    const animCheckbox = document.getElementById('useAnimation');
+                    animCheckbox.checked = !animCheckbox.checked;
+                    animCheckbox.dispatchEvent(new Event('change'));
+                    break;
+                case 'r':  // Reset view
+                    cy.fit();
+                    break;
+            }}
+        }});
+
+        // Initial layout
+        cy.layout({{
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 100,
+            rankSep: 150,
+            animate: true,
+            animationDuration: 500
+        }}).run();
+    </script>
+</body>
+</html>"""
+
+    # Write HTML file
+    with open(output_path, 'w') as f:
+        f.write(html_template)
+    
+    print(f"\nInteractive visualization saved to: {output_path}")
+    print("Features:")
+    print("- Click nodes to see state details")
+    print("- Drag nodes to rearrange")
+    print("- Use mouse wheel to zoom")
+    print("- Toggle shortest path with 'h' key")
+    print("- Toggle all edges with 'e' key")
+    print("- Toggle animation with 'a' key")
+    print("- Reset view with 'r' key")
+
 def test_transitions_match_edges():
     """Test that operator transitions match graph edges.
     
@@ -119,6 +513,16 @@ def test_transitions_match_edges():
        - Can't place without holding
        - Can't pick without having object in hand view
        - Can't move to view an object already in view
+       
+    The test generates three visualizations:
+    1. Full transition graph (graphviz PNG)
+    2. Interactive web visualization (HTML)
+    3. Simplified graph (graphviz PNG)
+    
+    Output files (in mock_env_data/test_transitions_match_edges/transitions/):
+    - Transition Graph, Test Transitions Match Edges.png
+    - interactive_graph.html
+    - simple_transition_graph.png
     """
     # Set up configuration
     test_name = "test_transitions_match_edges"
@@ -177,7 +581,119 @@ def test_transitions_match_edges():
     # Get graph edges
     edges = creator.get_graph_edges(initial_atoms, goal_atoms, objects)
     
-    # Compare edges and transitions
+    # Create mapping of states to IDs
+    state_to_id = {}
+    state_count = 0
+    
+    # Start with initial state
+    initial_state = frozenset(initial_atoms)
+    state_to_id[initial_state] = "0"  # Always start with 0
+    
+    # First assign IDs to states in the shortest path
+    curr_atoms = initial_atoms
+    for edge in edges:
+        next_atoms = edge[2]
+        next_state = frozenset(next_atoms)
+        if next_state not in state_to_id:
+            state_to_id[next_state] = str(state_count + 1)
+            state_count += 1
+    
+    # Then assign IDs to any remaining states from transitions
+    for source_atoms, _, dest_atoms in transitions:
+        source_state = frozenset(source_atoms)
+        dest_state = frozenset(dest_atoms)
+        
+        if source_state not in state_to_id:
+            state_to_id[source_state] = str(state_count + 1)
+            state_count += 1
+        
+        if dest_state not in state_to_id:
+            state_to_id[dest_state] = str(state_count + 1)
+            state_count += 1
+    
+    # Create edge data for visualization
+    edge_data = []
+    
+    # First add edges from the shortest path
+    for source_atoms, op, dest_atoms in edges:
+        source_id = state_to_id[frozenset(source_atoms)]
+        dest_id = state_to_id[frozenset(dest_atoms)]
+        op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+        edge_data.append({
+            'source': source_id,
+            'target': dest_id,
+            'operator': op_str,
+            'is_shortest_path': 'true'  # Use string 'true' for JSON compatibility
+        })
+    
+    # Then add remaining transitions
+    for source_atoms, op, dest_atoms in transitions:
+        source_id = state_to_id[frozenset(source_atoms)]
+        dest_id = state_to_id[frozenset(dest_atoms)]
+        # Skip if this is already in the shortest path
+        if any(e['source'] == source_id and e['target'] == dest_id for e in edge_data):
+            continue
+        # Skip self-loops as they're handled separately
+        if source_id == dest_id:
+            continue
+        op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+        edge_data.append({
+            'source': source_id,
+            'target': dest_id,
+            'operator': op_str,
+            'is_shortest_path': 'false'  # Use string 'false' for JSON compatibility
+        })
+    
+    # Create graph data
+    graph_data = {
+        'nodes': {},
+        'edges': edge_data,  # Use edge_data directly as it's already an array
+        'metadata': {
+            'task_name': name,
+            'fluent_predicates': []
+        }
+    }
+    
+    # Add node data
+    for atoms, state_id in state_to_id.items():
+        is_initial = atoms == frozenset(initial_atoms)
+        is_goal = goal_atoms.issubset(atoms)
+        # Check if this state is in the shortest path edges
+        is_shortest_path = any(
+            (state_id == state_to_id[frozenset(edge[0])] or 
+             state_id == state_to_id[frozenset(edge[2])])
+            for edge in edges
+        )
+        
+        # Get self loops
+        self_loops = []
+        for source_atoms, op, dest_atoms in transitions:
+            if frozenset(source_atoms) == atoms and frozenset(dest_atoms) == atoms:
+                self_loops.append(f"{op.name}({','.join(obj.name for obj in op.objects)})")
+        
+        graph_data['nodes'][state_id] = {
+            'id': state_id,
+            'state_num': state_id,
+            'atoms': [str(atom) for atom in atoms],
+            'is_initial': str(is_initial),  # Convert to string for consistent JSON
+            'is_goal': str(is_goal),
+            'is_shortest_path': str(is_shortest_path),
+            'self_loops': self_loops,
+            'label': f"{'Initial ' if is_initial else ''}{'Goal ' if is_goal else ''}State {state_id}\n{'─'*40}\n{_format_atoms(atoms)}\n{'─'*40}\n{f'Self-loop operators:{chr(10)}{chr(10).join(self_loops)}' if self_loops else ''}"
+        }
+    
+    # Create interactive visualization
+    html_path = os.path.join(test_dir, "transitions", "interactive_graph.html")
+    create_interactive_visualization(graph_data, html_path)
+    
+    # Create sets for comparison using state IDs
+    edge_ops = {(state_to_id[frozenset(edge[0])], edge[1].name, tuple(obj.name for obj in edge[1].objects), state_to_id[frozenset(edge[2])]) for edge in edges}
+    trans_ops = {(state_to_id[frozenset(t[0])], t[1].name, tuple(obj.name for obj in t[1].objects), state_to_id[frozenset(t[2])]) for t in transitions}
+    
+    # Plot simple transition graph
+    plot_transition_graph(trans_ops, "test_transitions_match_edges")
+    
+    # Print state summaries
     console = Console()
     console.print("\n[bold blue]Comparing Graph Edges vs Operator Transitions[/bold blue]")
     
@@ -214,9 +730,6 @@ def test_transitions_match_edges():
     # Create sets for comparison using state IDs
     edge_ops = {(state_to_id[frozenset(edge[0])], edge[1].name, tuple(obj.name for obj in edge[1].objects), state_to_id[frozenset(edge[2])]) for edge in edges}
     trans_ops = {(state_to_id[frozenset(t[0])], t[1].name, tuple(obj.name for obj in t[1].objects), state_to_id[frozenset(t[2])]) for t in transitions}
-    
-    # Plot simple transition graph
-    plot_transition_graph(trans_ops, "test_transitions_match_edges")
     
     # Print state summaries
     console.print("\n[bold]State Summaries:[/bold]")
