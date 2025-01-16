@@ -517,8 +517,22 @@ class MockEnvCreatorBase(ABC):
         self.visualize_transitions(task_name, init_atoms, goal, list(objects), plan)
         console.print(f"[green]Transition graph saved to {self.transitions_dir}/{task_name}.png[/green]")
 
-    def visualize_transitions(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> None:
-        """Visualize transitions for a task."""
+    def _build_transition_graph(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> Dict[str, Any]:
+        """Build transition graph data structure that can be used by different visualizers.
+        
+        Args:
+            task_name: Name of the task
+            init_atoms: Initial ground atoms
+            goal: Goal ground atoms
+            objects: List of objects
+            plan: Optional plan to highlight shortest path
+            
+        Returns:
+            Dict containing:
+            - nodes: Dict mapping node IDs to node data (atoms, type, etc.)
+            - edges: List of edge data (source, target, operator, etc.)
+            - metadata: Dict of graph metadata (task name, etc.)
+        """
         # Track shortest path states and fluent predicates
         shortest_path_states = set()
         fluent_predicates = set()
@@ -526,7 +540,6 @@ class MockEnvCreatorBase(ABC):
         state_count = 0
         
         if plan is not None:
-            logger.info("Checking transitions from plan...")
             curr_atoms = init_atoms
             shortest_path_states.add(frozenset(curr_atoms))
             prev_atoms = curr_atoms
@@ -536,7 +549,6 @@ class MockEnvCreatorBase(ABC):
             for op in plan:
                 # Verify operator preconditions
                 preconditions_satisfied = all(precond in curr_atoms for precond in op.preconditions)
-                logger.info(f"Plan operator {op}: preconditions satisfied = {preconditions_satisfied}")
                 if not preconditions_satisfied:
                     logger.warning(f"Invalid transition in plan! Operator {op} preconditions not met in state {state_count-1}")
                 
@@ -550,57 +562,12 @@ class MockEnvCreatorBase(ABC):
                 state_count += 1
                 prev_atoms = curr_atoms
         
-        # Create graph with improved settings
-        dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
-        dot.attr(rankdir='TB')  # Top to bottom layout
-        
-        # Set global graph attributes        # Set graph attributes
-        dot.attr('graph', {
-            'fontname': 'Arial',
-            'fontsize': '16',
-            'label': f'Transition Graph for {task_name}',
-            'labelloc': 't',
-            'nodesep': '1.0',
-            'ranksep': '1.2',
-            'splines': 'curved',
-            'concentrate': 'false'
-        })
-        
-        # Set node attributes
-        dot.attr('node', {
-            'fontname': 'Arial',
-            'fontsize': '10',
-            'shape': 'box',
-            'style': 'rounded,filled',
-            'fillcolor': 'white',
-            'margin': '0.3',
-            'width': '2.5',
-            'height': '1.5'
-        })
-        
-        # Set edge attributes
-        dot.attr('edge', {
-            'fontname': 'Arial',
-            'fontsize': '9',
-            'arrowsize': '0.8',
-            'penwidth': '1.0',
-            'len': '1.2',
-            'decorate': 'true',
-            'labelfloat': 'true',
-            'labelangle': '25',
-            'labeldistance': '1.5',
-            'minlen': '1',
-            'color': '#4A90E2',
-            'fontcolor': '#E74C3C',
-            'arrowhead': 'normal',
-            'arrowcolor': '#E74C3C',
-            'weight': '1.0'
-        })
-        
         # Track visited states and transitions
         visited = set()
         transitions = set()  # Use set to avoid duplicates
         state_self_loops = {}  # Track self-loops for each state
+        nodes = {}  # Store node data
+        edges = []  # Store edge data
         
         # Initialize frontier with initial state
         frontier: List[Tuple[Set[GroundAtom], Optional[_GroundNSRT]]] = [(init_atoms, None)]
@@ -652,19 +619,15 @@ class MockEnvCreatorBase(ABC):
                 transition = (current_id, next_id, op.name, tuple(obj.name for obj in op.objects))
                 if transition not in transitions:
                     transitions.add(transition)
-                    edge_attrs = {
-                        'label': op_label,
-                        'style': 'solid' if frozenset(current_atoms) in shortest_path_states else 'dashed',
-                        'color': '#4A90E2',  # Blue for edges
-                        'fontcolor': '#2E5894',  # Darker blue for labels
-                        'arrowhead': 'normal',
-                        'arrowcolor': '#E74C3C',  # Red arrows
-                        'labelfloat': 'true',
-                        'decorate': 'true',
-                        'labelangle': '25',
-                        'labeldistance': '1.5'
+                    
+                    # Add edge data
+                    edge_data = {
+                        'source': current_id,
+                        'target': next_id,
+                        'operator': op_label,
+                        'is_shortest_path': frozenset(current_atoms) in shortest_path_states
                     }
-                    dot.edge(current_id, next_id, **edge_attrs)
+                    edges.append(edge_data)
                     
                     # Add next state to frontier if not visited
                     if next_id not in visited:
@@ -674,33 +637,123 @@ class MockEnvCreatorBase(ABC):
             if self_loops:
                 state_self_loops[current_id] = self_loops
             
-            # Add node for current state with self-loops in label
+            # Add node data
             is_initial = (current_atoms == init_atoms)
             is_goal = goal.issubset(current_atoms)
             is_shortest_path = frozenset(current_atoms) in shortest_path_states
             
-            node_attrs = {
+            nodes[current_id] = {
+                'id': current_id,
+                'state_num': state_num,
+                'atoms': current_atoms,
+                'is_initial': is_initial,
+                'is_goal': is_goal,
+                'is_shortest_path': is_shortest_path,
+                'self_loops': state_self_loops.get(current_id, []),
                 'label': self._get_state_label(state_num, current_atoms, fluent_predicates, 
-                                              is_initial, is_goal, state_self_loops.get(current_id)),
+                                             is_initial, is_goal, state_self_loops.get(current_id))
+            }
+        
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'metadata': {
+                'task_name': task_name,
+                'fluent_predicates': fluent_predicates
+            }
+        }
+
+    def visualize_transitions(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> None:
+        """Visualize transitions for a task using graphviz."""
+        # Get graph data
+        graph_data = self._build_transition_graph(task_name, init_atoms, goal, objects, plan)
+        
+        # Create graph with improved settings
+        dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
+        dot.attr(rankdir='TB')  # Top to bottom layout
+        
+        # Set global graph attributes        
+        dot.attr('graph', {
+            'fontname': 'Arial',
+            'fontsize': '16',
+            'label': f'Transition Graph for {task_name}',
+            'labelloc': 't',
+            'nodesep': '1.0',
+            'ranksep': '1.2',
+            'splines': 'curved',
+            'concentrate': 'false'
+        })
+        
+        # Set node attributes
+        dot.attr('node', {
+            'fontname': 'Arial',
+            'fontsize': '10',
+            'shape': 'box',
+            'style': 'rounded,filled',
+            'fillcolor': 'white',
+            'margin': '0.3',
+            'width': '2.5',
+            'height': '1.5'
+        })
+        
+        # Set edge attributes
+        dot.attr('edge', {
+            'fontname': 'Arial',
+            'fontsize': '9',
+            'arrowsize': '0.8',
+            'penwidth': '1.0',
+            'len': '1.2',
+            'decorate': 'true',
+            'labelfloat': 'true',
+            'labelangle': '25',
+            'labeldistance': '1.5',
+            'minlen': '1',
+            'color': '#4A90E2',
+            'fontcolor': '#E74C3C',
+            'arrowhead': 'normal',
+            'arrowcolor': '#E74C3C',
+            'weight': '1.0'
+        })
+        
+        # Add nodes
+        for node_id, node_data in graph_data['nodes'].items():
+            node_attrs = {
+                'label': node_data['label'],
                 'style': 'rounded,filled'
             }
             
-            if is_initial:
+            if node_data['is_initial']:
                 node_attrs['fillcolor'] = '#ADD8E6'  # Light blue
                 node_attrs['penwidth'] = '2.0'
-            elif is_goal:
+            elif node_data['is_goal']:
                 node_attrs['fillcolor'] = '#90EE90'  # Light green
                 node_attrs['penwidth'] = '2.0'
-            elif is_shortest_path:
+            elif node_data['is_shortest_path']:
                 node_attrs['fillcolor'] = '#FFFF99'  # Light yellow
             else:
                 node_attrs['fillcolor'] = 'white'
                 
             # Add dashed border for unreachable states
-            if not is_shortest_path and not is_initial:
+            if not node_data['is_shortest_path'] and not node_data['is_initial']:
                 node_attrs['style'] = 'rounded,filled,dashed'
             
-            dot.node(current_id, **node_attrs)
+            dot.node(node_id, **node_attrs)
+        
+        # Add edges
+        for edge in graph_data['edges']:
+            edge_attrs = {
+                'label': edge['operator'],
+                'style': 'solid' if edge['is_shortest_path'] else 'dashed',
+                'color': '#4A90E2',  # Blue for edges
+                'fontcolor': '#2E5894',  # Darker blue for labels
+                'arrowhead': 'normal',
+                'arrowcolor': '#E74C3C',  # Red arrows
+                'labelfloat': 'true',
+                'decorate': 'true',
+                'labelangle': '25',
+                'labeldistance': '1.5'
+            }
+            dot.edge(edge['source'], edge['target'], **edge_attrs)
         
         # Save graph
         graph_path = os.path.join(self.transitions_dir, f"{task_name}")
