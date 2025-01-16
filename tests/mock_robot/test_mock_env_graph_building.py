@@ -169,9 +169,8 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
         elif isinstance(obj, dict):
             return {k: make_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, str) and obj.startswith('[') and obj.endswith(']'):
-            # Parse string that looks like a JSON array
             try:
-                return json.loads(obj.replace("'", '"'))  # Replace single quotes with double quotes
+                return json.loads(obj.replace("'", '"'))
             except json.JSONDecodeError:
                 return obj
         elif hasattr(obj, '__str__'):
@@ -180,15 +179,15 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
 
     # Create a copy of the data to modify
     processed_data = dict(graph_data)
-    
-    # Process the data
     processed_data = make_serializable(processed_data)
 
-    # Convert to JSON
-    graph_data_json = json.dumps(processed_data)
+    # Save graph data as separate JSON file
+    data_path = output_path.replace('.html', '_data.json')
+    with open(data_path, 'w') as f:
+        json.dump(processed_data, f, indent=2)
 
-    # Create output directory if it doesn't exist
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    # Convert to JSON string for embedding
+    graph_data_json = json.dumps(processed_data)
 
     # Create HTML template with proper string formatting
     html_template = f"""<!DOCTYPE html>
@@ -234,6 +233,13 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
             max-height: 80vh;
             overflow-y: auto;
         }}
+        .help-panel {{
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f4f8;
+            border: 1px solid #b8d6e6;
+            border-radius: 5px;
+        }}
         .controls label:hover {{
             cursor: pointer;
             color: #4A90E2;
@@ -247,6 +253,35 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
     </style>
 </head>
 <body>
+    <div class="help-panel">
+        <h3>Usage Guide:</h3>
+        <ul>
+            <li><strong>Navigation:</strong>
+                <ul>
+                    <li>Drag nodes to rearrange</li>
+                    <li>Scroll to zoom in/out</li>
+                    <li>Click and drag background to pan</li>
+                    <li>Click a node to see detailed state information</li>
+                </ul>
+            </li>
+            <li><strong>Keyboard Shortcuts:</strong>
+                <ul>
+                    <li><code>h</code> - Show help</li>
+                    <li><code>e</code> - Toggle edge labels</li>
+                    <li><code>a</code> - Toggle animation</li>
+                    <li><code>r</code> - Reset view</li>
+                </ul>
+            </li>
+            <li><strong>Node Colors:</strong>
+                <ul>
+                    <li>Light Blue - Initial state</li>
+                    <li>Light Green - Goal state</li>
+                    <li>Light Yellow - State in shortest path</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
     <div class="controls">
         <h2>Transition Graph: {processed_data['metadata']['task_name']}</h2>
         <label>
@@ -261,6 +296,10 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
             <input type="checkbox" id="useAnimation" checked>
             Animate Layout Changes
         </label>
+        <label style="margin-left: 20px;">
+            <input type="checkbox" id="showLabels" checked>
+            Show Edge Labels
+        </label>
     </div>
     <div id="cy"></div>
     <div class="node-info" id="nodeInfo">
@@ -271,220 +310,248 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
         // Register dagre layout
         cytoscape.use(cytoscapeDagre);
 
-        // Graph data from Python
-        const graphData = {graph_data_json};
+        // Initialize with embedded data
+        let graphData = {graph_data_json};
 
-        // Parse edges if they're a string
-        if (typeof graphData.edges === 'string') {{
-            graphData.edges = JSON.parse(graphData.edges.replace(/'/g, '"'));
+        // Try loading from separate file if served from a web server
+        if (window.location.protocol !== 'file:') {{
+            fetch('{os.path.basename(data_path)}')
+                .then(response => response.json())
+                .then(data => {{
+                    graphData = data;
+                    initializeGraph(graphData);
+                }})
+                .catch(error => {{
+                    console.warn('Could not load separate data file:', error);
+                    initializeGraph(graphData);
+                }});
+        }} else {{
+            initializeGraph(graphData);
         }}
 
-        // Create Cytoscape instance
-        const cy = cytoscape({{
-            container: document.getElementById('cy'),
-            elements: {{
-                nodes: Object.values(graphData.nodes).map(node => ({{
-                    data: {{
-                        id: node.id,
-                        label: `State ${{node.state_num}}`,
-                        isInitial: node.is_initial === "True",
-                        isGoal: node.is_goal === "True",
-                        isShortestPath: node.is_shortest_path === "True",
-                        fullLabel: node.label,
-                        selfLoops: node.self_loops || []
-                    }}
-                }})),
-                edges: graphData.edges.map(edge => ({{
-                    data: {{
-                        id: `${{edge.source}}-${{edge.target}}`,
-                        source: edge.source,
-                        target: edge.target,
-                        label: edge.operator,
-                        isShortestPath: edge.is_shortest_path
-                    }}
-                }}))
-            }},
-            style: [
-                {{
-                    selector: 'node',
-                    style: {{
-                        'label': 'data(label)',
-                        'text-valign': 'center',
-                        'text-halign': 'center',
-                        'background-color': '#fff',
-                        'border-width': 2,
-                        'border-color': '#666',
-                        'shape': 'rectangle',
-                        'width': '120px',
-                        'height': '40px',
-                        'padding': '10px',
-                        'transition-property': 'background-color, border-width, border-color',
-                        'transition-duration': '0.3s'
-                    }}
+        function initializeGraph(graphData) {{
+            // Parse edges if they're a string
+            if (typeof graphData.edges === 'string') {{
+                graphData.edges = JSON.parse(graphData.edges.replace(/'/g, '"'));
+            }}
+
+            // Create Cytoscape instance
+            const cy = cytoscape({{
+                container: document.getElementById('cy'),
+                elements: {{
+                    nodes: Object.values(graphData.nodes).map(node => ({{
+                        data: {{
+                            id: node.id,
+                            label: `State ${{node.state_num}}`,
+                            isInitial: node.is_initial === "True",
+                            isGoal: node.is_goal === "True",
+                            isShortestPath: node.is_shortest_path === "True",
+                            fullLabel: node.label,
+                            selfLoops: node.self_loops || []
+                        }}
+                    }})),
+                    edges: graphData.edges.map(edge => ({{
+                        data: {{
+                            id: `${{edge.source}}-${{edge.target}}`,
+                            source: edge.source,
+                            target: edge.target,
+                            label: edge.operator,
+                            isShortestPath: edge.is_shortest_path === 'true'
+                        }}
+                    }}))
                 }},
-                {{
-                    selector: 'node[?isInitial]',
-                    style: {{
-                        'background-color': '#ADD8E6',
-                        'border-width': 3
+                style: [
+                    {{
+                        selector: 'node',
+                        style: {{
+                            'label': 'data(label)',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'background-color': '#fff',
+                            'border-width': 2,
+                            'border-color': '#666',
+                            'shape': 'rectangle',
+                            'width': '120px',
+                            'height': '40px',
+                            'padding': '10px',
+                            'transition-property': 'background-color, border-width, border-color',
+                            'transition-duration': '0.3s'
+                        }}
+                    }},
+                    {{
+                        selector: 'node[?isInitial]',
+                        style: {{
+                            'background-color': '#ADD8E6',
+                            'border-width': 3
+                        }}
+                    }},
+                    {{
+                        selector: 'node[?isGoal]',
+                        style: {{
+                            'background-color': '#90EE90',
+                            'border-width': 3
+                        }}
+                    }},
+                    {{
+                        selector: 'node[?isShortestPath]',
+                        style: {{
+                            'background-color': '#FFFF99'
+                        }}
+                    }},
+                    {{
+                        selector: 'node:selected',
+                        style: {{
+                            'border-color': '#4A90E2',
+                            'border-width': 4
+                        }}
+                    }},
+                    {{
+                        selector: 'edge',
+                        style: {{
+                            'width': 2,
+                            'line-color': '#666',
+                            'target-arrow-color': '#666',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'unbundled-bezier',
+                            'control-point-distances': [40],
+                            'control-point-weights': [0.5],
+                            'label': 'data(label)',
+                            'text-background-color': '#fff',
+                            'text-background-opacity': 1,
+                            'text-background-padding': '3px',
+                            'text-rotation': 'autorotate',
+                            'font-size': '10px',
+                            'text-margin-y': -10,
+                            'transition-property': 'line-color, target-arrow-color, width',
+                            'transition-duration': '0.3s'
+                        }}
+                    }},
+                    {{
+                        selector: 'edge[?isShortestPath]',
+                        style: {{
+                            'line-color': '#E74C3C',
+                            'target-arrow-color': '#E74C3C',
+                            'width': 3
+                        }}
+                    }},
+                    {{
+                        selector: 'edge:selected',
+                        style: {{
+                            'line-color': '#4A90E2',
+                            'target-arrow-color': '#4A90E2',
+                            'width': 4
+                        }}
                     }}
-                }},
-                {{
-                    selector: 'node[?isGoal]',
-                    style: {{
-                        'background-color': '#90EE90',
-                        'border-width': 3
-                    }}
-                }},
-                {{
-                    selector: 'node[?isShortestPath]',
-                    style: {{
-                        'background-color': '#FFFF99'
-                    }}
-                }},
-                {{
-                    selector: 'node:selected',
-                    style: {{
-                        'border-color': '#4A90E2',
-                        'border-width': 4
-                    }}
-                }},
-                {{
-                    selector: 'edge',
-                    style: {{
-                        'width': 2,
-                        'line-color': '#666',
-                        'target-arrow-color': '#666',
-                        'target-arrow-shape': 'triangle',
-                        'curve-style': 'bezier',
-                        'label': 'data(label)',
-                        'text-background-color': '#fff',
-                        'text-background-opacity': 1,
-                        'text-background-padding': '3px',
-                        'text-rotation': 'autorotate',
-                        'font-size': '10px',
-                        'transition-property': 'line-color, target-arrow-color, width',
-                        'transition-duration': '0.3s'
-                    }}
-                }},
-                {{
-                    selector: 'edge[?isShortestPath]',
-                    style: {{
-                        'line-color': '#E74C3C',
-                        'target-arrow-color': '#E74C3C',
-                        'width': 3
-                    }}
-                }},
-                {{
-                    selector: 'edge:selected',
-                    style: {{
-                        'line-color': '#4A90E2',
-                        'target-arrow-color': '#4A90E2',
-                        'width': 4
-                    }}
+                ],
+                layout: {{
+                    name: 'dagre',
+                    rankDir: 'LR',
+                    nodeSep: 100,
+                    rankSep: 150,
+                    animate: true,
+                    animationDuration: 500
                 }}
-            ],
-            layout: {{
+            }});
+
+            // Add event listeners
+            cy.on('tap', 'node', function(evt) {{
+                const node = evt.target;
+                const nodeInfo = document.getElementById('nodeInfo');
+                const nodeContent = document.getElementById('nodeContent');
+                
+                // Update node info panel
+                nodeContent.innerHTML = node.data('fullLabel').replace(/\\[bold\\]/g, '<strong>').replace(/\\[\\/bold\\]/g, '</strong>');
+                nodeInfo.style.display = 'block';
+            }});
+
+            cy.on('tap', function(evt) {{
+                if (evt.target === cy) {{
+                    document.getElementById('nodeInfo').style.display = 'none';
+                }}
+            }});
+
+            // Add toggle controls
+            document.getElementById('showShortestPath').addEventListener('change', function(evt) {{
+                const show = evt.target.checked;
+                cy.style()
+                    .selector('node[?isShortestPath]')
+                    .style({{
+                        'background-color': show ? '#FFFF99' : '#fff'
+                    }})
+                    .selector('edge[?isShortestPath]')
+                    .style({{
+                        'line-color': show ? '#E74C3C' : '#666',
+                        'target-arrow-color': show ? '#E74C3C' : '#666',
+                        'width': show ? 3 : 2
+                    }})
+                    .update();
+            }});
+
+            document.getElementById('showAllEdges').addEventListener('change', function(evt) {{
+                const show = evt.target.checked;
+                cy.edges().style({{
+                    'display': show ? 'element' : 'none'
+                }});
+            }});
+
+            document.getElementById('useAnimation').addEventListener('change', function(evt) {{
+                const useAnimation = evt.target.checked;
+                cy.layout({{
+                    name: 'dagre',
+                    rankDir: 'LR',
+                    nodeSep: 100,
+                    rankSep: 150,
+                    animate: useAnimation,
+                    animationDuration: useAnimation ? 500 : 0
+                }}).run();
+            }});
+
+            document.getElementById('showLabels').addEventListener('change', function(evt) {{
+                const show = evt.target.checked;
+                cy.style()
+                    .selector('edge')
+                    .style({{
+                        'label': show ? 'data(label)' : ''
+                    }})
+                    .update();
+            }});
+
+            // Add keyboard shortcuts
+            document.addEventListener('keydown', function(evt) {{
+                switch(evt.key.toLowerCase()) {{
+                    case 'h':  // Toggle help
+                        alert(`Keyboard Shortcuts:
+h: Show this help
+e: Toggle edge labels
+a: Toggle animation
+r: Reset view`);
+                        break;
+                    case 'e':  // Toggle edge labels
+                        const labelCheckbox = document.getElementById('showLabels');
+                        labelCheckbox.checked = !labelCheckbox.checked;
+                        labelCheckbox.dispatchEvent(new Event('change'));
+                        break;
+                    case 'a':  // Toggle animation
+                        const animCheckbox = document.getElementById('useAnimation');
+                        animCheckbox.checked = !animCheckbox.checked;
+                        animCheckbox.dispatchEvent(new Event('change'));
+                        break;
+                    case 'r':  // Reset view
+                        cy.fit();
+                        break;
+                }}
+            }});
+
+            // Initial layout
+            cy.layout({{
                 name: 'dagre',
                 rankDir: 'LR',
                 nodeSep: 100,
                 rankSep: 150,
                 animate: true,
                 animationDuration: 500
-            }}
-        }});
-
-        // Add event listeners
-        cy.on('tap', 'node', function(evt) {{
-            const node = evt.target;
-            const nodeInfo = document.getElementById('nodeInfo');
-            const nodeContent = document.getElementById('nodeContent');
-            
-            // Update node info panel
-            nodeContent.innerHTML = node.data('fullLabel').replace(/\\[bold\\]/g, '<strong>').replace(/\\[\\/bold\\]/g, '</strong>');
-            nodeInfo.style.display = 'block';
-        }});
-
-        cy.on('tap', function(evt) {{
-            if (evt.target === cy) {{
-                document.getElementById('nodeInfo').style.display = 'none';
-            }}
-        }});
-
-        // Add toggle controls
-        document.getElementById('showShortestPath').addEventListener('change', function(evt) {{
-            const show = evt.target.checked;
-            cy.style()
-                .selector('node[?isShortestPath]')
-                .style({{
-                    'background-color': show ? '#FFFF99' : '#fff'
-                }})
-                .selector('edge[?isShortestPath]')
-                .style({{
-                    'line-color': show ? '#E74C3C' : '#666',
-                    'target-arrow-color': show ? '#E74C3C' : '#666',
-                    'width': show ? 3 : 2
-                }})
-                .update();
-        }});
-
-        document.getElementById('showAllEdges').addEventListener('change', function(evt) {{
-            const show = evt.target.checked;
-            cy.edges().style({{
-                'display': show ? 'element' : 'none'
-            }});
-        }});
-
-        document.getElementById('useAnimation').addEventListener('change', function(evt) {{
-            const useAnimation = evt.target.checked;
-            cy.layout({{
-                name: 'dagre',
-                rankDir: 'LR',
-                nodeSep: 100,
-                rankSep: 150,
-                animate: useAnimation,
-                animationDuration: useAnimation ? 500 : 0
             }}).run();
-        }});
-
-        // Add keyboard shortcuts
-        document.addEventListener('keydown', function(evt) {{
-            switch(evt.key.toLowerCase()) {{
-                case 'h':  // Toggle help
-                    alert(`Keyboard Shortcuts:
-h: Show this help
-e: Toggle edge labels
-a: Toggle animation
-r: Reset view`);
-                    break;
-                case 'e':  // Toggle edge labels
-                    cy.style()
-                        .selector('edge')
-                        .style({{
-                            'label': cy.edges().first().style('label') ? '' : 'data(label)'
-                        }})
-                        .update();
-                    break;
-                case 'a':  // Toggle animation
-                    const animCheckbox = document.getElementById('useAnimation');
-                    animCheckbox.checked = !animCheckbox.checked;
-                    animCheckbox.dispatchEvent(new Event('change'));
-                    break;
-                case 'r':  // Reset view
-                    cy.fit();
-                    break;
-            }}
-        }});
-
-        // Initial layout
-        cy.layout({{
-            name: 'dagre',
-            rankDir: 'LR',
-            nodeSep: 100,
-            rankSep: 150,
-            animate: true,
-            animationDuration: 500
-        }}).run();
+        }}
     </script>
 </body>
 </html>"""
@@ -493,15 +560,22 @@ r: Reset view`);
     with open(output_path, 'w') as f:
         f.write(html_template)
     
-    print(f"\nInteractive visualization saved to: {output_path}")
-    print("Features:")
+    print(f"\nVisualization files created:")
+    print(f"- HTML: {output_path}")
+    print(f"- Data: {data_path}")
+    print("\nFeatures:")
     print("- Click nodes to see state details")
     print("- Drag nodes to rearrange")
     print("- Use mouse wheel to zoom")
-    print("- Toggle shortest path with 'h' key")
-    print("- Toggle all edges with 'e' key")
-    print("- Toggle animation with 'a' key")
-    print("- Reset view with 'r' key")
+    print("- Toggle shortest path highlighting")
+    print("- Toggle edge visibility")
+    print("- Toggle edge labels")
+    print("- Toggle animation")
+    print("\nKeyboard shortcuts:")
+    print("h: Show help")
+    print("e: Toggle edge labels")
+    print("a: Toggle animation")
+    print("r: Reset view")
 
 def test_transitions_match_edges():
     """Test that operator transitions match graph edges.
