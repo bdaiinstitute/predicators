@@ -62,6 +62,9 @@ from graphviz import Digraph
 from rich.progress import Progress
 from collections import deque
 from itertools import zip_longest
+import json
+from pathlib import Path
+from jinja2 import Template
 
 from predicators.envs.mock_spot_env import MockSpotEnv
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
@@ -78,6 +81,115 @@ from predicators.planning import task_plan_grounding, task_plan, run_task_plan_o
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _format_atoms(atoms: set) -> str:
+    """Format atoms for display, showing only key predicates in a simplified format."""
+    key_predicates = {'HandEmpty', 'NotHolding', 'On', 'NotInsideAnyContainer'}
+    formatted_atoms = []
+    
+    for atom in sorted(atoms, key=str):
+        pred_name = atom.predicate.name
+        if any(key in pred_name for key in key_predicates):
+            args = [obj.name for obj in atom.objects]
+            formatted_atoms.append(f"{pred_name}({', '.join(args)})")
+    
+    return "\n".join(formatted_atoms)
+
+def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
+    """Create an interactive visualization using Cytoscape.js.
+    
+    Args:
+        graph_data: Dictionary containing nodes and edges data
+        output_path: Path to save the HTML file
+    """
+    # Convert graph data to Cytoscape.js format
+    cytoscape_data = {
+        'nodes': [{'data': node_data} for node_data in graph_data['nodes'].values()],
+        'edges': [{'data': edge_data} for edge_data in graph_data['edges']]
+    }
+    
+    # Read template
+    template_path = os.path.join(os.path.dirname(__file__), 
+                               "templates", "interactive_graph.html")
+    with open(template_path) as f:
+        template = Template(f.read())
+    
+    # Render template with graph data
+    html_content = template.render(
+        task_name=graph_data['metadata']['task_name'],
+        graph_data_json=json.dumps(cytoscape_data)
+    )
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Write HTML file
+    with open(output_path, 'w') as f:
+        f.write(html_content)
+
+def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
+                                task_name: str,
+                                output_path: str) -> None:
+    """Create a static visualization using graphviz.
+    
+    Args:
+        transitions: Set of (source_state_id, operator_name, operator_objects, dest_state_id) tuples
+        task_name: Name of the task for the graph title
+        output_path: Path to save the PNG file
+    """
+    # Create graph
+    dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
+    
+    # Set graph attributes
+    dot.attr('graph', {
+        'fontname': 'Arial',
+        'fontsize': '16',
+        'label': f'State Transitions: {task_name}',
+        'labelloc': 't',
+        'nodesep': '1.0',
+        'ranksep': '1.0',
+        'splines': 'curved',
+        'concentrate': 'false'
+    })
+    
+    # Set node attributes
+    dot.attr('node', {
+        'fontname': 'Arial',
+        'fontsize': '12',
+        'shape': 'circle',
+        'style': 'filled',
+        'fillcolor': 'white',
+        'width': '0.5',
+        'height': '0.5',
+        'margin': '0.1'
+    })
+    
+    # Set edge attributes
+    dot.attr('edge', {
+        'fontname': 'Arial',
+        'fontsize': '10',
+        'arrowsize': '0.8',
+        'penwidth': '1.0',
+        'labeldistance': '2.0',
+        'labelangle': '25'
+    })
+    
+    # Add nodes and edges
+    visited_nodes = set()
+    for source_id, op_name, op_objects, dest_id in transitions:
+        # Add nodes if not visited
+        for node_id in [source_id, dest_id]:
+            if node_id not in visited_nodes:
+                dot.node(node_id, f"State {node_id}")
+                visited_nodes.add(node_id)
+        
+        # Format edge label
+        edge_label = f"{op_name}({','.join(op_objects)})"
+        
+        # Add edge
+        dot.edge(source_id, dest_id, edge_label)
+    
+    # Save graph
+    dot.render(output_path, format='png', cleanup=True)
 
 class MockEnvCreatorBase(ABC):
     """Base class for mock environment creators.
@@ -109,19 +221,17 @@ class MockEnvCreatorBase(ABC):
         console (Console): Rich console for pretty printing
     """
 
-    def __init__(self, path_dir: str) -> None:
-        """Initialize the creator.
-        
-        Sets up the environment data directory and initializes a mock Spot environment.
-        The path_dir is stored in CFG.mock_env_data_dir for use by the environment.
-        Creates necessary subdirectories for images and transition graphs.
+    def __init__(self, output_dir: str) -> None:
+        """Initialize the mock environment creator.
         
         Args:
-            path_dir: Directory to store environment data. Will be set as CFG.mock_env_data_dir.
+            output_dir: Directory to save output files
         """
-        self.path_dir = path_dir
-        self.image_dir = os.path.join(path_dir, "images")
-        self.transitions_dir = os.path.join(path_dir, "transitions")
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        self.path_dir = output_dir
+        self.image_dir = os.path.join(output_dir, "images")
+        self.transitions_dir = os.path.join(output_dir, "transitions")
         os.makedirs(self.image_dir, exist_ok=True)
         os.makedirs(self.transitions_dir, exist_ok=True)
         
@@ -135,7 +245,7 @@ class MockEnvCreatorBase(ABC):
         
         # Set data directory in config for environment to use
         utils.reset_config({
-            "mock_env_data_dir": path_dir
+            "mock_env_data_dir": output_dir
         })
         
         # Initialize environment (will use CFG.mock_env_data_dir)
@@ -436,86 +546,147 @@ class MockEnvCreatorBase(ABC):
         except StopIteration:
             return None
 
-    def plan_and_visualize(self, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: Set[Object], *, task_name: str = "task") -> None:
-        """Plan and visualize transitions for a task."""
-        # Create rich console
-        console = Console()
-
-        # Plan first
-        result = self.plan(init_atoms, goal, objects)
-        if result is None:
-            console.print("[red]No plan found![/red]")
-            return
+    def plan_and_visualize(self, initial_atoms: Set[GroundAtom],
+                          goal_atoms: Set[GroundAtom],
+                          objects: Set[Object],
+                          task_name: str = "Task",
+                          use_graphviz: bool = False) -> None:
+        """Plan and create visualizations for the transition graph.
         
-        plan, atoms_sequence, metrics = result
+        Args:
+            initial_atoms: Initial state atoms
+            goal_atoms: Goal state atoms
+            objects: Objects in the environment
+            task_name: Name of the task for visualization
+            use_graphviz: Whether to use graphviz instead of cytoscape.js
+        """
+        # Get transitions and edges
+        transitions = self.get_operator_transitions(initial_atoms, objects)
+        edges = self.get_graph_edges(initial_atoms, goal_atoms, objects)
         
-        # Print plan found message
-        console.print(f"\n[green]Plan found with {len(plan)} steps![/green]")
+        # Create state to ID mapping
+        state_to_id = {}
+        state_count = 0
         
-        # Create and style table
-        table = Table(
-            title="Plan Steps",
-            show_header=True,
-            header_style="bold magenta",
-            title_style="bold blue",
-            box=HEAVY,
-            safe_box=True,
-            expand=True,
-            show_lines=True
-        )
+        # Start with initial state
+        initial_state = frozenset(initial_atoms)
+        state_to_id[initial_state] = "0"
         
-        # Add columns
-        table.add_column("Step", style="cyan", justify="center", width=5)
-        table.add_column("Operator", style="green", width=30)
-        table.add_column("Added Atoms", style="green", width=54)
-        table.add_column("Removed Atoms", style="red", width=54)
+        # First assign IDs to states in the shortest path
+        curr_atoms = initial_atoms
+        for edge in edges:
+            next_atoms = edge[2]
+            next_state = frozenset(next_atoms)
+            if next_state not in state_to_id:
+                state_to_id[next_state] = str(state_count + 1)
+                state_count += 1
         
-        # Add rows for each step
-        for i, (op, next_atoms) in enumerate(zip(plan, atoms_sequence[1:]), 1):
-            # Calculate atom changes
-            prev_atoms = atoms_sequence[i-1]
-            added_atoms = next_atoms - prev_atoms
-            removed_atoms = prev_atoms - next_atoms
+        # Then assign IDs to remaining states
+        for source_atoms, _, dest_atoms in transitions:
+            source_state = frozenset(source_atoms)
+            dest_state = frozenset(dest_atoms)
             
-            # Format atoms
-            added_str = "\n".join(str(atom) for atom in sorted(added_atoms, key=str))
-            removed_str = "\n".join(str(atom) for atom in sorted(removed_atoms, key=str))
+            if source_state not in state_to_id:
+                state_to_id[source_state] = str(state_count + 1)
+                state_count += 1
             
-            # Add row
-            table.add_row(
-                str(i),
-                op.name,
-                added_str if added_atoms else "",
-                removed_str if removed_atoms else ""
-            )
+            if dest_state not in state_to_id:
+                state_to_id[dest_state] = str(state_count + 1)
+                state_count += 1
         
-        # Print the table
-        console.print("\n")
-        console.print(table)
-        
-        # Print plan metrics in a styled panel
-        metrics_table = Table(show_header=False, box=None)
-        metrics_table.add_column("Metric", style="blue")
-        metrics_table.add_column("Value", style="cyan")
-        
-        for key, value in metrics.items():
-            if isinstance(value, (int, float)):
-                metrics_table.add_row(key, str(value))
-        
-        metrics_panel = Panel(
-            metrics_table,
-            title="Plan Metrics",
-            title_align="left",
-            border_style="blue",
-            padding=(1, 2)
-        )
-        console.print("\n")
-        console.print(metrics_panel)
-        
-        # Visualize transitions
-        console.print("\n[yellow]Generating transition graph...[/yellow]")
-        self.visualize_transitions(task_name, init_atoms, goal, list(objects), plan)
-        console.print(f"[green]Transition graph saved to {self.transitions_dir}/{task_name}.png[/green]")
+        # Create visualization
+        if use_graphviz:
+            # Create graphviz visualization
+            trans_ops = {(state_to_id[frozenset(t[0])], t[1].name,
+                        tuple(obj.name for obj in t[1].objects),
+                        state_to_id[frozenset(t[2])]) for t in transitions}
+            output_path = os.path.join(self.output_dir, "transitions", "transition_graph")
+            create_graphviz_visualization(trans_ops, task_name, output_path)
+        else:
+            # Create interactive visualization
+            # Track shortest path edges and states
+            shortest_path_edges = set()
+            shortest_path_states = {frozenset(initial_atoms)}
+            
+            for source_atoms, op, dest_atoms in edges:
+                source_state = frozenset(source_atoms)
+                dest_state = frozenset(dest_atoms)
+                source_id = state_to_id[source_state]
+                dest_id = state_to_id[dest_state]
+                shortest_path_edges.add((source_id, dest_id))
+                shortest_path_states.add(dest_state)
+            
+            # Create edge data
+            edge_data = []
+            edge_count = 0
+            for source_atoms, op, dest_atoms in transitions:
+                source_state = frozenset(source_atoms)
+                dest_state = frozenset(dest_atoms)
+                source_id = state_to_id[source_state]
+                dest_id = state_to_id[dest_state]
+                if source_id != dest_id:  # Skip self-loops
+                    op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+                    edge_data.append({
+                        'id': f'edge_{edge_count}',
+                        'source': source_id,
+                        'target': dest_id,
+                        'label': op_str,
+                        'is_shortest_path': (source_id, dest_id) in shortest_path_edges
+                    })
+                    edge_count += 1
+            
+            # Create graph data
+            graph_data = {
+                'nodes': {},
+                'edges': edge_data,
+                'metadata': {
+                    'task_name': task_name,
+                    'fluent_predicates': []
+                }
+            }
+            
+            # Add node data
+            for atoms, state_id in state_to_id.items():
+                is_initial = atoms == frozenset(initial_atoms)
+                is_goal = goal_atoms.issubset(atoms)
+                is_shortest_path = atoms in shortest_path_states
+                
+                # Get self loops
+                self_loops = []
+                for source_atoms, op, dest_atoms in transitions:
+                    if (frozenset(source_atoms) == atoms and 
+                        frozenset(dest_atoms) == atoms):
+                        self_loops.append(f"{op.name}({','.join(obj.name for obj in op.objects)})")
+                
+                # Create label
+                state_label = f"{'Initial ' if is_initial else ''}{'Goal ' if is_goal else ''}State {state_id}"
+                full_label_parts = [
+                    state_label,
+                    "",
+                    _format_atoms(atoms)
+                ]
+                if self_loops:
+                    full_label_parts.extend([
+                        "",
+                        "Self-loop operators:",
+                        *[f"  {op}" for op in self_loops]
+                    ])
+                
+                # Add node
+                graph_data['nodes'][state_id] = {
+                    'id': state_id,
+                    'state_num': state_id,
+                    'atoms': [str(atom) for atom in atoms],
+                    'is_initial': is_initial,
+                    'is_goal': is_goal,
+                    'is_shortest_path': is_shortest_path,
+                    'label': state_label,
+                    'fullLabel': '\n'.join(full_label_parts)
+                }
+            
+            # Create visualization
+            output_path = os.path.join(self.output_dir, "transitions", "interactive_graph.html")
+            create_interactive_visualization(graph_data, output_path)
 
     def _build_transition_graph(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> Dict[str, Any]:
         """Build transition graph data structure that can be used by different visualizers.
