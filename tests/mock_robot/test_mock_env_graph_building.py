@@ -350,7 +350,15 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
                         }}
                     }},
                     {{
-                        selector: 'node[?is_initial]',
+                        selector: 'node[?is_shortest_path]',
+                        style: {{
+                            'background-color': '#fff7e6',
+                            'border-color': '#ff7f0e',
+                            'border-width': 3
+                        }}
+                    }},
+                    {{
+                        selector: 'node[?is_initial][?is_shortest_path]',
                         style: {{
                             'background-color': '#e6f3ff',
                             'border-color': '#2171b5',
@@ -358,18 +366,10 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
                         }}
                     }},
                     {{
-                        selector: 'node[?is_goal]',
+                        selector: 'node[?is_goal][?is_shortest_path]',
                         style: {{
                             'background-color': '#e6ffe6',
                             'border-color': '#2ca02c',
-                            'border-width': 3
-                        }}
-                    }},
-                    {{
-                        selector: 'node[?is_shortest_path]',
-                        style: {{
-                            'background-color': '#fff7e6',
-                            'border-color': '#ff7f0e',
                             'border-width': 3
                         }}
                     }},
@@ -467,21 +467,11 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
 
             // Toggle controls
             document.getElementById('shortest-path').addEventListener('change', function(evt) {{
-                cy.style()
-                    .selector('edge[?is_shortest_path]')
-                    .style({{
-                        'display': evt.target.checked ? 'element' : 'none'
-                    }})
-                    .update();
+                cy.edges('[?is_shortest_path]').style('visibility', evt.target.checked ? 'visible' : 'hidden');
             }});
 
             document.getElementById('all-edges').addEventListener('change', function(evt) {{
-                cy.style()
-                    .selector('edge[!is_shortest_path]')
-                    .style({{
-                        'display': evt.target.checked ? 'element' : 'none'
-                    }})
-                    .update();
+                cy.edges('[!is_shortest_path]').style('visibility', evt.target.checked ? 'visible' : 'hidden');
             }});
 
             document.getElementById('animate').addEventListener('change', function(evt) {{
@@ -524,6 +514,34 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: st
                         hideInfoPanel();
                         break;
                 }}
+            }});
+
+            // Print initial graph data
+            console.log('Initial graph data:', graphData);
+            console.log('Edges with shortest path:', cy.edges().filter(edge => edge.data('is_shortest_path')).length);
+            console.log('Edges without shortest path:', cy.edges().filter(edge => !edge.data('is_shortest_path')).length);
+
+            // Debug node data
+            console.log('\\nNode data:');
+            cy.nodes().forEach(node => {{
+                console.log('Node:', node.id(), {{
+                    'is_initial': node.data('is_initial'),
+                    'is_goal': node.data('is_goal'),
+                    'is_shortest_path': node.data('is_shortest_path'),
+                    'background-color': node.style('background-color'),
+                    'border-color': node.style('border-color')
+                }});
+            }});
+
+            // Debug edge data
+            console.log('\\nEdge data:');
+            cy.edges().forEach(edge => {{
+                console.log('Edge:', edge.id(), {{
+                    'is_shortest_path': edge.data('is_shortest_path'),
+                    'line-color': edge.style('line-color'),
+                    'source': edge.data('source'),
+                    'target': edge.data('target')
+                }});
             }});
         </script>
     </body>
@@ -650,32 +668,32 @@ def test_transitions_match_edges():
     # Create edge data for visualization
     edge_data = []
     
-    # First add edges from the shortest path
+    # Track shortest path edges and states
     shortest_path_edges = set()
+    shortest_path_states = {frozenset(initial_atoms)}  # Start with initial state
+    
+    # First identify all shortest path edges and states
     for source_atoms, op, dest_atoms in edges:
-        source_id = state_to_id[frozenset(source_atoms)]
-        dest_id = state_to_id[frozenset(dest_atoms)]
+        source_state = frozenset(source_atoms)
+        dest_state = frozenset(dest_atoms)
+        source_id = state_to_id[source_state]
+        dest_id = state_to_id[dest_state]
+        shortest_path_edges.add((source_id, dest_id))
+        shortest_path_states.add(dest_state)  # Add destination state to shortest path
+    
+    # Add all transitions as edges
+    for source_atoms, op, dest_atoms in transitions:
+        source_state = frozenset(source_atoms)
+        dest_state = frozenset(dest_atoms)
+        source_id = state_to_id[source_state]
+        dest_id = state_to_id[dest_state]
         if source_id != dest_id:  # Skip self-loops
             op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
             edge_data.append({
                 'source': source_id,
                 'target': dest_id,
                 'operator': op_str,
-                'is_shortest_path': True  # Use actual boolean
-            })
-            shortest_path_edges.add((source_id, dest_id))
-    
-    # Then add remaining transitions (excluding self-loops and duplicates)
-    for source_atoms, op, dest_atoms in transitions:
-        source_id = state_to_id[frozenset(source_atoms)]
-        dest_id = state_to_id[frozenset(dest_atoms)]
-        if source_id != dest_id and (source_id, dest_id) not in shortest_path_edges:
-            op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
-            edge_data.append({
-                'source': source_id,
-                'target': dest_id,
-                'operator': op_str,
-                'is_shortest_path': False  # Use actual boolean
+                'is_shortest_path': (source_id, dest_id) in shortest_path_edges
             })
     
     # Create graph data structure
@@ -693,11 +711,7 @@ def test_transitions_match_edges():
         # Determine node properties
         is_initial = atoms == frozenset(initial_atoms)
         is_goal = goal_atoms.issubset(atoms)
-        is_shortest_path = any(
-            (state_id == state_to_id[frozenset(edge[0])] or 
-             state_id == state_to_id[frozenset(edge[2])])
-            for edge in edges
-        )
+        is_shortest_path = atoms in shortest_path_states
         
         # Get self loops for this state
         self_loops = []
@@ -720,14 +734,14 @@ def test_transitions_match_edges():
                 *[f"  {op}" for op in self_loops]
             ])
         
-        # Add node to graph data with boolean values (not strings)
+        # Add node to graph data
         graph_data['nodes'][state_id] = {
             'id': state_id,
             'state_num': state_id,
             'atoms': [str(atom) for atom in atoms],
-            'is_initial': is_initial,  # Use actual boolean
-            'is_goal': is_goal,  # Use actual boolean
-            'is_shortest_path': is_shortest_path,  # Use actual boolean
+            'is_initial': is_initial,
+            'is_goal': is_goal,
+            'is_shortest_path': is_shortest_path,
             'label': state_label,
             'fullLabel': '\n'.join(full_label_parts)
         }
