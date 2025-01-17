@@ -171,7 +171,7 @@ def test_single_block_pick_place():
     creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
 
 
@@ -273,7 +273,7 @@ def test_two_object_pick_place():
     creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
 
 
@@ -376,5 +376,69 @@ def test_view_reach_pick_place_two_objects():
     creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify output file exists
-    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.png"
-    assert graph_file.exists(), "Transition graph file not generated" 
+    graph_file = Path(os.path.join("mock_env_data", test_name)) / "transitions" / f"{name}.html"
+    assert graph_file.exists(), "Transition graph file not generated"
+
+
+def test_transitions_visualization():
+    """Test that transitions are correctly visualized."""
+    # Set up configuration
+    test_name = "test_transitions_visualization"
+    test_dir = os.path.join("mock_env_data", test_name)
+    utils.reset_config({
+        "env": "mock_spot",
+        "approach": "oracle",
+        "seed": 123,
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "mock_env_data_dir": test_dir
+    })
+    
+    # Create environment and test objects
+    creator = ManualMockEnvCreator(test_dir)
+    robot = Object("robot", _robot_type)
+    cup = Object("cup", _container_type)
+    source_table = Object("source_table", _immovable_object_type)
+    target_table = Object("target_table", _immovable_object_type)
+    objects = {robot, cup, source_table, target_table}
+    
+    # Define initial state with all necessary predicates
+    initial_atoms = {
+        # Robot state
+        GroundAtom(_HandEmpty, [robot]),
+        GroundAtom(_NotHolding, [robot, cup]),
+        
+        # Object positions and properties
+        GroundAtom(_On, [cup, source_table]),
+        GroundAtom(_NotBlocked, [cup]),
+        GroundAtom(_IsPlaceable, [cup]),
+        
+        # Surface properties
+        GroundAtom(_HasFlatTopSurface, [source_table]),
+        GroundAtom(_HasFlatTopSurface, [target_table]),
+        
+        # Reachability constraints
+        GroundAtom(_Reachable, [robot, cup]),
+        GroundAtom(_Reachable, [robot, target_table]),
+        GroundAtom(_Reachable, [robot, source_table]),
+        
+        # Object relationships
+        GroundAtom(_NEq, [cup, source_table]),
+        GroundAtom(_NEq, [cup, target_table]),
+        GroundAtom(_NEq, [source_table, target_table]),
+        GroundAtom(_NotInsideAnyContainer, [cup]),
+        GroundAtom(_FitsInXY, [cup, source_table]),
+        GroundAtom(_FitsInXY, [cup, target_table])
+    }
+    
+    # Define goal state - cup should be on target table
+    goal_atoms = {
+        GroundAtom(_On, [cup, target_table])
+    }
+    
+    # Test both visualization methods
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    
+    # Test interactive visualization
+    creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
+    assert os.path.exists(os.path.join(test_dir, "transitions", f"{name}.html")) 

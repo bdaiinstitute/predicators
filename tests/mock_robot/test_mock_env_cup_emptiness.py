@@ -102,10 +102,11 @@ def test_with_belief_observe_cup_emptiness():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=f'Transition Graph, {test_name.replace("_", " ").title()}')
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify transition graph file exists
-    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
+    graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
     
     # Cleanup
@@ -289,7 +290,7 @@ def test_with_belief_plan_check_and_pick_cup():
     env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify transition graph file exists
-    graph_file = Path(test_dir) / "transitions" / f"{name}.png"
+    graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
     
     # Cleanup
@@ -385,14 +386,15 @@ def test_with_belief_plan_check_and_place_cup():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=f'Transition Graph, {test_name.replace("_", " ").title()}')
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify transition graph file exists
-    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
+    graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
     
     # Cleanup
-    MockSpotEnv.use_belief_space_operators = False 
+    MockSpotEnv.use_belief_space_operators = False
 
 
 def test_view_pick_and_place_cup():
@@ -473,11 +475,12 @@ def test_view_pick_and_place_cup():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=f'Transition Graph, {test_name.replace("_", " ").title()}')
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify transition graph file exists
-    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
-    assert graph_file.exists(), "Transition graph file not generated" 
+    graph_file = Path(test_dir) / "transitions" / f"{name}.html"
+    assert graph_file.exists(), "Transition graph file not generated"
 
 
 def test_observe_two_cups_and_place_empty():
@@ -593,10 +596,11 @@ def test_observe_two_cups_and_place_empty():
     }
     
     # Plan and visualize transitions
-    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=f'Transition Graph, {test_name.replace("_", " ").title()}')
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    env_creator.plan_and_visualize(initial_atoms, goal_atoms, objects, task_name=name)
     
     # Verify transition graph file exists
-    graph_file = Path(test_dir) / "transitions" / "transition_graph.png"
+    graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
     
     # Cleanup
