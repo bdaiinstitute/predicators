@@ -600,7 +600,8 @@ class MockEnvCreatorBase(ABC):
             trans_ops = {(state_to_id[frozenset(t[0])], t[1].name,
                         tuple(obj.name for obj in t[1].objects),
                         state_to_id[frozenset(t[2])]) for t in transitions}
-            output_path = os.path.join(self.output_dir, "transitions", "transition_graph")
+            # Use task name for the output file
+            output_path = os.path.join(self.output_dir, "transitions", task_name)
             create_graphviz_visualization(trans_ops, task_name, output_path)
         else:
             # Create interactive visualization
@@ -685,7 +686,8 @@ class MockEnvCreatorBase(ABC):
                 }
             
             # Create visualization
-            output_path = os.path.join(self.output_dir, "transitions", "interactive_graph.html")
+            # Use task name for the output file
+            output_path = os.path.join(self.output_dir, "transitions", f"{task_name}.html")
             create_interactive_visualization(graph_data, output_path)
 
     def _build_transition_graph(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> Dict[str, Any]:
