@@ -58,27 +58,17 @@ from typing import Set, Tuple, Dict, Any
 import json
 
 def _format_atoms(atoms: set) -> str:
-    """Format atoms for display, focusing on key predicates."""
-    key_predicates = {'Holding', 'Inside', 'On', 'HandEmpty'}
-    atoms_by_pred = {}
-    for atom in atoms:
+    """Format atoms for display, showing only key predicates in a simplified format."""
+    key_predicates = {'HandEmpty', 'NotHolding', 'On', 'NotInsideAnyContainer'}
+    formatted_atoms = []
+    
+    for atom in sorted(atoms, key=str):
         pred_name = atom.predicate.name
         if any(key in pred_name for key in key_predicates):
-            if pred_name not in atoms_by_pred:
-                atoms_by_pred[pred_name] = []
-            atoms_by_pred[pred_name].append(atom)
-    
-    if not atoms_by_pred:
-        return "No key predicates"
-    
-    # Format by predicate type
-    lines = []
-    for pred_name in sorted(atoms_by_pred.keys()):
-        lines.append(f"[bold]{pred_name}[/bold]:")
-        for atom in sorted(atoms_by_pred[pred_name], key=str):
             args = [obj.name for obj in atom.objects]
-            lines.append(f"  {', '.join(args)}")
-    return "\n".join(lines)
+            formatted_atoms.append(f"{pred_name}({', '.join(args)})")
+    
+    return "\n".join(formatted_atoms)
 
 def plot_transition_graph(transitions: Set[Tuple[str, str, tuple, str]], task_name: str) -> None:
     """Plot a simple graph showing state transitions using graphviz.
@@ -156,426 +146,297 @@ def plot_transition_graph(transitions: Set[Tuple[str, str, tuple, str]], task_na
     dot.render(graph_path, format='png', cleanup=True)
 
 def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
-    """Create an interactive HTML visualization of the transition graph.
-    
-    Args:
-        graph_data: Dictionary containing nodes, edges, and metadata for the graph
-        output_path: Path to save the HTML file
-    """
-    # Convert data to JSON serializable format
-    def make_serializable(obj: Any) -> Any:
-        if isinstance(obj, set):
-            return [make_serializable(x) for x in obj]
-        elif isinstance(obj, dict):
-            return {k: make_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, str) and obj.startswith('[') and obj.endswith(']'):
-            try:
-                return json.loads(obj.replace("'", '"'))
-            except json.JSONDecodeError:
-                return obj
-        elif hasattr(obj, '__str__'):
-            return str(obj)
-        return obj
-
-    # Create a copy of the data to modify
-    processed_data = dict(graph_data)
-    processed_data = make_serializable(processed_data)
-
-    # Save graph data as separate JSON file
-    data_path = output_path.replace('.html', '_data.json')
-    with open(data_path, 'w') as f:
-        json.dump(processed_data, f, indent=2)
-
-    # Convert to JSON string for embedding
-    graph_data_json = json.dumps(processed_data)
-
-    # Create HTML template with proper string formatting
-    html_template = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Transition Graph Visualization</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
-    <style>
-        body {{
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-        }}
-        #cy {{
-            width: 100%;
-            height: 800px;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }}
-        .controls {{
-            margin-bottom: 20px;
-            padding: 10px;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }}
-        .node-info {{
-            position: fixed;
-            right: 20px;
-            top: 20px;
-            width: 300px;
-            background: white;
-            padding: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            display: none;
-            max-height: 80vh;
-            overflow-y: auto;
-        }}
-        .help-panel {{
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #e8f4f8;
-            border: 1px solid #b8d6e6;
-            border-radius: 5px;
-        }}
-        .controls label:hover {{
-            cursor: pointer;
-            color: #4A90E2;
-        }}
-        .controls input[type="checkbox"] {{
-            margin-right: 5px;
-        }}
-        .controls, .node-info {{
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-    </style>
-</head>
-<body>
-    <div class="help-panel">
-        <h3>Usage Guide:</h3>
-        <ul>
-            <li><strong>Navigation:</strong>
-                <ul>
-                    <li>Drag nodes to rearrange</li>
-                    <li>Scroll to zoom in/out</li>
-                    <li>Click and drag background to pan</li>
-                    <li>Click a node to see detailed state information</li>
-                </ul>
-            </li>
-            <li><strong>Keyboard Shortcuts:</strong>
-                <ul>
-                    <li><code>h</code> - Show help</li>
-                    <li><code>e</code> - Toggle edge labels</li>
-                    <li><code>a</code> - Toggle animation</li>
-                    <li><code>r</code> - Reset view</li>
-                </ul>
-            </li>
-            <li><strong>Node Colors:</strong>
-                <ul>
-                    <li>Light Blue - Initial state</li>
-                    <li>Light Green - Goal state</li>
-                    <li>Light Yellow - State in shortest path</li>
-                </ul>
-            </li>
-        </ul>
-    </div>
-
-    <div class="controls">
-        <h2>Transition Graph: {processed_data['metadata']['task_name']}</h2>
-        <label>
-            <input type="checkbox" id="showShortestPath" checked>
-            Highlight Shortest Path
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="showAllEdges" checked>
-            Show All Edges
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="useAnimation" checked>
-            Animate Layout Changes
-        </label>
-        <label style="margin-left: 20px;">
-            <input type="checkbox" id="showLabels" checked>
-            Show Edge Labels
-        </label>
-    </div>
-    <div id="cy"></div>
-    <div class="node-info" id="nodeInfo">
-        <h3>State Information</h3>
-        <div id="nodeContent"></div>
-    </div>
-    <script>
-        // Register dagre layout
-        cytoscape.use(cytoscapeDagre);
-
-        // Initialize with embedded data
-        let graphData = {graph_data_json};
-
-        // Try loading from separate file if served from a web server
-        if (window.location.protocol !== 'file:') {{
-            fetch('{os.path.basename(data_path)}')
-                .then(response => response.json())
-                .then(data => {{
-                    graphData = data;
-                    initializeGraph(graphData);
-                }})
-                .catch(error => {{
-                    console.warn('Could not load separate data file:', error);
-                    initializeGraph(graphData);
-                }});
-        }} else {{
-            initializeGraph(graphData);
-        }}
-
-        function initializeGraph(graphData) {{
-            // Parse edges if they're a string
-            if (typeof graphData.edges === 'string') {{
-                graphData.edges = JSON.parse(graphData.edges.replace(/'/g, '"'));
+    """Create an interactive HTML visualization of the transition graph."""
+    # Create interactive visualization
+    html_template = '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>State Transition Graph: {task_name}</title>
+        <meta charset="UTF-8">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.19.1/cytoscape.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.3.2/cytoscape-dagre.min.js"></script>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                display: flex;
+                height: 100vh;
             }}
+            #cy {{
+                flex-grow: 1;
+                z-index: 999;
+            }}
+            #controls {{
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+                z-index: 1000;
+            }}
+            #info-panel {{
+                position: fixed;
+                right: 10px;
+                top: 10px;
+                background: white;
+                padding: 15px;
+                border-radius: 5px;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+                max-width: 300px;
+                max-height: 80vh;
+                overflow-y: auto;
+                display: none;
+                z-index: 1000;
+            }}
+            .close-button {{
+                float: right;
+                cursor: pointer;
+                padding: 5px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div id="controls">
+            <input type="checkbox" id="shortest-path" checked>
+            <label for="shortest-path">Show shortest path</label><br>
+            <input type="checkbox" id="all-edges" checked>
+            <label for="all-edges">Show all edges</label><br>
+            <input type="checkbox" id="animate" checked>
+            <label for="animate">Animate layout</label><br>
+            <button onclick="cy.layout(layout_options).run()">Reset Layout</button><br>
+            <small>Press 'h' for keyboard shortcuts</small>
+        </div>
+        <div id="info-panel">
+            <span class="close-button" onclick="hideInfoPanel()">✕</span>
+            <div id="info-content"></div>
+        </div>
+        <div id="cy"></div>
+        <script>
+            const graphData = {graph_data_json};
+            
+            const layout_options = {{
+                name: 'dagre',
+                rankDir: 'TB',
+                nodeSep: 100,
+                rankSep: 150,
+                edgeSep: 80,
+                ranker: 'network-simplex',
+                animate: true,
+                animationDuration: 500,
+                fit: true,
+                padding: 50
+            }};
 
-            // Create Cytoscape instance
             const cy = cytoscape({{
                 container: document.getElementById('cy'),
-                elements: {{
-                    nodes: Object.values(graphData.nodes).map(node => ({{
-                        data: {{
-                            id: node.id,
-                            label: `State ${{node.state_num}}`,
-                            isInitial: node.is_initial === "True",
-                            isGoal: node.is_goal === "True",
-                            isShortestPath: node.is_shortest_path === "True",
-                            fullLabel: node.label,
-                            selfLoops: node.self_loops || []
-                        }}
-                    }})),
-                    edges: graphData.edges.map(edge => ({{
-                        data: {{
-                            id: `${{edge.source}}-${{edge.target}}`,
-                            source: edge.source,
-                            target: edge.target,
-                            label: edge.operator,
-                            isShortestPath: edge.is_shortest_path === 'true'
-                        }}
-                    }}))
-                }},
+                layout: layout_options,
                 style: [
                     {{
                         selector: 'node',
                         style: {{
+                            'background-color': 'data(backgroundColor)',
+                            'border-color': 'data(borderColor)',
+                            'border-width': 'data(borderWidth)',
+                            'border-style': 'solid',
                             'label': 'data(label)',
+                            'color': 'data(textColor)',
+                            'text-wrap': 'wrap',
+                            'text-max-width': '100px',
+                            'font-size': '14px',
+                            'font-weight': 'bold',
                             'text-valign': 'center',
                             'text-halign': 'center',
-                            'background-color': '#fff',
-                            'border-width': 2,
-                            'border-color': '#666',
-                            'shape': 'rectangle',
-                            'width': '120px',
-                            'height': '40px',
-                            'padding': '10px',
-                            'transition-property': 'background-color, border-width, border-color',
-                            'transition-duration': '0.3s'
-                        }}
-                    }},
-                    {{
-                        selector: 'node[?isInitial]',
-                        style: {{
-                            'background-color': '#ADD8E6',
-                            'border-width': 3
-                        }}
-                    }},
-                    {{
-                        selector: 'node[?isGoal]',
-                        style: {{
-                            'background-color': '#90EE90',
-                            'border-width': 3
-                        }}
-                    }},
-                    {{
-                        selector: 'node[?isShortestPath]',
-                        style: {{
-                            'background-color': '#FFFF99'
-                        }}
-                    }},
-                    {{
-                        selector: 'node:selected',
-                        style: {{
-                            'border-color': '#4A90E2',
-                            'border-width': 4
+                            'padding': '15px',
+                            'shape': 'ellipse',
+                            'width': '100px',
+                            'height': '100px',
+                            'text-margin-y': '5px',
+                            'ghost': 'yes',
+                            'ghost-offset-x': '0px',
+                            'ghost-offset-y': '0px',
+                            'ghost-opacity': 0.2
                         }}
                     }},
                     {{
                         selector: 'edge',
                         style: {{
-                            'width': 2,
-                            'line-color': '#666',
-                            'target-arrow-color': '#666',
+                            'curve-style': 'bezier',
+                            'control-point-step-size': 120,
                             'target-arrow-shape': 'triangle',
-                            'curve-style': 'unbundled-bezier',
-                            'control-point-distances': [40],
-                            'control-point-weights': [0.5],
-                            'label': 'data(label)',
-                            'text-background-color': '#fff',
-                            'text-background-opacity': 1,
-                            'text-background-padding': '3px',
+                            'source-arrow-shape': 'none',
+                            'line-color': 'data(color)',
+                            'target-arrow-color': 'data(color)',
                             'text-rotation': 'autorotate',
-                            'font-size': '10px',
-                            'text-margin-y': -10,
-                            'transition-property': 'line-color, target-arrow-color, width',
-                            'transition-duration': '0.3s'
-                        }}
-                    }},
-                    {{
-                        selector: 'edge[?isShortestPath]',
-                        style: {{
-                            'line-color': '#E74C3C',
-                            'target-arrow-color': '#E74C3C',
-                            'width': 3
-                        }}
-                    }},
-                    {{
-                        selector: 'edge:selected',
-                        style: {{
-                            'line-color': '#4A90E2',
-                            'target-arrow-color': '#4A90E2',
-                            'width': 4
+                            'label': 'data(operator)',
+                            'font-size': '12px',
+                            'text-background-color': 'white',
+                            'text-background-opacity': 1,
+                            'text-background-padding': '5px',
+                            'text-margin-y': '-10px',
+                            'edge-text-rotation': 'autorotate',
+                            'arrow-scale': 1.5,
+                            'width': 2
                         }}
                     }}
                 ],
-                layout: {{
-                    name: 'dagre',
-                    rankDir: 'LR',
-                    nodeSep: 100,
-                    rankSep: 150,
-                    animate: true,
-                    animationDuration: 500
+                elements: {{
+                    nodes: Object.values(graphData.nodes).map(node => ({{
+                        data: {{
+                            ...node,
+                            backgroundColor: node.is_initial === 'true' ? '#AED6F1' :     // Light blue
+                                           node.is_goal === 'true' ? '#A3E4D7' :         // Light green
+                                           node.is_shortest_path === 'true' ? '#FAD7A0' : // Light yellow
+                                           '#FFFFFF',  // White
+                            borderColor: node.is_initial === 'true' ? '#3498DB' :     // Blue
+                                       node.is_goal === 'true' ? '#2ECC71' :         // Green
+                                       node.is_shortest_path === 'true' ? '#F39C12' : // Orange
+                                       '#95A5A6',  // Gray
+                            borderWidth: node.is_initial === 'true' || node.is_goal === 'true' ? 4 : 2,
+                            textColor: node.is_initial === 'true' ? '#2980B9' :     // Darker blue
+                                     node.is_goal === 'true' ? '#27AE60' :         // Darker green
+                                     node.is_shortest_path === 'true' ? '#D35400' : // Darker orange
+                                     '#7F8C8D'  // Darker gray
+                        }}
+                    }})),
+                    edges: graphData.edges.map(edge => ({{
+                        data: {{
+                            ...edge,
+                            color: edge.is_shortest_path === 'true' ? '#E74C3C' : '#95A5A6'  // Red for shortest path, gray for others
+                        }}
+                    }}))
                 }}
             }});
 
-            // Add event listeners
-            cy.on('tap', 'node', function(evt) {{
-                const node = evt.target;
-                const nodeInfo = document.getElementById('nodeInfo');
-                const nodeContent = document.getElementById('nodeContent');
+            function formatStateInfo(stateData) {{
+                let html = '<div style="color: ' + stateData.textColor + '; font-weight: bold; margin-bottom: 10px;">' + stateData.label + '</div>';
                 
-                // Update node info panel
-                nodeContent.innerHTML = node.data('fullLabel').replace(/\\[bold\\]/g, '<strong>').replace(/\\[\\/bold\\]/g, '</strong>');
-                nodeInfo.style.display = 'block';
+                // Add state info
+                const lines = stateData.fullLabel.split('\\n');
+                for (const line of lines) {{
+                    if (line.trim() && !line.includes('State') && !line.includes('Self-loop')) {{
+                        html += '<div style="margin: 5px 0;">' + line + '</div>';
+                    }}
+                }}
+                
+                // Add self-loops if any
+                if (stateData.fullLabel.includes('Self-loop')) {{
+                    html += '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">';
+                    html += '<div style="font-weight: bold; margin-bottom: 5px;">Self-loop operators:</div>';
+                    const selfLoops = stateData.fullLabel.split('Self-loop operators:')[1].trim().split('\\n');
+                    for (const loop of selfLoops) {{
+                        if (loop.trim()) {{
+                            html += '<div style="margin-left: 10px;">' + loop.trim() + '</div>';
+                        }}
+                    }}
+                    html += '</div>';
+                }}
+                
+                return html;
+            }}
+
+            function showInfoPanel(node) {{
+                document.getElementById('info-content').innerHTML = formatStateInfo(node.data());
+                document.getElementById('info-panel').style.display = 'block';
+            }}
+
+            function hideInfoPanel() {{
+                document.getElementById('info-panel').style.display = 'none';
+            }}
+
+            // Event handlers
+            cy.on('tap', 'node', function(evt) {{
+                showInfoPanel(evt.target);
             }});
 
             cy.on('tap', function(evt) {{
                 if (evt.target === cy) {{
-                    document.getElementById('nodeInfo').style.display = 'none';
+                    hideInfoPanel();
                 }}
             }});
 
-            // Add toggle controls
-            document.getElementById('showShortestPath').addEventListener('change', function(evt) {{
-                const show = evt.target.checked;
-                cy.style()
-                    .selector('node[?isShortestPath]')
-                    .style({{
-                        'background-color': show ? '#FFFF99' : '#fff'
-                    }})
-                    .selector('edge[?isShortestPath]')
-                    .style({{
-                        'line-color': show ? '#E74C3C' : '#666',
-                        'target-arrow-color': show ? '#E74C3C' : '#666',
-                        'width': show ? 3 : 2
-                    }})
-                    .update();
-            }});
-
-            document.getElementById('showAllEdges').addEventListener('change', function(evt) {{
-                const show = evt.target.checked;
-                cy.edges().style({{
-                    'display': show ? 'element' : 'none'
+            // Toggle controls
+            document.getElementById('shortest-path').addEventListener('change', function(e) {{
+                cy.edges().forEach(edge => {{
+                    if (edge.data('is_shortest_path') === 'true') {{
+                        edge.style('visibility', e.target.checked ? 'visible' : 'hidden');
+                    }}
                 }});
             }});
 
-            document.getElementById('useAnimation').addEventListener('change', function(evt) {{
-                const useAnimation = evt.target.checked;
-                cy.layout({{
-                    name: 'dagre',
-                    rankDir: 'LR',
-                    nodeSep: 100,
-                    rankSep: 150,
-                    animate: useAnimation,
-                    animationDuration: useAnimation ? 500 : 0
-                }}).run();
+            document.getElementById('all-edges').addEventListener('change', function(e) {{
+                cy.edges().forEach(edge => {{
+                    if (edge.data('is_shortest_path') !== 'true') {{
+                        edge.style('visibility', e.target.checked ? 'visible' : 'hidden');
+                    }}
+                }});
             }});
 
-            document.getElementById('showLabels').addEventListener('change', function(evt) {{
-                const show = evt.target.checked;
-                cy.style()
-                    .selector('edge')
-                    .style({{
-                        'label': show ? 'data(label)' : ''
-                    }})
-                    .update();
+            document.getElementById('animate').addEventListener('change', function(e) {{
+                layout_options.animate = e.target.checked;
+                cy.layout(layout_options).run();
             }});
 
-            // Add keyboard shortcuts
-            document.addEventListener('keydown', function(evt) {{
-                switch(evt.key.toLowerCase()) {{
-                    case 'h':  // Toggle help
-                        alert(`Keyboard Shortcuts:
-h: Show this help
-e: Toggle edge labels
-a: Toggle animation
-r: Reset view`);
-                        break;
-                    case 'e':  // Toggle edge labels
-                        const labelCheckbox = document.getElementById('showLabels');
-                        labelCheckbox.checked = !labelCheckbox.checked;
-                        labelCheckbox.dispatchEvent(new Event('change'));
-                        break;
-                    case 'a':  // Toggle animation
-                        const animCheckbox = document.getElementById('useAnimation');
-                        animCheckbox.checked = !animCheckbox.checked;
-                        animCheckbox.dispatchEvent(new Event('change'));
-                        break;
-                    case 'r':  // Reset view
-                        cy.fit();
-                        break;
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {{
+                if (e.key === 'h') {{
+                    alert(
+                        'Keyboard Shortcuts:\\n' +
+                        '- h: Show this help\\n' +
+                        '- s: Toggle shortest path\\n' +
+                        '- e: Toggle all edges\\n' +
+                        '- a: Toggle animation\\n' +
+                        '- r: Reset layout\\n' +
+                        '- Escape: Close info panel'
+                    );
+                }} else if (e.key === 's') {{
+                    const toggle = document.getElementById('shortest-path');
+                    toggle.checked = !toggle.checked;
+                    toggle.dispatchEvent(new Event('change'));
+                }} else if (e.key === 'e') {{
+                    const toggle = document.getElementById('all-edges');
+                    toggle.checked = !toggle.checked;
+                    toggle.dispatchEvent(new Event('change'));
+                }} else if (e.key === 'a') {{
+                    const toggle = document.getElementById('animate');
+                    toggle.checked = !toggle.checked;
+                    toggle.dispatchEvent(new Event('change'));
+                }} else if (e.key === 'r') {{
+                    cy.layout(layout_options).run();
+                }} else if (e.key === 'Escape') {{
+                    hideInfoPanel();
                 }}
             }});
+        </script>
+    </body>
+    </html>
+    '''
 
-            // Initial layout
-            cy.layout({{
-                name: 'dagre',
-                rankDir: 'LR',
-                nodeSep: 100,
-                rankSep: 150,
-                animate: true,
-                animationDuration: 500
-            }}).run();
-        }}
-    </script>
-</body>
-</html>"""
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Write HTML file
+    # Convert graph data to JSON
+    graph_data_json = json.dumps(graph_data)
+
+    # Save the HTML file
     with open(output_path, 'w') as f:
-        f.write(html_template)
-    
-    print(f"\nVisualization files created:")
-    print(f"- HTML: {output_path}")
-    print(f"- Data: {data_path}")
-    print("\nFeatures:")
-    print("- Click nodes to see state details")
-    print("- Drag nodes to rearrange")
-    print("- Use mouse wheel to zoom")
-    print("- Toggle shortest path highlighting")
-    print("- Toggle edge visibility")
-    print("- Toggle edge labels")
-    print("- Toggle animation")
-    print("\nKeyboard shortcuts:")
-    print("h: Show help")
-    print("e: Toggle edge labels")
-    print("a: Toggle animation")
-    print("r: Reset view")
+        f.write(html_template.format(
+            task_name=graph_data['metadata']['task_name'],
+            graph_data_json=graph_data_json
+        ))
+
+    print(f"- Visualization files generated:")
+    print(f"  - Interactive: {output_path}")
+    print("  Features:")
+    print("  - Drag nodes to rearrange")
+    print("  - Zoom and pan")
+    print("  - Click nodes for state info")
+    print("  - Toggle controls for shortest path and all edges")
+    print("  - Animation toggle for layout changes")
+    print("  - Press 'h' for keyboard shortcuts")
 
 def test_transitions_match_edges():
     """Test that operator transitions match graph edges.
@@ -689,39 +550,37 @@ def test_transitions_match_edges():
     edge_data = []
     
     # First add edges from the shortest path
+    shortest_path_edges = set()
     for source_atoms, op, dest_atoms in edges:
         source_id = state_to_id[frozenset(source_atoms)]
         dest_id = state_to_id[frozenset(dest_atoms)]
-        op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
-        edge_data.append({
-            'source': source_id,
-            'target': dest_id,
-            'operator': op_str,
-            'is_shortest_path': 'true'  # Use string 'true' for JSON compatibility
-        })
+        if source_id != dest_id:  # Skip self-loops
+            op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+            edge_data.append({
+                'source': source_id,
+                'target': dest_id,
+                'operator': op_str,
+                'is_shortest_path': 'true'  # Use string 'true' for JSON compatibility
+            })
+            shortest_path_edges.add((source_id, dest_id))
     
-    # Then add remaining transitions
+    # Then add remaining transitions (excluding self-loops and duplicates)
     for source_atoms, op, dest_atoms in transitions:
         source_id = state_to_id[frozenset(source_atoms)]
         dest_id = state_to_id[frozenset(dest_atoms)]
-        # Skip if this is already in the shortest path
-        if any(e['source'] == source_id and e['target'] == dest_id for e in edge_data):
-            continue
-        # Skip self-loops as they're handled separately
-        if source_id == dest_id:
-            continue
-        op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
-        edge_data.append({
-            'source': source_id,
-            'target': dest_id,
-            'operator': op_str,
-            'is_shortest_path': 'false'  # Use string 'false' for JSON compatibility
-        })
-    
+        if source_id != dest_id and (source_id, dest_id) not in shortest_path_edges:
+            op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+            edge_data.append({
+                'source': source_id,
+                'target': dest_id,
+                'operator': op_str,
+                'is_shortest_path': 'false'  # Use string 'false' for JSON compatibility
+            })
+
     # Create graph data
     graph_data = {
         'nodes': {},
-        'edges': edge_data,  # Use edge_data directly as it's already an array
+        'edges': edge_data,
         'metadata': {
             'task_name': name,
             'fluent_predicates': []
@@ -732,30 +591,44 @@ def test_transitions_match_edges():
     for atoms, state_id in state_to_id.items():
         is_initial = atoms == frozenset(initial_atoms)
         is_goal = goal_atoms.issubset(atoms)
-        # Check if this state is in the shortest path edges
         is_shortest_path = any(
             (state_id == state_to_id[frozenset(edge[0])] or 
              state_id == state_to_id[frozenset(edge[2])])
             for edge in edges
         )
         
-        # Get self loops
+        # Get self loops for this state
         self_loops = []
         for source_atoms, op, dest_atoms in transitions:
-            if frozenset(source_atoms) == atoms and frozenset(dest_atoms) == atoms:
+            if (frozenset(source_atoms) == atoms and 
+                frozenset(dest_atoms) == atoms):
                 self_loops.append(f"{op.name}({','.join(obj.name for obj in op.objects)})")
+        
+        # Create label with proper line breaks
+        state_label = f"{'Initial ' if is_initial else ''}{'Goal ' if is_goal else ''}State {state_id}"
+        full_label_parts = [
+            state_label,
+            "",  # Empty line
+            _format_atoms(atoms)
+        ]
+        if self_loops:
+            full_label_parts.extend([
+                "",  # Empty line
+                "Self-loop operators:",
+                *[f"  {op}" for op in self_loops]
+            ])
         
         graph_data['nodes'][state_id] = {
             'id': state_id,
             'state_num': state_id,
             'atoms': [str(atom) for atom in atoms],
-            'is_initial': str(is_initial),  # Convert to string for consistent JSON
+            'is_initial': str(is_initial),
             'is_goal': str(is_goal),
             'is_shortest_path': str(is_shortest_path),
-            'self_loops': self_loops,
-            'label': f"{'Initial ' if is_initial else ''}{'Goal ' if is_goal else ''}State {state_id}\n{'─'*40}\n{_format_atoms(atoms)}\n{'─'*40}\n{f'Self-loop operators:{chr(10)}{chr(10).join(self_loops)}' if self_loops else ''}"
+            'label': state_label,
+            'fullLabel': '\n'.join(full_label_parts)
         }
-    
+
     # Create interactive visualization
     html_path = os.path.join(test_dir, "transitions", "interactive_graph.html")
     create_interactive_visualization(graph_data, html_path)
