@@ -81,116 +81,6 @@ from predicators.planning import task_plan_grounding, task_plan, run_task_plan_o
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def _format_atoms(atoms: set) -> str:
-    """Format atoms for display, showing only key predicates in a simplified format."""
-    key_predicates = {'HandEmpty', 'NotHolding', 'On', 'NotInsideAnyContainer'}
-    formatted_atoms = []
-    
-    for atom in sorted(atoms, key=str):
-        pred_name = atom.predicate.name
-        if any(key in pred_name for key in key_predicates):
-            args = [obj.name for obj in atom.objects]
-            formatted_atoms.append(f"{pred_name}({', '.join(args)})")
-    
-    return "\n".join(formatted_atoms)
-
-def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
-    """Create an interactive visualization using Cytoscape.js.
-    
-    Args:
-        graph_data: Dictionary containing nodes and edges data
-        output_path: Path to save the HTML file
-    """
-    # Convert graph data to Cytoscape.js format
-    cytoscape_data = {
-        'nodes': [{'data': node_data} for node_data in graph_data['nodes'].values()],
-        'edges': [{'data': edge_data} for edge_data in graph_data['edges']]
-    }
-    
-    # Read template
-    template_path = os.path.join(os.path.dirname(__file__), 
-                               "templates", "interactive_graph.html")
-    with open(template_path) as f:
-        template = Template(f.read())
-    
-    # Render template with graph data
-    html_content = template.render(
-        task_name=graph_data['metadata']['task_name'],
-        graph_data_json=json.dumps(cytoscape_data)
-    )
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    # Write HTML file
-    with open(output_path, 'w') as f:
-        f.write(html_content)
-
-def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
-                                task_name: str,
-                                output_path: str) -> None:
-    """Create a static visualization using graphviz.
-    
-    Args:
-        transitions: Set of (source_state_id, operator_name, operator_objects, dest_state_id) tuples
-        task_name: Name of the task for the graph title
-        output_path: Path to save the PNG file
-    """
-    # Create graph
-    dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
-    
-    # Set graph attributes
-    dot.attr('graph', {
-        'fontname': 'Arial',
-        'fontsize': '16',
-        'label': f'State Transitions: {task_name}',
-        'labelloc': 't',
-        'nodesep': '1.0',
-        'ranksep': '1.0',
-        'splines': 'curved',
-        'concentrate': 'false'
-    })
-    
-    # Set node attributes
-    dot.attr('node', {
-        'fontname': 'Arial',
-        'fontsize': '12',
-        'shape': 'circle',
-        'style': 'filled',
-        'fillcolor': 'white',
-        'width': '0.5',
-        'height': '0.5',
-        'margin': '0.1'
-    })
-    
-    # Set edge attributes
-    dot.attr('edge', {
-        'fontname': 'Arial',
-        'fontsize': '10',
-        'arrowsize': '0.8',
-        'penwidth': '1.0',
-        'labeldistance': '2.0',
-        'labelangle': '25'
-    })
-    
-    # Add nodes and edges
-    visited_nodes = set()
-    for source_id, op_name, op_objects, dest_id in transitions:
-        # Add nodes if not visited
-        for node_id in [source_id, dest_id]:
-            if node_id not in visited_nodes:
-                dot.node(node_id, f"State {node_id}")
-                visited_nodes.add(node_id)
-        
-        # Format edge label
-        edge_label = f"{op_name}({','.join(op_objects)})"
-        
-        # Add edge
-        dot.edge(source_id, dest_id, edge_label)
-    
-    # Save graph
-    dot.render(output_path, format='png', cleanup=True)
-
 class MockEnvCreatorBase(ABC):
     """Base class for mock environment creators.
     
@@ -239,10 +129,6 @@ class MockEnvCreatorBase(ABC):
         self.states: Dict[str, Dict[str, Any]] = {}
         self.transitions: List[Tuple[str, str, Any]] = []
         
-        # Initialize predicate tracking
-        self.fluent_predicates: Set[str] = set()
-        self.key_predicates: Set[str] = {'Holding', 'Inside', 'On', 'HandEmpty', 'ContainingWaterKnown'}
-        
         # Set data directory in config for environment to use
         utils.reset_config({
             "mock_env_data_dir": output_dir
@@ -253,17 +139,25 @@ class MockEnvCreatorBase(ABC):
         
         # Get environment info
         self.types: Dict[str, Type] = {t.name: t for t in self.env.types}
-        # Get predicates directly from environment - this will include belief predicates if enabled
         self.predicates: Dict[str, Predicate] = {p.name: p for p in self.env.predicates}
-        
-        # Create options
         self.options: Dict[str, ParameterizedOption] = {o.name: o for o in get_gt_options(self.env.get_name())}
-        
-        # Get NSRTs from factory
         self.nsrts: Set[NSRT] = self._create_nsrts()
 
+        # Calculate fluent predicates by looking at operator effects
+        self.fluent_predicates: Set[str] = self._calculate_fluent_predicates()
+        
         # Initialize rich console for pretty printing
         self.console = Console()
+
+    def _format_atoms(self, atoms: set) -> str:
+        """Format atoms for display, showing only fluent predicates."""
+        formatted_atoms = []
+        for atom in sorted(atoms, key=str):
+            # Only show fluent predicates
+            if atom.predicate.name in self.fluent_predicates:
+                args = [obj.name for obj in atom.objects]
+                formatted_atoms.append(f"{atom.predicate.name}({', '.join(args)})")
+        return "\n".join(formatted_atoms)
 
     def _create_nsrts(self) -> Set[NSRT]:
         """Create NSRTs from the environment's predicates and options.
@@ -281,6 +175,19 @@ class MockEnvCreatorBase(ABC):
             self.options
         )
         return base_nsrts
+
+    def _calculate_fluent_predicates(self) -> Set[str]:
+        """Calculate fluent predicates by looking at operator effects.
+        Similar to Fast Downward's get_fluents function."""
+        fluent_predicates = set()
+        # Look at all operators (NSRTs)
+        for nsrt in self.nsrts:
+            # Add predicates that appear in add or delete effects
+            for effect in nsrt.add_effects:
+                fluent_predicates.add(effect.predicate.name)
+            for effect in nsrt.delete_effects:
+                fluent_predicates.add(effect.predicate.name)
+        return fluent_predicates
 
     def add_state(self, state_id: str, views: Dict[str, Dict[str, Dict[str, np.ndarray]]],
                  objects_in_view: Optional[List[str]] = None,
@@ -594,6 +501,48 @@ class MockEnvCreatorBase(ABC):
                 state_to_id[dest_state] = str(state_count + 1)
                 state_count += 1
         
+        # Track shortest path edges and states
+        shortest_path_edges = set()
+        shortest_path_states = {frozenset(initial_atoms)}
+        
+        # Get plan to goal
+        planner = self._create_planner(initial_atoms, goal_atoms, objects)
+        plan = next(planner(), None)
+        
+        if plan is not None:
+            # Follow plan to get shortest path
+            curr_atoms = initial_atoms.copy()
+            for op in plan:
+                next_atoms = self._get_next_atoms(curr_atoms, op)
+                source_id = state_to_id[frozenset(curr_atoms)]
+                dest_id = state_to_id[frozenset(next_atoms)]
+                shortest_path_edges.add((source_id, dest_id))
+                shortest_path_states.add(frozenset(next_atoms))
+                curr_atoms = next_atoms
+        
+        # Create edge data
+        edge_data = []
+        edge_count = 0
+        for source_atoms, op, dest_atoms in transitions:
+            source_state = frozenset(source_atoms)
+            dest_state = frozenset(dest_atoms)
+            source_id = state_to_id[source_state]
+            dest_id = state_to_id[dest_state]
+            if source_id != dest_id:  # Skip self-loops
+                # Create detailed edge label
+                op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+                edge_data.append({
+                    'id': f'edge_{edge_count}',
+                    'source': source_id,
+                    'target': dest_id,
+                    'label': op_str,
+                    'fullLabel': self._get_edge_label(op),
+                    'is_shortest_path': (source_id, dest_id) in shortest_path_edges,
+                    'affects_belief': any(effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')) 
+                                       for effect in (op.add_effects | op.delete_effects))
+                })
+                edge_count += 1
+        
         # Create visualization
         if use_graphviz:
             # Create graphviz visualization
@@ -626,13 +575,17 @@ class MockEnvCreatorBase(ABC):
                 source_id = state_to_id[source_state]
                 dest_id = state_to_id[dest_state]
                 if source_id != dest_id:  # Skip self-loops
+                    # Create detailed edge label
                     op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
                     edge_data.append({
                         'id': f'edge_{edge_count}',
                         'source': source_id,
                         'target': dest_id,
                         'label': op_str,
-                        'is_shortest_path': (source_id, dest_id) in shortest_path_edges
+                        'fullLabel': self._get_edge_label(op),
+                        'is_shortest_path': (source_id, dest_id) in shortest_path_edges,
+                        'affects_belief': any(effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')) 
+                                           for effect in (op.add_effects | op.delete_effects))
                     })
                     edge_count += 1
             
@@ -664,7 +617,7 @@ class MockEnvCreatorBase(ABC):
                 full_label_parts = [
                     state_label,
                     "",
-                    _format_atoms(atoms)
+                    self._format_atoms(atoms)
                 ]
                 if self_loops:
                     full_label_parts.extend([
@@ -863,70 +816,32 @@ class MockEnvCreatorBase(ABC):
             'fontsize': '10',
             'shape': 'box',
             'style': 'rounded,filled',
-            'fillcolor': 'white',
             'margin': '0.3',
             'width': '2.5',
             'height': '1.5'
-        })
-        
-        # Set edge attributes
-        dot.attr('edge', {
-            'fontname': 'Arial',
-            'fontsize': '9',
-            'arrowsize': '0.8',
-            'penwidth': '1.0',
-            'len': '1.2',
-            'decorate': 'true',
-            'labelfloat': 'true',
-            'labelangle': '25',
-            'labeldistance': '1.5',
-            'minlen': '1',
-            'color': '#4A90E2',
-            'fontcolor': '#E74C3C',
-            'arrowhead': 'normal',
-            'arrowcolor': '#E74C3C',
-            'weight': '1.0'
         })
         
         # Add nodes
         for node_id, node_data in graph_data['nodes'].items():
             node_attrs = {
                 'label': node_data['label'],
-                'style': 'rounded,filled'
+                'style': 'rounded,filled',
+                'fillcolor': self._get_state_color(node_data['atoms'])
             }
             
             if node_data['is_initial']:
-                node_attrs['fillcolor'] = '#ADD8E6'  # Light blue
                 node_attrs['penwidth'] = '2.0'
+                node_attrs['color'] = '#2171b5'  # Dark blue border
             elif node_data['is_goal']:
-                node_attrs['fillcolor'] = '#90EE90'  # Light green
                 node_attrs['penwidth'] = '2.0'
-            elif node_data['is_shortest_path']:
-                node_attrs['fillcolor'] = '#FFFF99'  # Light yellow
-            else:
-                node_attrs['fillcolor'] = 'white'
-                
-            # Add dashed border for unreachable states
-            if not node_data['is_shortest_path'] and not node_data['is_initial']:
-                node_attrs['style'] = 'rounded,filled,dashed'
+                node_attrs['color'] = '#2ca02c'  # Dark green border
             
             dot.node(node_id, **node_attrs)
         
         # Add edges
         for edge in graph_data['edges']:
-            edge_attrs = {
-                'label': edge['operator'],
-                'style': 'solid' if edge['is_shortest_path'] else 'dashed',
-                'color': '#4A90E2',  # Blue for edges
-                'fontcolor': '#2E5894',  # Darker blue for labels
-                'arrowhead': 'normal',
-                'arrowcolor': '#E74C3C',  # Red arrows
-                'labelfloat': 'true',
-                'decorate': 'true',
-                'labelangle': '25',
-                'labeldistance': '1.5'
-            }
-            dot.edge(edge['source'], edge['target'], **edge_attrs)
+            edge_attrs = self._get_edge_style(edge['operator'], edge['is_shortest_path'])
+            dot.edge(edge['source'], edge['target'], edge['operator'], **edge_attrs)
         
         # Save graph
         graph_path = os.path.join(self.transitions_dir, f"{task_name}")
@@ -941,36 +856,37 @@ class MockEnvCreatorBase(ABC):
         return all(precond in state_atoms for precond in preconditions)
 
     def _get_state_color(self, atoms: Set[GroundAtom]) -> str:
-        """Get color for state visualization based on its atoms.
-        
-        Args:
-            atoms: Ground atoms in the state
-            
-        Returns:
-            Hex color code for the state
-        """
-        # Default colors for common predicates
-        colors = {
-            "HandEmpty": "#90EE90",  # Light green
-            "Holding": "#FFB6C1",    # Light pink
-            "On": "#ADD8E6",         # Light blue
-            "Inside": "#DDA0DD",     # Plum
-        }
-        
-        # Special colors for belief predicates
+        """Get color for state visualization based on its atoms."""
+        # Colors for belief predicates
         belief_colors = {
-            "ContainingWaterUnknown": "#F0E68C",  # Khaki
-            "ContainingWaterKnown": "#98FB98",    # Pale green
-            "Empty": "#FFA07A",                   # Light salmon
+            "BelieveTrue": "#90EE90",  # Light green
+            "BelieveFalse": "#FFB6C1", # Light pink
+            "Known": "#ADD8E6",        # Light blue
+            "Unknown": "#F0E68C",      # Khaki
         }
         
-        # Find matching predicate
+        # Check for belief predicates first
         for atom in atoms:
-            if atom.predicate.name in colors:
+            if atom.predicate.name in self.fluent_predicates:
+                pred_name = atom.predicate.name
+                for belief_type, color in belief_colors.items():
+                    if pred_name.startswith(belief_type):
+                        return color
+        
+        # Default colors for other fluent predicates
+        colors = {
+            "HandEmpty": "#FFFFFF",     # White
+            "Holding": "#E6E6FA",       # Lavender
+            "Inside": "#DDA0DD",        # Plum
+            "DrawerOpen": "#98FB98",    # Pale green
+            "DrawerClosed": "#FFA07A",  # Light salmon
+        }
+        
+        # Only color states based on fluent predicates
+        for atom in atoms:
+            if atom.predicate.name in self.fluent_predicates and atom.predicate.name in colors:
                 return colors[atom.predicate.name]
-            if atom.predicate.name in belief_colors:
-                return belief_colors[atom.predicate.name]
-                
+        
         return "#FFFFFF"  # White default
 
     def _create_planner(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
@@ -1018,9 +934,9 @@ class MockEnvCreatorBase(ABC):
         
     def _visualize_state(self, state: Set[GroundAtom]) -> None:
         """Visualize a state's atoms, focusing on fluents."""
-        # Only show fluents and key predicates
+        # Only show fluent predicates
         important_atoms = {atom for atom in state 
-                         if atom.predicate.name in (self.fluent_predicates | self.key_predicates)}
+                         if atom.predicate.name in self.fluent_predicates}
         
         # Group by object
         atoms_by_obj = {}
@@ -1142,11 +1058,16 @@ class MockEnvCreatorBase(ABC):
             ground_ops.extend(utils.all_ground_nsrts(nsrt, objects))
         return [op for op in ground_ops if op.preconditions.issubset(atoms)]
 
-    def _get_next_atoms(self, atoms: Set[GroundAtom], operator: _GroundNSRT) -> Set[GroundAtom]:
+    def _get_next_atoms(self, atoms: Set[GroundAtom], operator: Union[_GroundNSRT, List[_GroundNSRT]]) -> Set[GroundAtom]:
         """Get the next atoms after applying an operator."""
         next_atoms = atoms.copy()
-        next_atoms.update(operator.add_effects)
-        next_atoms.difference_update(operator.delete_effects)
+        if isinstance(operator, list):
+            for op in operator:
+                next_atoms.update(op.add_effects)
+                next_atoms.difference_update(op.delete_effects)
+        else:
+            next_atoms.update(operator.add_effects)
+            next_atoms.difference_update(operator.delete_effects)
         return next_atoms
 
     def _get_shortest_path(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: Set[Object], max_steps: int = 1000) -> Optional[List[_GroundNSRT]]:
@@ -1308,3 +1229,127 @@ class MockEnvCreatorBase(ABC):
                     frontier.append((next_atoms, next_op))
         
         return edges 
+
+    def _get_edge_style(self, op: _GroundNSRT, is_shortest_path: bool) -> Dict[str, str]:
+        """Get edge style based on operator type and path status."""
+        style = {
+            'style': 'solid' if is_shortest_path else 'dashed',
+            'color': '#4A90E2',  # Default blue
+            'fontcolor': '#2E5894',
+            'penwidth': '2.0' if is_shortest_path else '1.0'
+        }
+        
+        # Check if operator affects belief predicates
+        affects_belief = False
+        for effect in (op.add_effects | op.delete_effects):
+            if effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')):
+                affects_belief = True
+                break
+        
+        if affects_belief:
+            style.update({
+                'color': '#E74C3C',  # Red for belief transitions
+                'fontcolor': '#C0392B',
+                'penwidth': '3.0' if is_shortest_path else '2.0'
+            })
+        
+        return style 
+
+    def _get_edge_label(self, op: _GroundNSRT) -> str:
+        """Get detailed edge label showing operator effects."""
+        # Basic operator name and args
+        op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+        
+        # Format effects
+        add_effects = [str(atom) for atom in op.add_effects]
+        del_effects = [str(atom) for atom in op.delete_effects]
+        
+        # Build full label with HTML formatting
+        label_parts = [
+            f"<strong>{op_str}</strong>",
+            "<br><br>",
+            "<span style='color: #2ca02c'>",  # Green for add effects
+            *[f"+ {eff}<br>" for eff in add_effects],
+            "</span><br>",
+            "<span style='color: #d62728'>",  # Red for delete effects
+            *[f"- {eff}<br>" for eff in del_effects],
+            "</span>"
+        ]
+        
+        return "".join(label_parts) 
+
+def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
+                                task_name: str,
+                                output_path: str) -> None:
+    """Create a static visualization using graphviz."""
+    # Create graph
+    dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
+    
+    # Set graph attributes
+    dot.attr('graph', {
+        'fontname': 'Arial',
+        'fontsize': '16',
+        'label': f'State Transitions: {task_name}',
+        'labelloc': 't',
+        'nodesep': '1.0',
+        'ranksep': '1.0',
+        'splines': 'curved',
+        'concentrate': 'false'
+    })
+    
+    # Set node attributes
+    dot.attr('node', {
+        'fontname': 'Arial',
+        'fontsize': '12',
+        'shape': 'circle',
+        'style': 'filled',
+        'fillcolor': 'white',
+        'width': '0.5',
+        'height': '0.5',
+        'margin': '0.1'
+    })
+    
+    # Add nodes and edges
+    visited_nodes = set()
+    for source_id, op_name, op_objects, dest_id in transitions:
+        # Add nodes if not visited
+        for node_id in [source_id, dest_id]:
+            if node_id not in visited_nodes:
+                dot.node(node_id, f"State {node_id}")
+                visited_nodes.add(node_id)
+        
+        # Format edge label
+        edge_label = f"{op_name}({','.join(op_objects)})"
+        
+        # Add edge
+        dot.edge(source_id, dest_id, edge_label)
+    
+    # Save graph
+    dot.render(output_path, format='png', cleanup=True)
+
+def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
+    """Create an interactive visualization using Cytoscape.js."""
+    # Convert graph data to Cytoscape.js format
+    cytoscape_data = {
+        'nodes': [{'data': node_data} for node_data in graph_data['nodes'].values()],
+        'edges': [{'data': edge_data} for edge_data in graph_data['edges']]
+    }
+    
+    # Read template
+    template_path = os.path.join(os.path.dirname(__file__), 
+                               "templates", "interactive_graph.html")
+    with open(template_path) as f:
+        template = Template(f.read())
+    
+    # Render template with graph data
+    html_content = template.render(
+        task_name=graph_data['metadata']['task_name'],
+        graph_data_json=json.dumps(cytoscape_data)
+    )
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Write HTML file
+    with open(output_path, 'w') as f:
+        f.write(html_content) 
