@@ -66,6 +66,40 @@
             display: inline-block;
             margin-left: 5px;
         }
+        #edge-info-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .effect-add {
+            color: #2ca02c;  /* Green */
+            font-family: monospace;
+            margin: 2px 0;
+        }
+        .effect-delete {
+            color: #d62728;  /* Red */
+            font-family: monospace;
+            margin: 2px 0;
+        }
+        .edge-header {
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        .section-header {
+            margin-top: 10px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -89,6 +123,10 @@
     <div id="info-panel">
         <span class="close-button" onclick="hideInfoPanel()">×</span>
         <div id="state-info"></div>
+    </div>
+    <div id="edge-info-panel">
+        <span class="close-button" onclick="hideEdgeInfoPanel()">×</span>
+        <div id="edge-info"></div>
     </div>
     <script>
         const graphData = {{ graph_data_json }};
@@ -156,11 +194,37 @@
                     }
                 },
                 {
-                    selector: 'edge[?is_shortest_path]',
+                    selector: 'edge[?is_shortest_path][!affects_belief]',
                     style: {
-                        'line-color': '#e41a1c',
-                        'target-arrow-color': '#e41a1c',
+                        'line-color': '#2171b5',  // Dark blue
+                        'target-arrow-color': '#2171b5',
+                        'width': 2.5
+                    }
+                },
+                {
+                    selector: 'edge[!is_shortest_path][!affects_belief]',
+                    style: {
+                        'line-color': '#87CEEB',  // Light blue
+                        'target-arrow-color': '#87CEEB',
+                        'width': 1,
+                        'line-style': 'dashed'
+                    }
+                },
+                {
+                    selector: 'edge[?is_shortest_path][?affects_belief]',
+                    style: {
+                        'line-color': '#E74C3C',  // Bright red
+                        'target-arrow-color': '#E74C3C',
                         'width': 3
+                    }
+                },
+                {
+                    selector: 'edge[!is_shortest_path][?affects_belief]',
+                    style: {
+                        'line-color': '#FFB6C1',  // Light red
+                        'target-arrow-color': '#FFB6C1',
+                        'width': 2,
+                        'line-style': 'dashed'
                     }
                 }
             ],
@@ -219,13 +283,55 @@
             document.getElementById('info-panel').style.display = 'none';
         }
 
+        function formatEdgeInfo(fullLabel) {
+            const lines = fullLabel.split('\n');
+            let html = `<div class="edge-header"><strong>${lines[0]}</strong></div>`;
+            
+            let section = [];
+            for (let i = 2; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('+')) {
+                    section.push(`<div class="effect-add">${line}</div>`);
+                } else if (line.startsWith('-')) {
+                    section.push(`<div class="effect-delete">${line}</div>`);
+                } else {
+                    if (section.length > 0) {
+                        html += `<div class="effects">${section.join('')}</div>`;
+                        section = [];
+                    }
+                    html += `<div class="section-header">${line}</div>`;
+                }
+            }
+            if (section.length > 0) {
+                html += `<div class="effects">${section.join('')}</div>`;
+            }
+            return html;
+        }
+
+        function showEdgeInfoPanel(edge) {
+            const panel = document.getElementById('edge-info-panel');
+            const info = document.getElementById('edge-info');
+            info.innerHTML = formatEdgeInfo(edge.data('fullLabel'));
+            panel.style.display = 'block';
+        }
+
+        function hideEdgeInfoPanel() {
+            document.getElementById('edge-info-panel').style.display = 'none';
+        }
+
         // Event handlers
         cy.on('tap', 'node', function(evt) {
             showInfoPanel(evt.target);
         });
 
+        cy.on('tap', 'edge', function(evt) {
+            showEdgeInfoPanel(evt.target);
+            evt.preventDefault();
+        });
+
         cy.on('tap', function(evt) {
             if (evt.target === cy) {
+                hideEdgeInfoPanel();
                 hideInfoPanel();
             }
         });
