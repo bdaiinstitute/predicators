@@ -46,19 +46,21 @@ def setup():
         "num_test_tasks": 1
     })
     
-    # Enable belief space operators for all tests
-    MockSpotEnv.use_belief_space_operators = True
-    
     yield  # this is where the testing happens
     
-    # No cleanup needed for use_belief_space_operators
     pass
 
 
 def test_drawer_manipulation_no_uncertainty():
-    """Test transition graph for basic drawer manipulation sequence.
+    """Test transition graph for drawer manipulation without uncertainty.
     
-    Expected Plan Sequence:
+    This test verifies that the robot can:
+    1. Move to reach the drawer
+    2. Open the drawer
+    3. Pick up the apple
+    4. Place the apple on the table
+    
+    The sequence of operators should be:
     1. MoveToReachObject(robot, drawer)
        Pre: HandEmpty(robot), Reachable(robot, drawer), DrawerClosed(drawer)
        Effect: Robot in position to manipulate drawer
@@ -118,11 +120,11 @@ def test_drawer_manipulation_no_uncertainty():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": False,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
-    
-    # Disable belief space operators since we're testing the certain case
-    MockSpotEnv.use_belief_space_operators = False
     
     # Create environment creator
     env_creator = ManualMockEnvCreator(test_dir)
@@ -167,8 +169,8 @@ def test_drawer_manipulation_no_uncertainty():
     
     # Create goal atoms
     goal_atoms = {
-        GroundAtom(_On, [apple, table]),
-        GroundAtom(_DrawerOpen, [drawer])  # Add drawer open to goal state
+        GroundAtom(_On, [apple, table]),  # Apple should be on table
+        GroundAtom(_DrawerClosed, [drawer])  # Drawer should be closed
     }
     
     # Plan and visualize transitions
@@ -182,6 +184,24 @@ def test_drawer_manipulation_no_uncertainty():
 
 def test_drawer_observation_phase():
     """Test transition graph for drawer observation phase.
+    
+    This test verifies that the robot can:
+    1. Move to reach the drawer
+    2. Open the drawer (no belief space)
+    3. Observe drawer content and find it empty
+    
+    The sequence of operators should be:
+    1. MoveToReachObject(robot, drawer)
+       Pre: HandEmpty(robot), NotBlocked(drawer)
+       Effect: Reachable(robot, drawer)
+       
+    2. OpenDrawer(robot, drawer)
+       Pre: HandEmpty(robot), DrawerClosed(drawer), Reachable(robot, drawer)
+       Effect: DrawerOpen(drawer)
+       
+    3. ObserveDrawerContentFindEmpty(robot, drawer)
+       Pre: Unknown_ContainerEmpty(drawer), DrawerOpen(drawer), Reachable(robot, drawer)
+       Effect: Known_ContainerEmpty(drawer), BelieveTrue_ContainerEmpty(drawer)
     
     This test:
     1. Sets up a scenario with:
@@ -202,8 +222,8 @@ def test_drawer_observation_phase():
     4. Verifies:
        - A valid plan is found that includes:
          a. Moving to reach drawer
-         b. Opening drawer and finding it empty/not empty
-         c. Observing drawer content
+         b. Opening drawer
+         c. Observing drawer content and finding it empty
        - The transition graph shows proper action sequencing
        
     Output:
@@ -218,7 +238,10 @@ def test_drawer_observation_phase():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
     
     # Create environment creator
@@ -254,7 +277,7 @@ def test_drawer_observation_phase():
     # Create goal atoms
     goal_atoms = {
         GroundAtom(_Known_ContainerEmpty, [drawer]),  # We want to know drawer content
-        GroundAtom(_DrawerOpen, [drawer])  # And drawer should be open
+        GroundAtom(_DrawerClosed, [drawer])  # And drawer should be closed
     }
     
     # Plan and visualize transitions
@@ -305,7 +328,9 @@ def test_drawer_manipulation_after_observation():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planning_heuristic": "lmcut"
     })
     
     # Create environment creator
@@ -315,7 +340,7 @@ def test_drawer_manipulation_after_observation():
     robot = Object("robot", _robot_type)
     drawer = Object("drawer", _container_type)
     table = Object("table", _immovable_object_type)
-    apple = Object("apple", _container_type)  # Using container type for consistency
+    apple = Object("apple", _movable_object_type)  # Changed to movable_object_type
     objects = {robot, drawer, table, apple}
     
     # Create initial state atoms
@@ -342,6 +367,8 @@ def test_drawer_manipulation_after_observation():
         GroundAtom(_NotHolding, [robot, apple]),
         GroundAtom(_NEq, [apple, table]),
         GroundAtom(_NEq, [apple, drawer]),
+        GroundAtom(_NotBlocked, [apple]),  # Add this to ensure apple can be picked
+        GroundAtom(_NotInsideAnyContainer, [apple]),  # Add this to allow picking from drawer
         
         # Environment state
         GroundAtom(_HasFlatTopSurface, [table]),
