@@ -23,7 +23,8 @@ def test_mock_spot_env():
             "seed": 123,
             "num_train_tasks": 0,
             "num_test_tasks": 1,
-            "mock_env_data_dir": temp_dir
+            "mock_env_data_dir": temp_dir,
+            "sesame_task_planning_heuristic": "lmcut"
         })
         
         # Initialize environment
@@ -110,7 +111,8 @@ def test_pick_from_top():
             "seed": 123,
             "num_train_tasks": 0,
             "num_test_tasks": 1,
-            "mock_env_data_dir": temp_dir
+            "mock_env_data_dir": temp_dir,
+            "sesame_task_planning_heuristic": "lmcut"
         })
         
         # Initialize environment
@@ -166,7 +168,8 @@ def test_move_to_view_from_top():
             "seed": 123,
             "num_train_tasks": 0,
             "num_test_tasks": 1,
-            "mock_env_data_dir": temp_dir
+            "mock_env_data_dir": temp_dir,
+            "sesame_task_planning_heuristic": "lmcut"
         })
         
         # Initialize environment
