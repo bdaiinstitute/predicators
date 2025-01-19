@@ -507,39 +507,40 @@ class MockEnvCreatorBase(ABC):
         
         # Get plan to goal
         planner = self._create_planner(initial_atoms, goal_atoms, objects)
-        plan = next(planner(), None)
-        
-        if plan is not None:
+        try:
+            skeleton, atoms_sequence, metrics = next(planner())
             # Follow plan to get shortest path
             curr_atoms = initial_atoms.copy()
-            for op in plan:
+            for op in skeleton:
                 next_atoms = self._get_next_atoms(curr_atoms, op)
                 source_id = state_to_id[frozenset(curr_atoms)]
                 dest_id = state_to_id[frozenset(next_atoms)]
                 shortest_path_edges.add((source_id, dest_id))
                 shortest_path_states.add(frozenset(next_atoms))
                 curr_atoms = next_atoms
+        except StopIteration:
+            pass
         
         # Create edge data
         edge_data = []
         edge_count = 0
-        for source_atoms, op, dest_atoms in transitions:
+        for source_atoms, operator, dest_atoms in transitions:
             source_state = frozenset(source_atoms)
             dest_state = frozenset(dest_atoms)
             source_id = state_to_id[source_state]
             dest_id = state_to_id[dest_state]
             if source_id != dest_id:  # Skip self-loops
                 # Create detailed edge label
-                op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
+                op_str = f"{operator.name}({','.join(obj.name for obj in operator.objects)})"
                 edge_data.append({
                     'id': f'edge_{edge_count}',
                     'source': source_id,
                     'target': dest_id,
                     'label': op_str,
-                    'fullLabel': self._get_edge_label(op),
+                    'fullLabel': self._get_edge_label(operator),
                     'is_shortest_path': (source_id, dest_id) in shortest_path_edges,
                     'affects_belief': any(effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')) 
-                                       for effect in (op.add_effects | op.delete_effects))
+                                       for effect in (operator.add_effects | operator.delete_effects))
                 })
                 edge_count += 1
         
