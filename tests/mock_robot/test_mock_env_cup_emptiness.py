@@ -55,7 +55,9 @@ def test_with_belief_observe_cup_emptiness():
     - Single cup on table
     - Initial state: Content unknown
     - Goal state: Content known
-    - Actions: Move to view, Observe content
+    - Actions: 
+      1. MoveToHandViewObject (not in belief space)
+      2. ObserveCupContent (in belief space)
     """
     # Set up configuration
     test_name = "test_with_belief_observe_cup_emptiness"
@@ -66,11 +68,11 @@ def test_with_belief_observe_cup_emptiness():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir  # Set data directory for this test
+        "mock_env_data_dir": test_dir,  # Set data directory for this test
+        "mock_env_use_belief_operators": True,  # Enable belief operators
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
-    
-    # Enable belief-space operators
-    MockSpotEnv.use_belief_space_operators = True
     
     # Create environment creator
     env_creator = ManualMockEnvCreator(test_dir)
@@ -83,17 +85,25 @@ def test_with_belief_observe_cup_emptiness():
     
     # Create initial state atoms
     initial_atoms = {
+        # Robot state
         GroundAtom(_HandEmpty, [robot]),
+        
+        # Cup state
         GroundAtom(_On, [cup, table]),
         GroundAtom(_ContainingWaterUnknown, [cup]),
         GroundAtom(_NotBlocked, [cup]),
         GroundAtom(_IsPlaceable, [cup]),
-        GroundAtom(_HasFlatTopSurface, [table]),
-        GroundAtom(_Reachable, [robot, cup]),
-        GroundAtom(_NEq, [cup, table]),
         GroundAtom(_NotInsideAnyContainer, [cup]),
         GroundAtom(_FitsInXY, [cup, table]),
-        GroundAtom(_NotHolding, [robot, cup])
+        GroundAtom(_NotHolding, [robot, cup]),
+        
+        # Environment state
+        GroundAtom(_HasFlatTopSurface, [table]),
+        GroundAtom(_Reachable, [robot, cup]),
+        GroundAtom(_Reachable, [robot, table]),
+        
+        # Inequality constraints
+        GroundAtom(_NEq, [cup, table])
     }
     
     # Create goal atoms
@@ -108,9 +118,6 @@ def test_with_belief_observe_cup_emptiness():
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
-    
-    # Cleanup
-    MockSpotEnv.use_belief_space_operators = False
 
 
 def test_with_belief_check_and_pick_cup():
@@ -120,20 +127,33 @@ def test_with_belief_check_and_pick_cup():
     manipulation operators in a single sequence.
     
     Sequence:
-    1. MoveToHandObserveObjectFromTop
-    2. ObserveContainerContent
+    1. MoveToHandViewObjectFromTop
+    2. ObserveCupContent
     3. MoveToHandViewObject
     4. PickObjectFromTop
     """
-    # Enable belief-space operators
-    MockSpotEnv.use_belief_space_operators = True
+    # Set up configuration
+    test_name = "test_with_belief_check_and_pick_cup"
+    test_dir = os.path.join("mock_env_data", test_name)
+    utils.reset_config({
+        "env": "mock_spot",
+        "approach": "oracle",
+        "seed": 123,
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
+    })
+    
     env = MockSpotEnv(use_gui=False)
-
+    
     # Create test objects
     robot = Object("robot", _robot_type)
     cup = Object("cup", _container_type)
     table = Object("table", _immovable_object_type)
-
+    
     # Create initial state with unknown cup content
     # Initial predicates: NotBlocked(cup), HandEmpty(robot), ContainingWaterUnknown(cup)
     state_id = env.add_state(
@@ -142,7 +162,7 @@ def test_with_belief_check_and_pick_cup():
         objects_in_view={cup.name, table.name},
         objects_in_hand=set()
     )
-
+    
     # State after moving to observe from top
     # Added predicates: InHandViewFromTop(robot, cup)
     observe_state_id = env.add_state(
@@ -151,7 +171,7 @@ def test_with_belief_check_and_pick_cup():
         objects_in_view={cup.name, table.name},
         objects_in_hand=set()
     )
-
+    
     # State after observing content
     # Added: ContainingWaterKnown(cup)
     # Removed: ContainingWaterUnknown(cup)
@@ -161,7 +181,7 @@ def test_with_belief_check_and_pick_cup():
         objects_in_view={cup.name, table.name},
         objects_in_hand=set()
     )
-
+    
     # State after moving to hand view for picking
     # Added: InHandView(robot, cup)
     view_state_id = env.add_state(
@@ -170,7 +190,7 @@ def test_with_belief_check_and_pick_cup():
         objects_in_view={cup.name, table.name},
         objects_in_hand=set()
     )
-
+    
     # Final state after picking
     # Added: Holding(robot, cup)
     # Removed: On(cup, table), HandEmpty(robot), InHandView(robot, cup)
@@ -180,31 +200,23 @@ def test_with_belief_check_and_pick_cup():
         objects_in_view={cup.name, table.name},
         objects_in_hand={cup.name}  # Cup now in hand
     )
-
+    
     # Add transitions for the complete sequence
-    env.add_transition(state_id, "MoveToHandObserveObjectFromTop", observe_state_id)
-    env.add_transition(observe_state_id, "ObserveContainerContent", known_state_id)
+    env.add_transition(state_id, "MoveToHandViewObjectFromTop", observe_state_id)
+    env.add_transition(observe_state_id, "ObserveCupContent", known_state_id)
     env.add_transition(known_state_id, "MoveToHandViewObject", view_state_id)
     env.add_transition(view_state_id, "PickObjectFromTop", holding_state_id)
-
-    # Save graph data
-    test_dir = Path("mock_env_data") / "test_with_belief_check_and_pick_cup"
-    os.makedirs(test_dir / "transitions", exist_ok=True)
-    env._save_graph_data()
-
+    
     # Verify all transitions in sequence
-    assert env._transitions[state_id]["MoveToHandObserveObjectFromTop"] == observe_state_id
-    assert env._transitions[observe_state_id]["ObserveContainerContent"] == known_state_id
+    assert env._transitions[state_id]["MoveToHandViewObjectFromTop"] == observe_state_id
+    assert env._transitions[observe_state_id]["ObserveCupContent"] == known_state_id
     assert env._transitions[known_state_id]["MoveToHandViewObject"] == view_state_id
     assert env._transitions[view_state_id]["PickObjectFromTop"] == holding_state_id
-
+    
     # Verify final state has cup in hand
     final_obs = env._observations[holding_state_id]
     assert cup.name in final_obs.objects_in_hand
     assert not final_obs.gripper_open
-
-    # Cleanup
-    MockSpotEnv.use_belief_space_operators = False 
 
 
 def test_with_belief_plan_check_and_pick_cup():
@@ -249,11 +261,11 @@ def test_with_belief_plan_check_and_pick_cup():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
-    
-    # Enable belief-space operators
-    MockSpotEnv.use_belief_space_operators = True
     
     # Create environment creator
     env_creator = ManualMockEnvCreator(test_dir)
@@ -292,9 +304,6 @@ def test_with_belief_plan_check_and_pick_cup():
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
-    
-    # Cleanup
-    MockSpotEnv.use_belief_space_operators = False
 
 
 def test_with_belief_plan_check_and_place_cup():
@@ -342,11 +351,11 @@ def test_with_belief_plan_check_and_place_cup():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
-    
-    # Enable belief-space operators
-    MockSpotEnv.use_belief_space_operators = True
     
     # Create environment creator
     env_creator = ManualMockEnvCreator(test_dir)
@@ -392,9 +401,6 @@ def test_with_belief_plan_check_and_place_cup():
     # Verify transition graph file exists
     graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
-    
-    # Cleanup
-    MockSpotEnv.use_belief_space_operators = False
 
 
 def test_view_pick_and_place_cup():
@@ -532,11 +538,11 @@ def test_observe_two_cups_and_place_empty():
         "seed": 123,
         "num_train_tasks": 0,
         "num_test_tasks": 1,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_use_belief_operators": True,
+        "sesame_task_planner": "astar",
+        "sesame_task_planning_heuristic": "goal_count"
     })
-    
-    # Enable belief-space operators
-    MockSpotEnv.use_belief_space_operators = True
     
     # Create environment creator
     env_creator = ManualMockEnvCreator(test_dir)
@@ -603,5 +609,3 @@ def test_observe_two_cups_and_place_empty():
     graph_file = Path(test_dir) / "transitions" / f"{name}.html"
     assert graph_file.exists(), "Transition graph file not generated"
     
-    # Cleanup
-    MockSpotEnv.use_belief_space_operators = False 
