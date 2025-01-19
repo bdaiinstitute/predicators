@@ -106,7 +106,9 @@ PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
              _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
              _DrawerClosed, _DrawerOpen, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
-             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty}
+             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, _InHandViewFromTop,
+             _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater, _NotContainingWater,
+             _ContainerEmpty}
 # Note: Now adding belief predicates
 
 # Export goal predicates
@@ -345,8 +347,6 @@ class MockSpotEnv(BaseEnv):
                             del_effs, ignore_effs)
 
         # MoveToHandViewObject: Move robot's hand to view an object
-        # Preconditions: Object not blocked, hand empty
-        # Effects: Object in hand's view
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
         parameters = [robot, obj]
@@ -359,6 +359,21 @@ class MockSpotEnv(BaseEnv):
         del_effs = set()
         ignore_effs = {_InHandView, _InView, _RobotReadyForSweeping}
         yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
+                            add_effs, del_effs, ignore_effs)
+
+        # MoveToHandViewObjectFromTop: Move robot's hand to view an object from above
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        parameters = [robot, obj]
+        preconds = {
+            LiftedAtom(_NotBlocked, [obj]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotInsideAnyContainer, [obj])  # Object must not be in a container
+        }
+        add_effs = {LiftedAtom(_InHandViewFromTop, [robot, obj])}
+        del_effs = set()
+        ignore_effs = {_InHandView, _InView, _RobotReadyForSweeping}
+        yield STRIPSOperator("MoveToHandViewObjectFromTop", parameters, preconds,
                             add_effs, del_effs, ignore_effs)
 
         # MoveToHandViewObjectInContainer: Move robot's hand to view an object inside a container
@@ -519,35 +534,6 @@ class MockSpotEnv(BaseEnv):
         ignore_effs = set()
         yield STRIPSOperator("CloseDrawer", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
-
-        # MoveToHandObserveObjectFromTop: Move to observe a container from above
-        # Preconditions: Container not blocked, hand empty, content unknown
-        # Effects: Container in view from top
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-
-        preconditions = {
-            LiftedAtom(_NotBlocked, [parameters[1]]),
-            LiftedAtom(_HandEmpty, [parameters[0]]),
-            LiftedAtom(_ContainingWaterUnknown, [parameters[1]])
-        }
-
-        add_effects = {
-            LiftedAtom(_InHandViewFromTop, [parameters[0], parameters[1]])
-        }
-
-        delete_effects = set()
-
-        ignore_effects = {_InHandView, _InView, _RobotReadyForSweeping}  # Only ignore view-related effects
-
-        yield STRIPSOperator("MoveToHandObserveObjectFromTop",
-                            parameters,
-                            preconditions,
-                            add_effects,
-                            delete_effects,
-                            ignore_effects)
 
         # ObserveCupContent: Observe if a cup has water (renamed from ObserveContainerContent)
         parameters = [
