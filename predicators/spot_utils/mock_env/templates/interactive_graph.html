@@ -136,6 +136,7 @@
             container: document.getElementById('cy'),
             elements: graphData,
             style: [
+                // Base node style
                 {
                     selector: 'node',
                     style: {
@@ -152,34 +153,11 @@
                         'padding': '10px'
                     }
                 },
-                {
-                    selector: 'node[?is_shortest_path]',
-                    style: {
-                        'background-color': '#fff7e6',
-                        'border-color': '#ff7f0e',
-                        'border-width': 3
-                    }
-                },
-                {
-                    selector: 'node[?is_initial]',
-                    style: {
-                        'background-color': '#e6f3ff',
-                        'border-color': '#2171b5',
-                        'border-width': 3
-                    }
-                },
-                {
-                    selector: 'node[?is_goal]',
-                    style: {
-                        'background-color': '#e6ffe6',
-                        'border-color': '#2ca02c',
-                        'border-width': 3
-                    }
-                },
+                // Base edge style
                 {
                     selector: 'edge',
                     style: {
-                        'width': 2,
+                        'width': 1,
                         'line-color': '#999',
                         'target-arrow-color': '#999',
                         'target-arrow-shape': 'triangle',
@@ -190,63 +168,115 @@
                         'text-background-opacity': 1,
                         'text-background-padding': '5px',
                         'text-rotation': 'autorotate',
-                        'text-margin-y': -10
+                        'text-margin-y': -10,
+                        'line-style': 'dashed',
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'edge-distances': 'node-position'
                     }
                 },
-                {
-                    selector: 'edge[?is_shortest_path][!affects_belief]',
-                    style: {
-                        'line-color': '#2171b5',  // Dark blue
-                        'target-arrow-color': '#2171b5',
-                        'width': 2.5
-                    }
-                },
+                // Non-shortest path edges (non-belief)
                 {
                     selector: 'edge[!is_shortest_path][!affects_belief]',
                     style: {
-                        'line-color': '#87CEEB',  // Light blue
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'line-color': '#87CEEB',
                         'target-arrow-color': '#87CEEB',
                         'width': 1,
                         'line-style': 'dashed'
                     }
                 },
-                {
-                    selector: 'edge[?is_shortest_path][?affects_belief]',
-                    style: {
-                        'line-color': '#E74C3C',  // Bright red
-                        'target-arrow-color': '#E74C3C',
-                        'width': 3
-                    }
-                },
+                // Non-shortest path edges (belief)
                 {
                     selector: 'edge[!is_shortest_path][?affects_belief]',
                     style: {
-                        'line-color': '#FFB6C1',  // Light red
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [70],
+                        'control-point-weights': [0.5],
+                        'line-color': '#FFB6C1',
                         'target-arrow-color': '#FFB6C1',
                         'width': 2,
                         'line-style': 'dashed'
                     }
-                }
+                },
+                // Shortest path edges (non-belief)
+                {
+                    selector: 'edge[?is_shortest_path][!affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'line-color': '#2171b5',
+                        'target-arrow-color': '#2171b5',
+                        'width': 2.5,
+                        'line-style': 'solid'
+                    }
+                },
+                // Shortest path edges (belief)
+                {
+                    selector: 'edge[?is_shortest_path][?affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [70],
+                        'control-point-weights': [0.5],
+                        'line-color': '#E74C3C',
+                        'target-arrow-color': '#E74C3C',
+                        'width': 3,
+                        'line-style': 'solid'
+                    }
+                },
+                // Shortest path nodes (should be last to override other node styles)
+                {
+                    selector: 'node[?is_shortest_path]',
+                    style: {
+                        'background-color': '#fff7e6',
+                        'border-color': '#ff7f0e',
+                        'border-width': 3
+                    }
+                },
+                // Initial state
+                {
+                    selector: 'node[?is_initial]',
+                    style: {
+                        'background-color': '#e6f3ff',
+                        'border-color': '#2171b5',
+                        'border-width': 3
+                    }
+                },
+                // Goal state
+                {
+                    selector: 'node[?is_goal]',
+                    style: {
+                        'background-color': '#e6ffe6',
+                        'border-color': '#2ca02c',
+                        'border-width': 3
+                    }
+                },
             ],
             layout: {
-                name: 'dagre',
-                rankDir: 'LR',
+                name: 'breadthfirst',
+                rankDir: 'TB',  // Top to Bottom layout
                 nodeSep: 100,
                 rankSep: 150,
                 edgeSep: 50,
-                animate: true
+                animate: true,
+                roots: '[?is_initial]'  // Start layout from initial state
             },
             wheelSensitivity: 0.2
         });
 
-        // Layout options
+        // Layout options for reset
         const layout_options = {
-            name: 'dagre',
-            rankDir: 'LR',
+            name: 'breadthfirst',
+            rankDir: 'TB',  // Top to Bottom layout
             nodeSep: 100,
             rankSep: 150,
             edgeSep: 50,
-            animate: document.getElementById('animate').checked
+            animate: document.getElementById('animate').checked,
+            roots: '[?is_initial]'  // Start layout from initial state
         };
 
         function formatStateInfo(fullLabel) {
