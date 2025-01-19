@@ -106,7 +106,8 @@ PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
              _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
              _DrawerClosed, _DrawerOpen, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
-             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty}  # Add belief predicates
+             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty}
+# Note: Now adding belief predicates
 
 # Export goal predicates
 GOAL_PREDICATES = {_On, _Inside, _ContainingWaterKnown, _Known_ContainerEmpty, _DrawerOpen}  # Add DrawerOpen to goal predicates
