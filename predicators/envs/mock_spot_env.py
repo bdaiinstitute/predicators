@@ -487,52 +487,38 @@ class MockSpotEnv(BaseEnv):
                             del_effs, ignore_effs)
 
         # OpenDrawer: Open drawer without observation
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-        preconditions = {
-            LiftedAtom(_DrawerClosed, [parameters[1]]),  # Drawer must be closed initially
-            LiftedAtom(_Reachable, [parameters[0], parameters[1]]),  # Robot must be able to reach drawer
-            LiftedAtom(_NotBlocked, [parameters[1]]),  # Drawer must not be blocked
-            LiftedAtom(_HandEmpty, [parameters[0]]),  # Hand must be empty
+        robot = Variable("?robot", _robot_type)
+        drawer = Variable("?drawer", _container_type)
+        parameters = [robot, drawer]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_DrawerClosed, [drawer]),
+            LiftedAtom(_Reachable, [robot, drawer]),
+            LiftedAtom(_NotBlocked, [drawer]),
+            LiftedAtom(_InHandView, [robot, drawer])  # Drawer must be in hand view
         }
-        add_effects = {
-            LiftedAtom(_DrawerOpen, [parameters[1]]),  # Drawer becomes open
-        }
-        delete_effects = {
-            LiftedAtom(_DrawerClosed, [parameters[1]]),  # Remove closed state
-        }
-        yield STRIPSOperator("OpenDrawer",
-                             parameters,
-                             preconditions,
-                             add_effects,
-                             delete_effects,
-                             set())
-        
+        add_effs = {LiftedAtom(_DrawerOpen, [drawer])}
+        del_effs = {LiftedAtom(_DrawerClosed, [drawer])}
+        ignore_effs = set()
+        yield STRIPSOperator("OpenDrawer", parameters, preconds, add_effs,
+                            del_effs, ignore_effs)
+
         # CloseDrawer: Close drawer without observation
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-        preconditions = {
-            LiftedAtom(_DrawerOpen, [parameters[1]]),  # Drawer must be open initially
-            LiftedAtom(_Reachable, [parameters[0], parameters[1]]),  # Robot must be able to reach drawer
-            LiftedAtom(_NotBlocked, [parameters[1]]),  # Drawer must not be blocked
-            LiftedAtom(_HandEmpty, [parameters[0]]),  # Hand must be empty
+        robot = Variable("?robot", _robot_type)
+        drawer = Variable("?drawer", _container_type)
+        parameters = [robot, drawer]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_DrawerOpen, [drawer]),
+            LiftedAtom(_Reachable, [robot, drawer]),
+            LiftedAtom(_NotBlocked, [drawer]),
+            LiftedAtom(_InHandView, [robot, drawer])  # Drawer must be in hand view
         }
-        add_effects = {
-            LiftedAtom(_DrawerClosed, [parameters[1]]),  # Drawer becomes closed
-        }
-        delete_effects = {
-            LiftedAtom(_DrawerOpen, [parameters[1]]),  # Remove open state
-        }
-        yield STRIPSOperator("CloseDrawer",
-                             parameters,
-                             preconditions,
-                             add_effects,
-                             delete_effects,
-                             set())
+        add_effs = {LiftedAtom(_DrawerClosed, [drawer])}
+        del_effs = {LiftedAtom(_DrawerOpen, [drawer])}
+        ignore_effs = set()
+        yield STRIPSOperator("CloseDrawer", parameters, preconds, add_effs,
+                            del_effs, ignore_effs)
 
         # MoveToHandObserveObjectFromTop: Move to observe a container from above
         # Preconditions: Container not blocked, hand empty, content unknown
