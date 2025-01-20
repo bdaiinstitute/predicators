@@ -660,8 +660,8 @@ class MockSpotEnv(BaseEnv):
         self._save_graph_data()
 
 
-class MockSpotPickPlaceEnv(MockSpotEnv):
-    """Mock environment specifically for pick-and-place tasks."""
+class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
+    """Mock environment specifically for pick-and-place two cuptasks."""
     
     def __init__(self, name: str = "pick_place") -> None:
         """Initialize pick-and-place environment."""
