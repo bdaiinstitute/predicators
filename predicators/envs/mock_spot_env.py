@@ -658,3 +658,34 @@ class MockSpotEnv(BaseEnv):
         self._transitions[from_state_id][action_name] = to_state_id
         logging.debug("Added transition: %s -(%s)-> %s", from_state_id, action_name, to_state_id)
         self._save_graph_data()
+
+
+class MockSpotPickPlaceEnv(MockSpotEnv):
+    """Mock environment specifically for pick-and-place tasks.
+    
+    This subclass selects only the operators needed for pick-and-place:
+    - MoveToReachObject
+    - MoveToHandViewObject
+    - PickObjectFromTop
+    - PlaceObjectOnTop
+    - DropObjectInside
+    """
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to pick-and-place tasks."""
+        # Get all operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside"
+        }
+        
+        # Filter operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
