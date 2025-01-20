@@ -27,7 +27,7 @@ from gym.spaces import Box
 from predicators.envs import BaseEnv
 from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext
 from predicators.structs import Action, State, Object, Type, EnvironmentTask, Video, Image
-from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate
+from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom
 from predicators.settings import CFG
 from bosdyn.client import math_helpers
 
@@ -661,15 +661,73 @@ class MockSpotEnv(BaseEnv):
 
 
 class MockSpotPickPlaceEnv(MockSpotEnv):
-    """Mock environment specifically for pick-and-place tasks.
+    """Mock environment specifically for pick-and-place tasks."""
     
-    This subclass selects only the operators needed for pick-and-place:
-    - MoveToReachObject
-    - MoveToHandViewObject
-    - PickObjectFromTop
-    - PlaceObjectOnTop
-    - DropObjectInside
-    """
+    def __init__(self, name: str = "pick_place") -> None:
+        """Initialize pick-and-place environment."""
+        super().__init__()
+        self.name = name
+        
+        # Create objects
+        self.robot = Object("robot", _robot_type)
+        self.cup1 = Object("cup1", _container_type)
+        self.cup2 = Object("cup2", _container_type)
+        self.table = Object("table", _immovable_object_type)
+        self.target = Object("target", _container_type)
+        
+        # Store objects
+        self.objects = {self.robot, self.cup1, self.cup2, self.table, self.target}
+        
+        # Create initial and goal atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            GroundAtom(_NotHolding, [self.robot, self.cup1]),
+            GroundAtom(_NotHolding, [self.robot, self.cup2]),
+            
+            # Object positions
+            GroundAtom(_On, [self.cup1, self.table]),
+            GroundAtom(_On, [self.cup2, self.table]),
+            GroundAtom(_On, [self.target, self.table]),
+            
+            # Object properties
+            GroundAtom(_NotBlocked, [self.cup1]),
+            GroundAtom(_NotBlocked, [self.cup2]),
+            GroundAtom(_NotBlocked, [self.target]),
+            GroundAtom(_IsPlaceable, [self.cup1]),
+            GroundAtom(_IsPlaceable, [self.cup2]),
+            
+            # Surface properties
+            GroundAtom(_HasFlatTopSurface, [self.table]),
+            
+            # Containment properties
+            GroundAtom(_FitsInXY, [self.cup1, self.target]),
+            GroundAtom(_FitsInXY, [self.cup2, self.target]),
+            GroundAtom(_NotInsideAnyContainer, [self.cup1]),
+            GroundAtom(_NotInsideAnyContainer, [self.cup2]),
+            GroundAtom(_NotHolding, [self.robot, self.target]),
+            
+            # Reachability
+            GroundAtom(_Reachable, [self.robot, self.cup1]),
+            GroundAtom(_Reachable, [self.robot, self.cup2]),
+            GroundAtom(_Reachable, [self.robot, self.target]),
+            GroundAtom(_Reachable, [self.robot, self.table]),
+            GroundAtom(_InHandView, [self.robot, self.cup1]),
+            GroundAtom(_InHandView, [self.robot, self.cup2]),
+            
+            # Object relationships
+            GroundAtom(_NEq, [self.cup1, self.table]),
+            GroundAtom(_NEq, [self.cup1, self.target]),
+            GroundAtom(_NEq, [self.cup2, self.table]),
+            GroundAtom(_NEq, [self.cup2, self.target]),
+            GroundAtom(_NEq, [self.cup1, self.cup2]),
+            GroundAtom(_NEq, [self.target, self.table])
+        }
+        
+        self.goal_atoms = {
+            GroundAtom(_Inside, [self.cup1, self.target]),
+            GroundAtom(_Inside, [self.cup2, self.target])
+        }
     
     def _create_operators(self) -> Iterator[STRIPSOperator]:
         """Create STRIPS operators specific to pick-and-place tasks."""
@@ -679,7 +737,7 @@ class MockSpotPickPlaceEnv(MockSpotEnv):
         # Define operators to keep
         op_names_to_keep = {
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            "MoveToHandViewObject", 
             "PickObjectFromTop",
             "PlaceObjectOnTop",
             "DropObjectInside"
