@@ -73,7 +73,7 @@ def test_two_cup_pick_place_with_manual_images():
        - Proper metadata
     """
     # Set up configuration
-    test_name = "test_task_two_cup_pick_place"
+    test_name = "test_mock_two_cup_pick_place_manual_images"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
         "env": "mock_spot",
