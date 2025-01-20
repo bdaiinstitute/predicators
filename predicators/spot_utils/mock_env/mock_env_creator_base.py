@@ -111,11 +111,12 @@ class MockEnvCreatorBase(ABC):
         console (Console): Rich console for pretty printing
     """
 
-    def __init__(self, output_dir: str) -> None:
+    def __init__(self, output_dir: str, env: Optional[MockSpotEnv] = None) -> None:
         """Initialize the mock environment creator.
         
         Args:
             output_dir: Directory to save output files
+            env: Environment instance to use (default: creates new MockSpotEnv)
         """
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
@@ -134,8 +135,8 @@ class MockEnvCreatorBase(ABC):
             "mock_env_data_dir": output_dir
         })
         
-        # Initialize environment (will use CFG.mock_env_data_dir)
-        self.env = MockSpotEnv()
+        # Use provided environment or create default one
+        self.env = env if env is not None else MockSpotEnv()
         
         # Get environment info
         self.types: Dict[str, Type] = {t.name: t for t in self.env.types}
@@ -964,18 +965,9 @@ class MockEnvCreatorBase(ABC):
 
     @abstractmethod
     def create_rgbd_image(self, rgb: np.ndarray, depth: np.ndarray,
-                         camera_name: str = "hand_color") -> Any:
-        """Create an RGBD image from RGB and depth arrays.
-        
-        Args:
-            rgb: RGB image array
-            depth: Depth image array
-            camera_name: Name of camera that captured the image
-            
-        Returns:
-            RGBD image object (implementation specific)
-        """
-        pass 
+                         camera_name: str = "hand_color") -> None:
+        """Create an RGBDImageWithContext from RGB and depth arrays."""
+        pass
 
     def _get_state_id(self, atoms: Set[GroundAtom]) -> str:
         """Get a unique ID for a state based on its atoms.
