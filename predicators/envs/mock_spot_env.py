@@ -536,75 +536,74 @@ class MockSpotEnv(BaseEnv):
                             del_effs, ignore_effs)
 
         # ObserveCupContent: Observe if a cup has water (renamed from ObserveContainerContent)
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-        preconditions = {
-            LiftedAtom(_InHandViewFromTop, [parameters[0], parameters[1]]),
-            LiftedAtom(_ContainingWaterUnknown, [parameters[1]]),
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        parameters = [robot, container]
+        preconds = {
+            LiftedAtom(_InHandViewFromTop, [robot, container]),
+            LiftedAtom(_ContainingWaterUnknown, [container]),
         }
-        add_effects = {
-            LiftedAtom(_ContainingWaterKnown, [parameters[1]]),
+        add_effs = {
+            LiftedAtom(_ContainingWaterKnown, [container]),
         }
-        delete_effects = {
-            LiftedAtom(_ContainingWaterUnknown, [parameters[1]]),
+        del_effs = {
+            LiftedAtom(_ContainingWaterUnknown, [container]),
         }
-        ignore_effects = set()  # No effects to ignore for this operator
+        ignore_effs = set()  # No effects to ignore for this operator
         yield STRIPSOperator("ObserveCupContent",
                             parameters,
-                            preconditions,
-                            add_effects,
-                            delete_effects,
-                            ignore_effects)
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
 
         # ObserveDrawerContentFindEmpty: Look in drawer and find it empty
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-        preconditions = {
-            LiftedAtom(_Unknown_ContainerEmpty, [parameters[1]]),
-            LiftedAtom(_DrawerOpen, [parameters[1]]),  # Drawer must be open to observe
-            LiftedAtom(_Reachable, [parameters[0], parameters[1]]),  # Robot must be able to reach drawer
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        parameters = [robot, container]
+        preconds = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
+            LiftedAtom(_DrawerOpen, [container]),  # Drawer must be open to observe
+            LiftedAtom(_Reachable, [robot, container]),  # Robot must be able to reach drawer
         }
-        add_effects = {
-            LiftedAtom(_Known_ContainerEmpty, [parameters[1]]),  # We now know the drawer's state
-            LiftedAtom(_BelieveTrue_ContainerEmpty, [parameters[1]]),  # We believe it's empty
+        add_effs = {
+            LiftedAtom(_Known_ContainerEmpty, [container]),  # We now know the drawer's state
+            LiftedAtom(_BelieveTrue_ContainerEmpty, [container]),  # We believe it's empty
         }
-        delete_effects = {
-            LiftedAtom(_Unknown_ContainerEmpty, [parameters[1]]),
+        del_effs = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
         }
+        ignore_effs = set()
         yield STRIPSOperator("ObserveDrawerContentFindEmpty",
-                             parameters,
-                             preconditions,
-                             add_effects,
-                             delete_effects,
-                             set())
+                            parameters,
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
 
         # ObserveDrawerContentFindNotEmpty: Look in drawer and find objects
-        parameters = [
-            Variable("?robot", _robot_type),
-            Variable("?container", _container_type),
-        ]
-        preconditions = {
-            LiftedAtom(_Unknown_ContainerEmpty, [parameters[1]]),
-            LiftedAtom(_DrawerOpen, [parameters[1]]),  # Drawer must be open to observe
-            LiftedAtom(_Reachable, [parameters[0], parameters[1]]),  # Robot must be able to reach drawer
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        parameters = [robot, container]
+        preconds = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
+            LiftedAtom(_DrawerOpen, [container]),  # Drawer must be open to observe
+            LiftedAtom(_Reachable, [robot, container]),  # Robot must be able to reach drawer
         }
-        add_effects = {
-            LiftedAtom(_Known_ContainerEmpty, [parameters[1]]),  # We now know the drawer's state
-            LiftedAtom(_BelieveFalse_ContainerEmpty, [parameters[1]]),  # We believe it's not empty
+        add_effs = {
+            LiftedAtom(_Known_ContainerEmpty, [container]),  # We now know the drawer's state
+            LiftedAtom(_BelieveFalse_ContainerEmpty, [container]),  # We believe it's not empty
         }
-        delete_effects = {
-            LiftedAtom(_Unknown_ContainerEmpty, [parameters[1]]),
+        del_effs = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
         }
+        ignore_effs = set()
         yield STRIPSOperator("ObserveDrawerContentFindNotEmpty",
-                             parameters,
-                             preconditions,
-                             add_effects,
-                             delete_effects,
-                             set())
+                            parameters,
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
 
         if not CFG.mock_env_use_belief_operators:
             return
