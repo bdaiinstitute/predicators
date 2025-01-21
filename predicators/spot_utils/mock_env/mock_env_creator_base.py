@@ -190,9 +190,11 @@ class MockEnvCreatorBase(ABC):
                 fluent_predicates.add(effect.predicate.name)
         return fluent_predicates
 
-    def add_state(self, state_id: str, views: Dict[str, Dict[str, Dict[str, np.ndarray]]],
-                 objects_in_view: Optional[List[str]] = None,
-                 objects_in_hand: Optional[List[str]] = None,
+    def add_state(self, 
+                 state_id: str,
+                 views: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                 objects_in_view: Set[Object],
+                 objects_in_hand: Set[Object],
                  gripper_open: bool = True) -> None:
         """Add a state to the environment.
         
@@ -210,8 +212,8 @@ class MockEnvCreatorBase(ABC):
                         }
                     }
                 }
-            objects_in_view: List of object names visible in the image
-            objects_in_hand: List of object names being held
+            objects_in_view: Set of object names visible in the image
+            objects_in_hand: Set of object names being held
             gripper_open: Whether the gripper is open
         """
         # Create state directory
@@ -232,8 +234,8 @@ class MockEnvCreatorBase(ABC):
         
         # Create state metadata
         state_data = {
-            "objects_in_view": objects_in_view or [],
-            "objects_in_hand": objects_in_hand or [],
+            "objects_in_view": [obj.name for obj in objects_in_view],
+            "objects_in_hand": [obj.name for obj in objects_in_hand],
             "gripper_open": gripper_open,
             "views": {
                 view_name: {
@@ -963,7 +965,6 @@ class MockEnvCreatorBase(ABC):
         )
         self.console.print(state_panel)
 
-    @abstractmethod
     def create_rgbd_image(self, rgb: np.ndarray, depth: np.ndarray,
                          camera_name: str = "hand_color") -> None:
         """Create an RGBDImageWithContext from RGB and depth arrays."""
