@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Dict, List, Optional, Sequence, Set, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 
@@ -11,7 +11,7 @@ import PIL.Image
 from predicators.pretrained_model_interface import OpenAIVLM
 from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext
+    RGBDImageWithContext, UnposedImageWithContext
 from predicators.structs import Object, State, VLMGroundAtom, VLMPredicate
 from predicators.utils import get_object_combinations
 
@@ -157,7 +157,7 @@ def vlm_predicate_classify(question: str, state: State) -> bool | None:
 
 def vlm_predicate_batch_query(
     queries: List[str],
-    images: Dict[str, RGBDImageWithContext],
+    images: Dict[str, Union[RGBDImageWithContext, UnposedImageWithContext]],
     predicate_prompts: Optional[List[str]] = None,
     num_runs: int = 3
 ) -> List[bool]:
@@ -245,7 +245,7 @@ def vlm_predicate_batch_query(
 
 def vlm_predicate_batch_classify(
         atoms: Set[VLMGroundAtom],
-        images: Dict[str, RGBDImageWithContext],
+        images: Dict[str, Union[RGBDImageWithContext, UnposedImageWithContext]],
         predicates: Optional[Set[VLMPredicate]] = None,
         get_dict: bool = True
 ) -> Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom]:
