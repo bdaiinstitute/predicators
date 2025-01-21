@@ -46,7 +46,7 @@ import numpy as np
 from predicators.envs import get_or_create_env
 from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext
 from predicators.perception.base_perceiver import BasePerceiver
-from predicators.structs import Action, EnvironmentTask, GoalDescription, GroundAtom, Observation, Predicate, State, Task, Video, VLMPredicate, VLMGroundAtom
+from predicators.structs import Action, EnvironmentTask, GoalDescription, GroundAtom, Observation, Predicate, State, Task, Video, VLMPredicate, VLMGroundAtom, Object
 from predicators.settings import CFG
 from predicators.envs.mock_spot_env import _MockSpotObservation
 
@@ -60,8 +60,9 @@ class MockSpotPerceiver(BasePerceiver):
         # Current observation state
         self._current_rgbd: Optional[RGBDImageWithContext] = None
         self._gripper_open: bool = True
-        self._objects_in_view: Set[str] = set()
-        self._objects_in_hand: Set[str] = set()
+        self._objects_in_view: Set[Object] = set()
+        self._objects_in_hand: Set[Object] = set()
+        # FIXME: update the saving/loading code accordingly
         
         # VLM-related state
         self._camera_images = None
