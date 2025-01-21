@@ -46,116 +46,128 @@ Notes:
 """
 import os
 import numpy as np
+import pytest
+from pathlib import Path
 import matplotlib.pyplot as plt
 import yaml
-from typing import Dict, Tuple, Literal, Mapping
+from typing import Dict, Set, Tuple, Literal
 
-from predicators.spot_utils.mock_env.mock_env_creator_manual import ManualMockEnvCreator
-from predicators.structs import Object, Type
+from predicators.envs.mock_spot_env import (
+    MockSpotPickPlaceTwoCupEnv, _robot_type, _container_type, _immovable_object_type,
+    _HandEmpty, _NotHolding, _On, _NotBlocked, _Inside, _IsPlaceable, 
+    _HasFlatTopSurface, _FitsInXY, _NotInsideAnyContainer, _Reachable,
+    _InHandView, _NEq
+)
+from predicators.structs import Object, GroundAtom
+from predicators.spot_utils.mock_env.mock_env_creator_base import MockEnvCreatorBase
+from predicators import utils
 
-# Define types for testing
-_robot_type = Type("robot", ["x", "y", "z"])
-_movable_object_type = Type("movable_object", ["x", "y", "z"])
-_immovable_object_type = Type("immovable_object", ["x", "y", "z"])
-_container_type = Type("container", ["x", "y", "z"])
 
-def test_manual_image_creation():
-    """Test both RGB and depth image processing and storage functionality."""
-    # Set up OpenAI key for testing
-    os.environ["OPENAI_API_KEY"] = "dummy_key_for_testing"
-    
+def test_manual_images():
+    """Test creating a mock environment with manual images."""
     # Set up configuration
-    test_name = "test_manual_image_creation"
+    test_name = "test_mock_env_manual_images"
     test_dir = os.path.join("mock_env_data", test_name)
+    utils.reset_config({
+        "env": "mock_spot",
+        "approach": "oracle",
+        "seed": 123,
+        "num_train_tasks": 0,
+        "num_test_tasks": 1,
+        "mock_env_data_dir": test_dir
+    })
     
-    # Get the path to the example image
-    example_img_path = os.path.join(os.path.dirname(__file__), "example_manual_mock_task_1", "state1_view1_img1.png")
-    
-    # Create a temporary depth image
-    example_depth_path = os.path.join(os.path.dirname(__file__), "example_manual_mock_task_1", "state1_view1_depth1.npy")
-    depth_img = np.ones((480, 640), dtype=np.float32)  # Example depth image
-    np.save(example_depth_path, depth_img)
+    # Create environment
+    env = MockSpotPickPlaceTwoCupEnv(name=test_name)
     
     # Create environment creator
-    creator = ManualMockEnvCreator(test_dir)
+    creator = MockEnvCreatorBase(test_dir, env=env)
     
-    # Test RGB image processing
-    rgb_img = creator.process_rgb_image(example_img_path)
-    assert rgb_img.dtype == np.uint8  # Should convert to uint8
-    assert len(rgb_img.shape) == 3  # Should be (H, W, 3)
+    # Get example image paths
+    example_rgb_path = os.path.join(os.path.dirname(__file__), 
+                                  "example_manual_mock_task_1", 
+                                  "state1_view1_img1.png")
     
-    # Test depth image processing
-    depth = creator.process_depth_image(example_depth_path)
-    assert depth.dtype == np.float32  # Should be float32
-    assert len(depth.shape) == 2  # Should be (H, W)
+    # Create temporary depth image
+    example_depth_path = os.path.join(os.path.dirname(__file__), 
+                                    "example_manual_mock_task_1", 
+                                    "state1_view1_depth1.npy")
+    depth_img = np.ones((480, 640), dtype=np.float32)
+    np.save(example_depth_path, depth_img)
     
-    # Create objects
-    robot = Object("robot", _robot_type)
-    block = Object("block", _movable_object_type)
-    table = Object("table", _immovable_object_type)
-    container = Object("container", _container_type)
-    objects = {robot, block, table, container}
-    
-    # Map of states to their views and images
-    test_state_images: Mapping[str, Mapping[str, Mapping[str, Mapping[str, Tuple[str, Literal["rgb", "depth"]]]]]] = {
-        "state_0": {  # Initial state
-            "view1": {
-                "cam1": {
-                    "rgb_img": (example_img_path, "rgb"),
-                    "depth_img": (example_depth_path, "depth")  # Using actual depth image
+    try:
+        # Map of states to their views and images
+        test_state_images: Dict[str, Dict[str, Dict[str, Dict[str, Tuple[str, Literal["rgb", "depth"]]]]]] = {
+            "state_0": {  # Initial state - both cups on table
+                "view1": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb"),
+                        "depth_img": (example_depth_path, "depth")
+                    },
+                    "cam2": {
+                        "rgb_img": (example_rgb_path, "rgb")
+                    }
                 },
-                "cam2": {
-                    "rgb_img": (example_img_path, "rgb")
+                "view2": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb")
+                    }
                 }
             },
-            "view2": {
-                "cam1": {
-                    "rgb_img": (example_img_path, "rgb")
-                }
-            }
-        },
-        "state_1": {  # Intermediate state (block in hand)
-            "view1": {
-                "cam1": {
-                    "rgb_img": (example_img_path, "rgb"),
-                    "depth_img": (example_depth_path, "depth")
-                },
-                "cam2": {
-                    "rgb_img": (example_img_path, "rgb")
-                }
-            }
-        },
-        "state_2": {  # Final state
-            "view1": {
-                "cam1": {
-                    "rgb_img": (example_img_path, "rgb")
+            "state_1": {  # First cup in hand
+                "view1": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb"),
+                        "depth_img": (example_depth_path, "depth")
+                    }
                 }
             },
-            "view2": {
-                "cam1": {
-                    "rgb_img": (example_img_path, "rgb")
-                },
-                "cam2": {
-                    "rgb_img": (example_img_path, "rgb"),
-                    "depth_img": (example_depth_path, "depth")
-                },
-                "cam3": {
-                    "rgb_img": (example_img_path, "rgb")
+            "state_2": {  # First cup in target
+                "view1": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb")
+                    },
+                    "cam2": {
+                        "rgb_img": (example_rgb_path, "rgb")
+                    }
+                }
+            },
+            "state_3": {  # Second cup in hand
+                "view1": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb"),
+                        "depth_img": (example_depth_path, "depth")
+                    }
+                }
+            },
+            "state_4": {  # Final state - both cups in target
+                "view1": {
+                    "cam1": {
+                        "rgb_img": (example_rgb_path, "rgb")
+                    }
                 }
             }
         }
-    }
-    
-    try:
+        
+        # Create sets of objects for each state
+        objects_in_view = {env.cup1, env.cup2, env.table, env.target}
+        
         # Process each state
         for state_id, views in test_state_images.items():
+            # Determine objects in hand based on state
+            objects_in_hand = set()
+            if state_id == "state_1":
+                objects_in_hand = {env.cup1}
+            elif state_id == "state_3":
+                objects_in_hand = {env.cup2}
+            
             # Add state with its views
-            creator.add_state_from_multiple_images(
+            creator.add_state_from_raw_images(
                 views,
                 state_id=state_id,
-                objects_in_view=list({block.name, table.name, container.name}),
-                objects_in_hand=list({block.name}) if state_id == "state_1" else [],
-                gripper_open=(state_id != "state_1")
+                objects_in_view=objects_in_view,
+                objects_in_hand=objects_in_hand,
+                gripper_open=(state_id not in ["state_1", "state_3"])
             )
             
             # Verify files exist
@@ -181,24 +193,30 @@ def test_manual_image_creation():
             assert os.path.exists(metadata_path)
             with open(metadata_path, "r") as f:
                 metadata = yaml.safe_load(f)
-                assert metadata["objects_in_view"] == list({block.name, table.name, container.name})
-                assert metadata["objects_in_hand"] == (list({block.name}) if state_id == "state_1" else [])
-                assert metadata["gripper_open"] == (state_id != "state_1")
-                assert len(metadata["views"]) == len(views)
+                assert set(metadata["objects_in_view"]) == {obj.name for obj in objects_in_view}
+                if state_id == "state_1":
+                    assert metadata["objects_in_hand"] == [env.cup1.name]
+                    assert not metadata["gripper_open"]
+                elif state_id == "state_3":
+                    assert metadata["objects_in_hand"] == [env.cup2.name]
+                    assert not metadata["gripper_open"]
+                else:
+                    assert not metadata["objects_in_hand"]
+                    assert metadata["gripper_open"]
                 
                 # Verify image paths in metadata
                 for view_id, cameras in views.items():
                     assert view_id in metadata["views"]
                     for camera_id, images in cameras.items():
                         assert camera_id in metadata["views"][view_id]
-                        for image_name, (_, image_type) in images.items():
+                        for image_name, (_, _) in images.items():
                             path_key = f"{image_name}_path"
                             assert path_key in metadata["views"][view_id][camera_id]
                             expected_path = os.path.join(view_id, f"{camera_id}_{image_name}.npy")
                             assert metadata["views"][view_id][camera_id][path_key] == expected_path
             
             # Load and verify state
-            loaded_views, objects_in_view, objects_in_hand, gripper_open = creator.load_state(state_id)
+            loaded_views, loaded_objects_in_view, loaded_objects_in_hand, loaded_gripper_open = creator.load_state(state_id)
             
             # Verify loaded data matches original
             for view_id, cameras in views.items():
@@ -216,14 +234,22 @@ def test_manual_image_creation():
                             assert loaded_img.dtype == np.float32
             
             # Verify metadata
-            assert set(objects_in_view) == {block.name, table.name, container.name}
+            assert set(loaded_objects_in_view) == {obj.name for obj in objects_in_view}
             if state_id == "state_1":
-                assert objects_in_hand == [block.name]
-                assert not gripper_open
+                assert loaded_objects_in_hand == [env.cup1.name]
+                assert not loaded_gripper_open
+            elif state_id == "state_3":
+                assert loaded_objects_in_hand == [env.cup2.name]
+                assert not loaded_gripper_open
             else:
-                assert not objects_in_hand
-                assert gripper_open
+                assert not loaded_objects_in_hand
+                assert loaded_gripper_open
+                
     finally:
         # Clean up temporary depth image
         if os.path.exists(example_depth_path):
-            os.remove(example_depth_path) 
+            os.remove(example_depth_path)
+    
+    # Verify transition graph file exists
+    graph_file = Path(test_dir) / "transitions" / f"{test_name}.html"
+    assert graph_file.exists(), "Transition graph file not generated" 
