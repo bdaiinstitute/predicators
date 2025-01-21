@@ -4,7 +4,7 @@ from typing import List, Set, Dict, Optional, Tuple, Sequence, cast
 import numpy as np
 
 from predicators.structs import Object, State, EnvironmentTask, GoalDescription, Type, Predicate, GroundAtom
-from predicators.envs.mock_spot_env import MockSpotEnv, MockSpotObservation
+from predicators.envs.mock_spot_env import MockSpotEnv, _MockSpotObservation
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
 
 
@@ -73,7 +73,7 @@ class MockSpotTask(EnvironmentTask):
             self._init_state = self.observation_to_state(obs)
         return self._init_state
 
-    def observation_to_state(self, obs: MockSpotObservation) -> State:
+    def observation_to_state(self, obs: _MockSpotObservation) -> State:
         """Convert observation to state."""
         # Update objects based on observation
         self.update_objects(obs.objects_in_view)
