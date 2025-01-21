@@ -9,45 +9,85 @@ This module provides a base class for creating mock Spot environments with:
 
 The environment data is stored in a directory specified by CFG.mock_env_data_dir.
 This includes:
-- plan.yaml: Contains objects, states, and transitions
 - images/: Directory containing RGB-D images for each state
+  - state_0/
+    ├── state_metadata.json  # Robot state, objects, atoms
+    ├── image_metadata.json  # Image paths and transforms
+    ├── cam1_rgb.npy        # RGB image data
+    ├── cam1_rgb.jpg        # RGB preview image
+    └── cam1_depth.npy      # Optional depth data
 - transitions/: Directory containing transition graph visualizations
-- transitions/transitions.png: Main transition graph visualization
-- transitions/cup_emptiness.png: Cup emptiness belief task transition graph
+  - {task_name}.html: Interactive visualization of state transitions
 
-Configuration:
-    mock_env_data_dir (str): Directory to store environment data (set during initialization)
-    seed (int): Random seed for reproducibility
-    sesame_task_planning_heuristic (str): Heuristic for task planning
-    sesame_max_skeletons_optimized (int): Maximum number of skeletons to optimize
+Key Features:
+1. State Management:
+   - Add states with RGB-D observations and metadata
+   - Track objects in view/hand and gripper state
+   - Support for belief predicates (e.g., ContainingWater, Known_ContainerEmpty)
+
+2. Image Handling:
+   - Flat image naming structure (e.g., "cam1.seed0.rgb")
+   - Automatic conversion to UnposedImageWithContext
+   - Preview JPG generation for easy visualization
+
+3. Transition Planning:
+   - Automatic state transition graph generation
+   - Interactive visualization with Cytoscape.js
+   - Support for belief space planning
+
+4. Object Tracking:
+   - Consistent object tracking across states
+   - Automatic object registration during state creation
+   - Type-safe object management
 
 Example usage:
     ```python
-    # Create environment creator
-    creator = ManualMockEnvCreator("path/to/data_dir")
+    # Create environment and creator
+    env = MockSpotPickPlaceTwoCupEnv()
+    creator = MockEnvCreatorBase("path/to/data_dir", env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
     
-    # Create objects and predicates
-    robot = Object("robot", creator.types["robot"])
-    cup = Object("cup", creator.types["container"])
-    
-    # Create initial and goal atoms for belief space planning
-    init_atoms = {
-        GroundAtom(creator.predicates["HandEmpty"], [robot]),
-        GroundAtom(creator.predicates["ContainingWaterUnknown"], [cup])
-    }
-    goal_atoms = {
-        GroundAtom(creator.predicates["ContainingWaterKnown"], [cup])
-    }
+    # Add state with images
+    creator.add_state_from_raw_images({
+        "cam1.seed0.rgb": ("path/to/rgb.jpg", "rgb"),
+        "cam1.seed0.depth": ("path/to/depth.npy", "depth")
+    }, state_id="state_0", objects_in_view={cup1, cup2, table})
     
     # Plan and visualize transitions
-    creator.plan_and_visualize(init_atoms, goal_atoms, objects)
+    creator.plan_and_visualize(env.initial_atoms, env.goal_atoms, env.objects,
+                             task_name="Two Cup Pick Place")
     ```
+
+Implementation Notes:
+1. Image Processing:
+   - RGB images are saved as both .npy (for processing) and .jpg (for preview)
+   - Depth images are saved as .npy in float32 format
+   - Camera metadata includes rotations and transforms
+
+2. State Transitions:
+   - States are uniquely identified by their atoms
+   - Transitions track operator effects on fluent predicates
+   - Belief predicates are highlighted in visualization
+
+3. Object Management:
+   - Objects are tracked in creator.objects dictionary
+   - Objects are automatically added during state creation
+   - Objects must be initialized before loading saved states
+
+4. Visualization:
+   - Interactive graph shows state contents and transitions
+   - States are color-coded based on predicates
+   - Transitions show operator effects and belief changes
 """
 
 import os
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set, Optional, Any, Tuple, FrozenSet, Iterator, Union
+from typing import Dict, List, Set, Optional, Any, Tuple, FrozenSet, Iterator, Union, Literal
 import graphviz
 from rich.console import Console
 from rich.tree import Tree
@@ -65,8 +105,8 @@ from itertools import zip_longest
 import json
 from pathlib import Path
 from jinja2 import Template
+from dataclasses import asdict
 
-from predicators.envs.mock_spot_env import MockSpotEnv
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
 from predicators.structs import (
     GroundAtom, EnvironmentTask, State, Task, Type, Predicate, 
@@ -77,6 +117,9 @@ from predicators.ground_truth_models import get_gt_options
 from predicators import utils
 from predicators.settings import CFG
 from predicators.planning import task_plan_grounding, task_plan, run_task_plan_once
+from predicators.spot_utils.perception.perception_structs import UnposedImageWithContext
+from predicators.spot_utils.mock_env.mock_env_utils import _SavedMockSpotObservation
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -103,7 +146,7 @@ class MockEnvCreatorBase(ABC):
         path_dir (str): Base directory for environment data
         image_dir (str): Directory for RGB-D images
         transitions_dir (str): Directory for transition graph visualizations
-        env (MockSpotEnv): Mock environment instance
+        env ("MockSpotEnv"): Mock environment instance
         types (Dict[str, Type]): Available object types
         predicates (Dict[str, Predicate]): Available predicates (including belief predicates if enabled)
         options (Dict[str, ParameterizedOption]): Available options
@@ -111,23 +154,22 @@ class MockEnvCreatorBase(ABC):
         console (Console): Rich console for pretty printing
     """
 
-    def __init__(self, output_dir: str, env: Optional[MockSpotEnv] = None) -> None:
+    def __init__(self, output_dir: str, env_info: Dict[str, Any]) -> None:
         """Initialize the mock environment creator.
         
         Args:
             output_dir: Directory to save output files
-            env: Environment instance to use (default: creates new MockSpotEnv)
+            env_info: Environment information
         """
-        self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
-        self.path_dir = output_dir
-        self.image_dir = os.path.join(output_dir, "images")
-        self.transitions_dir = os.path.join(output_dir, "transitions")
-        os.makedirs(self.image_dir, exist_ok=True)
-        os.makedirs(self.transitions_dir, exist_ok=True)
+        self.output_dir = Path(output_dir)
+        self.path_dir = self.output_dir
+        self.image_dir = self.output_dir / "images"
+        self.transitions_dir = self.output_dir / "transitions"
+        self.image_dir.mkdir(parents=True, exist_ok=True)
+        self.transitions_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize state storage
-        self.states: Dict[str, Dict[str, Any]] = {}
+        self.states: Dict[str, _SavedMockSpotObservation] = {}
         self.transitions: List[Tuple[str, str, Any]] = []
         
         # Set data directory in config for environment to use
@@ -135,20 +177,20 @@ class MockEnvCreatorBase(ABC):
             "mock_env_data_dir": output_dir
         })
         
-        # Use provided environment or create default one
-        self.env = env if env is not None else MockSpotEnv()
-        
-        # Get environment info
-        self.types: Dict[str, Type] = {t.name: t for t in self.env.types}
-        self.predicates: Dict[str, Predicate] = {p.name: p for p in self.env.predicates}
-        self.options: Dict[str, ParameterizedOption] = {o.name: o for o in get_gt_options(self.env.get_name())}
-        self.nsrts: Set[NSRT] = self._create_nsrts()
+        # Store environment info
+        self.types = {t.name: t for t in env_info["types"]}
+        self.predicates = {p.name: p for p in env_info["predicates"]}
+        self.options = {o.name: o for o in env_info["options"]}
+        self.nsrts = env_info["nsrts"]
 
         # Calculate fluent predicates by looking at operator effects
         self.fluent_predicates: Set[str] = self._calculate_fluent_predicates()
         
         # Initialize rich console for pretty printing
         self.console = Console()
+
+        # Initialize objects dictionary with any objects from env_info
+        self.objects: Dict[str, Object] = {}
 
     def _format_atoms(self, atoms: set) -> str:
         """Format atoms for display, showing only fluent predicates."""
@@ -159,23 +201,6 @@ class MockEnvCreatorBase(ABC):
                 args = [obj.name for obj in atom.objects]
                 formatted_atoms.append(f"{atom.predicate.name}({', '.join(args)})")
         return "\n".join(formatted_atoms)
-
-    def _create_nsrts(self) -> Set[NSRT]:
-        """Create NSRTs from the environment's predicates and options.
-        
-        Returns NSRTs that can work with both physical and belief predicates
-        (when belief space operators are enabled in the environment).
-        """
-        # Get NSRTs from factory
-        factory = MockSpotGroundTruthNSRTFactory()
-        # This now uses predicates from env including belief ones if enabled
-        base_nsrts = factory.get_nsrts(
-            self.env.get_name(),
-            self.types,
-            self.predicates,  # This now uses predicates from env including belief ones if enabled
-            self.options
-        )
-        return base_nsrts
 
     def _calculate_fluent_predicates(self) -> Set[str]:
         """Calculate fluent predicates by looking at operator effects.
@@ -192,117 +217,167 @@ class MockEnvCreatorBase(ABC):
 
     def add_state(self, 
                  state_id: str,
-                 views: Dict[str, Dict[str, Dict[str, np.ndarray]]],
+                 images: Dict[str, UnposedImageWithContext],
                  objects_in_view: Set[Object],
                  objects_in_hand: Set[Object],
-                 gripper_open: bool = True) -> None:
-        """Add a state to the environment.
+                 gripper_open: bool = True,
+                 atom_dict: Optional[Dict[str, bool]] = None,
+                 non_vlm_atoms: Optional[Set[GroundAtom]] = None,
+                 metadata: Optional[Dict[str, Any]] = None) -> None:
+        """Add a state to the environment."""
+        # Create observation
+        obs = _SavedMockSpotObservation(
+            images=images,
+            gripper_open=gripper_open,
+            objects_in_view=objects_in_view,
+            objects_in_hand=objects_in_hand,
+            state_id=state_id,
+            atom_dict=atom_dict or {},
+            non_vlm_atom_dict=non_vlm_atoms,
+            metadata=metadata or {}
+        )
+        
+        # Save state
+        obs.save_state(self.image_dir)
+        
+        # Track objects and state
+        for obj in objects_in_view | objects_in_hand:
+            self.objects[obj.name] = obj
+        self.states[state_id] = obs
+        
+    def process_rgb_image(self, image_path: str) -> np.ndarray:
+        """Process an RGB image file.
         
         Args:
-            state_id: Unique identifier for this state
-            views: Dict mapping view names to camera names to image names and arrays
-                Example: {
-                    "view1": {
-                        "cam1": {
-                            "image1": array1,
-                            "image2": array2
-                        },
-                        "cam2": {
-                            "image1": array1
-                        }
-                    }
-                }
-            objects_in_view: Set of object names visible in the image
-            objects_in_hand: Set of object names being held
-            gripper_open: Whether the gripper is open
-        """
-        # Create state directory
-        state_dir = os.path.join(self.image_dir, state_id)
-        os.makedirs(state_dir, exist_ok=True)
-        
-        # Save images for each view and camera
-        for view_name, cameras in views.items():
-            # Create view directory
-            view_dir = os.path.join(state_dir, view_name)
-            os.makedirs(view_dir, exist_ok=True)
+            image_path: Path to RGB image file
             
-            for camera_name, images in cameras.items():
-                # Save each image
-                for image_name, image_data in images.items():
-                    image_path = os.path.join(view_dir, f"{camera_name}_{image_name}.npy")
-                    np.save(image_path, image_data)
-        
-        # Create state metadata
-        state_data = {
-            "objects_in_view": [obj.name for obj in objects_in_view],
-            "objects_in_hand": [obj.name for obj in objects_in_hand],
-            "gripper_open": gripper_open,
-            "views": {
-                view_name: {
-                    camera_name: {
-                        f"{image_name}_path": os.path.join(view_name, f"{camera_name}_{image_name}.npy")
-                        for image_name in images.keys()
-                    }
-                    for camera_name, images in cameras.items()
-                }
-                for view_name, cameras in views.items()
-            }
-        }
-        
-        # Save state metadata
-        metadata_path = os.path.join(state_dir, "metadata.yaml")
-        with open(metadata_path, "w") as f:
-            yaml.safe_dump(state_data, f, default_flow_style=False, sort_keys=False)
+        Returns:
+            RGB array (H, W, 3) in uint8 format
+            
+        Raises:
+            RuntimeError: If image loading fails
+        """
+        try:
+            rgb = plt.imread(image_path)
+            if rgb.dtype == np.float32:
+                rgb = (rgb * 255).astype(np.uint8)
+            return rgb
+        except Exception as e:
+            raise RuntimeError(f"Failed to load RGB image from {image_path}: {e}")
 
-    def load_state(self, state_id: str) -> Tuple[Dict[str, Dict[str, Dict[str, np.ndarray]]], 
-                                                List[str], List[str], bool]:
-        """Load a state's images and metadata.
+    def process_depth_image(self, image_path: str) -> np.ndarray:
+        """Process a depth image file.
+        
+        Args:
+            image_path: Path to depth image file
+            
+        Returns:
+            Depth array (H, W) in float32 format
+            
+        Raises:
+            RuntimeError: If image loading fails
+        """
+        try:
+            depth = np.load(image_path)  # Assuming depth is saved as .npy
+            if depth.dtype != np.float32:
+                depth = depth.astype(np.float32)
+            return depth
+        except Exception as e:
+            raise RuntimeError(f"Failed to load depth image from {image_path}: {e}")
+
+    def add_state_from_raw_images(
+        self,
+        raw_images: Dict[str, Tuple[str, str]],
+        state_id: Optional[str] = None,
+        objects_in_view: Optional[Set[Object]] = None,
+        objects_in_hand: Optional[Set[Object]] = None,
+        gripper_open: bool = True
+    ) -> None:
+        """Add a state with multiple views to the environment.
+        
+        Args:
+            raw_images: Dict mapping image names to (path, type) tuples:
+                {
+                    "cam1.seed0.rgb": ("path/to/rgb.jpg", "rgb"),
+                    "cam1.seed0.depth": ("path/to/depth.npy", "depth")
+                }
+            state_id: Optional ID for state (default: auto-generated)
+            objects_in_view: Set of objects visible in images
+            objects_in_hand: Set of objects being held
+            gripper_open: Whether gripper is open
+        """
+        # Convert views to UnposedImageWithContext
+        images: Dict[str, UnposedImageWithContext] = {}
+        
+        # Group images by camera
+        camera_images: Dict[str, Dict[str, Tuple[str, str]]] = {}
+        for img_name, (path, img_type) in raw_images.items():
+            camera_name = img_name.split(".")[0]  # Extract cam1 from cam1.seed0.rgb
+            if camera_name not in camera_images:
+                camera_images[camera_name] = {}
+            camera_images[camera_name][img_name] = (path, img_type)
+        
+        # Process each camera's images
+        for camera_name, camera_data in camera_images.items():
+            rgb_data = None
+            depth_data = None
+            rgb_img_name = None
+            
+            # Process RGB and depth images
+            for img_name, (path, img_type) in camera_data.items():
+                if img_type == "rgb":
+                    rgb_data = self.process_rgb_image(path)
+                    rgb_img_name = img_name
+                else:  # depth
+                    depth_data = self.process_depth_image(path)
+            
+            # Skip if no RGB data
+            if rgb_data is None or rgb_img_name is None:
+                continue
+            
+            # Create UnposedImageWithContext
+            image_key = camera_name
+            images[image_key] = UnposedImageWithContext(
+                rgb=rgb_data,
+                depth=depth_data,
+                camera_name=camera_name,
+                image_rot=None
+            )
+
+        # Generate state ID if not provided
+        if state_id is None:
+            state_id = f"state_{len(self.states)}"
+
+        # Track objects before adding state
+        for obj in (objects_in_view or set()) | (objects_in_hand or set()):
+            self.objects[obj.name] = obj
+
+        # Add state
+        self.add_state(
+            state_id=state_id,
+            images=images,
+            objects_in_view=objects_in_view or set(),
+            objects_in_hand=objects_in_hand or set(),
+            gripper_open=gripper_open
+        )
+
+    def load_state(self, state_id: str) -> _SavedMockSpotObservation:
+        """Load a state's observation.
         
         Args:
             state_id: ID of state to load
             
         Returns:
-            Tuple containing:
-            - Dict mapping view names to camera names to image names and arrays
-            - List of objects in view
-            - List of objects in hand
-            - Gripper open state
-            
-        Raises:
-            FileNotFoundError: If state directory or metadata doesn't exist
+            SavedMockSpotObservation for the state
         """
-        state_dir = os.path.join(self.image_dir, state_id)
-        if not os.path.exists(state_dir):
-            raise FileNotFoundError(f"State directory not found: {state_dir}")
-            
-        # Load metadata
-        metadata_path = os.path.join(state_dir, "metadata.yaml")
-        if not os.path.exists(metadata_path):
-            raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
-            
-        with open(metadata_path, "r") as f:
-            metadata = yaml.safe_load(f)
-            
-        # Load images for each view and camera
-        views = {}
-        for view_name, cameras in metadata["views"].items():
-            views[view_name] = {}
-            view_dir = os.path.join(state_dir, view_name)
-            for camera_name, paths in cameras.items():
-                views[view_name][camera_name] = {}
-                
-                # Load each image
-                for path_key, rel_path in paths.items():
-                    image_name = path_key.replace("_path", "")
-                    image_path = os.path.join(state_dir, rel_path)
-                    views[view_name][camera_name][image_name] = np.load(image_path)
-                
-        return (
-            views,
-            metadata["objects_in_view"],
-            metadata["objects_in_hand"],
-            metadata["gripper_open"]
-        )
+        # Return cached state if available
+        if state_id in self.states:
+            return self.states[state_id]
+        
+        # Load state from disk
+        obs = _SavedMockSpotObservation.load_state(state_id, self.image_dir, self.objects)
+        self.states[state_id] = obs
+        return obs
 
     def save_plan(self, plan: List[Any], states: List[Set[GroundAtom]], 
                  init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
@@ -337,7 +412,7 @@ class MockEnvCreatorBase(ABC):
         }
         
         # Save plan data
-        plan_path = os.path.join(self.path_dir, "plan.yaml")
+        plan_path = self.path_dir / "plan.yaml"
         with open(plan_path, "w") as f:
             yaml.safe_dump(plan_data, f, default_flow_style=False, sort_keys=False)
 
@@ -355,11 +430,11 @@ class MockEnvCreatorBase(ABC):
             
             None if no plan is saved
         """
-        plan_path = os.path.join(self.path_dir, "plan.yaml")
-        if not os.path.exists(plan_path):
+        plan_path = self.path_dir / "plan.yaml"
+        if not plan_path.exists():
             return None
             
-        with open(plan_path, "r") as f:
+        with open(plan_path) as f:
             plan_data = yaml.safe_load(f)
             
         # Recreate objects
@@ -470,6 +545,10 @@ class MockEnvCreatorBase(ABC):
             task_name: Name of the task for visualization
             use_graphviz: Whether to use graphviz instead of cytoscape.js
         """
+        # Track all objects first
+        for obj in objects:
+            self.objects[obj.name] = obj
+        
         # Get transitions and edges
         transitions = self.get_operator_transitions(initial_atoms, objects)
         edges = self.get_graph_edges(initial_atoms, goal_atoms, objects)
@@ -554,7 +633,7 @@ class MockEnvCreatorBase(ABC):
                         tuple(obj.name for obj in t[1].objects),
                         state_to_id[frozenset(t[2])]) for t in transitions}
             # Use task name for the output file
-            output_path = os.path.join(self.output_dir, "transitions", task_name)
+            output_path = self.output_dir / "transitions" / task_name
             create_graphviz_visualization(trans_ops, task_name, output_path)
         else:
             # Create interactive visualization
@@ -644,7 +723,7 @@ class MockEnvCreatorBase(ABC):
             
             # Create visualization
             # Use task name for the output file
-            output_path = os.path.join(self.output_dir, "transitions", f"{task_name}.html")
+            output_path = self.output_dir / "transitions" / f"{task_name}.html"
             create_interactive_visualization(graph_data, output_path)
 
     def _build_transition_graph(self, task_name: str, init_atoms: Set[GroundAtom], goal: Set[GroundAtom], objects: List[Object], plan: Optional[List[_GroundNSRT]] = None) -> Dict[str, Any]:
@@ -848,7 +927,7 @@ class MockEnvCreatorBase(ABC):
             dot.edge(edge['source'], edge['target'], edge['operator'], **edge_attrs)
         
         # Save graph
-        graph_path = os.path.join(self.transitions_dir, f"{task_name}")
+        graph_path = self.transitions_dir / f"{task_name}"
         dot.render(graph_path, format='png', cleanup=True)
 
     def _check_operator_preconditions(self, state_atoms: Set[GroundAtom], operator: _GroundNSRT) -> bool:
@@ -1095,8 +1174,7 @@ class MockEnvCreatorBase(ABC):
     def _create_task(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: List[Object]) -> EnvironmentTask:
         """Create a task from initial atoms, goal atoms, and objects."""
         # Store objects and NSRTs for operator application
-        self.objects = set(objects)
-        self.nsrts = self._create_nsrts()
+        self.objects = {obj.name: obj for obj in objects}
         
         # Create initial state
         state_data = {obj: np.zeros(obj.type.dim, dtype=np.float32) for obj in objects}
@@ -1274,7 +1352,7 @@ class MockEnvCreatorBase(ABC):
 
 def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
                                 task_name: str,
-                                output_path: str) -> None:
+                                output_path: Path) -> None:
     """Create a static visualization using graphviz."""
     # Create graph
     dot = graphviz.Digraph(comment=f'Transition Graph for {task_name}')
@@ -1321,7 +1399,7 @@ def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]],
     # Save graph
     dot.render(output_path, format='png', cleanup=True)
 
-def create_interactive_visualization(graph_data: Dict[str, Any], output_path: str) -> None:
+def create_interactive_visualization(graph_data: Dict[str, Any], output_path: Path) -> None:
     """Create an interactive visualization using Cytoscape.js."""
     # Convert graph data to Cytoscape.js format
     cytoscape_data = {
