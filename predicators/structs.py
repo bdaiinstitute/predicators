@@ -125,7 +125,10 @@ class State:
     visible_objects: Optional[Any] = None
     # This is directly copied from the images in raw Observation
     camera_images: Optional[Dict[str, Any]] = None
-
+    
+    # Add storage for ground truth predicate values
+    non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
+    
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
@@ -349,6 +352,39 @@ class VLMPredicate(Predicate):
         # It is stored in a dictionary of VLMGroundAtom -> bool
         assert state.vlm_atom_dict is not None
         return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
+    
+    
+@dataclass(frozen=True, order=True, repr=False)
+class GroundTruthPredicate(Predicate):
+    """Struct defining a predicate (a lifted classifier over states) that directly
+    uses ground truth values from the State.
+
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State.
+    """
+
+    # A classifier is not needed for VLM predicates
+    _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
+
+    def __hash__(self) -> int:
+        """Have to add this to override the default hash method again."""
+        return self._hash
+
+    def holds(self, state: State, objects: Sequence[Object]) -> bool:
+        """Public method for getting predicate value.
+
+        Performs type checking first. Directly use value
+        """
+        assert len(objects) == self.arity
+        for obj, pred_type in zip(objects, self.types):
+            assert isinstance(obj, Object)
+            assert obj.is_instance(pred_type)
+
+        # Get VLM predicate values from State
+        # It is stored in a dictionary of VLMGroundAtom -> bool
+        assert state.non_vlm_atom_dict is not None
+        assert GroundAtom(self, objects) in state.non_vlm_atom_dict
+        return state.non_vlm_atom_dict[GroundAtom(self, objects)]
 
 
 @dataclass(frozen=True, repr=False, eq=False)
