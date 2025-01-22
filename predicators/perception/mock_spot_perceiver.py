@@ -37,13 +37,13 @@ Usage:
     assert "cup" in obs.objects_in_view
 """
 
-from typing import Dict, Optional, Set, Union
+from typing import Dict, Optional, Set, Union, Mapping
 import logging
 
 from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.perception_structs import UnposedImageWithContext
 from predicators.perception.base_perceiver import BasePerceiver
-from predicators.structs import Action, EnvironmentTask, State, Task, VLMPredicate, VLMGroundAtom, Object
+from predicators.structs import Action, EnvironmentTask, GroundAtom, Observation, State, Task, VLMPredicate, VLMGroundAtom, Object, Video
 from predicators.settings import CFG
 from predicators.envs.mock_spot_env import _MockSpotObservation
 from predicators.envs.spot_env import _robot_type
@@ -64,9 +64,9 @@ class MockSpotPerceiver(BasePerceiver):
         self._spot_object: Object = Object("robot", _robot_type)
         
         # VLM-related state
-        self._vlm_atom_dict: Dict[VLMGroundAtom, bool] = {}  # Current VLM predicate evaluations
         self._vlm_predicates: Set[VLMPredicate] = set()  # Current VLM predicates
-        self._non_vlm_atoms: Set = set()  # Non-VLM atoms from env
+        self._vlm_atom_dict: Dict[VLMGroundAtom, bool] = {}  # Current VLM predicate evaluations
+        self._non_vlm_atom_dict: Optional[Mapping[GroundAtom, bool]] = None  # Non-VLM atoms from env
 
     @classmethod
     def get_name(cls) -> str:
@@ -99,16 +99,13 @@ class MockSpotPerceiver(BasePerceiver):
         Returns:
             The complete state with all atoms
         """
-        # Update internal state from observation
-        self._camera_images = obs.images
-        self._gripper_open = obs.gripper_open
-        self._objects_in_view = obs.objects_in_view
-        self._objects_in_hand = obs.objects_in_hand
-        
         # Update non-VLM atoms
         # NOTE: They should be fully-observable properties and don't rely on past step values
         if obs.non_vlm_atom_dict is not None:
-            self._non_vlm_atoms = obs.non_vlm_atom_dict
+            self._non_vlm_atom_dict = obs.non_vlm_atom_dict
+            
+        visible_objects = list(obs.objects_in_view) + [self._spot_object]
+        images = obs.images
         
         # Handle VLM predicates and atoms if enabled
         # NOTE: VLM predicates are partially observable and need belief-state update given past step
@@ -119,11 +116,8 @@ class MockSpotPerceiver(BasePerceiver):
 
             vlm_predicates = self._vlm_predicates
             assert vlm_predicates is not None
-            
-            visible_objects = list(obs.objects_in_view) + [self._spot_object]
-            images = obs.images
             assert images is not None
-            
+
             # Compute latest VLM atoms based on visible objects in the current observation
             vlm_atoms = get_vlm_atom_combinations(visible_objects, vlm_predicates)
             # NOTE: There may be new objects, and the set of VLMAtoms will be expanded
@@ -179,7 +173,7 @@ class MockSpotPerceiver(BasePerceiver):
                         if unknown_val or not known_val:
                             curr_vlm_atom_values[known_atom] = False
                             curr_vlm_atom_values[unknown_atom] = True
-            
+
             # Step 2: Basic update - update any atom that has a non-None value
             if obs.vlm_atom_dict is not None:
                 for atom, value in curr_vlm_atom_values.items():
@@ -216,19 +210,26 @@ class MockSpotPerceiver(BasePerceiver):
             
             # Store updated values
             self._vlm_atom_dict = updated_vlm_atom_values
+            
+        # Update internal state from observation
+        self._camera_images = obs.images
+        self._gripper_open = obs.gripper_open
+        self._objects_in_view = obs.objects_in_view
+        self._objects_in_hand = obs.objects_in_hand
         
         # Create state with all atoms
-        state_dict = {}
-        
-        # Add VLM atoms if enabled
-        if CFG.spot_vlm_eval_predicate and self._vlm_atom_dict:
-            for atom, value in self._vlm_atom_dict.items():
-                if value:
-                    state_dict[atom] = True
-        
-        # Add non-VLM atoms
-        if self._non_vlm_atoms:
-            for atom in self._non_vlm_atoms:
-                state_dict[atom] = True
-        
-        return State(state_dict)
+        state = State(
+            data={},
+            simulator_state=None,
+            camera_images=self._camera_images,
+            visible_objects=self._objects_in_view,
+            vlm_atom_dict=self._vlm_atom_dict,  # type: ignore
+            vlm_predicates=self._vlm_predicates,
+            non_vlm_atom_dict=self._non_vlm_atom_dict,
+        )
+
+        return state
+    
+    def render_mental_images(self, observation: Observation,
+                             env_task: EnvironmentTask) -> Video:
+        return []
