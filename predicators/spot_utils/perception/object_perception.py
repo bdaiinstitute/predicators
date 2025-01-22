@@ -248,7 +248,7 @@ def vlm_predicate_batch_classify(
         images: Dict[str, Union[RGBDImageWithContext, UnposedImageWithContext]],
         predicates: Optional[Set[VLMPredicate]] = None,
         get_dict: bool = True
-) -> Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom]:
+) -> Union[Dict[VLMGroundAtom, bool], Set[VLMGroundAtom]]:
     """Use VLM to evaluate a set of atoms in a given state."""
     # Get the queries for the atoms
     queries = [atom.get_query_str() for atom in atoms]
