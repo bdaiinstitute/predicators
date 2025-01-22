@@ -208,10 +208,10 @@ def test_pick_empty_cup_belief_state():
     env._save_graph_data()
 
     # Verify all transitions in sequence
-    assert env._transitions[state_id]["MoveToHandObserveObjectFromTop"] == observe_state_id
-    assert env._transitions[observe_state_id]["ObserveContainerContent"] == known_state_id
-    assert env._transitions[known_state_id]["MoveToHandViewObject"] == view_state_id
-    assert env._transitions[view_state_id]["PickObjectFromTop"] == holding_state_id
+    assert env._str_transitions[state_id]["MoveToHandObserveObjectFromTop"] == observe_state_id
+    assert env._str_transitions[observe_state_id]["ObserveContainerContent"] == known_state_id
+    assert env._str_transitions[known_state_id]["MoveToHandViewObject"] == view_state_id
+    assert env._str_transitions[view_state_id]["PickObjectFromTop"] == holding_state_id
 
     # Verify final state has cup in hand
     final_obs = env._observations[holding_state_id]

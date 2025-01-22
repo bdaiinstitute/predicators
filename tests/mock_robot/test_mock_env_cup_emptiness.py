@@ -208,10 +208,10 @@ def test_with_belief_check_and_pick_cup():
     env.add_transition(view_state_id, "PickObjectFromTop", holding_state_id)
     
     # Verify all transitions in sequence
-    assert env._transitions[state_id]["MoveToHandViewObjectFromTop"] == observe_state_id
-    assert env._transitions[observe_state_id]["ObserveCupContent"] == known_state_id
-    assert env._transitions[known_state_id]["MoveToHandViewObject"] == view_state_id
-    assert env._transitions[view_state_id]["PickObjectFromTop"] == holding_state_id
+    assert env._str_transitions[state_id]["MoveToHandViewObjectFromTop"] == observe_state_id
+    assert env._str_transitions[observe_state_id]["ObserveCupContent"] == known_state_id
+    assert env._str_transitions[known_state_id]["MoveToHandViewObject"] == view_state_id
+    assert env._str_transitions[view_state_id]["PickObjectFromTop"] == holding_state_id
     
     # Verify final state has cup in hand
     final_obs = env._observations[holding_state_id]

@@ -403,7 +403,8 @@ def test_drawer_manipulation_after_observation():
     
     # Create goal atoms
     goal_atoms = {
-        GroundAtom(_On, [apple, table])
+        GroundAtom(_On, [apple, table]),
+        GroundAtom(_DrawerClosed, [drawer])  # And drawer should be closed
     }
     
     # Plan and visualize transitions

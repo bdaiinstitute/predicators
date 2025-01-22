@@ -238,3 +238,7 @@ def test_load_saved_two_cup_pick_place():
         else:
             assert not loaded_state.objects_in_hand
             assert loaded_state.gripper_open 
+
+    # Save transition system
+    creator.explore_states(env.initial_atoms, env.objects)  # First explore states
+    creator.save_transitions()  # Then save transitions
