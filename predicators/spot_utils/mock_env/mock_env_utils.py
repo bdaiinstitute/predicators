@@ -47,7 +47,7 @@ class _SavedMockSpotObservation:
     objects_in_hand: Set[Object]
     state_id: str
     atom_dict: Dict[str, bool]
-    non_vlm_atom_dict: Optional[Set[GroundAtom]] = None
+    non_vlm_atom_dict: Optional[Dict[GroundAtom, bool]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def save_state(self, save_dir: Optional[Path] = None) -> None:
