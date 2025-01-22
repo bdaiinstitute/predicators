@@ -87,7 +87,7 @@ Implementation Notes:
 import os
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Set, Optional, Any, Tuple, FrozenSet, Iterator, Union, Literal
+from typing import Dict, List, Set, Optional, Any, Tuple, FrozenSet, Iterator, Union, Literal, cast
 import graphviz
 from rich.console import Console
 from rich.tree import Tree
@@ -169,8 +169,10 @@ class MockEnvCreatorBase(ABC):
         self.transitions_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize state storage
-        self.states: Dict[str, _SavedMockSpotObservation] = {}
-        self.transitions: List[Tuple[str, str, Any]] = []
+        self.states: Dict[str, _SavedMockSpotObservation] = {}  # For observation data
+        self.state_to_id: Dict[FrozenSet[GroundAtom], str] = {}  # Maps state atoms to IDs
+        self.id_to_state: Dict[str, Set[GroundAtom]] = {}  # Maps IDs to state atoms
+        self.transitions: List[Tuple[str, _GroundNSRT, str]] = []  # (source_id, op, dest_id)
         
         # Set data directory in config for environment to use
         utils.reset_config({
@@ -191,6 +193,7 @@ class MockEnvCreatorBase(ABC):
 
         # Initialize objects dictionary with any objects from env_info
         self.objects: Dict[str, Object] = {}
+        self.robot_object = Object(name="robot", type=self.types["robot"])
 
     def _format_atoms(self, atoms: set) -> str:
         """Format atoms for display, showing only fluent predicates."""
@@ -301,9 +304,9 @@ class MockEnvCreatorBase(ABC):
                     "cam1.seed0.rgb": ("path/to/rgb.jpg", "rgb"),
                     "cam1.seed0.depth": ("path/to/depth.npy", "depth")
                 }
-            state_id: Optional ID for state (default: auto-generated)
-            objects_in_view: Set of objects visible in images
-            objects_in_hand: Set of objects being held
+            state_id: ID of an existing state in the transition graph
+            objects_in_view: Objects visible in images
+            objects_in_hand: Objects being held
             gripper_open: Whether gripper is open
         """
         # Convert views to UnposedImageWithContext
@@ -344,30 +347,19 @@ class MockEnvCreatorBase(ABC):
                 image_rot=None
             )
 
-        # Generate state ID if not provided
+        # Verify state_id exists in transition graph
         if state_id is None:
-            state_id = f"state_{len(self.states)}"
+            raise ValueError("state_id must be provided and must exist in transition graph")
+        if state_id not in self.id_to_state:
+            raise ValueError(f"State {state_id} not found in transition graph")
 
-        # Track objects before adding state
-        for obj in (objects_in_view or set()) | (objects_in_hand or set()):
-            self.objects[obj.name] = obj
-            
-        # Save non-VLM atoms: They are GroundTruthPredicate objects
-        non_vlm_atom_dict = {}
-        # Get ground atoms from state
-        for atom, value in self.states[state_id].data.items():
-            # Only include GroundAtoms with GroundTruthPredicate
-            if isinstance(atom, GroundAtom) and isinstance(atom.predicate, GroundTruthPredicate):
-                non_vlm_atom_dict[atom] = value
-        
-        # Add state
-        self.add_state(
+        # Add observation data for the state
+        self.add_state_observation(
             state_id=state_id,
             images=images,
             objects_in_view=objects_in_view or set(),
             objects_in_hand=objects_in_hand or set(),
-            gripper_open=gripper_open,
-            non_vlm_atom_dict=non_vlm_atom_dict,  # Now properly populated from state
+            gripper_open=gripper_open
         )
 
     def load_state(self, state_id: str) -> _SavedMockSpotObservation:
@@ -540,12 +532,8 @@ class MockEnvCreatorBase(ABC):
         except StopIteration:
             return None
 
-    def plan_and_visualize(self, initial_atoms: Set[GroundAtom],
-                          goal_atoms: Set[GroundAtom],
-                          objects: Set[Object],
-                          task_name: str = "Task",
-                          use_graphviz: bool = False) -> None:
-        """Plan and create visualizations for the transition graph.
+    def plan_and_visualize(self, initial_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: Set[Object], task_name: str, use_graphviz: bool = False) -> None:
+        """Plan and visualize transitions.
         
         Args:
             initial_atoms: Initial state atoms
@@ -558,39 +546,12 @@ class MockEnvCreatorBase(ABC):
         for obj in objects:
             self.objects[obj.name] = obj
         
+        # Explore states and transitions
+        self.explore_states(initial_atoms, objects)
+        
         # Get transitions and edges
         transitions = self.get_operator_transitions(initial_atoms, objects)
         edges = self.get_graph_edges(initial_atoms, goal_atoms, objects)
-        
-        # Create state to ID mapping
-        state_to_id = {}
-        state_count = 0
-        
-        # Start with initial state
-        initial_state = frozenset(initial_atoms)
-        state_to_id[initial_state] = "0"
-        
-        # First assign IDs to states in the shortest path
-        curr_atoms = initial_atoms
-        for edge in edges:
-            next_atoms = edge[2]
-            next_state = frozenset(next_atoms)
-            if next_state not in state_to_id:
-                state_to_id[next_state] = str(state_count + 1)
-                state_count += 1
-        
-        # Then assign IDs to remaining states
-        for source_atoms, _, dest_atoms in transitions:
-            source_state = frozenset(source_atoms)
-            dest_state = frozenset(dest_atoms)
-            
-            if source_state not in state_to_id:
-                state_to_id[source_state] = str(state_count + 1)
-                state_count += 1
-            
-            if dest_state not in state_to_id:
-                state_to_id[dest_state] = str(state_count + 1)
-                state_count += 1
         
         # Track shortest path edges and states
         shortest_path_edges = set()
@@ -604,8 +565,8 @@ class MockEnvCreatorBase(ABC):
             curr_atoms = initial_atoms.copy()
             for op in skeleton:
                 next_atoms = self._get_next_atoms(curr_atoms, op)
-                source_id = state_to_id[frozenset(curr_atoms)]
-                dest_id = state_to_id[frozenset(next_atoms)]
+                source_id = self.state_to_id[frozenset(curr_atoms)]
+                dest_id = self.state_to_id[frozenset(next_atoms)]
                 shortest_path_edges.add((source_id, dest_id))
                 shortest_path_states.add(frozenset(next_atoms))
                 curr_atoms = next_atoms
@@ -618,8 +579,8 @@ class MockEnvCreatorBase(ABC):
         for source_atoms, operator, dest_atoms in transitions:
             source_state = frozenset(source_atoms)
             dest_state = frozenset(dest_atoms)
-            source_id = state_to_id[source_state]
-            dest_id = state_to_id[dest_state]
+            source_id = self.state_to_id[source_state]
+            dest_id = self.state_to_id[dest_state]
             if source_id != dest_id:  # Skip self-loops
                 # Create detailed edge label
                 op_str = f"{operator.name}({','.join(obj.name for obj in operator.objects)})"
@@ -638,49 +599,14 @@ class MockEnvCreatorBase(ABC):
         # Create visualization
         if use_graphviz:
             # Create graphviz visualization
-            trans_ops = {(state_to_id[frozenset(t[0])], t[1].name,
+            trans_ops = {(self.state_to_id[frozenset(t[0])], t[1].name,
                         tuple(obj.name for obj in t[1].objects),
-                        state_to_id[frozenset(t[2])]) for t in transitions}
+                        self.state_to_id[frozenset(t[2])]) for t in transitions}
             # Use task name for the output file
             output_path = self.output_dir / "transitions" / task_name
             create_graphviz_visualization(trans_ops, task_name, output_path)
         else:
             # Create interactive visualization
-            # Track shortest path edges and states
-            shortest_path_edges = set()
-            shortest_path_states = {frozenset(initial_atoms)}
-            
-            for source_atoms, op, dest_atoms in edges:
-                source_state = frozenset(source_atoms)
-                dest_state = frozenset(dest_atoms)
-                source_id = state_to_id[source_state]
-                dest_id = state_to_id[dest_state]
-                shortest_path_edges.add((source_id, dest_id))
-                shortest_path_states.add(dest_state)
-            
-            # Create edge data
-            edge_data = []
-            edge_count = 0
-            for source_atoms, op, dest_atoms in transitions:
-                source_state = frozenset(source_atoms)
-                dest_state = frozenset(dest_atoms)
-                source_id = state_to_id[source_state]
-                dest_id = state_to_id[dest_state]
-                if source_id != dest_id:  # Skip self-loops
-                    # Create detailed edge label
-                    op_str = f"{op.name}({','.join(obj.name for obj in op.objects)})"
-                    edge_data.append({
-                        'id': f'edge_{edge_count}',
-                        'source': source_id,
-                        'target': dest_id,
-                        'label': op_str,
-                        'fullLabel': self._get_edge_label(op),
-                        'is_shortest_path': (source_id, dest_id) in shortest_path_edges,
-                        'affects_belief': any(effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')) 
-                                           for effect in (op.add_effects | op.delete_effects))
-                    })
-                    edge_count += 1
-            
             # Create graph data
             graph_data = {
                 'nodes': {},
@@ -692,7 +618,7 @@ class MockEnvCreatorBase(ABC):
             }
             
             # Add node data
-            for atoms, state_id in state_to_id.items():
+            for atoms, state_id in self.state_to_id.items():
                 is_initial = atoms == frozenset(initial_atoms)
                 is_goal = goal_atoms.issubset(atoms)
                 is_shortest_path = atoms in shortest_path_states
@@ -709,7 +635,7 @@ class MockEnvCreatorBase(ABC):
                 full_label_parts = [
                     state_label,
                     "",
-                    self._format_atoms(atoms)
+                    self._format_atoms(set(atoms))  # Convert frozenset to regular set
                 ]
                 if self_loops:
                     full_label_parts.extend([
@@ -1069,69 +995,101 @@ class MockEnvCreatorBase(ABC):
         """
         return str(hash(frozenset(str(a) for a in atoms)))
 
-    def explore_all_states(self, init_atoms: Set[GroundAtom], objects: List[Object]) -> Dict[str, Set[GroundAtom]]:
-        """Explore all possible states from initial state using BFS."""
-        # Initialize state exploration
-        all_states = {}  # Maps state IDs to sets of ground atoms
-        frontier: deque[Tuple[Set[GroundAtom], Optional[str]]] = deque([(init_atoms, None)])  # (state_atoms, parent_id)
-        visited = set()  # Set of visited state IDs
-        self.transitions = []  # List of (source_id, destination_id, operator) tuples
-        self.fluent_predicates = set()  # Set of predicates that change during exploration
-
+    def explore_states(self, init_atoms: Set[GroundAtom], objects: Set[Object]) -> None:
+        """Internally explore and store all reachable states and transitions."""
+        # Start with initial state
+        init_state_frozen = frozenset(init_atoms)
+        init_id = "0"  # Use integer ID
+        self.state_to_id[init_state_frozen] = init_id
+        self.id_to_state[init_id] = init_atoms
+        
+        # Explore states via BFS
+        frontier: List[Tuple[Set[GroundAtom], Optional[str]]] = [(init_atoms, None)]
+        visited = {init_state_frozen}
+        state_count = 1
+        
         while frontier:
-            state_atoms, parent_id = frontier.popleft()
-            state_id = self._get_state_id(state_atoms)
-
-            # Skip if already visited
-            if state_id in visited:
-                continue
-
-            # Add to visited and all_states
-            visited.add(state_id)
-            all_states[state_id] = state_atoms
-
+            curr_atoms, _ = frontier.pop(0)
+            curr_id = self.state_to_id[frozenset(curr_atoms)]
+            
             # Get applicable operators
-            state = State({obj: np.zeros(obj.type.dim, dtype=np.float32) for obj in objects})
-            state.simulator_state = state_atoms
-
-            # Ground NSRTs and get reachable atoms
-            ground_nsrts, _ = task_plan_grounding(
-                init_atoms=state_atoms,
-                objects=set(objects),
-                nsrts=self.nsrts,
-                allow_noops=False
-            )
-
-            # Try each operator
-            for nsrt in ground_nsrts:
-                # Apply operator to get next state
-                next_atoms = state_atoms.copy()
+            applicable_ops = self._get_applicable_operators(curr_atoms, objects)
+            
+            for op in applicable_ops:
+                next_atoms = self._get_next_atoms(curr_atoms, op)
+                next_frozen = frozenset(next_atoms)
                 
-                # Remove deleted atoms
-                for atom in nsrt.delete_effects:
-                    if atom in next_atoms:
-                        next_atoms.remove(atom)
-                        # Track fluent predicates
-                        self.fluent_predicates.add(atom.predicate.name)
-
-                # Add new atoms
-                for atom in nsrt.add_effects:
-                    if atom not in next_atoms:
-                        next_atoms.add(atom)
-                        # Track fluent predicates
-                        self.fluent_predicates.add(atom.predicate.name)
-
-                # Get next state ID
-                next_state_id = self._get_state_id(next_atoms)
-
+                # Add new state if not seen
+                if next_frozen not in visited:
+                    visited.add(next_frozen)
+                    next_id = str(state_count)  # Use integer ID
+                    state_count += 1
+                    self.state_to_id[next_frozen] = next_id
+                    self.id_to_state[next_id] = next_atoms
+                    frontier.append((next_atoms, next_id))  # next_id is Optional[str]
+                
                 # Add transition
-                self.transitions.append((state_id, next_state_id, nsrt))
+                next_id = self.state_to_id[next_frozen]
+                self.transitions.append((curr_id, op, next_id))  # source_id, op, dest_id
 
-                # Add to frontier if not visited
-                if next_state_id not in visited:
-                    frontier.append((next_atoms, state_id))
-
-        return all_states 
+    def add_state_observation(self, 
+                            state_id: str,
+                            images: Dict[str, UnposedImageWithContext],
+                            objects_in_view: Set[Object],
+                            objects_in_hand: Set[Object],
+                            gripper_open: bool = True) -> None:
+        """Add observational data for a known state.
+        
+        Args:
+            state_id: ID of an existing state in the transition graph
+            images: RGB-D images for this state
+            objects_in_view: Objects visible in the images
+            objects_in_hand: Objects being held
+            gripper_open: Whether gripper is open
+            
+        Note:
+            We use a closed world assumption for non-VLM predicates. This means:
+            - All possible ground atoms for GroundTruthPredicates are explicitly stored
+            - If a ground atom is in state_atoms, its value is True
+            - If a ground atom is not in state_atoms, its value is False
+            - There are no "unknown" values for non-VLM predicates
+        """
+        if state_id not in self.id_to_state:
+            raise ValueError(f"State {state_id} not found in transition graph")
+            
+        # Create observation with ground atoms from known state
+        state_atoms = self.id_to_state[state_id]
+        
+        # Get all possible ground atoms for GroundTruthPredicates
+        ground_truth_preds = {p for p in self.predicates.values() 
+                            if isinstance(p, GroundTruthPredicate)}
+        # NOTE: We add the robot object to the list of objects because it may not in the objects dict
+        objects = list(self.objects.values()) + [self.robot_object]
+        all_ground_atoms = utils.get_all_ground_atom_combinations_for_predicate_set(
+            objects, cast(Set[Predicate], ground_truth_preds))
+        
+        # Create dictionary with True/False values based on closed world assumption
+        non_vlm_atoms = {atom: (atom in state_atoms) for atom in all_ground_atoms}
+        
+        obs = _SavedMockSpotObservation(
+            images=images,
+            gripper_open=gripper_open,
+            objects_in_view=objects_in_view,
+            objects_in_hand=objects_in_hand,
+            state_id=state_id,
+            atom_dict={},  # Not used anymore
+            non_vlm_atom_dict=non_vlm_atoms,
+        )
+        
+        # Save observation
+        obs.save_state(self.image_dir)
+        
+        # Track objects
+        for obj in objects_in_view | objects_in_hand:
+            self.objects[obj.name] = obj
+            
+        # Store observation
+        self.states[state_id] = obs
 
     def _get_applicable_operators(self, atoms: Set[GroundAtom], objects: Set[Object]) -> List[_GroundNSRT]:
         """Get applicable operators for the given atoms and objects."""
