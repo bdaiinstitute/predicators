@@ -26,8 +26,16 @@ def test_view_operators():
         "mock_env_data_dir": os.path.join("mock_env_data", test_name)
     })
     
+    # Create environment
+    env = MockSpotEnv()
+    
     # Create environment creator
-    creator = ManualMockEnvCreator(os.path.join("mock_env_data", test_name))
+    creator = ManualMockEnvCreator(os.path.join("mock_env_data", test_name), env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
     
     # Create objects
     robot = Object("robot", _robot_type)
