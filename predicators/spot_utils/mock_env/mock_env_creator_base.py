@@ -109,7 +109,7 @@ from dataclasses import asdict
 
 from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
 from predicators.structs import (
-    GroundAtom, EnvironmentTask, State, Task, Type, Predicate, 
+    GroundAtom, EnvironmentTask, GroundTruthPredicate, State, Task, Type, Predicate, 
     ParameterizedOption, NSRT, Object, Variable, LiftedAtom, STRIPSOperator,
     Action, DefaultState, _GroundNSRT
 )
@@ -222,7 +222,7 @@ class MockEnvCreatorBase(ABC):
                  objects_in_hand: Set[Object],
                  gripper_open: bool = True,
                  atom_dict: Optional[Dict[str, bool]] = None,
-                 non_vlm_atoms: Optional[Set[GroundAtom]] = None,
+                 non_vlm_atom_dict: Optional[Dict[GroundAtom, bool]] = None,
                  metadata: Optional[Dict[str, Any]] = None) -> None:
         """Add a state to the environment."""
         # Create observation
@@ -233,7 +233,7 @@ class MockEnvCreatorBase(ABC):
             objects_in_hand=objects_in_hand,
             state_id=state_id,
             atom_dict=atom_dict or {},
-            non_vlm_atom_dict=non_vlm_atoms,
+            non_vlm_atom_dict=non_vlm_atom_dict,
             metadata=metadata or {}
         )
         
@@ -351,14 +351,23 @@ class MockEnvCreatorBase(ABC):
         # Track objects before adding state
         for obj in (objects_in_view or set()) | (objects_in_hand or set()):
             self.objects[obj.name] = obj
-
+            
+        # Save non-VLM atoms: They are GroundTruthPredicate objects
+        non_vlm_atom_dict = {}
+        # Get ground atoms from state
+        for atom, value in self.states[state_id].data.items():
+            # Only include GroundAtoms with GroundTruthPredicate
+            if isinstance(atom, GroundAtom) and isinstance(atom.predicate, GroundTruthPredicate):
+                non_vlm_atom_dict[atom] = value
+        
         # Add state
         self.add_state(
             state_id=state_id,
             images=images,
             objects_in_view=objects_in_view or set(),
             objects_in_hand=objects_in_hand or set(),
-            gripper_open=gripper_open
+            gripper_open=gripper_open,
+            non_vlm_atom_dict=non_vlm_atom_dict,  # Now properly populated from state
         )
 
     def load_state(self, state_id: str) -> _SavedMockSpotObservation:
