@@ -27,14 +27,13 @@ from gym.spaces import Box
 from rich.table import Table
 from rich.logging import RichHandler
 from rich.console import Console
+from rich import print
+import yaml
 
 from predicators.envs import BaseEnv
-from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext, UnposedImageWithContext
-from predicators.structs import Action, State, Object, Type, EnvironmentTask, Video, Image
-from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, GroundTruthPredicate, VLMPredicate, VLMGroundAtom, ParameterizedOption, NSRT
+from predicators.structs import Action, GoalDescription, State, Object, Type, EnvironmentTask, Video, Image
+from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, GroundTruthPredicate, VLMPredicate, VLMGroundAtom, ParameterizedOption, NSRT, _GroundNSRT
 from predicators.settings import CFG
-from bosdyn.client import math_helpers
-from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.utils import get_object_combinations
 from predicators.spot_utils.mock_env.mock_env_utils import _SavedMockSpotObservation
 
@@ -167,7 +166,7 @@ def get_all_predicates() -> Set[Predicate]:
 PREDICATES_WITH_VLM = get_all_predicates() if CFG.spot_vlm_eval_predicate else None
 
 
-@dataclass(frozen=False)  # Need mutable to update images after loading
+@dataclass(frozen=True)
 class _MockSpotObservation(_SavedMockSpotObservation):
     """An observation from the mock Spot environment."""
     vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
@@ -176,7 +175,7 @@ class _MockSpotObservation(_SavedMockSpotObservation):
     @classmethod
     def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, 
                        vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
-                       vlm_predicates: Optional[Set[VLMPredicate]] = None) -> "_MockSpotObservation":
+                        vlm_predicates: Optional[Set[VLMPredicate]] = None) -> "_MockSpotObservation":
         """Initialize from a saved observation."""
         return cls(
             images=saved_obs.images,
@@ -226,13 +225,18 @@ class MockSpotEnv(BaseEnv):
     def get_name(cls) -> str:
         """Get the name of this environment."""
         return "mock_spot"
+    
+    preset_data_dir: Optional[str] = None
 
     def __init__(self, use_gui: bool = True) -> None:
         """Initialize the mock Spot environment."""
         super().__init__(use_gui)
         
         # Get data directory from config
-        data_dir = CFG.mock_env_data_dir if hasattr(CFG, "mock_env_data_dir") else "mock_env_data"
+        if self.preset_data_dir is None:
+            data_dir = CFG.mock_env_data_dir if hasattr(CFG, "mock_env_data_dir") else "mock_env_data"
+        else:
+            data_dir = self.preset_data_dir
         
         # Create data directories
         self._data_dir = Path(data_dir)
@@ -247,193 +251,191 @@ class MockSpotEnv(BaseEnv):
         
         # Create constant objects
         self._spot_object = Object("robot", _robot_type)
+        self._objects: Dict[str, Object] = {"robot": self._spot_object}
         
         # Load or initialize transition graph
-        self._transitions: Dict[str, Dict[str, str]] = {}  # state_id -> {action -> next_state_id}
+        self._str_transitions: List[Tuple[str, Dict[str, Any], str]] = []  # (source_id, op_dict, dest_id)
         self._observations: Dict[str, _SavedMockSpotObservation] = {}  # state_id -> observation
+        self._transition_metadata: Dict[str, Any] = {}
         
-        # Load transition graph data
-        self._load_graph_data()
+        # Load transitions and objects
+        self._load_transitions()
 
         # Create operators
         self._operators = list(self._create_operators())
         
-    def _build_observation(self, curr_obs: Optional[_MockSpotObservation]) -> _MockSpotObservation:
-        """Get the current observation.
+        # NOTE: to update this from language
+        self.goal_atoms = None
         
-        Similar to Spot env, we need to use VLM to batch evaluate VLM predicates.
-        For other properties, we need to get them from saved transition system.
+    def _load_transitions(self) -> None:
+        """Load the transition system.
+        
+        This loads:
+        1. Objects and their types
+        2. States and their atoms
+        3. Transitions between states
+        4. System metadata
+        """
+        try:
+            with open(self._data_dir / "transition_system.yaml") as f:
+                system_data = yaml.safe_load(f)
+                
+                # Load objects if not already loaded
+                if not hasattr(self, '_loaded_objects'):
+                    for obj_name, obj_data in system_data["objects"].items():
+                        # Skip robot object as it's already created
+                        if obj_name == "robot":
+                            continue
+                        # Get type from hierarchy
+                        type_name = obj_data["type"]
+                        type_obj = None
+                        for t in TYPES:
+                            if t.name == type_name:
+                                type_obj = t
+                                break
+                        if type_obj is not None:
+                            self._objects[obj_name] = Object(obj_name, type_obj)
+                    self._loaded_objects = True
+                
+                # Load transitions in new format
+                self._str_transitions = [
+                    (t["source"], t["operator"], t["target"])
+                    for t in system_data["transitions"]
+                ]
+                
+                # Store metadata for potential use
+                self._transition_metadata = system_data["metadata"]
+                
+        except FileNotFoundError:
+            logging.warning("No transition system found at %s", self._data_dir / "transition_system.yaml")
+            self._str_transitions = []
+            self._transition_metadata = {}
+
+    def _load_state(self, state_id: str) -> _SavedMockSpotObservation:
+        """Load a state's observation."""
+        return _SavedMockSpotObservation.load_state(state_id, self._images_dir, self._objects)
+        
+    def step(self, action: Action) -> _MockSpotObservation:
+        """Take an action in the environment.
+        
+        The environment can transition in several ways:
+        1. Normal manipulation operators: Load next state from transitions
+        2. Observation operators: State doesn't change, only belief updates
+        3. Invalid actions: Stay in current state
+        4. States without images: Stay in current state
         
         Args:
-            curr_obs: Current observation for VLM atom comparison
+            action: Action to take, containing operator name and objects
+            
+        Returns:
+            Next observation
         """
-        # Get non-VLM atoms from saved data
-        non_vlm_atom_dict = self._observations[self._current_state_id].non_vlm_atom_dict \
-            if self._current_state_id is not None else {}
-            
-        # Get current observation data
-        images = self._observations[self._current_state_id].images \
-            if self._current_state_id is not None else None
-        gripper_open = self._gripper_open
-        objects_in_view = self._observations[self._current_state_id].objects_in_view \
-            if self._current_state_id is not None else set()
-        objects_in_hand = self._objects_in_hand
-        
-        # Initialize VLM-related fields
-        vlm_predicates = VLM_PREDICATES if CFG.spot_vlm_eval_predicate else None
-        vlm_atom_dict = {}
-        vlm_atom_new = {}  # Initialize to empty dict
-        
-        # Handle VLM predicates if enabled
-        if CFG.spot_vlm_eval_predicate and images is not None and isinstance(images.get("mock_camera"), RGBDImageWithContext):
-            # Create Object instances for visible objects
-            visible_objects = set()  # Use set instead of dict
-            for obj in objects_in_view:
-                visible_objects.add(obj)  # objects_in_view is already Set[Object]
-            
-            # Add robot object
-            visible_objects.add(self._spot_object)
-            
-            # Generate VLM atom combinations
-            vlm_atoms = get_vlm_atom_combinations(visible_objects, VLM_PREDICATES)
-            
-            # Batch classify VLM predicates
-            # TODO: feed all images from a state
-            if images is not None and "mock_camera" in images:
-                vlm_atom_new = vlm_predicate_batch_classify(
-                    vlm_atoms,
-                    [images["mock_camera"]],  # List of RGBD images
-                    predicates=VLM_PREDICATES,
-                    get_dict=True
-                )
-                assert isinstance(vlm_atom_new, dict)
-                
-                # Update VLM atom values
-                if curr_obs is not None and curr_obs.vlm_atom_dict is not None:
-                    vlm_atom_dict = curr_obs.vlm_atom_dict.copy()
-                for atom, result in vlm_atom_new.items():
-                    if result is not None:
-                        vlm_atom_dict[atom] = result
-                
-                # Log VLM atom results
-                logging.info(f"Evaluated VLM atoms (in current obs): {vlm_atom_new}")
-                
-                # Log VLM atom changes if we have previous observation
-                if curr_obs is not None and curr_obs.vlm_atom_dict is not None:
-                    vlm_atom_union = set(vlm_atom_new.keys()) | set(curr_obs.vlm_atom_dict.keys())
-                    changes = {
-                        str(atom): {
-                            "last": curr_obs.vlm_atom_dict.get(atom, None),
-                            "new": vlm_atom_new.get(atom, None)
-                        }
-                        for atom in sorted(vlm_atom_union, key=str)
-                    }
-                    logging.info(f"VLM atom changes: {changes}")
+        if self._current_observation is None:
+            raise RuntimeError("Environment not reset - call reset() first")
 
-                # Log true atoms
-                true_atoms = {k: v for k, v in vlm_atom_dict.items() if v}
-                logging.info(f"True VLM atoms (after updated with current obs): {true_atoms}")
+        # Get current state ID and action info
+        current_state_id = self._current_observation.state_id
         
-        return _MockSpotObservation(
-            images=images,
-            gripper_open=gripper_open,
-            objects_in_view=objects_in_view,
-            objects_in_hand=objects_in_hand,
-            state_id=self._current_state_id or "init",
-            atom_dict={},  # Empty since we use non_vlm_atom_dict
-            non_vlm_atom_dict=non_vlm_atom_dict,
-            vlm_atom_dict=vlm_atom_dict,
-            vlm_predicates=vlm_predicates
+        # Extract operator name and objects from action
+        # Access through extra_info which is guaranteed to exist
+        operator_info = action.extra_info or {}
+        operator_name = operator_info.get("operator_name")
+        operator_objects = operator_info.get("objects", [])
+        
+        if operator_name is None:
+            # Invalid action format - stay in current state
+            logging.warning(f"Invalid action format: {action}")
+            return self._current_observation
+            
+        # Check if this is an observation operator
+        is_observation_op = operator_name in {
+            "ObserveCupContent",
+            "ObserveDrawerContentFindEmpty",
+            "ObserveDrawerContentFindNotEmpty"
+        } or operator_name.startswith("Observe")
+        
+        if is_observation_op:
+            # For observation operators, state doesn't change
+            # Only update beliefs in current observation
+            # The observation update should be handled by the agent's `perceiver`
+            # when setting up the environment data
+            return self._current_observation
+            
+        # Get next state ID from transitions
+        next_state_id = None
+        for source_id, op_dict, dest_id in self._str_transitions:
+            # Compare operator name and objects
+            if (source_id == current_state_id and
+                isinstance(op_dict, dict) and
+                op_dict.get("name") == operator_name and
+                op_dict.get("objects", []) == [obj.name for obj in operator_objects]):
+                next_state_id = dest_id
+                break
+                
+        if next_state_id is None:
+            # No valid transition found - stay in current state
+            logging.warning(
+                f"No valid transition found for action {operator_name} with objects {operator_objects} "
+                f"from state {current_state_id}"
+            )
+            return self._current_observation
+            
+        # Try to load next observation
+        try:
+            # Convert objects set to dict for load_state
+            objects_dict = {obj.name: obj for obj in self.objects}
+            loaded_obs = _SavedMockSpotObservation.load_state(
+                next_state_id,
+                self._images_dir,
+                objects_dict
+            )
+            self._current_observation = _MockSpotObservation.init_from_saved(
+                loaded_obs,
+                vlm_atom_dict=None,  # Will be populated if needed
+                vlm_predicates=VLM_PREDICATES if CFG.spot_vlm_eval_predicate else None
+            )
+            return self._current_observation
+            
+        except FileNotFoundError:
+            # No observation data for next state - stay in current state
+            logging.warning(f"No observation data found for state {next_state_id}")
+            return self._current_observation
+
+    def reset(self, train_or_test: str, task_idx: int) -> _MockSpotObservation:
+        """Reset the environment to the initial state."""
+        
+        self._current_state_id = "0"
+        # Create mock observation
+        # Convert objects set to dict for load_state
+        objects_dict = {obj.name: obj for obj in self.objects}
+        loaded_obs = _SavedMockSpotObservation.load_state(
+            "0",
+            self._images_dir,
+            objects_dict
         )
-
-    def _load_graph_data(self) -> None:
-        """Load graph data from disk."""
-        # graph_file = self._data_dir / "graph.json"
-        # if not graph_file.exists():
-        #     logging.info("No existing graph data found at %s", graph_file)
-        #     return
-
-        # try:
-        #     with open(graph_file, "r", encoding="utf-8") as f:
-        #         data = json.load(f)
-        #         self._transitions = data["transitions"]
-                
-        #         # Load objects from environment creator
-        #         objects_map = {}  # Will be populated by environment creator
-        #         # FIXME: update objects!
-                
-        #         # Convert observations back to MockSpotObservation objects
-        #         self._observations = {}
-        #         for state_id, obs_data in data["observations"].items():
-        #             self._observations[state_id] = _SavedMockSpotObservation.from_json(
-        #                 obs_data, objects_map)
-                        
-        #     logging.info("Loaded graph data with %d states and %d transitions", 
-        #                 len(self._observations), sum(len(t) for t in self._transitions.values()))
-        # except Exception as e:
-        #     logging.error("Failed to load graph data: %s", e)
-        #     self._transitions = {}
-        #     self._observations = {}
+        obs = _MockSpotObservation.init_from_saved(
+            loaded_obs,
+            vlm_atom_dict=None,  # Will be populated if needed
+            vlm_predicates=VLM_PREDICATES if CFG.spot_vlm_eval_predicate else None
+        )
         
-        # FIXME: solve the loading problem, need to call creator + solve circular dependency
-        # # Try to load saved data if path exists
-        # self.load_from_path = self.load_from_path or os.path.join(self._data_dir, self.get_name())
-        # if os.path.exists(self.load_from_path):
-        #     self._creator = MockEnvCreatorBase(self.load_from_path)
-            
-        #     # Load initial state (state_0)
-        #     views, objects_in_view, objects_in_hand, gripper_open = self._creator.load_state("state_0")
-            
-        #     # Convert ImageWithContext to RGBDImageWithContext
-        #     rgbd_images = {}
-        #     mock_camera_views = views.get("mock_camera", {})
-        #     if isinstance(mock_camera_views, dict):
-        #         for camera_name, image in mock_camera_views.items():
-        #             if isinstance(image, UnposedImageWithContext):
-        #                 # Create mock transform
-        #                 world_tform_camera = math_helpers.SE3Pose(x=0, y=0, z=0, rot=math_helpers.Quat())
-                        
-        #                 # Create mock depth image
-        #                 mock_depth = np.zeros_like(image.rgb[:,:,0], dtype=np.uint16)
-                        
-        #                 rgbd_images[camera_name] = UnposedImageWithContext(
-        #                     rgb=image.rgb.astype(np.uint8),  # Ensure uint8 type
-        #                     depth=mock_depth,  # Mock depth as uint16
-        #                     camera_name=camera_name,
-        #                     image_rot=image.image_rot or 0.0,  # Default to 0 if None
-        #                 )
-            
-        #     # Update environment state
-        #     self._current_state_id = "state_0"
-        #     self._gripper_open = gripper_open
-        #     self._objects_in_hand = {obj for obj in self.objects if obj.name in objects_in_hand}
-        #     self._observations = {
-        #         "state_0": _SavedMockSpotObservation(
-        #             images=rgbd_images,
-        #             gripper_open=gripper_open,
-        #             objects_in_view={obj for obj in self.objects if obj.name in objects_in_view},
-        #             objects_in_hand=self._objects_in_hand,
-        #             state_id="state_0",
-        #             atom_dict={},
-        #             non_vlm_atom_dict=set()
-        #         )
-        #     }
-        #     logging.info(f"Loaded initial state from {self.load_from_path}")
-        # else:
-        #     logging.info(f"No saved data found at {self.load_from_path}, using default initialization")
-
-    def _save_graph_data(self) -> None:
-        """Save graph data to disk."""
-        graph_file = self._data_dir / "graph.json"
-        data = {
-            "transitions": self._transitions,
-            "observations": {
-                state_id: obs.to_json()
-                for state_id, obs in self._observations.items()
-            }
-        }
-        with open(graph_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        # Set current task and observation
+        if CFG.test_task_json_dir is not None and train_or_test == "test":
+            self._current_task = self._test_tasks[task_idx]
+        else:
+            goal_description = self._generate_goal_description()
+            self._current_task = EnvironmentTask(obs, goal_description)
+        
+        self._current_observation = obs
+        self._current_task_goal_reached = False
+        self._last_action = None
+        
+        return obs
+    
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
+        # NOTE: to update this from language
+        return self.goal_atoms
 
     def _create_operators(self) -> Iterator[STRIPSOperator]:
         """Create STRIPS operators for this environment.
@@ -671,6 +673,9 @@ class MockSpotEnv(BaseEnv):
         ignore_effs = set()
         yield STRIPSOperator("CloseDrawer", parameters, preconds, add_effs,
                             del_effs, ignore_effs)
+        
+        # if not CFG.mock_env_use_belief_operators:
+        #     return
 
         # ObserveCupContent: Observe if a cup has water (renamed from ObserveContainerContent)
         robot = Variable("?robot", _robot_type)
@@ -744,61 +749,6 @@ class MockSpotEnv(BaseEnv):
 
         if not CFG.mock_env_use_belief_operators:
             return
-
-    def add_state(self, 
-                 images: Optional[Dict[str, RGBDImageWithContext]] = None,
-                 gripper_open: bool = True,
-                 objects_in_view: Optional[Set[Object]] = None,
-                 objects_in_hand: Optional[Set[Object]] = None) -> str:
-        """Add a new state to the environment."""
-        # Generate unique state ID
-        state_id = str(len(self._observations))
-        
-        # Create observation
-        self._observations[state_id] = _MockSpotObservation(
-            images=images,
-            gripper_open=gripper_open,
-            objects_in_view=objects_in_view or set(),
-            objects_in_hand=objects_in_hand or set(),
-            state_id=state_id,
-            atom_dict={},
-            non_vlm_atom_dict=set(),
-            vlm_atom_dict=None,
-            vlm_predicates=None
-        )
-        logging.debug("Added state %s with data: %s", state_id, {
-            "objects_in_view": {obj.name for obj in (objects_in_view or set())},
-            "objects_in_hand": {obj.name for obj in (objects_in_hand or set())},
-            "gripper_open": gripper_open,
-            "has_images": images is not None
-        })
-        
-        # Save updated data
-        self._save_graph_data()
-        
-        return state_id
-
-    def add_transition(self, 
-                      from_state_id: str,
-                      action_name: str,
-                      to_state_id: str) -> None:
-        """Add a transition between states."""
-        if from_state_id not in self._observations:
-            raise ValueError(f"Unknown state ID: {from_state_id}")
-        if to_state_id not in self._observations:
-            raise ValueError(f"Unknown state ID: {to_state_id}")
-            
-        # Verify action is a valid operator
-        if not any(op.name == action_name for op in self._operators):
-            raise ValueError(f"Unknown operator: {action_name}")
-            
-        # Initialize transitions dict for this state if needed
-        if from_state_id not in self._transitions:
-            self._transitions[from_state_id] = {}
-            
-        self._transitions[from_state_id][action_name] = to_state_id
-        logging.debug("Added transition: %s -(%s)-> %s", from_state_id, action_name, to_state_id)
-        self._save_graph_data()
         
     def simulate(self, state: State, action: Action) -> State:
         """Simulate a state transition."""
@@ -881,6 +831,9 @@ class MockSpotEnv(BaseEnv):
         nsrts = set()
         
         for strips_op in self.strips_operators:
+            if strips_op.name not in named_options:
+                print(f"[blue]Skipping {strips_op.name} since it's not in named options[/blue]")
+                continue
             option = named_options[strips_op.name]
             nsrt = strips_op.make_nsrt(
                 option=option,
@@ -902,16 +855,14 @@ class MockSpotEnv(BaseEnv):
 
 class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
     """A mock environment for testing pick and place with two cups."""
+    
+    # NOTE: This is a test transition system with manually created images
+    preset_data_dir = os.path.join("mock_env_data", "test_mock_two_cup_pick_place_manual_images")
 
     def __init__(self, use_gui: bool = True) -> None:
         """Initialize the environment."""
         super().__init__(use_gui=use_gui)
         self.name = "mock_spot_pick_place_two_cup"
-        
-        # Path to load saved environment data from, if any
-        self.load_from_path = os.path.join("mock_env_data", self.name)
-        
-        # FIXME - where to load?? we should call creator here?
         
         # Create objects
         self.robot = Object("robot", _robot_type)
