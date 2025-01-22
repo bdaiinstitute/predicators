@@ -69,7 +69,7 @@ from predicators import utils
 from predicators.structs import Object, GroundAtom
 from predicators.spot_utils.mock_env.mock_env_creator_manual import ManualMockEnvCreator
 from predicators.envs.mock_spot_env import (
-    _robot_type, _container_type, _immovable_object_type,
+    MockSpotEnv, _robot_type, _container_type, _immovable_object_type,
     _HandEmpty, _On, _NotBlocked, _IsPlaceable, _HasFlatTopSurface,
     _Reachable, _NEq, _NotInsideAnyContainer, _FitsInXY, _NotHolding
 )
@@ -586,7 +586,14 @@ def test_transitions_match_edges():
     })
     
     # Create environment and test objects
-    creator = ManualMockEnvCreator(test_dir)
+    env = MockSpotEnv()
+    creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
+    
     robot = Object("robot", _robot_type)
     cup = Object("cup", _container_type)
     source_table = Object("source_table", _immovable_object_type)
