@@ -96,31 +96,31 @@ def test_two_cup_pick_place_with_manual_images():
         # Define states and their images
         test_state_images = {
             # Initial state - both cups on table
-            "state_0": {
+            "0": {
                 "cam1.seed0.rgb": (example_rgb_path, "rgb"),
                 "cam1.seed0.depth": (example_depth_path, "depth"),
             },
             
             # First cup in hand
-            "state_1": {
+            "1": {
                 "cam1.seed0.rgb": (example_rgb_path, "rgb"),
                 "cam1.seed0.depth": (example_depth_path, "depth"),
             },
             
             # First cup in target
-            "state_2": {
+            "2": {
                 "cam1.seed0.rgb": (example_rgb_path, "rgb"),
                 "cam1.seed0.depth": (example_depth_path, "depth"),
             },
             
             # Second cup in hand
-            "state_3": {
+            "3": {
                 "cam1.seed0.rgb": (example_rgb_path, "rgb"),
                 "cam1.seed0.depth": (example_depth_path, "depth"),
             },
             
             # Final state - both cups in target
-            "state_4": {
+            "4": {
                 "cam1.seed0.rgb": (example_rgb_path, "rgb"),
                 "cam1.seed0.depth": (example_depth_path, "depth"),
             },
@@ -130,9 +130,9 @@ def test_two_cup_pick_place_with_manual_images():
         objects_in_view = {env.cup1, env.cup2, env.table, env.target}
         
         # Process each state
-        for state_id in ["state_0", "state_1", "state_2", "state_3", "state_4"]:
+        for state_id in ["0", "1", "2", "3", "4"]:
             # Determine objects in hand
-            objects_in_hand = {env.cup1} if state_id == "state_1" else {env.cup2} if state_id == "state_3" else set()
+            objects_in_hand = {env.cup1} if state_id == "1" else {env.cup2} if state_id == "3" else set()
                         
             # Add state
             creator.add_state_from_raw_images(
@@ -140,7 +140,7 @@ def test_two_cup_pick_place_with_manual_images():
                 state_id=state_id,
                 objects_in_view=objects_in_view,
                 objects_in_hand=objects_in_hand,
-                gripper_open=(state_id not in ["state_1", "state_3"])
+                gripper_open=(state_id not in ["1", "3"])
             )
             
             # Load and verify state
@@ -167,10 +167,10 @@ def test_two_cup_pick_place_with_manual_images():
             
             # Verify metadata
             assert loaded_state.objects_in_view == objects_in_view
-            if state_id == "state_1":
+            if state_id == "1":
                 assert loaded_state.objects_in_hand == {env.cup1}
                 assert not loaded_state.gripper_open
-            elif state_id == "state_3":
+            elif state_id == "3":
                 assert loaded_state.objects_in_hand == {env.cup2}
                 assert not loaded_state.gripper_open
             else:
@@ -216,7 +216,7 @@ def test_load_saved_two_cup_pick_place():
         creator.objects[obj.name] = obj
     
     # Load and verify each state
-    for state_id in ["state_0", "state_1", "state_2", "state_3", "state_4"]:
+    for state_id in ["0", "1", "2", "3", "4"]:
         # Load state
         loaded_state = creator.load_state(state_id)
         
@@ -229,10 +229,10 @@ def test_load_saved_two_cup_pick_place():
         assert loaded_state.objects_in_view == expected_objects
         
         # Verify state-specific conditions
-        if state_id == "state_1":
+        if state_id == "1":
             assert loaded_state.objects_in_hand == {env.cup1}
             assert not loaded_state.gripper_open
-        elif state_id == "state_3":
+        elif state_id == "3":
             assert loaded_state.objects_in_hand == {env.cup2}
             assert not loaded_state.gripper_open
         else:
