@@ -7,24 +7,25 @@ The mock Spot perceiver system provides a simulated perception pipeline for test
 - Object detection and tracking
 - VLM (Vision Language Model) predicate evaluation
 - State estimation and belief updates
+- Drawer observation and content belief updates
 
-****## Object Handling
+## Object Handling
 
 ### Object System
 
-Objects in the mock environment are managed by the environment creator and passed through as `Set[Object]`. Key points:
+Objects in the mock environment are managed by the environment creator and passed through as `Container[Object]`. Key points:
 
 1. **Object Types**:
    ```python
    @dataclass
    class Object:
        name: str           # Unique identifier for the object
-       type: str          # Object type (e.g. "cup", "table")
+       type: str          # Object type (e.g. "cup", "table", "drawer")
        parent_type: Optional[str] = None  # Parent type for inheritance
    ```
 
 2. **Object Storage**:
-   - All objects are stored and passed as `Set[Object]` or `Container[Object]`
+   - All objects are stored and passed as `Container[Object]`
    - No string-based object references
    - Direct object instance usage throughout the system
    - Objects are created and managed by the environment creator
@@ -179,40 +180,221 @@ class _MockSpotObservation:
    ```
 
 2. **Belief Update Process**:
-   - VLM predicates are evaluated online using images
-   - Known predicates cannot become unknown
-   - Updates preserve previous knowledge
+   The belief update happens in three steps:
+
+   a) **Check Consistency of New Labels**:
+   ```python
+   # Collect Known/Unknown pairs from current VLM evaluation
+   # Being pessimistic: if unknown is true OR known is false, treat as unknown
+   if known_val and unknown_val:  # Both True is inconsistent
+       logging.warning("Inconsistent Known/Unknown values...")
+   if unknown_val or not known_val:
+       curr_vlm_atom_values[known_atom] = False
+       curr_vlm_atom_values[unknown_atom] = True
+   ```
+
+   b) **Basic Update**:
+   - Update any atom that has a non-None value from current observation
+   - Preserves previous values for atoms not in current observation
+
+   c) **Override with Previous Knowledge**:
+   - If a predicate was Known=True in previous step, it stays Known=True
+   - Corresponding Unknown predicate is set to False
+   - Otherwise, keep values from current observation
+
+3. **Key Principles**:
+   - Known predicates cannot become unknown (monotonic knowledge)
+   - Being pessimistic: treat as unknown if:
+     - Unknown is true OR Known is false
+     - Both Known and Unknown are true/false (inconsistent)
    - Non-VLM predicates come directly from environment
+   - VLM predicates are evaluated online using images
 
-### Key Principles
+### State Construction
 
-1. **Predicate Selection**:
-   - When VLM enabled:
-     - Use VLM predicates for perception-based predicates
-     - Filter out non-VLM counterparts
-     - Keep non-VLM predicates without VLM versions
-   - When VLM disabled:
-     - Use all non-VLM predicates
+1. **State Components**:
+   - Complete world state representation
+   - Combines VLM and non-VLM atoms
+   - Includes camera images and visible objects
+   - Tracks belief state for partially observable predicates
 
-2. **State Construction**:
+2. **State Construction Code**:
    ```python
    def _obs_to_state(self, obs: _MockSpotObservation) -> State:
-       state = State({})  # Empty state
+       # Create state with all atoms
+       state_dict = {}
        
        # Add VLM atoms if enabled
        if CFG.spot_vlm_eval_predicate and self._vlm_atom_dict:
            for atom, value in self._vlm_atom_dict.items():
-               if value:  # Only add True atoms
-                   state = state.copy()
-                   state.set_atoms({atom})
+               if value:
+                   state_dict[atom] = True
        
-       # Add non-VLM atoms from environment
+       # Add non-VLM atoms
        if self._non_vlm_atoms:
-           state = state.copy()
-           state.set_atoms(self._non_vlm_atoms)
-           
+           for atom in self._non_vlm_atoms:
+               state_dict[atom] = True
+       
+       # Create partial perception state with additional info
+       state = _PartialPerceptionState(
+           state_dict,  # Base state data
+           camera_images=self._camera_images if CFG.spot_vlm_eval_predicate else None,
+           visible_objects=self._objects_in_view,
+           vlm_atom_dict=self._vlm_atom_dict,
+           vlm_predicates=self._vlm_predicates,
+       )
+       
        return state
    ```
+
+3. **Key Components**:
+   - `state_dict`: Core state data with all true atoms
+   - `camera_images`: Current RGBD images (if VLM enabled)
+   - `visible_objects`: Objects currently in view
+   - `vlm_atom_dict`: Current VLM predicate evaluations
+   - `vlm_predicates`: Active VLM predicates
+
+4. **Partial Observability**:
+   - State tracks both fully and partially observable predicates
+   - Camera images maintained for VLM evaluation
+   - Visible objects list for perception tracking
+   - VLM atom dictionary preserves belief state
+
+### Drawer Observation System
+
+1. **Drawer State Predicates**:
+   ```python
+   # Physical state predicates
+   _DrawerOpen = Predicate("DrawerOpen", [_container_type])
+   _DrawerClosed = Predicate("DrawerClosed", [_container_type])
+   
+   # Belief state predicates
+   _Unknown_ContainerEmpty = Predicate("Unknown_ContainerEmpty", [_container_type])
+   _Known_ContainerEmpty = Predicate("Known_ContainerEmpty", [_container_type])
+   _BelieveTrue_ContainerEmpty = Predicate("BelieveTrue_ContainerEmpty", [_container_type])
+   _BelieveFalse_ContainerEmpty = Predicate("BelieveFalse_ContainerEmpty", [_container_type])
+   ```
+
+2. **Belief Update Process**:
+   The drawer observation system follows these principles:
+
+   a) **Initial State**:
+   - Drawer content starts as unknown (`Unknown_ContainerEmpty`)
+   - Physical state (open/closed) is known
+   - No beliefs about contents
+
+   b) **Observation Process**:
+   ```python
+   # Drawer must be open for observation
+   if not _DrawerOpen(drawer):
+       return  # Cannot observe closed drawer
+   
+   # Update knowledge state
+   del_effs.add(_Unknown_ContainerEmpty(drawer))
+   add_effs.add(_Known_ContainerEmpty(drawer))
+   
+   # Update belief based on observation
+   if found_empty:
+       add_effs.add(_BelieveTrue_ContainerEmpty(drawer))
+   else:
+       add_effs.add(_BelieveFalse_ContainerEmpty(drawer))
+   ```
+
+   c) **Knowledge Persistence**:
+   - Once drawer content is known, it stays known
+   - Beliefs about contents can be updated
+   - Physical state can change independently
+
+3. **Key Principles**:
+   - Drawer must be open for observation
+   - Knowledge is monotonic (cannot become unknown)
+   - Beliefs can change with new observations
+   - Physical and belief states are tracked separately
+
+### State Construction
+
+1. **State Components**:
+   - Complete world state representation
+   - Combines physical and belief predicates
+   - Tracks drawer state and contents
+   - Maintains observation history
+
+2. **State Construction Code**:
+   ```python
+   def _obs_to_state(self, obs: _MockSpotObservation) -> State:
+       # Create state with all atoms
+       state_dict = {}
+       
+       # Add physical state atoms
+       if self._non_vlm_atoms:
+           for atom in self._non_vlm_atoms:
+               state_dict[atom] = True
+       
+       # Add belief state atoms
+       if self._belief_atoms:
+           for atom in self._belief_atoms:
+               state_dict[atom] = True
+       
+       # Create state with additional info
+       state = _PartialPerceptionState(
+           state_dict,
+           camera_images=self._camera_images,
+           visible_objects=self._objects_in_view,
+           belief_atoms=self._belief_atoms
+       )
+       
+       return state
+   ```
+
+3. **Key Components**:
+   - `state_dict`: Core state data with all true atoms
+   - `_belief_atoms`: Set of current belief predicates
+   - `_non_vlm_atoms`: Physical state predicates
+   - `_camera_images`: Current visual observations
+
+## Testing
+
+### Test Cases
+
+1. **Basic Drawer Observation**:
+   ```python
+   def test_drawer_observation():
+       # Initial state - drawer content unknown
+       initial_atoms = {
+           _HandEmpty(robot),
+           _DrawerOpen(drawer),
+           _Unknown_ContainerEmpty(drawer)
+       }
+       
+       # After observation finding empty
+       observation_atoms = {
+           _Known_ContainerEmpty(drawer),
+           _BelieveTrue_ContainerEmpty(drawer)
+       }
+       
+       # After observation finding objects
+       observation_atoms = {
+           _Known_ContainerEmpty(drawer),
+           _BelieveFalse_ContainerEmpty(drawer),
+           _Inside(apple, drawer)
+       }
+   ```
+
+2. **State Transitions**:
+   ```python
+   # Valid transitions:
+   Unknown -> Known + BelieveTrue   # Found empty
+   Unknown -> Known + BelieveFalse  # Found objects
+   
+   # Invalid transitions:
+   Known -> Unknown  # Cannot lose knowledge
+   ```
+
+3. **Best Practices**:
+   - Always check drawer is open before observation
+   - Update both knowledge and belief state
+   - Maintain monotonicity of knowledge
+   - Track physical state separately from beliefs
 
 ## TODOs
 
