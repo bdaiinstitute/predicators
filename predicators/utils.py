@@ -1625,6 +1625,17 @@ def get_all_ground_atoms_for_predicate(
     return ground_atoms
 
 
+def get_all_ground_atom_combinations_for_predicate_set(
+    objects: Sequence[Object], preds: Set[Predicate]) -> Set[GroundAtom]:
+    """Get all possible combinations of objects for a set of predicates."""
+    atoms = set()
+    for pred in preds:
+        param_objects = get_object_combinations(objects, pred.types)
+        for objs in param_objects:
+            atoms.add(GroundAtom(pred, objs))
+    return atoms
+
+
 def get_all_lifted_atoms_for_predicate(
         predicate: Predicate,
         variables: FrozenSet[Variable]) -> Set[LiftedAtom]:
