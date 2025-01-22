@@ -24,7 +24,7 @@ from predicators.utils import get_object_combinations
 
 
 
-@dataclass(frozen=False)
+@dataclass(frozen=True)
 class _SavedMockSpotObservation:
     """Observation for mock Spot environment.
     

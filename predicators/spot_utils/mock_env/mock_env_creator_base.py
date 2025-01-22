@@ -107,7 +107,7 @@ from pathlib import Path
 from jinja2 import Template
 from dataclasses import asdict
 
-from predicators.ground_truth_models.mock_spot_env.nsrts import MockSpotGroundTruthNSRTFactory
+
 from predicators.structs import (
     GroundAtom, EnvironmentTask, GroundTruthPredicate, State, Task, Type, Predicate, 
     ParameterizedOption, NSRT, Object, Variable, LiftedAtom, STRIPSOperator,
@@ -173,6 +173,7 @@ class MockEnvCreatorBase(ABC):
         self.state_to_id: Dict[FrozenSet[GroundAtom], str] = {}  # Maps state atoms to IDs
         self.id_to_state: Dict[str, Set[GroundAtom]] = {}  # Maps IDs to state atoms
         self.transitions: List[Tuple[str, _GroundNSRT, str]] = []  # (source_id, op, dest_id)
+        self.str_transitions: List[Tuple[str, Dict[str, Any], str]] = []  # For saving to JSON
         
         # Set data directory in config for environment to use
         utils.reset_config({
@@ -194,6 +195,8 @@ class MockEnvCreatorBase(ABC):
         # Initialize objects dictionary with any objects from env_info
         self.objects: Dict[str, Object] = {}
         self.robot_object = Object(name="robot", type=self.types["robot"])
+
+        self.current_state_id = "0"  # Default to initial state
 
     def _format_atoms(self, atoms: set) -> str:
         """Format atoms for display, showing only fluent predicates."""
@@ -1030,7 +1033,8 @@ class MockEnvCreatorBase(ABC):
                 
                 # Add transition
                 next_id = self.state_to_id[next_frozen]
-                self.transitions.append((curr_id, op, next_id))  # source_id, op, dest_id
+                # self.transitions.append((curr_id, op, next_id))  # source_id, op, dest_id
+                self.add_transition(curr_id, op, next_id)
 
     def add_state_observation(self, 
                             state_id: str,
@@ -1316,6 +1320,90 @@ class MockEnvCreatorBase(ABC):
         ]
         
         return "".join(label_parts) 
+
+    def get_initial_observation(self) -> _SavedMockSpotObservation:
+        """Get the initial observation."""
+        return self.states["0"]
+
+    def get_observation(self, state_id: str) -> _SavedMockSpotObservation:
+        """Get the observation for a state."""
+        return self.states[state_id]
+
+    def get_next_state_id(self, action: Action) -> str:
+        """Get the next state ID based on the action."""
+        # Get operator name and objects from action
+        operator_info = action.extra_info or {}
+        operator_name = operator_info.get("operator_name")
+        operator_objects = operator_info.get("objects", [])
+        
+        if operator_name is None:
+            return self.current_state_id  # Stay in current state if no operator name
+        
+        # Find matching transition
+        for source_id, op, dest_id in self.transitions:
+            if (op.name == operator_name and 
+                tuple(op.objects) == tuple(operator_objects)):
+                self.current_state_id = dest_id  # Update current state
+                return dest_id
+        
+        # If no transition found, stay in current state
+        return self.current_state_id
+
+    def add_transition(self, source_id: str, operator: _GroundNSRT, dest_id: str) -> None:
+        """Add a transition to the environment."""
+        self.transitions.append((source_id, operator, dest_id))
+        # Also store string version for saving
+        op_dict = {
+            "name": operator.name,
+            "objects": [obj.name for obj in operator.objects]
+        }
+        self.str_transitions.append((source_id, op_dict, dest_id))
+        
+    def save_transitions(self) -> None:
+        """Save the transition system to a YAML file.
+        
+        The transition system includes:
+        1. Objects with their types and parent types
+        2. States with their atoms and fluent atoms
+        3. Transitions between states
+        4. Metadata about predicates and types
+        """
+        assert self.states or self.transitions, "States/Transitions not explored yet"
+        
+        # Create output directory if it doesn't exist
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Prepare data structure
+        system_data = {
+            "objects": {
+                obj.name: {
+                    "type": obj.type.name,
+                    "parent_type": obj.type.parent.name if obj.type.parent else None
+                }
+                for obj in self.objects.values()
+            },
+            "states": {
+                state_id: {
+                    "atoms": [str(atom) for atom in atoms],
+                    "fluent_atoms": [str(atom) for atom in atoms 
+                                   if atom.predicate.name in self.fluent_predicates]
+                }
+                for state_id, atoms in self.id_to_state.items()
+            },
+            "transitions": self.str_transitions,  # List[Tuple[str, Dict[str, Any], str]]
+            "metadata": {
+                "fluent_predicates": list(self.fluent_predicates),
+                "predicate_types": {
+                    name: [t.name for t in pred.types] 
+                    for name, pred in self.predicates.items()
+                }
+            }
+        }
+        
+        # Save to YAML file
+        output_path = self.output_dir / "transition_system.yaml"
+        with open(output_path, 'w') as f:
+            yaml.dump(system_data, f, default_flow_style=False, sort_keys=False)
 
 def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
                                 task_name: str,
