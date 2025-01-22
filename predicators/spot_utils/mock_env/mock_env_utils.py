@@ -92,7 +92,7 @@ class _SavedMockSpotObservation:
                 
                 # Also save as JPG for preview
                 jpg_path = state_dir / f"{img_name}_rgb.jpg"
-                plt.imsave(jpg_path, img_data.rgb)
+                plt.imsave(str(jpg_path), img_data.rgb)
                 
                 # Save depth if exists
                 depth_path = None

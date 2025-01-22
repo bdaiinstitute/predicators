@@ -300,7 +300,7 @@ class SpotPerceiver(BasePerceiver):
         state = _PartialPerceptionState(
             percept_state.data,
             simulator_state=simulator_state,
-            camera_images=camera_images,
+            camera_images=camera_images,  # NOTE: may not need now
             visible_objects=self._objects_in_view,
             vlm_atom_dict=self._vlm_atom_dict,
             vlm_predicates=self._vlm_predicates,
