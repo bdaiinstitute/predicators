@@ -91,8 +91,8 @@ def test_mock_spot_env():
         # Create new environment instance with same data directory
         env2 = MockSpotEnv()
         assert len(env2._observations) == 2
-        assert len(env2._transitions) == 1
-        assert env2._transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
+        assert len(env2._str_transitions) == 1
+        assert env2._str_transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
         
     finally:
         # Clean up temporary directory
@@ -148,8 +148,8 @@ def test_pick_from_top():
         env.add_transition(state_id_2, "PickObjectFromTop", state_id_3)
         
         # Verify transitions
-        assert env._transitions[state_id_1]["MoveToReachObject"] == state_id_2
-        assert env._transitions[state_id_2]["PickObjectFromTop"] == state_id_3
+        assert env._str_transitions[state_id_1]["MoveToReachObject"] == state_id_2
+        assert env._str_transitions[state_id_2]["PickObjectFromTop"] == state_id_3
         
     finally:
         # Clean up temporary directory
@@ -205,8 +205,8 @@ def test_move_to_view_from_top():
         env.add_transition(state_id_2, "ObserveFromTop", state_id_3)
         
         # Verify transitions
-        assert env._transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
-        assert env._transitions[state_id_2]["ObserveFromTop"] == state_id_3
+        assert env._str_transitions[state_id_1]["MoveToHandObserveObjectFromTop"] == state_id_2
+        assert env._str_transitions[state_id_2]["ObserveFromTop"] == state_id_3
         
     finally:
         # Clean up temporary directory
