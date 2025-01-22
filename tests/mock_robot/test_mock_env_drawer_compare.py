@@ -126,8 +126,16 @@ def test_drawer_manipulation_no_uncertainty():
         "sesame_task_planning_heuristic": "goal_count"
     })
     
+    # Create environment
+    env = MockSpotEnv()
+    
     # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir)
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
     
     # Create test objects
     robot = Object("robot", _robot_type)
@@ -244,8 +252,16 @@ def test_drawer_observation_phase():
         "sesame_task_planning_heuristic": "goal_count"
     })
     
+    # Create environment
+    env = MockSpotEnv()
+    
     # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir)
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
     
     # Create test objects
     robot = Object("robot", _robot_type)
@@ -333,8 +349,16 @@ def test_drawer_manipulation_after_observation():
         "sesame_task_planning_heuristic": "lmcut"
     })
     
+    # Create environment
+    env = MockSpotEnv()
+    
     # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir)
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts
+    })
     
     # Create test objects
     robot = Object("robot", _robot_type)
