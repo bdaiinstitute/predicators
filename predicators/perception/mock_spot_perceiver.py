@@ -142,45 +142,77 @@ class MockSpotPerceiver(BasePerceiver):
             # This preserves knowledge from previous observations
             # NOTE: We assume no information loss in belief update
             # NOTE: Rule: Known predicates cannot become unknown
-            # Step 1: Basic update - update any atom that has a non-None value
+            
+            # Step 1: Check consistency of newly detected labels
+            # Collect Known/Unknown pairs from current VLM evaluation
+            curr_known_unknown_pairs = {}  # Dict[str, tuple[VLMGroundAtom, VLMGroundAtom]]  # base_name -> (known_atom, unknown_atom)
+            for atom in curr_vlm_atom_values:
+                if isinstance(atom, VLMGroundAtom):
+                    pred_name = atom.predicate.name
+                    if pred_name.startswith("Known_"):
+                        base_name = pred_name.replace("Known_", "")
+                        if base_name not in curr_known_unknown_pairs:
+                            curr_known_unknown_pairs[base_name] = [atom, None]
+                        else:
+                            curr_known_unknown_pairs[base_name][0] = atom
+                    elif pred_name.startswith("Unknown_"):
+                        base_name = pred_name.replace("Unknown_", "")
+                        if base_name not in curr_known_unknown_pairs:
+                            curr_known_unknown_pairs[base_name] = [None, atom]
+                        else:
+                            curr_known_unknown_pairs[base_name][1] = atom
+
+            # Check consistency of current VLM evaluation
+            # Being pessimistic: if unknown is true OR known is false, treat as unknown
+            for base_name, (known_atom, unknown_atom) in curr_known_unknown_pairs.items():
+                if known_atom is not None and unknown_atom is not None:
+                    known_val = curr_vlm_atom_values.get(known_atom)
+                    unknown_val = curr_vlm_atom_values.get(unknown_atom)
+                    if known_val is not None and unknown_val is not None:
+                        # Both True or False is inconsistent
+                        if (known_val and unknown_val) or (not known_val and not unknown_val):
+                            logging.warning(
+                                f"Inconsistent Known/Unknown values in current VLM evaluation for {base_name}: "
+                                f"Both Known and Unknown are True or False"
+                            )
+                        # Being pessimistic: if unknown is true OR known is false, set as unknown
+                        if unknown_val or not known_val:
+                            curr_vlm_atom_values[known_atom] = False
+                            curr_vlm_atom_values[unknown_atom] = True
+            
+            # Step 2: Basic update - update any atom that has a non-None value
             if obs.vlm_atom_dict is not None:
                 for atom, value in curr_vlm_atom_values.items():
                     if value is not None:
                         updated_vlm_atom_values[atom] = value
             
-            # Step 2: Handle Known/Unknown predicates
-            # Collect all Known/Unknown predicate pairs
+            # Step 3: Override with previous knowledge for Known/Unknown pairs
+            # Collect all Known/Unknown pairs from previous step's values
             known_unknown_pairs = {}  # Dict[str, tuple[VLMGroundAtom, VLMGroundAtom]]
-            for atom in updated_vlm_atom_values:
+            for atom in self._vlm_atom_dict:  # Changed from updated_vlm_atom_values to self._vlm_atom_dict
                 if isinstance(atom, VLMGroundAtom):
                     pred_name = atom.predicate.name
                     if pred_name.startswith("Known_"):
                         base_name = pred_name.replace("Known_", "")
                         if base_name not in known_unknown_pairs:
-                            known_unknown_pairs[base_name] = [None, None]
-                        known_unknown_pairs[base_name][0] = atom
+                            known_unknown_pairs[base_name] = [atom, None]
+                        else:
+                            known_unknown_pairs[base_name][0] = atom
                     elif pred_name.startswith("Unknown_"):
                         base_name = pred_name.replace("Unknown_", "")
                         if base_name not in known_unknown_pairs:
-                            known_unknown_pairs[base_name] = [None, None]
-                        known_unknown_pairs[base_name][1] = atom
+                            known_unknown_pairs[base_name] = [None, atom]
+                        else:
+                            known_unknown_pairs[base_name][1] = atom
 
             # Update Known/Unknown pairs based on previous knowledge
             for base_name, (known_atom, unknown_atom) in known_unknown_pairs.items():
                 if known_atom is not None and unknown_atom is not None:
-                    # If it was known before, keep it known
-                    if known_atom in self._vlm_atom_dict and self._vlm_atom_dict[known_atom]:
+                    # If it was known in previous step, keep it known
+                    if self._vlm_atom_dict.get(known_atom, False):  # Use previous step's values
                         updated_vlm_atom_values[known_atom] = True
                         updated_vlm_atom_values[unknown_atom] = False
-                    
-                    # Validate Known/Unknown consistency
-                    known_val = updated_vlm_atom_values.get(known_atom, False)
-                    unknown_val = updated_vlm_atom_values.get(unknown_atom, True)
-                    if known_val == unknown_val:
-                        logging.warning(
-                            f"Inconsistent Known/Unknown values for {base_name}: "
-                            f"Known={known_val}, Unknown={unknown_val}"
-                        )
+                    # Otherwise, we keep the value from current observation
             
             # Store updated values
             self._vlm_atom_dict = updated_vlm_atom_values
