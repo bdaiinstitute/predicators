@@ -179,7 +179,7 @@ class _SavedMockSpotObservation:
     state_id: str
     atom_dict: Dict[str, bool]
     non_vlm_atom_dict: Dict[GroundAtom, bool]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any]  # = field(default_factory=dict)
 
     def _serialize_ground_atom(self, atom: GroundAtom) -> str:
         """Convert a GroundAtom to a string representation."""
@@ -334,11 +334,12 @@ class _SavedMockSpotObservation:
 @dataclass(frozen=True)
 class _MockSpotObservation(_SavedMockSpotObservation):
     """An observation from the mock Spot environment."""
+    object_dict: Dict[str, Object]
     vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
     vlm_predicates: Optional[Set[VLMPredicate]] = None
     
     @classmethod
-    def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, 
+    def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, object_dict: Dict[str, Object],
                        vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
                         vlm_predicates: Optional[Set[VLMPredicate]] = None) -> "_MockSpotObservation":
         """Initialize from a saved observation."""
@@ -350,7 +351,9 @@ class _MockSpotObservation(_SavedMockSpotObservation):
             state_id=saved_obs.state_id,
             atom_dict=saved_obs.atom_dict,
             non_vlm_atom_dict=saved_obs.non_vlm_atom_dict,
+            metadata=saved_obs.metadata,
             # Fields decided by VLM online evaluation
+            object_dict=object_dict,
             vlm_atom_dict=vlm_atom_dict,
             vlm_predicates=vlm_predicates
         )
