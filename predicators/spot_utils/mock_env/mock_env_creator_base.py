@@ -1390,7 +1390,17 @@ class MockEnvCreatorBase(ABC):
                 }
                 for state_id, atoms in self.id_to_state.items()
             },
-            "transitions": self.str_transitions,  # List[Tuple[str, Dict[str, Any], str]]
+            "transitions": [
+                {
+                    "source": source_id,
+                    "operator": {
+                        "name": op_info["name"],
+                        "objects": op_info["objects"]
+                    },
+                    "target": target_id
+                }
+                for source_id, op_info, target_id in self.str_transitions
+            ],
             "metadata": {
                 "fluent_predicates": list(self.fluent_predicates),
                 "predicate_types": {
