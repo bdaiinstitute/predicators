@@ -175,7 +175,8 @@ class MockSpotPerceiver(BasePerceiver):
                             curr_vlm_atom_values[unknown_atom] = True
 
             # Step 2: Basic update - update any atom that has a non-None value
-            if obs.vlm_atom_dict is not None:
+            # NOTE: don't use obs.vlm_atom_dict, it's deprecated!
+            if self._vlm_atom_dict is not None:
                 for atom, value in curr_vlm_atom_values.items():
                     if value is not None:
                         updated_vlm_atom_values[atom] = value
