@@ -3924,14 +3924,21 @@ class Timer:
 
 @contextlib.contextmanager
 def timing(text, block=False):
-    timer = Timer()
+    """Context manager for timing code blocks.
+    
+    Args:
+        text: Description of the code block being timed
+        block: Whether to print block-style logging
+    """
+    timer = Timer(enable_print=False)  # Create timer with printing disabled
     logger = logging.getLogger(__name__)
     if block:
         logger.info("[STARTING] %s...", text)
     else:
         logger.info("[STARTING] %s...", text)
-    yield
+    with timer:  # Use the timer context manager properly
+        yield
     if block:
-        logger.info("[COMPLETED] %s: %s", text, timer)
+        logger.info("[COMPLETED] %s [Time: %.3fs]", text, timer.elapsed_time)
     else:
-        logger.info("[COMPLETED] %s", timer)
+        logger.info("[COMPLETED] [Time: %.3fs]", timer.elapsed_time)
