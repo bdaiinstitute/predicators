@@ -31,7 +31,7 @@ from rich import print
 import yaml
 
 from predicators.envs import BaseEnv
-from predicators.structs import Action, GoalDescription, State, Object, Type, EnvironmentTask, Video, Image
+from predicators.structs import Action, GoalDescription, Observation, State, Object, Type, EnvironmentTask, Video, Image
 from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, GroundTruthPredicate, VLMPredicate, VLMGroundAtom, ParameterizedOption, NSRT, _GroundNSRT
 from predicators.settings import CFG
 from predicators.utils import get_object_combinations
@@ -171,7 +171,7 @@ class MockSpotEnv(BaseEnv):
         """Load a state's observation."""
         return _SavedMockSpotObservation.load_state(state_id, self._images_dir, self._objects)
         
-    def step(self, action: Action) -> _MockSpotObservation:
+    def step(self, action: Action) -> Observation:
         """Take an action in the environment.
         
         The environment can transition in several ways:
@@ -258,7 +258,7 @@ class MockSpotEnv(BaseEnv):
             logging.warning(f"No observation data found for state {next_state_id}")
             return self._current_observation
 
-    def reset(self, train_or_test: str, task_idx: int) -> _MockSpotObservation:
+    def reset(self, train_or_test: str, task_idx: int) -> Observation:
         """Reset the environment to the initial state."""
         
         self._current_state_id = "0"
@@ -290,6 +290,13 @@ class MockSpotEnv(BaseEnv):
         self._last_action = None
         
         return obs
+    
+    def get_observation(self) -> Observation:
+        return self._current_observation
+    
+    @property
+    def _current_state(self) -> Observation:
+        return self._current_observation
     
     def _generate_goal_description(self) -> GoalDescription:
         """Generate a goal description for the current task."""
@@ -678,7 +685,9 @@ class MockSpotEnv(BaseEnv):
         """Get the action space for this environment."""
         # Mock environment doesn't use continuous actions, but we need to define the space
         # Using a simple 3D space for position control
-        return Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
+        # The action space is effectively empty because only the extra info
+        # part of actions are used.
+        return Box(0, 1, (0, ))
     
     @property
     def options(self) -> Set[ParameterizedOption]:
