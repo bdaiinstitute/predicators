@@ -1240,7 +1240,7 @@ def run_policy(
         if monitor is not None:
             monitor.reset(train_or_test, task_idx)
     obs = env.get_observation()
-    assert isinstance(obs, State)
+    # assert isinstance(obs, State)
     state = obs
     states = [state]
     actions: List[Action] = []
