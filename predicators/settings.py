@@ -188,6 +188,7 @@ class GlobalSettings:
     # Mock robot environment ("MockSpotEnv") parameters
     mock_env_data_dir = "mock_env_data"
     mock_env_use_belief_operators = False
+    mock_env_vlm_eval_predicate = True
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3

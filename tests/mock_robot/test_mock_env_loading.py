@@ -48,7 +48,7 @@ def test_load_mock_env():
     assert obs.objects_in_hand is not None
     
     # Verify VLM predicates are handled correctly
-    if CFG.spot_vlm_eval_predicate:
+    if CFG.mock_env_vlm_eval_predicate:
         assert obs.vlm_predicates is not None
         assert obs.vlm_atom_dict is not None
     else:
