@@ -40,13 +40,16 @@ Usage:
 from typing import Dict, Optional, Set, Union, Mapping
 import logging
 
+import numpy as np
+
 from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, vlm_predicate_batch_classify
-from predicators.spot_utils.perception.perception_structs import UnposedImageWithContext
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.structs import Action, EnvironmentTask, GroundAtom, Observation, State, Task, VLMPredicate, VLMGroundAtom, Object, Video
 from predicators.settings import CFG
 from predicators.envs.mock_spot_env import _MockSpotObservation
 from predicators.envs.spot_env import _robot_type
+from rich.table import Table
+from predicators.utils import log_rich_table
 
 
 class MockSpotPerceiver(BasePerceiver):
@@ -71,12 +74,14 @@ class MockSpotPerceiver(BasePerceiver):
     @classmethod
     def get_name(cls) -> str:
         """Get the name of this perceiver."""
-        return "mock_spot"
+        return "mock_spot_perceiver"
     
     def reset(self, env_task: EnvironmentTask) -> Task:
         """Reset the perceiver for a new task."""
         init_state = self._obs_to_state(env_task.init_obs)
         goal_description = env_task.goal_description
+        
+        self.objects = init_state.visible_objects
         
         return Task(init_state, goal_description)
     
@@ -219,18 +224,52 @@ class MockSpotPerceiver(BasePerceiver):
         self._objects_in_hand = obs.objects_in_hand
         
         # Create state with all atoms
+        # NOTE: We use the object_dict from the observation to populate objects in data for planner
         state = State(
-            data={},
+            data={o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()},  # type: ignore
             simulator_state=None,
             camera_images=self._camera_images,
             visible_objects=self._objects_in_view,
             vlm_atom_dict=self._vlm_atom_dict,  # type: ignore
             vlm_predicates=self._vlm_predicates,
-            non_vlm_atom_dict=self._non_vlm_atom_dict,
+            non_vlm_atom_dict=self._non_vlm_atom_dict,  # type: ignore
         )
 
+        # Rich table logging for VLM atoms
+        if CFG.mock_env_vlm_eval_predicate:
+            if self._vlm_atom_dict:
+                # Create table for current VLM atoms
+                table = Table(title="Evaluated VLM atoms (in current obs)")
+                table.add_column("Atom", style="cyan")
+                table.add_column("Value", style="magenta")
+                # Sort the atoms via key str for ordered printing
+                for atom in sorted(self._vlm_atom_dict.keys(), key=str):
+                    table.add_row(str(atom), str(self._vlm_atom_dict[atom]))
+                logging.info(log_rich_table(table))
+
+            # Create comparison table if there are previous values
+            if obs.vlm_atom_dict:
+                table_compare = Table(title="VLM atoms comparison")
+                table_compare.add_column("Atom", style="cyan")
+                table_compare.add_column("Value (Last)", style="blue")
+                table_compare.add_column("Value (New)", style="magenta")
+                vlm_atom_union = set(self._vlm_atom_dict.keys()) | set(obs.vlm_atom_dict.keys())
+                # Sort the atoms via key str for ordered printing
+                for atom in sorted(vlm_atom_union, key=str):
+                    table_compare.add_row(
+                        str(atom), 
+                        str(obs.vlm_atom_dict.get(atom, None)),
+                        str(self._vlm_atom_dict.get(atom, None))
+                    )
+                logging.info(log_rich_table(table_compare))
+
+            # Log true VLM atoms
+            true_vlm_atoms = dict(filter(lambda it: it[1], self._vlm_atom_dict.items()))
+            if true_vlm_atoms:
+                logging.info(f"True VLM atoms: {true_vlm_atoms}")
+            
         return state
-    
+
     def render_mental_images(self, observation: Observation,
                              env_task: EnvironmentTask) -> Video:
         return []
