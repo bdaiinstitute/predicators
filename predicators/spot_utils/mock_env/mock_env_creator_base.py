@@ -154,7 +154,7 @@ class MockEnvCreatorBase(ABC):
         console (Console): Rich console for pretty printing
     """
 
-    def __init__(self, output_dir: str, env_info: Dict[str, Any]) -> None:
+    def __init__(self, output_dir: str, env_info: Dict[str, Any], env: Optional[Any] = None) -> None:
         """Initialize the mock environment creator.
         
         Args:
@@ -181,11 +181,21 @@ class MockEnvCreatorBase(ABC):
         })
         
         # Store environment info
-        self.types = {t.name: t for t in env_info["types"]}
-        self.predicates = {p.name: p for p in env_info["predicates"]}
-        self.options = {o.name: o for o in env_info["options"]}
-        self.nsrts = env_info["nsrts"]
-        self.objects: Dict[str, Object] = {o.name: o for o in env_info["objects"]}
+        if env is not None:
+            self.types = {t.name: t for t in env.types}
+            self.predicates = {p.name: p for p in env.predicates}
+            self.options = {o.name: o for o in env.options}
+            self.nsrts = env.nsrts
+            self.objects = {o.name: o for o in env.objects}
+        elif env_info is not None:
+            self.types = {t.name: t for t in env_info["types"]}
+            self.predicates = {p.name: p for p in env_info["predicates"]}
+            self.options = {o.name: o for o in env_info["options"]}
+            self.nsrts = env_info["nsrts"]
+            self.objects: Dict[str, Object] = {o.name: o for o in env_info["objects"]}
+        else:
+            raise ValueError("Either env or env_info must be provided")
+
         if "robot" not in self.objects:
             self.objects["robot"] = Object(name="robot", type=self.types["robot"])
             
