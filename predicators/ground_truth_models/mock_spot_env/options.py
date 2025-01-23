@@ -10,7 +10,7 @@ Key implementation notes:
      * The transition graph handles state changes
 
 2. Option parameters are simplified:
-   - Uses a dummy parameter space (Box(0, 1, (1,))) since we don't need real parameters
+   - Uses a zero-dimensional parameter space since we don't need parameters
    - All options are always initiable and terminal
    - The policy ignores state/memory/objects/params and just returns the operator name
 
@@ -43,7 +43,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         """Get the env names that this factory builds options for."""
-        return {"mock_spot"}
+        return {"mock_spot", "mock_spot_pick_place_two_cup"}
 
     @classmethod
     def get_options(cls, env_name: str, types: Dict[str, Type],
@@ -54,7 +54,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
         This implementation:
         1. Gets the environment instance using get_or_create_env
         2. Creates one option per operator with matching name and types
-        3. Uses dummy parameter space since we don't need real parameters
+        3. Uses zero-dimensional parameter space since we don't need parameters
         4. Creates policies that store operator names in action's extra_info
         
         Args:
@@ -77,7 +77,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
             option = ParameterizedOption(
                 name=strips_op.name,
                 types=[p.type for p in strips_op.parameters],  # Changed to list instead of tuple
-                params_space=Box(0, 1, (1,)),  # Dummy parameter space
+                params_space=Box(0, 1, (0,)),  # Zero-dimensional parameter space
                 policy=policy,
                 initiable=lambda s, m, o, p: True,  # Always initiable
                 terminal=lambda s, m, o, p: True,  # Always terminal
@@ -105,7 +105,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
                   params: Array) -> Action:
             del state, memory, objects, params  # unused
             # Create a dummy action array but store operator name in extra_info
-            arr = np.zeros(1, dtype=np.float32)  # Match env's action space
+            arr = np.zeros(0, dtype=np.float32)  # Zero-dimensional array to match params_space
             return Action(arr, extra_info={"operator_name": operator_name})
             
         return policy 
