@@ -16,12 +16,15 @@ import cv2
 import google
 import google.generativeai as genai
 import imagehash
-import openai
+from openai import OpenAI
 import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
 from predicators.utils import timing
+
+# Initialize OpenAI client globally
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # This is a special string that we assume will never appear in a prompt, and
 # which we use to separate prompt and completion in the cache. The reason to
@@ -183,7 +186,6 @@ class OpenAILLM(LargeLanguageModel):
         # cannot exceed the model's context length."
         self._max_tokens = CFG.llm_openai_max_response_tokens
         assert "OPENAI_API_KEY" in os.environ
-        openai.api_key = os.getenv("OPENAI_API_KEY")
 
     def get_id(self) -> str:
         return f"openai-{self._model_name}"
@@ -197,16 +199,16 @@ class OpenAILLM(LargeLanguageModel):
             stop_token: Optional[str] = None,
             num_completions: int = 1) -> List[str]:  # pragma: no cover
         del imgs, seed  # unused
-        response = openai.Completion.create(
-            model=self._model_name,  # type: ignore
-            prompt=prompt,
+        response = client.chat.completions.create(
+            model=self._model_name,
+            messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
             max_tokens=self._max_tokens,
             stop=stop_token,
             n=num_completions)
-        assert len(response["choices"]) == num_completions
+        assert len(response.choices) == num_completions
         text_responses = [
-            response["choices"][i]["text"] for i in range(num_completions)
+            response.choices[i].message.content for i in range(num_completions)
         ]
         return text_responses
 
@@ -268,7 +270,6 @@ class OpenAIVLM(VisionLanguageModel):
         self.model_name = model_name
         self.detail = detail
         assert "OPENAI_API_KEY" in os.environ
-        openai.api_key = os.getenv("OPENAI_API_KEY")
 
     def prepare_vision_messages(self,
                                 images: List[PIL.Image.Image],
@@ -323,7 +324,7 @@ class OpenAIVLM(VisionLanguageModel):
                         temperature: float = 0.2,
                         verbose: bool = False) -> str:
         """Make an API call to OpenAI."""
-        client = openai.OpenAI()
+        client = OpenAI()
         completion = client.chat.completions.create(
             model=model,
             messages=messages,
