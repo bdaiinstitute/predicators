@@ -79,7 +79,8 @@ def test_two_cup_pick_place_with_manual_images():
         "types": env.types,
         "predicates": env.predicates,
         "options": env.options,
-        "nsrts": env.nsrts
+        "nsrts": env.nsrts,
+        "objects": env.objects
     })
     
     # Plan and visualize transitions
@@ -208,7 +209,8 @@ def test_load_saved_two_cup_pick_place():
         "types": env.types,
         "predicates": env.predicates,
         "options": env.options,
-        "nsrts": env.nsrts
+        "nsrts": env.nsrts,
+        "objects": env.objects
     })
     
     # Initialize objects in creator
@@ -219,6 +221,13 @@ def test_load_saved_two_cup_pick_place():
     for state_id in ["0", "1", "2", "3", "4"]:
         # Load state
         loaded_state = creator.load_state(state_id)
+        
+        # Print state info
+        print(f"State {state_id} loaded:")
+        print(f"Images: {loaded_state.images}")
+        print(f"Objects in view: {loaded_state.objects_in_view}")
+        print(f"Objects in hand: {loaded_state.objects_in_hand}")
+        print(f"Gripper open: {loaded_state.gripper_open}")
         
         # Verify basic structure
         assert loaded_state.images, f"No views loaded for {state_id}"
