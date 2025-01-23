@@ -155,7 +155,7 @@ VLM_PREDICATES = get_vlm_predicates()
 # Export all predicates - use VLM or non-VLM based on config
 def get_all_predicates() -> Set[Predicate]:
     """Get all predicates based on config."""
-    if CFG.spot_vlm_eval_predicate:
+    if CFG.mock_env_vlm_eval_predicate:
         # Filter out non-VLM counterparts of VLM predicates
         vlm_names = {pred.name for pred in VLM_PREDICATES}
         non_vlm_preds = {pred for pred in PREDICATES if pred.name not in vlm_names}
@@ -163,7 +163,7 @@ def get_all_predicates() -> Set[Predicate]:
     return PREDICATES
 
 # Update PREDICATES_WITH_VLM to use function
-PREDICATES_WITH_VLM = get_all_predicates() if CFG.spot_vlm_eval_predicate else None
+PREDICATES_WITH_VLM = get_all_predicates() if CFG.mock_env_vlm_eval_predicate else None
 
 
 @dataclass(frozen=True)
@@ -338,21 +338,21 @@ class MockSpotEnv(BaseEnv):
         
         # Extract operator name and objects from action
         # Access through extra_info which is guaranteed to exist
-        operator_info = action.extra_info or {}
-        operator_name = operator_info.get("operator_name")
-        operator_objects = operator_info.get("objects", [])
+        info = action.extra_info or {}
+        op_name = info.get("operator_name")
+        op_objects = info.get("objects", [])
         
-        if operator_name is None:
+        if op_name is None:
             # Invalid action format - stay in current state
             logging.warning(f"Invalid action format: {action}")
             return self._current_observation
             
         # Check if this is an observation operator
-        is_observation_op = operator_name in {
+        is_observation_op = op_name in {
             "ObserveCupContent",
             "ObserveDrawerContentFindEmpty",
             "ObserveDrawerContentFindNotEmpty"
-        } or operator_name.startswith("Observe")
+        } or op_name.startswith("Observe")
         
         if is_observation_op:
             # For observation operators, state doesn't change
@@ -367,15 +367,15 @@ class MockSpotEnv(BaseEnv):
             # Compare operator name and objects
             if (source_id == current_state_id and
                 isinstance(op_dict, dict) and
-                op_dict.get("name") == operator_name and
-                op_dict.get("objects", []) == [obj.name for obj in operator_objects]):
+                op_dict.get("name") == op_name and
+                op_dict.get("objects", []) == [obj.name for obj in op_objects]):
                 next_state_id = dest_id
                 break
                 
         if next_state_id is None:
             # No valid transition found - stay in current state
             logging.warning(
-                f"No valid transition found for action {operator_name} with objects {operator_objects} "
+                f"No valid transition found for action {op_name} with objects {op_objects} "
                 f"from state {current_state_id}"
             )
             return self._current_observation
@@ -392,7 +392,7 @@ class MockSpotEnv(BaseEnv):
             self._current_observation = _MockSpotObservation.init_from_saved(
                 loaded_obs,
                 vlm_atom_dict=None,  # Will be populated if needed
-                vlm_predicates=VLM_PREDICATES if CFG.spot_vlm_eval_predicate else None
+                vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
             )
             return self._current_observation
             
@@ -416,7 +416,7 @@ class MockSpotEnv(BaseEnv):
         obs = _MockSpotObservation.init_from_saved(
             loaded_obs,
             vlm_atom_dict=None,  # Will be populated if needed
-            vlm_predicates=VLM_PREDICATES if CFG.spot_vlm_eval_predicate else None
+            vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
         )
         
         # Set current task and observation
@@ -935,8 +935,8 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
         
         # Define operators to keep
         op_names_to_keep = {
-            # "MoveToReachObject",
-            # "MoveToHandViewObject", 
+            "MoveToReachObject",
+            "MoveToHandViewObject", 
             "PickObjectFromTop",
             # "PlaceObjectOnTop",
             "DropObjectInside"

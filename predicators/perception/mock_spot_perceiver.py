@@ -109,7 +109,7 @@ class MockSpotPerceiver(BasePerceiver):
         
         # Handle VLM predicates and atoms if enabled
         # NOTE: VLM predicates are partially observable and need belief-state update given past step
-        if CFG.spot_vlm_eval_predicate:
+        if CFG.mock_env_vlm_eval_predicate:
             # Update VLM predicates (It shouldn't be updated normally)
             if obs.vlm_predicates is not None:
                 self._vlm_predicates.update(obs.vlm_predicates)
