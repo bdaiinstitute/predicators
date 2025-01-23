@@ -1,5 +1,4 @@
 import logging
-import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,16 +11,148 @@ from rich.table import Table
 from rich.logging import RichHandler
 from rich.console import Console
 import matplotlib.pyplot as plt
+import yaml
 
 from predicators.envs import BaseEnv
 from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext, UnposedImageWithContext
 from predicators.structs import Action, State, Object, Type, EnvironmentTask, Video, Image
-from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, VLMPredicate, VLMGroundAtom
+from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, VLMPredicate, GroundTruthPredicate, VLMGroundAtom
 from predicators.settings import CFG
 from bosdyn.client import math_helpers
 from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.utils import get_object_combinations
 
+
+
+# from predicators.structs import Type, GroundTruthPredicate, VLMPredicate, State, Object, Predicate
+# from typing import Sequence, Set, Container, Optional
+# from predicators.settings import CFG
+
+def _dummy_classifier(state: State, objects: Sequence[Object]) -> bool:
+    """Dummy classifier that always returns True. Used for mock environment."""
+    return True
+
+
+# Types
+_robot_type = Type("robot", ["x", "y", "z"])
+_base_object_type = Type("base_object", ["x", "y", "z"])
+_movable_object_type = Type("movable_object", ["x", "y", "z"], parent=_base_object_type)
+_container_type = Type("container", ["x", "y", "z"], parent=_movable_object_type)
+_immovable_object_type = Type("immovable_object", ["x", "y", "z"], parent=_base_object_type)
+
+# Export all types
+TYPES = {_robot_type, _base_object_type, _movable_object_type, _container_type, _immovable_object_type}
+
+# Predicates
+_NEq = GroundTruthPredicate("NEq", [_base_object_type, _base_object_type], _dummy_classifier)
+_On = GroundTruthPredicate("On", [_movable_object_type, _base_object_type], _dummy_classifier)
+_TopAbove = GroundTruthPredicate("TopAbove", [_base_object_type, _base_object_type], _dummy_classifier)
+_Inside = GroundTruthPredicate("Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_NotInsideAnyContainer = GroundTruthPredicate("NotInsideAnyContainer", [_movable_object_type], _dummy_classifier)
+_FitsInXY = GroundTruthPredicate("FitsInXY", [_movable_object_type, _base_object_type], _dummy_classifier)
+_HandEmpty = GroundTruthPredicate("HandEmpty", [_robot_type], _dummy_classifier)
+_Holding = GroundTruthPredicate("Holding", [_robot_type, _movable_object_type], _dummy_classifier)
+_NotHolding = GroundTruthPredicate("NotHolding", [_robot_type, _movable_object_type], _dummy_classifier)
+_InHandView = GroundTruthPredicate("InHandView", [_robot_type, _base_object_type], _dummy_classifier)
+_InView = GroundTruthPredicate("InView", [_robot_type, _base_object_type], _dummy_classifier)
+_Reachable = GroundTruthPredicate("Reachable", [_robot_type, _base_object_type], _dummy_classifier)
+_Blocking = GroundTruthPredicate("Blocking", [_base_object_type, _base_object_type], _dummy_classifier)
+_NotBlocked = GroundTruthPredicate("NotBlocked", [_base_object_type], _dummy_classifier)
+_ContainerReadyForSweeping = GroundTruthPredicate("ContainerReadyForSweeping", [_container_type], _dummy_classifier)
+_IsPlaceable = GroundTruthPredicate("IsPlaceable", [_movable_object_type], _dummy_classifier)
+_IsNotPlaceable = GroundTruthPredicate("IsNotPlaceable", [_movable_object_type], _dummy_classifier)
+_IsSweeper = GroundTruthPredicate("IsSweeper", [_movable_object_type], _dummy_classifier)
+_HasFlatTopSurface = GroundTruthPredicate("HasFlatTopSurface", [_base_object_type], _dummy_classifier)
+_RobotReadyForSweeping = GroundTruthPredicate("RobotReadyForSweeping", [_robot_type], _dummy_classifier)
+
+# Add new predicates for cup emptiness
+_ContainingWaterUnknown = GroundTruthPredicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
+_ContainingWaterKnown = GroundTruthPredicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
+_ContainingWater = GroundTruthPredicate("ContainingWater", [_container_type], _dummy_classifier)
+_NotContainingWater = GroundTruthPredicate("NotContainingWater", [_container_type], _dummy_classifier)
+_InHandViewFromTop = GroundTruthPredicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
+_ContainerEmpty = GroundTruthPredicate("ContainerEmpty", [_container_type], _dummy_classifier)
+
+# Add new predicates for container emptiness
+_Unknown_ContainerEmpty = GroundTruthPredicate("Unknown_ContainerEmpty", [_container_type], _dummy_classifier)
+_Known_ContainerEmpty = GroundTruthPredicate("Known_ContainerEmpty", [_container_type], _dummy_classifier)
+_BelieveTrue_ContainerEmpty = GroundTruthPredicate("BelieveTrue_ContainerEmpty", [_container_type], _dummy_classifier)
+_BelieveFalse_ContainerEmpty = GroundTruthPredicate("BelieveFalse_ContainerEmpty", [_container_type], _dummy_classifier)
+
+# Add predicates for drawer state
+_DrawerClosed = GroundTruthPredicate("DrawerClosed", [_container_type], _dummy_classifier)
+_DrawerOpen = GroundTruthPredicate("DrawerOpen", [_container_type], _dummy_classifier)
+
+# Group belief-space predicates
+BELIEF_PREDICATES = {
+    _ContainingWaterUnknown,
+    _ContainingWaterKnown,
+    _ContainingWater,
+    _NotContainingWater,
+    _InHandViewFromTop,
+    _Unknown_ContainerEmpty,
+    _Known_ContainerEmpty,
+    _BelieveTrue_ContainerEmpty,
+    _BelieveFalse_ContainerEmpty
+}
+
+# Export all predicates
+PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
+             _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
+             _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
+             _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
+             _DrawerClosed, _DrawerOpen, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
+             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, _InHandViewFromTop,
+             _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater, _NotContainingWater,
+             _ContainerEmpty}
+# Note: Now adding belief predicates
+
+# Export goal predicates
+GOAL_PREDICATES = {_On, _Inside, _ContainingWaterKnown, _Known_ContainerEmpty, _DrawerOpen}  # Add DrawerOpen to goal predicates
+
+
+def get_vlm_predicates() -> Set[VLMPredicate]:
+    """Get VLM predicates for mock spot environment."""
+    _On = VLMPredicate(
+        "On", [_movable_object_type, _base_object_type],
+        prompt=
+        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
+    )
+    _Inside = VLMPredicate(
+        "Inside", [_movable_object_type, _container_type],
+        prompt=
+        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
+    )
+    _Blocking = VLMPredicate(
+        "Blocking", [_base_object_type, _base_object_type],
+        prompt="This means if an object is blocking the Spot robot approaching another one."
+    )
+    _NotBlocked = VLMPredicate(
+        "NotBlocked", [_base_object_type],
+        prompt="The given object is not blocked by any other object.")
+
+    _NotInsideAnyContainer = VLMPredicate(
+        "NotInsideAnyContainer", [_movable_object_type],
+        prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
+    )
+    
+    return {_On, _Inside, _Blocking, _NotBlocked, _NotInsideAnyContainer}
+
+# Export VLM predicates
+VLM_PREDICATES = get_vlm_predicates()
+
+# Export all predicates - use VLM or non-VLM based on config
+def get_all_predicates() -> Set[Predicate]:
+    """Get all predicates based on config."""
+    if CFG.mock_env_vlm_eval_predicate:
+        # Filter out non-VLM counterparts of VLM predicates
+        vlm_names = {pred.name for pred in VLM_PREDICATES}
+        non_vlm_preds = {pred for pred in PREDICATES if pred.name not in vlm_names}
+        return non_vlm_preds | VLM_PREDICATES
+    return PREDICATES
+
+# Update PREDICATES_WITH_VLM to use function
+PREDICATES_WITH_VLM = get_all_predicates() if CFG.mock_env_vlm_eval_predicate else None
 
 
 @dataclass(frozen=True)
@@ -47,8 +178,29 @@ class _SavedMockSpotObservation:
     objects_in_hand: Set[Object]
     state_id: str
     atom_dict: Dict[str, bool]
-    non_vlm_atom_dict: Optional[Dict[GroundAtom, bool]] = None
+    non_vlm_atom_dict: Dict[GroundAtom, bool]
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def _serialize_ground_atom(self, atom: GroundAtom) -> str:
+        """Convert a GroundAtom to a string representation."""
+        pred_name = atom.predicate.name
+        obj_names = [obj.name for obj in atom.objects]
+        return f"{pred_name}({','.join(obj_names)})"
+
+    def _serialize_atom_dict(self, atom_dict: Dict[GroundAtom, bool]) -> Dict[str, bool]:
+        """Convert a dict with GroundAtom keys to string keys."""
+        return {self._serialize_ground_atom(atom): value 
+                for atom, value in atom_dict.items()}
+        
+    @staticmethod
+    def _deserialize_ground_atom(atom_str: str, objects: Dict[str, Object]) -> GroundAtom:
+        """Convert a string representation back to a GroundAtom."""
+        pred_name = atom_str[:atom_str.index("(")]
+        obj_names = atom_str[atom_str.index("(")+1:atom_str.index(")")].split(",")
+        # Get the predicate from the PREDICATES set
+        pred = next(p for p in PREDICATES if p.name == pred_name)
+        objs = [objects[name] for name in obj_names]
+        return GroundAtom(pred, objs)
 
     def save_state(self, save_dir: Optional[Path] = None) -> None:
         """Save state data and metadata.
@@ -78,9 +230,10 @@ class _SavedMockSpotObservation:
             "objects_in_view": [obj.name for obj in self.objects_in_view],
             "objects_in_hand": [obj.name for obj in self.objects_in_hand],
             "atom_dict": self.atom_dict,
+            "non_vlm_atom_dict": self._serialize_atom_dict(self.non_vlm_atom_dict) if self.non_vlm_atom_dict else None
         }
-        with open(state_dir / "state_metadata.json", "w") as f:
-            json.dump(state_metadata, f, indent=2)
+        with open(state_dir / "state_metadata.yaml", "w") as f:
+            yaml.dump(state_metadata, f, default_flow_style=False)
 
         # Save images and their metadata
         image_metadata = {}
@@ -109,8 +262,8 @@ class _SavedMockSpotObservation:
                 }
 
         # Save image metadata
-        with open(state_dir / "image_metadata.json", "w") as f:
-            json.dump(image_metadata, f, indent=2)
+        with open(state_dir / "image_metadata.yaml", "w") as f:
+            yaml.dump(image_metadata, f, default_flow_style=False)
 
     @classmethod
     def load_state(cls, state_id: str, save_dir: Path, objects: Dict[str, Object]) -> "_SavedMockSpotObservation":
@@ -132,18 +285,18 @@ class _SavedMockSpotObservation:
             raise FileNotFoundError(f"State directory not found: {state_dir}")
 
         # Load state metadata
-        state_meta_path = state_dir / "state_metadata.json"
+        state_meta_path = state_dir / "state_metadata.yaml"
         if not state_meta_path.exists():
             raise FileNotFoundError(f"State metadata not found: {state_meta_path}")
         with open(state_meta_path) as f:
-            state_metadata = json.load(f)
+            state_metadata = yaml.safe_load(f)
 
         # Load image metadata
-        image_meta_path = state_dir / "image_metadata.json"
+        image_meta_path = state_dir / "image_metadata.yaml"
         if not image_meta_path.exists():
             raise FileNotFoundError(f"Image metadata not found: {image_meta_path}")
         with open(image_meta_path) as f:
-            image_metadata = json.load(f)
+            image_metadata = yaml.safe_load(f)
 
         # Load images
         images = {}
@@ -158,6 +311,14 @@ class _SavedMockSpotObservation:
                 image_rot=img_meta["image_rot"]
             )
 
+        # Deserialize non_vlm_atom_dict if it exists
+        non_vlm_atom_dict = {}  # Default to empty dict instead of None
+        if state_metadata.get("non_vlm_atom_dict"):
+            non_vlm_atom_dict = {
+                cls._deserialize_ground_atom(atom_str, objects): bool(value)
+                for atom_str, value in state_metadata["non_vlm_atom_dict"].items()
+            }
+
         return cls(
             images=images,
             gripper_open=state_metadata["gripper_open"],
@@ -165,5 +326,31 @@ class _SavedMockSpotObservation:
             objects_in_hand={objects[name] for name in state_metadata["objects_in_hand"]},
             state_id=state_id,
             atom_dict=state_metadata["atom_dict"],
-            metadata={"save_dir": str(save_dir)}
+            metadata={"save_dir": str(save_dir)},
+            non_vlm_atom_dict=non_vlm_atom_dict
+        )
+
+
+@dataclass(frozen=True)
+class _MockSpotObservation(_SavedMockSpotObservation):
+    """An observation from the mock Spot environment."""
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
+    vlm_predicates: Optional[Set[VLMPredicate]] = None
+    
+    @classmethod
+    def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, 
+                       vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
+                        vlm_predicates: Optional[Set[VLMPredicate]] = None) -> "_MockSpotObservation":
+        """Initialize from a saved observation."""
+        return cls(
+            images=saved_obs.images,
+            gripper_open=saved_obs.gripper_open,
+            objects_in_view=saved_obs.objects_in_view,
+            objects_in_hand=saved_obs.objects_in_hand,
+            state_id=saved_obs.state_id,
+            atom_dict=saved_obs.atom_dict,
+            non_vlm_atom_dict=saved_obs.non_vlm_atom_dict,
+            # Fields decided by VLM online evaluation
+            vlm_atom_dict=vlm_atom_dict,
+            vlm_predicates=vlm_predicates
         )
