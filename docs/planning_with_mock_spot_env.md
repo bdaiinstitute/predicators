@@ -375,6 +375,89 @@ metrics = _run_testing(env, cogman)
 assert metrics["num_solved"] > 0
 ```
 
+## Action Wrapping
+
+The mock Spot environment uses a graph-based state representation where transitions are defined by operators. Each operator has a corresponding `ParameterizedOption` that creates actions with proper operator information.
+
+### Creating Actions with Operator Information
+
+1. Get options from the environment:
+```python
+# Get options from MockSpotGroundTruthOptionFactory
+options = get_gt_options("mock_spot")
+
+# Each option corresponds to an operator and will create actions with proper extra_info
+for option in options:
+    # When the option's policy is called, it creates an Action with:
+    # - A dummy action array (since we don't need real continuous control)
+    # - extra_info containing the operator name
+    action = option.policy(state, memory, objects, params)
+    # action.extra_info will have {"operator_name": option.name}
+```
+
+2. The environment's `step` method uses this operator information to:
+   - Look up the appropriate transition in the graph
+   - Update the state based on the operator's effects
+   - Return the next observation
+
+### Example: Pick and Place Task
+
+```python
+# Create environment and get options
+env = MockSpotEnv()
+options = get_gt_options(env.get_name())
+
+# Create approach with options
+approach = create_approach("oracle", env.predicates, options, env.types, env.action_space, tasks)
+
+# Run episode
+max_steps = 20
+(states, actions), solved, metrics = _run_episode(
+    cogman,
+    env,
+    "test",
+    0,
+    max_steps,
+    do_env_reset=True,
+    terminate_on_goal_reached=True
+)
+
+# Verify action sequence
+action_names = [action.extra_info["operator_name"] for action in actions]
+expected_operators = {"PickObjectFromTop", "DropObjectInside"}
+assert all(name in expected_operators for name in action_names)
+```
+
+### Key Components
+
+1. `MockSpotGroundTruthOptionFactory` creates options that match the environment's operators:
+```python
+def get_options(cls, env_name: str, types: Dict[str, Type],
+               predicates: Dict[str, Predicate],
+               action_space: Box) -> Set[ParameterizedOption]:
+    # Creates one option per operator
+    # Each option's policy stores operator name in action's extra_info
+```
+
+2. Option policies create actions with operator information:
+```python
+def policy(state: State, memory: Dict, objects: Sequence[Object],
+          params: Array) -> Action:
+    # Create a dummy action array but store operator name in extra_info
+    arr = np.zeros(1, dtype=np.float32)
+    return Action(arr, extra_info={"operator_name": operator_name})
+```
+
+3. The environment's `step` method uses this information to execute transitions:
+```python
+def step(self, action: Action) -> _MockSpotObservation:
+    # Get operator name from action
+    operator_name = action.extra_info["operator_name"]
+    # Look up transition in graph
+    next_state_id = self._str_transitions[self._current_state_id][operator_name]
+    # Update state and return observation
+```
+
 ## Testing
 
 1. Set up test data using ManualMockEnvCreator:
@@ -382,38 +465,6 @@ assert metrics["num_solved"] > 0
 # Create test directory
 test_dir = "mock_env_data/pick_place_test"
 creator = ManualMockEnvCreator(test_dir)
-
-# Define test states
-states = {
-    "state_0": {  # Initial: block on table
-        "views": {...},
-        "objects_in_view": ["block", "table"],
-        "objects_in_hand": [],
-        "gripper_open": True
-    },
-    "state_1": {  # Intermediate: holding block
-        "views": {...},
-        "objects_in_view": ["block", "table"],
-        "objects_in_hand": ["block"],
-        "gripper_open": False
-    },
-    "state_2": {  # Goal: block at target
-        "views": {...},
-        "objects_in_view": ["block", "table"],
-        "objects_in_hand": [],
-        "gripper_open": True
-    }
-}
-
-# Create states
-for state_id, state_data in states.items():
-    creator.add_state_from_multiple_images(
-        state_data["views"],
-        state_id=state_id,
-        objects_in_view=state_data["objects_in_view"],
-        objects_in_hand=state_data["objects_in_hand"],
-        gripper_open=state_data["gripper_open"]
-    )
 ```
 
 2. Write unit tests:

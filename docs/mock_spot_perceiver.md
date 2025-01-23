@@ -225,7 +225,7 @@ class _MockSpotObservation:
        state_dict = {}
        
        # Add VLM atoms if enabled
-       if CFG.spot_vlm_eval_predicate and self._vlm_atom_dict:
+       if CFG.mock_env_vlm_eval_predicate and self._vlm_atom_dict:
            for atom, value in self._vlm_atom_dict.items():
                if value:
                    state_dict[atom] = True
@@ -238,7 +238,7 @@ class _MockSpotObservation:
        # Create partial perception state with additional info
        state = _PartialPerceptionState(
            state_dict,  # Base state data
-           camera_images=self._camera_images if CFG.spot_vlm_eval_predicate else None,
+           camera_images=self._camera_images if CFG.mock_env_vlm_eval_predicate else None,
            visible_objects=self._objects_in_view,
            vlm_atom_dict=self._vlm_atom_dict,
            vlm_predicates=self._vlm_predicates,
