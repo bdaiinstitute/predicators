@@ -247,6 +247,7 @@ class MockSpotEnv(BaseEnv):
             )
             self._current_observation = _MockSpotObservation.init_from_saved(
                 loaded_obs,
+                object_dict=objects_dict,
                 vlm_atom_dict=None,  # Will be populated if needed
                 vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
             )
@@ -271,19 +272,18 @@ class MockSpotEnv(BaseEnv):
         )
         obs = _MockSpotObservation.init_from_saved(
             loaded_obs,
+            object_dict=objects_dict,
             vlm_atom_dict=None,  # Will be populated in Perceiver!
-            vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
+            vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None,
         )
         
         # Set current task and observation
-        # if CFG.test_task_json_dir is not None and train_or_test == "test":
-        #     self._current_task = self._test_tasks[task_idx]
-        # else:
-        #     goal_description = self._generate_goal_description()
-        #     self._current_task = EnvironmentTask(obs, goal_description)
-        
-        goal_description = self._generate_goal_description()
-        self._current_task = EnvironmentTask(obs, goal_description)
+        if CFG.test_task_json_dir is not None and train_or_test == "test":
+            self._current_task = self._test_tasks[task_idx]
+        else:
+            # Generate goal description and create task
+            goal_description = self._generate_goal_description()
+            self._current_task = EnvironmentTask(obs, goal_description)
         
         self._current_observation = obs
         self._current_task_goal_reached = False
@@ -619,7 +619,13 @@ class MockSpotEnv(BaseEnv):
 
     def get_test_tasks(self) -> List[EnvironmentTask]:
         """Get list of test tasks."""
-        return []  # No test tasks in mock environment
+        if CFG.test_task_json_dir is not None:
+            return self._test_tasks
+        # Create a single test task with initial observation and goal
+        obs = self.reset("test", 0)
+        goal_description = self._generate_goal_description()
+        task = EnvironmentTask(obs, goal_description)
+        return [task]
 
     def get_task_from_params(self, params: Dict[str, Any]) -> EnvironmentTask:
         """Get a task from parameters."""
@@ -647,7 +653,7 @@ class MockSpotEnv(BaseEnv):
     @property
     def objects(self) -> Set[Object]:
         """Get all objects in the environment."""
-        return {self._spot_object}  # Base class only has robot object
+        raise RuntimeError("Objects not specified for the Base environment.")
 
     @property
     def types(self) -> Set[Type]:
@@ -657,7 +663,7 @@ class MockSpotEnv(BaseEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         """Get the predicates used in this environment."""
-        preds = PREDICATES.copy()
+        preds: Set[Predicate] = set(PREDICATES)  # Explicit type hint
         if CFG.mock_env_use_belief_operators:
             preds.update(BELIEF_PREDICATES)
         return preds
@@ -665,7 +671,7 @@ class MockSpotEnv(BaseEnv):
     @property
     def goal_predicates(self) -> Set[Predicate]:
         """Get the goal predicates for this environment."""
-        return GOAL_PREDICATES
+        return set(GOAL_PREDICATES)  # Convert to set with proper type
 
     @property
     def action_space(self) -> Box:
@@ -718,6 +724,11 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
     # NOTE: This is a test transition system with manually created images
     preset_data_dir = os.path.join("mock_env_data", "test_mock_two_cup_pick_place_manual_images")
 
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_pick_place_two_cup"
+
     def __init__(self, use_gui: bool = True) -> None:
         """Initialize the environment."""
         super().__init__(use_gui=use_gui)
@@ -731,7 +742,13 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
         self.target = Object("target", _container_type)
         
         # Set up initial state
-        self._all_objects = {self.robot, self.table, self.target, self.cup1, self.cup2}
+        self._objects = {
+            "robot": self.robot,
+            "table": self.table,
+            "target": self.target,
+            "cup1": self.cup1,
+            "cup2": self.cup2
+        }
         self._set_initial_state_and_goal()
     
     def _set_initial_state_and_goal(self) -> None:
@@ -809,4 +826,20 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
     @property
     def objects(self) -> Set[Object]:
         """Get all objects in the environment."""
-        return self._all_objects
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("train", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
