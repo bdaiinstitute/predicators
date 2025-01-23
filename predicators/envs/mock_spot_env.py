@@ -722,7 +722,8 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
     """A mock environment for testing pick and place with two cups."""
     
     # NOTE: This is a test transition system with manually created images
-    preset_data_dir = os.path.join("mock_env_data", "test_mock_two_cup_pick_place_manual_images")
+    # preset_data_dir = os.path.join("mock_env_data", "test_mock_two_cup_pick_place_manual_images")
+    preset_data_dir = os.path.join("mock_env_data", "test_mock_task_phone_pick_place_2_cups")
 
     @classmethod
     def get_name(cls) -> str:
@@ -736,8 +737,10 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
         
         # Create objects
         self.robot = Object("robot", _robot_type)
-        self.cup1 = Object("cup1", _container_type)
-        self.cup2 = Object("cup2", _container_type)
+        # self.cup1 = Object("cup1", _container_type)
+        # self.cup2 = Object("cup2", _container_type)
+        self.cup1 = Object("red_cup", _container_type)
+        self.cup2 = Object("green_cup", _container_type)
         self.table = Object("table", _immovable_object_type)
         self.target = Object("target", _container_type)
         
