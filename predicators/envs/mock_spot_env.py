@@ -35,160 +35,19 @@ from predicators.structs import Action, GoalDescription, State, Object, Type, En
 from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, GroundTruthPredicate, VLMPredicate, VLMGroundAtom, ParameterizedOption, NSRT, _GroundNSRT
 from predicators.settings import CFG
 from predicators.utils import get_object_combinations
-from predicators.spot_utils.mock_env.mock_env_utils import _SavedMockSpotObservation
+from predicators.spot_utils.mock_env.mock_env_utils import (
+    PREDICATES, PREDICATES_WITH_VLM, VLM_PREDICATES, TYPES, BELIEF_PREDICATES, GOAL_PREDICATES,
+    _robot_type, _base_object_type, _movable_object_type, _container_type,
+    _immovable_object_type, _SavedMockSpotObservation, _MockSpotObservation,
+    _NotBlocked, _NotHolding, _Reachable, _InHandView, _InView, _RobotReadyForSweeping,
+    _HandEmpty, _NotInsideAnyContainer, _Inside, _DrawerOpen, _DrawerClosed,
+    _ContainingWaterKnown, _Known_ContainerEmpty, _NEq, _On, _TopAbove, _FitsInXY,
+    _InHandViewFromTop, _Holding, _Blocking, _ContainerReadyForSweeping, _IsPlaceable,
+    _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _ContainingWaterUnknown,
+    _ContainingWater, _NotContainingWater, _ContainerEmpty, _Unknown_ContainerEmpty,
+    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty
+)
 
-
-
-def _dummy_classifier(state: State, objects: Sequence[Object]) -> bool:
-    """Dummy classifier that always returns True. Used for mock environment."""
-    return True
-
-
-# Types
-_robot_type = Type("robot", ["x", "y", "z"])
-_base_object_type = Type("base_object", ["x", "y", "z"])
-_movable_object_type = Type("movable_object", ["x", "y", "z"], parent=_base_object_type)
-_container_type = Type("container", ["x", "y", "z"], parent=_movable_object_type)
-_immovable_object_type = Type("immovable_object", ["x", "y", "z"], parent=_base_object_type)
-
-# Export all types
-TYPES = {_robot_type, _base_object_type, _movable_object_type, _container_type, _immovable_object_type}
-
-# Predicates
-_NEq = GroundTruthPredicate("NEq", [_base_object_type, _base_object_type], _dummy_classifier)
-_On = GroundTruthPredicate("On", [_movable_object_type, _base_object_type], _dummy_classifier)
-_TopAbove = GroundTruthPredicate("TopAbove", [_base_object_type, _base_object_type], _dummy_classifier)
-_Inside = GroundTruthPredicate("Inside", [_movable_object_type, _container_type], _dummy_classifier)
-_NotInsideAnyContainer = GroundTruthPredicate("NotInsideAnyContainer", [_movable_object_type], _dummy_classifier)
-_FitsInXY = GroundTruthPredicate("FitsInXY", [_movable_object_type, _base_object_type], _dummy_classifier)
-_HandEmpty = GroundTruthPredicate("HandEmpty", [_robot_type], _dummy_classifier)
-_Holding = GroundTruthPredicate("Holding", [_robot_type, _movable_object_type], _dummy_classifier)
-_NotHolding = GroundTruthPredicate("NotHolding", [_robot_type, _movable_object_type], _dummy_classifier)
-_InHandView = GroundTruthPredicate("InHandView", [_robot_type, _base_object_type], _dummy_classifier)
-_InView = GroundTruthPredicate("InView", [_robot_type, _base_object_type], _dummy_classifier)
-_Reachable = GroundTruthPredicate("Reachable", [_robot_type, _base_object_type], _dummy_classifier)
-_Blocking = GroundTruthPredicate("Blocking", [_base_object_type, _base_object_type], _dummy_classifier)
-_NotBlocked = GroundTruthPredicate("NotBlocked", [_base_object_type], _dummy_classifier)
-_ContainerReadyForSweeping = GroundTruthPredicate("ContainerReadyForSweeping", [_container_type], _dummy_classifier)
-_IsPlaceable = GroundTruthPredicate("IsPlaceable", [_movable_object_type], _dummy_classifier)
-_IsNotPlaceable = GroundTruthPredicate("IsNotPlaceable", [_movable_object_type], _dummy_classifier)
-_IsSweeper = GroundTruthPredicate("IsSweeper", [_movable_object_type], _dummy_classifier)
-_HasFlatTopSurface = GroundTruthPredicate("HasFlatTopSurface", [_base_object_type], _dummy_classifier)
-_RobotReadyForSweeping = GroundTruthPredicate("RobotReadyForSweeping", [_robot_type], _dummy_classifier)
-
-# Add new predicates for cup emptiness
-_ContainingWaterUnknown = GroundTruthPredicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
-_ContainingWaterKnown = GroundTruthPredicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
-_ContainingWater = GroundTruthPredicate("ContainingWater", [_container_type], _dummy_classifier)
-_NotContainingWater = GroundTruthPredicate("NotContainingWater", [_container_type], _dummy_classifier)
-_InHandViewFromTop = GroundTruthPredicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
-_ContainerEmpty = GroundTruthPredicate("ContainerEmpty", [_container_type], _dummy_classifier)
-
-# Add new predicates for container emptiness
-_Unknown_ContainerEmpty = GroundTruthPredicate("Unknown_ContainerEmpty", [_container_type], _dummy_classifier)
-_Known_ContainerEmpty = GroundTruthPredicate("Known_ContainerEmpty", [_container_type], _dummy_classifier)
-_BelieveTrue_ContainerEmpty = GroundTruthPredicate("BelieveTrue_ContainerEmpty", [_container_type], _dummy_classifier)
-_BelieveFalse_ContainerEmpty = GroundTruthPredicate("BelieveFalse_ContainerEmpty", [_container_type], _dummy_classifier)
-
-# Add predicates for drawer state
-_DrawerClosed = GroundTruthPredicate("DrawerClosed", [_container_type], _dummy_classifier)
-_DrawerOpen = GroundTruthPredicate("DrawerOpen", [_container_type], _dummy_classifier)
-
-# Group belief-space predicates
-BELIEF_PREDICATES = {
-    _ContainingWaterUnknown,
-    _ContainingWaterKnown,
-    _ContainingWater,
-    _NotContainingWater,
-    _InHandViewFromTop,
-    _Unknown_ContainerEmpty,
-    _Known_ContainerEmpty,
-    _BelieveTrue_ContainerEmpty,
-    _BelieveFalse_ContainerEmpty
-}
-
-# Export all predicates
-PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
-             _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
-             _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
-             _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-             _DrawerClosed, _DrawerOpen, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
-             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, _InHandViewFromTop,
-             _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater, _NotContainingWater,
-             _ContainerEmpty}
-# Note: Now adding belief predicates
-
-# Export goal predicates
-GOAL_PREDICATES = {_On, _Inside, _ContainingWaterKnown, _Known_ContainerEmpty, _DrawerOpen}  # Add DrawerOpen to goal predicates
-
-
-def get_vlm_predicates() -> Set[VLMPredicate]:
-    """Get VLM predicates for mock spot environment."""
-    _On = VLMPredicate(
-        "On", [_movable_object_type, _base_object_type],
-        prompt=
-        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
-    )
-    _Inside = VLMPredicate(
-        "Inside", [_movable_object_type, _container_type],
-        prompt=
-        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
-    )
-    _Blocking = VLMPredicate(
-        "Blocking", [_base_object_type, _base_object_type],
-        prompt="This means if an object is blocking the Spot robot approaching another one."
-    )
-    _NotBlocked = VLMPredicate(
-        "NotBlocked", [_base_object_type],
-        prompt="The given object is not blocked by any other object.")
-
-    _NotInsideAnyContainer = VLMPredicate(
-        "NotInsideAnyContainer", [_movable_object_type],
-        prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
-    )
-    
-    return {_On, _Inside, _Blocking, _NotBlocked, _NotInsideAnyContainer}
-
-# Export VLM predicates
-VLM_PREDICATES = get_vlm_predicates()
-
-# Export all predicates - use VLM or non-VLM based on config
-def get_all_predicates() -> Set[Predicate]:
-    """Get all predicates based on config."""
-    if CFG.mock_env_vlm_eval_predicate:
-        # Filter out non-VLM counterparts of VLM predicates
-        vlm_names = {pred.name for pred in VLM_PREDICATES}
-        non_vlm_preds = {pred for pred in PREDICATES if pred.name not in vlm_names}
-        return non_vlm_preds | VLM_PREDICATES
-    return PREDICATES
-
-# Update PREDICATES_WITH_VLM to use function
-PREDICATES_WITH_VLM = get_all_predicates() if CFG.mock_env_vlm_eval_predicate else None
-
-
-@dataclass(frozen=True)
-class _MockSpotObservation(_SavedMockSpotObservation):
-    """An observation from the mock Spot environment."""
-    vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
-    vlm_predicates: Optional[Set[VLMPredicate]] = None
-    
-    @classmethod
-    def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, 
-                       vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
-                        vlm_predicates: Optional[Set[VLMPredicate]] = None) -> "_MockSpotObservation":
-        """Initialize from a saved observation."""
-        return cls(
-            images=saved_obs.images,
-            gripper_open=saved_obs.gripper_open,
-            objects_in_view=saved_obs.objects_in_view,
-            objects_in_hand=saved_obs.objects_in_hand,
-            state_id=saved_obs.state_id,
-            atom_dict=saved_obs.atom_dict,
-            non_vlm_atom_dict=saved_obs.non_vlm_atom_dict,
-            # Fields decided by VLM online evaluation
-            vlm_atom_dict=vlm_atom_dict,
-            vlm_predicates=vlm_predicates
-        )
 
 def get_vlm_atom_combinations_test(objects: Set[Object],
                          preds: Set[VLMPredicate]) -> Set[VLMGroundAtom]:
