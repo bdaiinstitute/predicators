@@ -106,6 +106,8 @@ import json
 from pathlib import Path
 from jinja2 import Template
 from dataclasses import asdict
+import pillow_heif
+from PIL import Image as PILImage
 
 
 from predicators.structs import (
@@ -267,7 +269,7 @@ class MockEnvCreatorBase(ABC):
         """Process an RGB image file.
         
         Args:
-            image_path: Path to RGB image file
+            image_path: Path to RGB image file (supports .jpg, .png, .heic)
             
         Returns:
             RGB array (H, W, 3) in uint8 format
@@ -276,7 +278,17 @@ class MockEnvCreatorBase(ABC):
             RuntimeError: If image loading fails
         """
         try:
-            rgb = plt.imread(image_path)
+            # Check if file is HEIC
+            if image_path.lower().endswith('.heic'):
+                # Read HEIC file and convert to PIL Image
+                heif_file = pillow_heif.read_heif(image_path)
+                image = heif_file.to_pillow()
+                # Convert to numpy array
+                rgb = np.array(image)
+            else:
+                # Use matplotlib for other formats
+                rgb = plt.imread(image_path)
+                
             if rgb.dtype == np.float32:
                 rgb = (rgb * 255).astype(np.uint8)
             return rgb
