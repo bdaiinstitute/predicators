@@ -181,7 +181,8 @@ def vlm_predicate_batch_query(
                 seed=int(time.time()),
                 num_completions=1,
             )
-            logging.info(f"VLM response 0: {vlm_responses[0]}")
+            if CFG.vlm_eval_verbose:
+                logging.info(f"VLM response 0: {vlm_responses[0]}")
 
             # Parse the responses
             responses = vlm_responses[0].strip().split('\n')

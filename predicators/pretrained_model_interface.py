@@ -120,8 +120,10 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
-                    img.save(os.path.join(imgs_folderpath, filename_suffix))
-            logging.debug(f"Saved model response to {cache_filepath}.")
+                    # Convert to RGB mode before saving to ensure compatibility
+                    img_rgb = img.convert('RGB')
+                    img_rgb.save(os.path.join(imgs_folderpath, filename_suffix))
+                logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
