@@ -233,10 +233,7 @@ class MockSpotEnv(BaseEnv):
         super().__init__(use_gui)
         
         # Get data directory from config
-        if self.preset_data_dir is None:
-            data_dir = CFG.mock_env_data_dir if hasattr(CFG, "mock_env_data_dir") else "mock_env_data"
-        else:
-            data_dir = self.preset_data_dir
+        data_dir = self.preset_data_dir if self.preset_data_dir is not None else (CFG.mock_env_data_dir if hasattr(CFG, "mock_env_data_dir") else "mock_env_data")
         
         # Create data directories
         self._data_dir = Path(data_dir)
@@ -415,16 +412,19 @@ class MockSpotEnv(BaseEnv):
         )
         obs = _MockSpotObservation.init_from_saved(
             loaded_obs,
-            vlm_atom_dict=None,  # Will be populated if needed
+            vlm_atom_dict=None,  # Will be populated in Perceiver!
             vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
         )
         
         # Set current task and observation
-        if CFG.test_task_json_dir is not None and train_or_test == "test":
-            self._current_task = self._test_tasks[task_idx]
-        else:
-            goal_description = self._generate_goal_description()
-            self._current_task = EnvironmentTask(obs, goal_description)
+        # if CFG.test_task_json_dir is not None and train_or_test == "test":
+        #     self._current_task = self._test_tasks[task_idx]
+        # else:
+        #     goal_description = self._generate_goal_description()
+        #     self._current_task = EnvironmentTask(obs, goal_description)
+        
+        goal_description = self._generate_goal_description()
+        self._current_task = EnvironmentTask(obs, goal_description)
         
         self._current_observation = obs
         self._current_task_goal_reached = False
