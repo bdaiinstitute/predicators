@@ -251,7 +251,7 @@ class MockEnvCreatorBase(ABC):
             objects_in_hand=objects_in_hand,
             state_id=state_id,
             atom_dict=atom_dict or {},
-            non_vlm_atom_dict=non_vlm_atom_dict,
+            non_vlm_atom_dict=non_vlm_atom_dict or {},
             metadata=metadata or {}
         )
         
@@ -575,6 +575,7 @@ class MockEnvCreatorBase(ABC):
         # Get plan to goal
         planner = self._create_planner(initial_atoms, goal_atoms, objects)
         try:
+            # TODO: visualize all shortest-path skeletons
             skeleton, atoms_sequence, metrics = next(planner())
             # Follow plan to get shortest path
             curr_atoms = initial_atoms.copy()
@@ -1099,6 +1100,7 @@ class MockEnvCreatorBase(ABC):
             state_id=state_id,
             atom_dict={},  # Not used anymore
             non_vlm_atom_dict=non_vlm_atoms,
+            metadata={}
         )
         
         # Save observation

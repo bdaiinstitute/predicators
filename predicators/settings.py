@@ -49,6 +49,8 @@ class GlobalSettings:
     # Use VLMs to evaluate some spatial predicates in visual environment,
     # e.g., Sokoban. Still work in progress.
     enable_vlm_eval_predicate = False
+    # Whether to use rich logging output
+    log_rich = True
 
     # cover_multistep_options env parameters
     cover_multistep_action_limits = [-np.inf, np.inf]
