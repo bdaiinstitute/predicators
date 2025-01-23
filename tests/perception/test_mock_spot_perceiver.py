@@ -16,9 +16,10 @@ import numpy as np
 from pathlib import Path
 import tempfile
 import shutil
-from typing import Set, Dict, Any, List, Optional
+from typing import Set, Dict, Any, List, Optional, Mapping, cast
 from rich import print
 import PIL.Image
+import logging
 
 from predicators import utils
 from predicators.perception.mock_spot_perceiver import MockSpotPerceiver
@@ -30,7 +31,7 @@ from predicators.envs.mock_spot_env import (
     _HandEmpty, _NotBlocked, _Reachable, _InHandView, _MockSpotObservation,
     get_vlm_predicates
 )
-from predicators.structs import Object, GroundAtom, State, VLMPredicate
+from predicators.structs import Object, GroundAtom, State, VLMPredicate, VLMGroundAtom
 from predicators.pretrained_model_interface import VisionLanguageModel
 from predicators.spot_utils.perception.object_perception import get_vlm
 
@@ -182,6 +183,13 @@ def test_mock_spot_perceiver():
 
 def test_mock_spot_perceiver_vlm():
     """Tests for the MockSpotPerceiver class with VLM predicates."""
+    # Set up logging to see rich table output
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(message)s',  # Simple format to make tables readable
+        force=True  # Override any existing logging configuration
+    )
+
     # Set up configuration
     utils.reset_config({
         "env": "mock_spot",
@@ -263,11 +271,22 @@ def test_mock_spot_perceiver_vlm():
     print(f"Objects in view from obs: {obs.objects_in_view}")
     print(f"Objects in hand from obs: {obs.objects_in_hand}")
 
-    # Verify specific predicates and atoms
-    # robot = next((obj for obj in state if obj.type == _robot_type), None)
-    # container = next((obj for obj in state if obj.type == _container_type), None)
-    # assert robot is not None, "Robot object should exist"
-    # assert container is not None, "Container object should exist"
+    # Create a second observation to test table comparison
+    obs2 = _MockSpotObservation(
+        images=mock_images,
+        gripper_open=True,
+        objects_in_view={robot, container},
+        objects_in_hand=set(),
+        state_id="test_state_2",
+        atom_dict=atom_dict,
+        non_vlm_atom_dict=non_vlm_atoms,
+        vlm_predicates=vlm_predicates,
+        vlm_atom_dict=cast(Optional[Dict[VLMGroundAtom, bool]], state.vlm_atom_dict),  # Cast to correct type
+    )
+
+    # Update state again to trigger comparison table
+    state2 = perceiver.step(obs2)
+    assert state2 is not None, "State should not be None"
     
     # Check for VLM predicates
     assert any(pred is not None and isinstance(pred, VLMPredicate) 
