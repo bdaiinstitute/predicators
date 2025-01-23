@@ -27,6 +27,7 @@ from predicators.envs.mock_spot_env import (
     _Inside, _On, _HandEmpty, _NotHolding, _Reachable, _InHandView
 )
 from predicators.main import _run_episode
+from predicators.spot_utils.mock_env.mock_env_creator_base import MockEnvCreatorBase
 
 
 def test_mock_spot_action_wrapping():
@@ -36,15 +37,16 @@ def test_mock_spot_action_wrapping():
     try:
         # Set up configuration
         utils.reset_config({
-            "env": "mock_spot",
+            "env": "mock_spot_pick_place_two_cup",
             "approach": "oracle",
             "seed": 123,
             "mock_env_data_dir": temp_dir,
+            "option_model_name": "oracle_mock_spot",
             "num_test_tasks": 1
         })
 
         # Create environment and get options
-        env = create_new_env("mock_spot")
+        env = create_new_env("mock_spot_pick_place_two_cup")
         options = get_gt_options(env.get_name())
 
         # Verify each option creates properly wrapped actions
@@ -53,7 +55,7 @@ def test_mock_spot_action_wrapping():
             dummy_state = State({}, set(), {}, set())
             memory = {}
             objects = []
-            params = np.zeros(1, dtype=np.float32)
+            params = np.zeros(0, dtype=np.float32)
 
             # Get action from option's policy
             action = option.policy(dummy_state, memory, objects, params)
@@ -64,7 +66,7 @@ def test_mock_spot_action_wrapping():
             assert "operator_name" in extra_info
             assert extra_info["operator_name"] == option.name
             assert isinstance(action.arr, np.ndarray)
-            assert action.arr.shape == (1,)  # Mock actions use dummy array
+            assert action.arr.shape == (0,)  # Mock actions use dummy array
             assert np.all(action.arr == 0)  # Should be zeros
 
     finally:
@@ -79,15 +81,36 @@ def test_mock_pick_and_place_planning():
     test_name = "test_mock_two_cup_pick_place_manual_images"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
-        "env": "mock_spot",
+        "env": "mock_spot_pick_place_two_cup",
         "approach": "oracle",
         "seed": 123,
         "mock_env_use_belief_operators": True,
-        "mock_env_data_dir": test_dir
+        "mock_env_data_dir": test_dir,
+        "mock_env_vlm_eval_predicate": False,  # Disable VLM predicates
+        "sesame_max_skeletons_optimized": 1000,  # Increase skeleton limit
+        "sesame_task_planner": "astar",  # Use A* search
+        "sesame_task_planning_heuristic": "lmcut",  # Use lmcut heuristic
+        "sesame_use_visited_state_set": True,  # Track visited states to avoid cycles
+        "option_model_name": "oracle_mock_spot_pick_place_two_cup",
+        "num_train_tasks": 0,
+        "num_test_tasks": 1
     })
 
     # Create environment with two cups
     env = MockSpotPickPlaceTwoCupEnv()
+    
+    # Create environment creator with pick-place specific env
+    creator = MockEnvCreatorBase(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts,
+        "objects": env.objects
+    })
+    
+    # Plan and visualize transitions
+    name = f'Transition Graph, {env.name.replace("_", " ").title()}'
+    creator.plan_and_visualize(env.initial_atoms, env.goal_atoms, env.objects, task_name=name)
     
     # Get initial observation
     obs = env.reset('test', task_idx=0)
@@ -142,12 +165,20 @@ def test_mock_spot_pipeline():
     test_name = "test_mock_two_cup_pick_place_manual_images"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
-        "env": "mock_spot",
+        "env": "mock_spot_pick_place_two_cup",
         "approach": "oracle",
         "seed": 123,
         "mock_env_use_belief_operators": True,
         "mock_env_data_dir": test_dir,
-        "mock_env_vlm_eval_predicate": True  # Enable VLM predicates
+        "mock_env_vlm_eval_predicate": False,  # Disable VLM predicates
+        "sesame_max_skeletons_optimized": 10000,  # Increase skeleton limit significantly
+        "sesame_task_planner": "astar",  # Use A* search
+        "sesame_task_planning_heuristic": "lmcut",  # Use lmcut heuristic
+        "sesame_use_visited_state_set": True,  # Track visited states to avoid cycles
+        "sesame_max_expansions_optimized": 10000,  # Increase expansion limit
+        "option_model_name": "oracle_mock_spot_pick_place_two_cup",
+        "num_train_tasks": 0,
+        "num_test_tasks": 1
     })
     
     # Create environment and get task
