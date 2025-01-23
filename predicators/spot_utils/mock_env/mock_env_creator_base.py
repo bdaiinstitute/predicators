@@ -185,16 +185,18 @@ class MockEnvCreatorBase(ABC):
         self.predicates = {p.name: p for p in env_info["predicates"]}
         self.options = {o.name: o for o in env_info["options"]}
         self.nsrts = env_info["nsrts"]
+        self.objects: Dict[str, Object] = {o.name: o for o in env_info["objects"]}
+        if "robot" not in self.objects:
+            self.objects["robot"] = Object(name="robot", type=self.types["robot"])
+            
+        # Store robot object for easy access
+        self.robot_object = self.objects["robot"]
 
         # Calculate fluent predicates by looking at operator effects
         self.fluent_predicates: Set[str] = self._calculate_fluent_predicates()
         
         # Initialize rich console for pretty printing
         self.console = Console()
-
-        # Initialize objects dictionary with any objects from env_info
-        self.objects: Dict[str, Object] = {}
-        self.robot_object = Object(name="robot", type=self.types["robot"])
 
         self.current_state_id = "0"  # Default to initial state
 
@@ -1067,14 +1069,18 @@ class MockEnvCreatorBase(ABC):
         # Get all possible ground atoms for GroundTruthPredicates
         ground_truth_preds = {p for p in self.predicates.values() 
                             if isinstance(p, GroundTruthPredicate)}
-        # NOTE: We add the robot object to the list of objects because it may not in the objects dict
-        objects = list(self.objects.values()) + [self.robot_object]
+        # NOTE: We add the robot object to the list of objects because it may not be in the objects dict
+        objects = list(self.objects.values())
+        if self.robot_object not in objects:
+            objects.append(self.robot_object)
+            
         all_ground_atoms = utils.get_all_ground_atom_combinations_for_predicate_set(
             objects, cast(Set[Predicate], ground_truth_preds))
         
         # Create dictionary with True/False values based on closed world assumption
         non_vlm_atoms = {atom: (atom in state_atoms) for atom in all_ground_atoms}
         
+        # Create observation
         obs = _SavedMockSpotObservation(
             images=images,
             gripper_open=gripper_open,
