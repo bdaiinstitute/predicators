@@ -23,6 +23,7 @@ from typing import Callable, List, Sequence, Set
 import numpy as np
 import PIL
 from PIL import ImageDraw
+import logging
 
 import predicators.pretrained_model_interface
 from predicators import utils
@@ -144,8 +145,8 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         try:
             option_plan = self._query_vlm_for_option_plan(task)
         except Exception as e:
-            raise ApproachFailure(
-                f"VLM failed to produce coherent option plan. Reason: {e}")
+            logging.exception("VLM failed to produce coherent option plan:")  # This will log the full traceback
+            raise ApproachFailure(f"VLM failed to produce coherent option plan. Reason: {e}")
 
         policy = utils.option_plan_to_policy(option_plan)
 
@@ -159,14 +160,26 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
 
     def _query_vlm_for_option_plan(self, task: Task) -> Sequence[_Option]:
         init_state = task.init
-        assert init_state.simulator_state is not None
-        assert isinstance(init_state.simulator_state["images"], List)
+        
+        # NOTE: Temporary solution: add compatiability for my solution
+        if init_state.simulator_state is not None and "camera_images" in init_state.simulator_state:
+            # assert init_state.simulator_state is not None
+            # assert isinstance(init_state.simulator_state["images"], List)
+            imgs = init_state.simulator_state["images"]
+            pil_imgs = [
+                PIL.Image.fromarray(img_arr)  # type: ignore
+                for img_arr in imgs
+            ]
+        elif init_state.camera_images is not None:
+            imgs = init_state.camera_images
+            pil_imgs = [
+                PIL.Image.fromarray(img_arr.rgb)  # type: ignore
+                for name, img_arr in imgs.items()
+            ]
+        else:
+            raise ValueError("No camera images found in the initial state")
+        
         curr_options = sorted(self._initial_options)
-        imgs = init_state.simulator_state["images"]
-        pil_imgs = [
-            PIL.Image.fromarray(img_arr)  # type: ignore
-            for img_arr in imgs
-        ]
         imgs_for_vlm = []
         for img_num, pil_img in enumerate(pil_imgs):
             draw = ImageDraw.Draw(pil_img)
