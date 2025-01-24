@@ -261,7 +261,7 @@ class State:
 DefaultState = State({})
 
 
-@dataclass(frozen=True, order=True, repr=False)
+@dataclass(frozen=True, order=False, repr=False)
 class Predicate:
     """Struct defining a predicate (a lifted classifier over states)."""
     name: str
@@ -355,18 +355,6 @@ class Predicate:
 
     def __lt__(self, other: Predicate) -> bool:
         return str(self) < str(other)
-
-
-@dataclass(frozen=True, order=False, repr=False, eq=False)
-class VLMPredicate(Predicate):
-    """Struct defining a predicate that calls a VLM as part of returning its
-    truth value.
-
-    NOTE: when instantiating a VLMPredicate, we typically pass in a 'Dummy'
-    classifier (i.e., one that returns simply raises some kind of error instead
-    of actually outputting a value of any kind).
-    """
-    get_vlm_query_str: Callable[[Sequence[Object]], str]
 
 
 # @dataclass(frozen=True, order=True, repr=False)
