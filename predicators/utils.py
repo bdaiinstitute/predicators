@@ -43,10 +43,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pathos.multiprocessing as mp
 import rich.table
+import PIL.Image
 from bosdyn.client import math_helpers
 from gym.spaces import Box
 from matplotlib import patches
 from numpy.typing import NDArray
+from PIL import ImageDraw, ImageFont
 from pyperplan.heuristics.heuristic_base import \
     Heuristic as _PyperplanBaseHeuristic
 from pyperplan.planner import HEURISTICS as _PYPERPLAN_HEURISTICS
@@ -56,6 +58,9 @@ from rich.text import Text
 from scipy.stats import beta as BetaRV
 
 from predicators.args import create_arg_parser
+from predicators.pretrained_model_interface import GoogleGeminiLLM, \
+    GoogleGeminiVLM, LargeLanguageModel, OpenAILLM, OpenAIVLM, \
+    VisionLanguageModel
 from predicators.pybullet_helpers.joint import JointPositions
 from predicators.settings import CFG, GlobalSettings
 from predicators.structs import NSRT, Action, Array, DummyOption, \
@@ -65,8 +70,8 @@ from predicators.structs import NSRT, Action, Array, DummyOption, \
     NSRTOrSTRIPSOperator, Object, ObjectOrVariable, Observation, OptionSpec, \
     ParameterizedOption, Predicate, Segment, SpotAction, SpotActionExtraInfo, \
     State, STRIPSOperator, Task, Type, Variable, VarToObjSub, Video, \
-    _GroundLDLRule, _GroundNSRT, _GroundSTRIPSOperator, _Option, \
-    _TypedEntity
+    VLMPredicate, _GroundLDLRule, _GroundNSRT, _GroundSTRIPSOperator, \
+    _Option, _TypedEntity
 from predicators.third_party.fast_downward_translator.translate import \
     main as downward_translate
 
@@ -165,7 +170,7 @@ def count_branching_factor(strips_ops: List[STRIPSOperator],
     return total_branching_factor
 
 
-def segment_trajectory_to_state_sequence(
+def segment_trajectory_to_start_end_state_sequence(
         seg_traj: List[Segment]) -> List[State]:
     """Convert a trajectory of segments into a trajectory of states, made up of
     only the initial/final states of the segments.
@@ -1240,7 +1245,7 @@ def run_policy(
         if monitor is not None:
             monitor.reset(train_or_test, task_idx)
     obs = env.get_observation()
-    # assert isinstance(obs, State)
+    assert isinstance(obs, State)
     state = obs
     states = [state]
     actions: List[Action] = []
@@ -1623,17 +1628,6 @@ def get_all_ground_atoms_for_predicate(
         ground_atom = GroundAtom(predicate, args)
         ground_atoms.add(ground_atom)
     return ground_atoms
-
-
-def get_all_ground_atom_combinations_for_predicate_set(
-    objects: Sequence[Object], preds: Set[Predicate]) -> Set[GroundAtom]:
-    """Get all possible combinations of objects for a set of predicates."""
-    atoms = set()
-    for pred in preds:
-        param_objects = get_object_combinations(objects, pred.types)
-        for objs in param_objects:
-            atoms.add(GroundAtom(pred, objs))
-    return atoms
 
 
 def get_all_lifted_atoms_for_predicate(
@@ -3880,6 +3874,46 @@ def run_ground_nsrt_with_assertions(ground_nsrt: _GroundNSRT,
     return state
 
 
+def get_scaled_default_font(
+        draw: ImageDraw.ImageDraw,
+        size: int) -> ImageFont.FreeTypeFont:  # pragma: no cover
+    """Method that modifies the size of some provided PIL ImageDraw font.
+
+    Useful for scaling up font sizes when using PIL to insert text
+    directly into images.
+    """
+    # Determine the scaling factor
+    base_font = ImageFont.load_default()
+    width, height = draw.textbbox((0, 0), "A", font=base_font)[:2]
+    scale_factor = size / max(width, height)
+    # Scale the font using the factor
+    return base_font.font_variant(size=int(scale_factor *  # type: ignore
+                                           base_font.size))  # type: ignore
+
+
+def add_text_to_draw_img(
+        draw: ImageDraw.ImageDraw, position: Tuple[int, int], text: str,
+        font: ImageFont.FreeTypeFont
+) -> ImageDraw.ImageDraw:  # pragma: no cover
+    """Method that adds some text with a particular font at a particular pixel
+    position in an input PIL.ImageDraw.ImageDraw image.
+
+    Returns the modified ImageDraw.ImageDraw with the added text.
+    """
+    text_width, text_height = draw.textbbox((0, 0), text, font=font)[2:]
+    background_position = (position[0] - 5, position[1] - 5
+                           )  # Slightly larger than text
+    background_size = (text_width + 10, text_height + 10)
+    # Draw the background rectangle
+    draw.rectangle(
+        (background_position, (background_position[0] + background_size[0],
+                               background_position[1] + background_size[1])),
+        fill="black")
+    # Add the text to the image
+    draw.text(position, text, fill="red", font=font)
+    return draw
+
+
 def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
     """Generate an ascii formatted presentation of a Rich table.
 
@@ -3925,7 +3959,7 @@ class Timer:
 @contextlib.contextmanager
 def timing(text, block=False):
     """Context manager for timing code blocks.
-    
+
     Args:
         text: Description of the code block being timed
         block: Whether to print block-style logging

@@ -180,6 +180,124 @@ def test_cluster_and_intersect_strips_learner():
     Delete Effects: [Pred0(?x1:cup_type), Pred1(?x1:cup_type, ?x0:cup_type), Pred1(?x1:cup_type, ?x1:cup_type), Pred1(?x1:cup_type, ?x2:cup_type), Pred2(?x1:cup_type)]
     Ignore Effects: []"""  # pylint: disable=line-too-long
 
+    # Test pruning pnads with small datastores. The set up is copied from the
+    # next test, test_cluster_and_search_strips_learner().
+    obj_type = Type("obj_type", ["red", "green", "blue", "happy", "sad"])
+    obj = obj_type("obj")
+    IsRed = Predicate("IsRed", [obj_type], lambda s, o: s[o[0]][0] > 0.5)
+    IsGreen = Predicate("IsGreen", [obj_type], lambda s, o: s[o[0]][1] > 0.5)
+    IsBlue = Predicate("IsBlue", [obj_type], lambda s, o: s[o[0]][2] > 0.5)
+    IsHappy = Predicate("IsHappy", [obj_type], lambda s, o: s[o[0]][3] > 0.5)
+    IsSad = Predicate("IsSad", [obj_type], lambda s, o: s[o[0]][4] > 0.5)
+    preds = {IsRed, IsGreen, IsBlue, IsHappy, IsSad}
+    Interact = utils.SingletonParameterizedOption(
+        "Interact", lambda s, m, o, p: None).ground([], [])
+    # We give three demonstrations. When the object is red or green, it
+    # becomes happy. When the object is blue, it becomes sad.
+    s1 = State({obj: [1.0, 0.0, 0.0, 0.0, 0.0]})
+    a1 = Action([], Interact)
+    ns1 = State({obj: [1.0, 0.0, 0.0, 1.0, 0.0]})
+    g1 = {IsHappy([obj])}
+    traj1 = LowLevelTrajectory([s1, ns1], [a1], True, 0)
+    task1 = Task(s1, g1)
+    segment1 = Segment(traj1, utils.abstract(s1, preds),
+                       utils.abstract(ns1, preds), Interact)
+    s2 = State({obj: [0.0, 1.0, 0.0, 0.0, 0.0]})
+    a2 = Action([], Interact)
+    ns2 = State({obj: [0.0, 1.0, 0.0, 1.0, 0.0]})
+    g2 = {IsHappy([obj])}
+    traj2 = LowLevelTrajectory([s2, ns2], [a2], True, 1)
+    task2 = Task(s2, g2)
+    segment2 = Segment(traj2, utils.abstract(s2, preds),
+                       utils.abstract(ns2, preds), Interact)
+    s3 = State({obj: [0.0, 0.0, 1.0, 0.0, 0.0]})
+    a3 = Action([], Interact)
+    ns3 = State({obj: [0.0, 0.0, 1.0, 0.0, 1.0]})
+    g3 = {IsSad([obj])}
+    traj3 = LowLevelTrajectory([s3, ns3], [a3], True, 2)
+    task3 = Task(s3, g3)
+    segment3 = Segment(traj3, utils.abstract(s3, preds),
+                       utils.abstract(ns3, preds), Interact)
+    utils.reset_config({
+        "strips_learner": "cluster_and_intersect",
+        "cluster_and_intersect_prune_low_data_pnads": True,
+        "cluster_and_intersect_min_datastore_fraction": 0.0
+    })
+    pnads = learn_strips_operators([traj1, traj2, traj3],
+                                   [task1, task2, task3],
+                                   preds, [[segment1], [segment2], [segment3]],
+                                   verify_harmlessness=False,
+                                   annotations=None)
+    assert len(pnads) == 2
+    utils.reset_config({
+        "strips_learner": "cluster_and_intersect",
+        "cluster_and_intersect_prune_low_data_pnads": True,
+        "cluster_and_intersect_min_datastore_fraction": 0.4
+    })
+    pnads = learn_strips_operators([traj1, traj2, traj3],
+                                   [task1, task2, task3],
+                                   preds, [[segment1], [segment2], [segment3]],
+                                   verify_harmlessness=False,
+                                   annotations=None)
+    assert len(pnads) == 1
+    assert len(pnads[0].datastore) == 2
+    utils.reset_config({
+        "strips_learner": "cluster_and_intersect",
+        "cluster_and_intersect_prune_low_data_pnads": True,
+        "cluster_and_intersect_min_datastore_fraction": 0.9
+    })
+    pnads = learn_strips_operators([traj1, traj2, traj3],
+                                   [task1, task2, task3],
+                                   preds, [[segment1], [segment2], [segment3]],
+                                   verify_harmlessness=False,
+                                   annotations=None)
+    assert len(pnads) == 0
+
+    # Test cluster and intersect soft intersection.
+    utils.reset_config({
+        "strips_learner":
+        "cluster_and_intersect",
+        "cluster_and_intersect_soft_intersection_for_preconditions":
+        True,
+        "precondition_soft_intersection_threshold_percent":
+        0.6
+    })
+    s4 = State({obj: [0.0, 1.0, 0.0, 0.0, 0.0]})
+    a4 = Action([], Interact)
+    ns4 = State({obj: [0.0, 1.0, 0.0, 1.0, 0.0]})
+    g4 = {IsHappy([obj])}
+    traj4 = LowLevelTrajectory([s4, ns4], [a4], True, 1)
+    task4 = Task(s4, g4)
+    segment4 = Segment(traj4, utils.abstract(s4, preds),
+                       utils.abstract(ns4, preds), Interact)
+    pnads = learn_strips_operators(
+        [traj1, traj2, traj3, traj4], [task1, task2, task3, task4],
+        preds, [[segment1], [segment2], [segment3], [segment4]],
+        verify_harmlessness=False,
+        annotations=None)
+    assert len(pnads) == 2
+    assert len(pnads[0].op.preconditions) == 1
+    # When we take atoms that appear >= 60% of the time as preconditions,
+    # IsGreen will show up, because it occurs 2/3 times.
+    assert list(pnads[0].op.preconditions)[0].predicate == IsGreen
+
+    utils.reset_config({
+        "strips_learner":
+        "cluster_and_intersect",
+        "cluster_and_intersect_soft_intersection_for_preconditions":
+        True,
+        "precondition_soft_intersection_threshold_percent":
+        0.7
+    })
+    pnads = learn_strips_operators(
+        [traj1, traj2, traj3, traj4], [task1, task2, task3, task4],
+        preds, [[segment1], [segment2], [segment3], [segment4]],
+        verify_harmlessness=False,
+        annotations=None)
+    assert len(pnads) == 2
+    # Now that the threshold is 70%, there will be no chosen preconditions.
+    assert len(pnads[0].op.preconditions) == 0
+
 
 def test_cluster_and_search_strips_learner():
     """Tests for ClusterAndSearchSTRIPSLearner."""

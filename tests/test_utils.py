@@ -17,12 +17,33 @@ from predicators.envs.pddl_env import ProceduralTasksGripperPDDLEnv, \
 from predicators.ground_truth_models import _get_predicates_by_names, \
     get_gt_nsrts, get_gt_options
 from predicators.nsrt_learning.segmentation import segment_trajectory
+from predicators.pretrained_model_interface import VisionLanguageModel
 from predicators.settings import CFG
 from predicators.structs import NSRT, Action, DefaultState, DummyOption, \
-    GroundAtom, LowLevelTrajectory, ParameterizedOption, Predicate, Segment, \
-    State, STRIPSOperator, Type, Variable
+    GroundAtom, LowLevelTrajectory, Object, ParameterizedOption, Predicate, \
+    Segment, State, STRIPSOperator, Type, Variable, VLMPredicate
 from predicators.utils import GoalCountHeuristic, _PyperplanHeuristicWrapper, \
     _TaskPlanningHeuristic
+
+
+class _DummyVLM(VisionLanguageModel):
+
+    def get_id(self):
+        return "dummy"
+
+    def _sample_completions(self,
+                            prompt,
+                            imgs,
+                            temperature,
+                            seed,
+                            stop_token=None,
+                            num_completions=1):
+        del prompt, imgs, temperature, seed, stop_token  # unused.
+        completions = []
+        for _ in range(num_completions):
+            completion = "* is_fishy: True."
+            completions.append(completion)
+        return completions
 
 
 @pytest.mark.parametrize("max_groundings,exp_num_true,exp_num_false",
@@ -82,7 +103,7 @@ def test_count_positives_for_ops(max_groundings, exp_num_true, exp_num_false):
 
 
 def test_segment_trajectory_to_state_and_atoms_sequence():
-    """Tests for segment_trajectory_to_state_sequence() and
+    """Tests for segment_trajectory_to_start_end_state_sequence() and
     segment_trajectory_to_atoms_sequence()."""
     # Set up the segments.
     cup_type = Type("cup_type", ["feat1"])
@@ -104,21 +125,23 @@ def test_segment_trajectory_to_state_and_atoms_sequence():
     final_atoms = {not_on([cup, plate])}
     segment1 = Segment(traj1, init_atoms, final_atoms)
     segment2 = Segment(traj2, final_atoms, init_atoms)
-    # Test segment_trajectory_to_state_sequence().
-    state_seq = utils.segment_trajectory_to_state_sequence([segment1])
+    # Test segment_trajectory_to_start_end_state_sequence().
+    state_seq = utils.segment_trajectory_to_start_end_state_sequence(
+        [segment1])
     assert state_seq == [state0, state2]
-    state_seq = utils.segment_trajectory_to_state_sequence(
+    state_seq = utils.segment_trajectory_to_start_end_state_sequence(
         [segment1, segment2])
     assert state_seq == [state0, state2, state0]
-    state_seq = utils.segment_trajectory_to_state_sequence(
+    state_seq = utils.segment_trajectory_to_start_end_state_sequence(
         [segment1, segment2, segment1, segment2])
     assert state_seq == [state0, state2, state0, state2, state0]
     with pytest.raises(AssertionError):
         # Need at least one segment in the trajectory.
-        utils.segment_trajectory_to_state_sequence([])
+        utils.segment_trajectory_to_start_end_state_sequence([])
     with pytest.raises(AssertionError):
         # Segments don't chain together correctly.
-        utils.segment_trajectory_to_state_sequence([segment1, segment1])
+        utils.segment_trajectory_to_start_end_state_sequence(
+            [segment1, segment1])
     # Test segment_trajectory_to_atoms_sequence().
     atoms_seq = utils.segment_trajectory_to_atoms_sequence([segment1])
     assert atoms_seq == [init_atoms, final_atoms]
@@ -1007,7 +1030,7 @@ def test_strip_task():
     """Test for strip_task()."""
     env = CoverEnv()
     Covers, Holding = _get_predicates_by_names("cover", ["Covers", "Holding"])
-    task = env.get_train_tasks()[0]
+    task = env.get_train_tasks()[0].task
     block0, _, _, target0, _ = list(task.init)
     # Goal is Covers(block0, target0)
     assert len(task.goal) == 1
@@ -1099,6 +1122,23 @@ def test_abstract():
     }
     # Wrapping a predicate should destroy its classifier.
     assert not utils.abstract(state, {wrapped_pred1, wrapped_pred2})
+    # Now, test the case where we abstract using a VLM predicate.
+    utils.reset_config({"seed": 123})
+    vlm_pred = VLMPredicate("IsFishy", [], lambda s, o: NotImplementedError,
+                            lambda o: "is_fishy")
+    vlm_state = state.copy()
+    vlm_state.simulator_state = {
+        "images": [np.zeros((30, 30, 3), dtype=np.uint8)]
+    }
+    vlm_atoms_set = utils.abstract(vlm_state, [vlm_pred], _DummyVLM())
+    assert len(vlm_atoms_set) == 1
+    assert "IsFishy" in str(vlm_atoms_set)
+    # Now, teset the case where the VLM response is wrong/bad.
+    vlm_pred2 = VLMPredicate("IsSnakey", [], lambda s, o: NotImplementedError,
+                             lambda o: "is_snakey")
+    vlm_atoms_set = utils.abstract(vlm_state, [vlm_pred, vlm_pred2],
+                                   _DummyVLM())
+    assert len(vlm_atoms_set) == 0
 
 
 def test_create_new_variables():
@@ -1917,6 +1957,70 @@ def test_create_ground_atom_dataset():
     assert ground_atom_dataset[0][1][1] == {GroundAtom(on, [cup1, plate1])}
 
 
+def test_merge_ground_atom_datasets():
+    """Tests for merge_ground_atom_datasets()."""
+    utils.reset_config({
+        "env": "test_env",
+    })
+    cup_type = Type("cup_type", ["feat1", "color"])
+    plate_type = Type("plate_type", ["feat1"])
+    on = Predicate("On", [cup_type, plate_type],
+                   lambda s, o: s.get(o[0], "feat1") > s.get(o[1], "feat1"))
+    dark = Predicate("Dark", [cup_type],
+                     lambda s, o: s.get(o[0], "color") > 0.5)
+    cup1 = cup_type("cup1")
+    cup2 = cup_type("cup2")
+    plate1 = plate_type("plate1")
+    plate2 = plate_type("plate2")
+    states = [
+        State({
+            cup1: np.array([0.5, 0.2]),
+            cup2: np.array([0.1, 0.6]),
+            plate1: np.array([1.0]),
+            plate2: np.array([1.2])
+        }),
+        State({
+            cup1: np.array([1.1, 0.2]),
+            cup2: np.array([0.1, 0.6]),
+            plate1: np.array([1.0]),
+            plate2: np.array([1.2])
+        }),
+        State({
+            cup1: np.array([1.1, 0.7]),
+            cup2: np.array([0.1, 0.6]),
+            plate1: np.array([1.0]),
+            plate2: np.array([1.2])
+        })
+    ]
+    actions = [
+        Action(np.array([0.0]), DummyOption),
+        Action(np.array([0.0]), DummyOption)
+    ]
+    dataset = [LowLevelTrajectory(states, actions)]
+    gad1 = utils.create_ground_atom_dataset(dataset, {on})
+    gad2 = utils.create_ground_atom_dataset(dataset, {dark})
+    ground_atom_dataset = utils.merge_ground_atom_datasets(gad1, gad2)
+    assert len(ground_atom_dataset) == 1
+    assert len(ground_atom_dataset[0]) == 2
+    assert len(ground_atom_dataset[0][0].states) == len(states)
+    assert all(gs.allclose(s) for gs, s in \
+               zip(ground_atom_dataset[0][0].states, states))
+    assert len(ground_atom_dataset[0][0].actions) == len(actions)
+    assert all(ga == a
+               for ga, a in zip(ground_atom_dataset[0][0].actions, actions))
+    assert len(ground_atom_dataset[0][1]) == len(states) == 3
+    assert ground_atom_dataset[0][1][0] == {GroundAtom(dark, [cup2])}
+    assert ground_atom_dataset[0][1][1] == {
+        GroundAtom(dark, [cup2]),
+        GroundAtom(on, [cup1, plate1])
+    }
+    assert ground_atom_dataset[0][1][2] == {
+        GroundAtom(dark, [cup2]),
+        GroundAtom(on, [cup1, plate1]),
+        GroundAtom(dark, [cup1])
+    }
+
+
 def test_get_reachable_atoms():
     """Tests for get_reachable_atoms()."""
     cup_type = Type("cup_type", ["feat1"])
@@ -2496,6 +2600,20 @@ def test_save_video():
     video = [rng.integers(255, size=(3, 3), dtype=np.uint8) for _ in range(3)]
     utils.save_video(filename, video)
     os.remove(os.path.join(dirname, filename))
+    os.rmdir(dirname)
+
+
+def test_save_images():
+    """Tests for save_images()."""
+    dirname = "_fake_tmp_images_dir"
+    prefix = "image_prefix"
+    utils.reset_config({"image_dir": dirname})
+    rng = np.random.default_rng(123)
+    video = [rng.integers(255, size=(3, 3), dtype=np.uint8) for _ in range(3)]
+    utils.save_images(prefix, video)
+    os.remove(os.path.join(dirname, prefix + "_image_0.png"))
+    os.remove(os.path.join(dirname, prefix + "_image_1.png"))
+    os.remove(os.path.join(dirname, prefix + "_image_2.png"))
     os.rmdir(dirname)
 
 
@@ -3190,13 +3308,21 @@ def test_parse_config_excluded_predicates():
         "HandEmpty", "Holding", "IsBlock", "IsTarget"
     ]
     assert sorted(p.name for p in excluded) == ["Covers"]
-    # Cannot exclude goal predicates otherwise..
+    # Cannot exclude goal predicates.
     utils.reset_config({
         "offline_data_method": "demo",
         "excluded_predicates": "Covers",
     })
     with pytest.raises(AssertionError):
         utils.parse_config_excluded_predicates(env)
+    # Can exclude goal predicates if allowed per the settings.
+    utils.reset_config({
+        "offline_data_method": "demo",
+        "excluded_predicates": "Covers",
+        "allow_exclude_goal_predicates": True
+    })
+    included, excluded = utils.parse_config_excluded_predicates(env)
+    assert [p.name for p in excluded] == ["Covers"]
 
 
 def test_null_sampler():
@@ -3346,3 +3472,71 @@ def test_oracle_feature_selection():
         utils.construct_active_sampler_input(state, [robot, cup], params,
                                              NavigateToCup)
     assert "Oracle feature selection" in str(e)
+
+
+def test_parse_model_output_into_option_plan():
+    """Test the utility function that turns a prediction by a large model into
+    a structure from which an option plan can be made."""
+    # NOTE: all these tests are for the failure cases of this function, since
+    # the success cases are covered when we test the LLMOpenLoopApproach
+    utils.reset_config()
+    options = get_gt_options("cover")
+    options_str = "wakanda\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [], [], options,
+                                                  False)) == 0
+    options_str = "PickPlace()\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [], [], options,
+                                                  True)) == 0
+    options_str = "PickPlace(\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [], [], options,
+                                                  False)) == 0
+    options_str = "PickPlace(forever)\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [], [], options,
+                                                  False)) == 0
+    obj_type = Type("object_type", [])
+    obj = Object("obj", obj_type)
+    options_str = "PickPlace(canard:object_type)\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  False)) == 0
+    options_str = "PickPlace(obj:canard_type)\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  False)) == 0
+    options_str = "PickPlace(obj:object_type)\n"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  False)) == 0
+    options_str = "PickPlace()[ ,]"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  True)) == 0
+    options_str = "PickPlace()[not_a_param]"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  True)) == 0
+    options_str = "PickPlace()[0.5, 0.5]"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  True)) == 0
+    options = get_gt_options("blocks")
+    options_str = "Pick(obj:object_type)"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  False)) == 0
+    options_str = "Pick()"
+    assert len(
+        utils.parse_model_output_into_option_plan(options_str, [obj],
+                                                  [obj_type], options,
+                                                  False)) == 0

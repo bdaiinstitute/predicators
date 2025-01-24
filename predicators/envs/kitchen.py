@@ -5,7 +5,9 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, cast
 
 import matplotlib
 import numpy as np
+import PIL
 from gym.spaces import Box
+from PIL import ImageDraw
 
 try:
     import gymnasium as mujoco_kitchen_gym
@@ -38,13 +40,19 @@ _TRACKED_SITE_TO_JOINT = {
 }
 
 _TRACKED_BODIES = ["Burner 1", "Burner 2", "Burner 3", "Burner 4"]
+KETTLE_ON_BURNER1_POS = [0.169, 0.35, 1.626]
+KETTLE_ON_BURNER2_POS = [-0.269, 0.35, 1.626]
+KETTLE_ON_BURNER3_POS = [0.169, 0.65, 1.626]
+KETTLE_ON_BURNER4_POS = [-0.269, 0.65, 1.626]
 
 
 class KitchenEnv(BaseEnv):
     """Kitchen environment wrapping dm_control Kitchen."""
 
-    gripper_type = Type("gripper", ["x", "y", "z", "qw", "qx", "qy", "qz"])
+    # Types
     object_type = Type("object", ["x", "y", "z"])
+    gripper_type = Type("gripper", ["x", "y", "z", "qw", "qx", "qy", "qz"],
+                        parent=object_type)
     on_off_type = Type("on_off", ["x", "y", "z", "angle"], parent=object_type)
     hinge_door_type = Type("hinge_door", ["x", "y", "z", "angle"],
                            parent=on_off_type)
@@ -72,8 +80,8 @@ class KitchenEnv(BaseEnv):
     }
 
     at_pre_turn_atol = 0.1  # tolerance for AtPreTurnOn/Off
-    ontop_atol = 0.15  # tolerance for OnTop
-    on_angle_thresh = -0.4  # dial is On if less than this threshold
+    ontop_atol = 0.18  # tolerance for OnTop
+    on_angle_thresh = -0.28  # -0.4  # dial is On if less than this threshold
     light_on_thresh = -0.39  # light is On if less than this threshold
     microhandle_open_thresh = -0.65
     hinge_open_thresh = 0.084
@@ -83,10 +91,12 @@ class KitchenEnv(BaseEnv):
     at_pre_pushontop_x_atol = 1.0  # other tolerance for AtPrePushOnTop
 
     obj_name_to_pre_push_dpos = {
-        ("kettle", "on"): (-0.05, -0.3, -0.12),
+        ("kettle", "on"): (-0.05, -0.2, 0.00),
         ("kettle", "off"): (0.0, 0.0, 0.08),
-        ("knob4", "on"): (-0.1, -0.15, 0.05),
+        ("knob4", "on"): (-0.1, -0.12, 0.05),
         ("knob4", "off"): (0.05, -0.12, -0.05),
+        ("knob3", "on"): (0.0, -0.12, 0.05),
+        ("knob3", "off"): (0.12, -0.12, -0.05),
         ("light", "on"): (0.1, -0.05, -0.05),
         ("light", "off"): (-0.1, -0.05, -0.05),
         ("microhandle", "on"): (0.0, -0.1, 0.13),
@@ -102,7 +112,9 @@ class KitchenEnv(BaseEnv):
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
         assert _MJKITCHEN_IMPORTED, "Failed to import kitchen gym env. \
-Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
+Install from https://github.com/NishanthJKumar/Gymnasium-Robotics. \
+BE SURE TO INSTALL FROM GITHUB SOURCE THOUGH; do not blindly install as the \
+README of that repo suggests!"
 
         if use_gui:
             assert not CFG.make_test_videos or CFG.make_failure_videos, \
@@ -112,7 +124,8 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
 
         render_mode = "human" if self._using_gui else "rgb_array"
         self._gym_env = mujoco_kitchen_gym.make("FrankaKitchen-v1",
-                                                render_mode=render_mode)
+                                                render_mode=render_mode,
+                                                ik_controller=True)
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         return self._get_tasks(num=CFG.num_train_tasks, train_or_test="train")
@@ -179,8 +192,52 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
                action: Optional[Action] = None,
                caption: Optional[str] = None) -> Video:
         assert caption is None
-        arr: Image = self._gym_env.render()  # type: ignore
-        return [arr]
+        curr_img_arr: Image = self._gym_env.render()  # type: ignore
+        if CFG.kitchen_render_set_of_marks:
+            # Add text labels for the burners to the image. Useful for VLM-based
+            # predicate invention.
+            curr_img_pil = PIL.Image.fromarray(curr_img_arr)  # type: ignore
+            draw = ImageDraw.Draw(curr_img_pil)
+            # Specify the font size and type (default font is used here)
+            font = utils.get_scaled_default_font(draw, 3)
+            # Define the text and position
+            burner1_text = "burner1"
+            burner1_position = (300, 285)
+            burner2_text = "burner2"
+            burner2_position = (210, 305)
+            burner3_text = "burner3"
+            burner3_position = (260, 225)
+            burner4_text = "burner4"
+            burner4_position = (185, 240)
+            knob1_text = "knob1"
+            knob1_position = (260, 155)
+            knob2_text = "knob2"
+            knob2_position = (160, 170)
+            knob3_text = "knob3"
+            knob3_position = (260, 125)
+            knob4_text = "knob4"
+            knob4_position = (160, 125)
+            burner1_img = utils.add_text_to_draw_img(draw, burner1_position,
+                                                     burner1_text, font)
+            burner2_img = utils.add_text_to_draw_img(burner1_img,
+                                                     burner2_position,
+                                                     burner2_text, font)
+            burner3_img = utils.add_text_to_draw_img(burner2_img,
+                                                     burner3_position,
+                                                     burner3_text, font)
+            burner4_img = utils.add_text_to_draw_img(burner3_img,
+                                                     burner4_position,
+                                                     burner4_text, font)
+            knob1_img = utils.add_text_to_draw_img(burner4_img, knob1_position,
+                                                   knob1_text, font)
+            knob2_img = utils.add_text_to_draw_img(knob1_img, knob2_position,
+                                                   knob2_text, font)
+            knob3_img = utils.add_text_to_draw_img(knob2_img, knob3_position,
+                                                   knob3_text, font)
+            _ = utils.add_text_to_draw_img(knob3_img, knob4_position,
+                                           knob4_text, font)
+            curr_img_arr = np.array(curr_img_pil)
+        return [curr_img_arr]
 
     @property
     def predicates(self) -> Set[Predicate]:
@@ -188,11 +245,22 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
-        return {
-            self._pred_name_to_pred["OnTop"],
-            self._pred_name_to_pred["TurnedOn"],
-            self._pred_name_to_pred["Open"]
-        }
+        OnTop = self._pred_name_to_pred["OnTop"]
+        TurnedOn = self._pred_name_to_pred["TurnedOn"]
+        KettleBoiling = self._pred_name_to_pred["KettleBoiling"]
+        KnobAndBurnerLinked = self._pred_name_to_pred["KnobAndBurnerLinked"]
+        goal_preds = set()
+        if CFG.kitchen_goals in ["all", "kettle_only"]:
+            goal_preds.add(OnTop)
+        if CFG.kitchen_goals in ["all", "knob_only"]:
+            goal_preds.add(TurnedOn)
+            goal_preds.add(KnobAndBurnerLinked)
+        if CFG.kitchen_goals in ["all", "light_only"]:
+            goal_preds.add(TurnedOn)
+        if CFG.kitchen_goals in ["all", "boil_kettle"]:
+            goal_preds.add(KettleBoiling)
+            goal_preds.add(KnobAndBurnerLinked)
+        return goal_preds
 
     @classmethod
     def create_predicates(cls) -> Dict[str, Predicate]:
@@ -214,7 +282,17 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
             Predicate("TurnedOff", [cls.on_off_type], cls.Off_holds),
             Predicate("Open", [cls.on_off_type], cls.Open_holds),
             Predicate("Closed", [cls.on_off_type], cls.Closed_holds),
+            Predicate("BurnerAhead", [cls.surface_type, cls.surface_type],
+                      cls._BurnerAhead_holds),
+            Predicate("BurnerBehind", [cls.surface_type, cls.surface_type],
+                      cls._BurnerBehind_holds),
+            Predicate("KettleBoiling",
+                      [cls.kettle_type, cls.surface_type, cls.knob_type],
+                      cls._KettleBoiling_holds),
+            Predicate("KnobAndBurnerLinked", [cls.knob_type, cls.surface_type],
+                      cls._KnobAndBurnerLinkedHolds),
         }
+
         return {p.name: p for p in preds}
 
     @property
@@ -240,19 +318,22 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
         # We now need to reset the underlying gym environment to the correct
         # state.
         seed = utils.get_task_seed(train_or_test, task_idx)
-        self._current_observation = self._reset_initial_state_from_seed(seed)
+        self._current_observation = self._reset_initial_state_from_seed(
+            seed, train_or_test)
         return self._copy_observation(self._current_observation)
 
     def simulate(self, state: State, action: Action) -> State:
-        raise NotImplementedError("Simulate not implemented for gym envs. " +
-                                  "Try using --bilevel_plan_without_sim True")
+        raise NotImplementedError(
+            "Simulate not implemented for kitchen env. " +
+            "Try using --bilevel_plan_without_sim True")
 
     def step(self, action: Action) -> Observation:
         self._gym_env.step(action.arr)
         if self._using_gui:
             self._gym_env.render()
         self._current_observation = {
-            "state_info": self.get_object_centric_state_info()
+            "state_info": self.get_object_centric_state_info(),
+            "obs_images": self.render()
         }
         return self._copy_observation(self._current_observation)
 
@@ -290,6 +371,7 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
                     "angle": angle
                 }
         state = utils.create_state_from_dict(state_dict)
+        state.simulator_state = {}
         return state
 
     def goal_reached(self) -> bool:
@@ -297,21 +379,39 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
             self._current_observation["state_info"])
         kettle = self.object_name_to_object("kettle")
         burner4 = self.object_name_to_object("burner4")
+        burner3 = self.object_name_to_object("burner3")
         knob4 = self.object_name_to_object("knob4")
+        knob3 = self.object_name_to_object("knob3")
         light = self.object_name_to_object("light")
         goal_desc = self._current_task.goal_description
-        kettle_on_burner = self._OnTop_holds(state, [kettle, burner4])
+        kettle_on_burner4 = self._OnTop_holds(state, [kettle, burner4])
+        kettle_on_burner3 = self._OnTop_holds(state, [kettle, burner3])
         knob4_turned_on = self.On_holds(state, [knob4])
+        knob3_turned_on = self.On_holds(state, [knob3])
         light_turned_on = self.On_holds(state, [light])
+        kettle_boiling4 = self._KettleBoiling_holds(state,
+                                                    [kettle, burner4, knob4])
+        kettle_boiling3 = self._KettleBoiling_holds(state,
+                                                    [kettle, burner3, knob3])
         if goal_desc == ("Move the kettle to the back burner and turn it on; "
                          "also turn on the light"):
-            return kettle_on_burner and knob4_turned_on and light_turned_on
-        if goal_desc == "Move the kettle to the back burner":
-            return kettle_on_burner
-        if goal_desc == "Turn on the back burner":
+            return kettle_on_burner4 and knob4_turned_on and light_turned_on
+        if goal_desc == "Move the kettle to the back left burner":
+            return kettle_on_burner4
+        if goal_desc == "Move the kettle to the back right burner":
+            return kettle_on_burner3
+        if goal_desc == "Turn on the back left burner":
             return knob4_turned_on
+        if goal_desc == "Turn on the back right burner":
+            return knob3_turned_on
         if goal_desc == "Turn on the light":
             return light_turned_on
+        if goal_desc == ("Move the kettle to the back left burner "
+                         "and turn it on"):
+            return kettle_boiling4
+        if goal_desc == ("Move the kettle to the back right burner "
+                         "and turn it on"):
+            return kettle_boiling3
         raise NotImplementedError(f"Unrecognized goal: {goal_desc}")
 
     def _get_tasks(self, num: int,
@@ -319,32 +419,64 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
         tasks = []
 
         assert CFG.kitchen_goals in [
-            "all", "kettle_only", "knob_only", "light_only"
+            "all", "kettle_only", "knob_only", "light_only", "boil_kettle"
         ]
         goal_descriptions: List[str] = []
         if CFG.kitchen_goals in ["all", "kettle_only"]:
-            goal_descriptions.append("Move the kettle to the back burner")
+            if train_or_test == "train":
+                goal_descriptions.append(
+                    "Move the kettle to the back left burner")
+            else:
+                goal_descriptions.append(
+                    "Move the kettle to the back right burner")
         if CFG.kitchen_goals in ["all", "knob_only"]:
-            goal_descriptions.append("Turn on the back burner")
+            if train_or_test == "train":
+                goal_descriptions.append("Turn on the back left burner")
+            else:
+                goal_descriptions.append("Turn on the back right burner")
         if CFG.kitchen_goals in ["all", "light_only"]:
             goal_descriptions.append("Turn on the light")
+        if CFG.kitchen_goals in ["all", "boil_kettle"]:
+            if train_or_test == "train":
+                goal_descriptions.append(
+                    "Move the kettle to the back left burner and turn it on")
+            else:
+                goal_descriptions.append(
+                    "Move the kettle to the back right burner and turn it on")
         if CFG.kitchen_goals == "all":
-            desc = ("Move the kettle to the back burner and turn it on; also "
-                    "turn on the light")
+            desc = (
+                "Move the kettle to the back left burner and turn it on; also "
+                "turn on the light")
             goal_descriptions.append(desc)
 
         for task_idx in range(num):
             seed = utils.get_task_seed(train_or_test, task_idx)
-            init_obs = self._reset_initial_state_from_seed(seed)
+            init_obs = self._reset_initial_state_from_seed(seed, train_or_test)
             goal_idx = task_idx % len(goal_descriptions)
             goal_description = goal_descriptions[goal_idx]
             task = EnvironmentTask(init_obs, goal_description)
             tasks.append(task)
         return tasks
 
-    def _reset_initial_state_from_seed(self, seed: int) -> Observation:
+    def _reset_initial_state_from_seed(self, seed: int,
+                                       train_or_test: str) -> Observation:
         self._gym_env.reset(seed=seed)
-        return {"state_info": self.get_object_centric_state_info()}
+        kettle_x_coord = -0.269
+        if train_or_test == "test":
+            kettle_x_coord = 0.169
+        kettle_y_coord = 0.4
+        if CFG.kitchen_randomize_init_state:
+            rng = np.random.default_rng(seed)
+            # For now, we only randomize the state such that the kettle
+            # is anywhere between burners 2 and 4. Later, we might add
+            # even more variation.
+            kettle_y_coord = rng.uniform(0.4, 0.55)
+        self._gym_env.set_body_position(  # type: ignore
+            "kettle", (kettle_x_coord, kettle_y_coord, 1.626))
+        return {
+            "state_info": self.get_object_centric_state_info(),
+            "obs_images": self.render()
+        }
 
     @classmethod
     def _AtPreTurn_holds(cls, state: State, objects: Sequence[Object],
@@ -443,7 +575,7 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
     def On_holds(cls,
                  state: State,
                  objects: Sequence[Object],
-                 thresh_pad: float = 0.0) -> bool:
+                 thresh_pad: float = -0.06) -> bool:
         """Made public for use in ground-truth options."""
         obj = objects[0]
         if obj.is_instance(cls.knob_type):
@@ -498,6 +630,46 @@ Install from https://github.com/SiddarGu/Gymnasium-Robotics.git"
                     obj, "x") >= cls.microhandle_open_thresh + thresh_pad
             return state.get(obj, "x") <= cls.cabinet_open_thresh - thresh_pad
         return False
+
+    @classmethod
+    def _BurnerAhead_holds(cls, state: State,
+                           objects: Sequence[Object]) -> bool:
+        """Static predicate useful for deciding between pushing or pulling the
+        kettle."""
+        burner1, burner2 = objects
+        if burner1 == burner2:
+            return False
+        return state.get(burner1, "y") > state.get(burner2, "y")
+
+    @classmethod
+    def _BurnerBehind_holds(cls, state: State,
+                            objects: Sequence[Object]) -> bool:
+        """Static predicate useful for deciding between pushing or pulling the
+        kettle."""
+        burner1, burner2 = objects
+        if burner1 == burner2:
+            return False
+        return not cls._BurnerAhead_holds(state, objects)
+
+    @classmethod
+    def _KettleBoiling_holds(cls, state: State,
+                             objects: Sequence[Object]) -> bool:
+        """Predicate that's necessary for goal specification."""
+        kettle, burner, knob = objects
+        return cls.On_holds(state, [knob]) and cls._OnTop_holds(
+            state, [kettle, burner]) and cls._KnobAndBurnerLinkedHolds(
+                state, [knob, burner])
+
+    @classmethod
+    def _KnobAndBurnerLinkedHolds(cls, state: State,
+                                  objects: Sequence[Object]) -> bool:
+        """Predicate that's necessary for goal specification."""
+        del state  # unused
+        knob, burner = objects
+        # NOTE: we assume the knobs and burners are
+        # all named "knob1", "burner1", .... And that "knob1" corresponds
+        # to "burner1"
+        return knob.name[-1] == burner.name[-1]
 
     def _copy_observation(self, obs: Observation) -> Observation:
         return copy.deepcopy(obs)

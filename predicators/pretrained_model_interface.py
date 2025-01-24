@@ -8,23 +8,16 @@ import abc
 import base64
 import logging
 import os
-import time
 from io import BytesIO
-from typing import Dict, List, Optional
+from typing import Collection, Dict, List, Optional, Union
 
-import cv2
-import google
 import google.generativeai as genai
 import imagehash
-from openai import OpenAI
+import openai
 import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
-from predicators.utils import timing
-
-# Initialize OpenAI client globally
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # This is a special string that we assume will never appear in a prompt, and
 # which we use to separate prompt and completion in the cache. The reason to
@@ -92,11 +85,13 @@ class PretrainedLargeModel(abc.ABC):
             img_hash_list: List[str] = []
             for img in imgs:
                 img_hash_list.append(str(imagehash.phash(img)))
-            # NOTE: it's very possible that this string gets too long and this
-            # causes significant problems for us. We can fix this when it
-            # comes up by hashing this string to a shorter string, using e.g.
+            # NOTE: it's possible that this string (the concatenated hashes of
+            # each image) is very long. This would make the final cache
+            # foldername long. In many operating systems, the maximum folder
+            # name length is 255 characters. To shorten this foldername more, we
+            # can hash this string into a shorter string. For example, look at
             # https://stackoverflow.com/questions/57263436/hash-like-string-shortener-with-decoder  # pylint:disable=line-too-long
-            imgs_id = "".join(img_hash_list)
+            imgs_id = hash("".join(img_hash_list))
             cache_foldername += f"{imgs_id}"
         cache_folderpath = os.path.join(CFG.pretrained_model_prompt_cache_dir,
                                         cache_foldername)
@@ -109,10 +104,9 @@ class PretrainedLargeModel(abc.ABC):
                 raise ValueError("No cached response found for prompt.")
             logging.debug(f"Querying model {model_id} with new prompt.")
             # Query the model.
-            with timing("[Model API Query]"):
-                completions = self._sample_completions(prompt, imgs, temperature,
-                                                       seed, stop_token,
-                                                       num_completions)
+            completions = self._sample_completions(prompt, imgs, temperature,
+                                                   seed, stop_token,
+                                                   num_completions)
             # Cache the completion.
             cache_str = prompt + _CACHE_SEP + _CACHE_SEP.join(completions)
             with open(cache_filepath, 'w', encoding='utf-8') as f:
@@ -123,10 +117,8 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
-                    # Convert to RGB mode before saving to ensure compatibility
-                    img_rgb = img.convert('RGB')
-                    img_rgb.save(os.path.join(imgs_folderpath, filename_suffix))
-                logging.debug(f"Saved model response to {cache_filepath}.")
+                    img.save(os.path.join(imgs_folderpath, filename_suffix))
+            logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
@@ -170,51 +162,42 @@ class LargeLanguageModel(PretrainedLargeModel):
                                           stop_token, num_completions)
 
 
-class OpenAILLM(LargeLanguageModel):
-    """Interface to openAI LLMs (GPT-3).
+class OpenAIModel():
+    """Common interface with methods for all OpenAI-based models."""
 
-    Assumes that an environment variable OPENAI_API_KEY is set to a
-    private API key for beta.openai.com.
-    """
+    def set_openai_key(self, key: Optional[str] = None) -> None:
+        """Set the OpenAI API key."""
+        if key is None:
+            assert "OPENAI_API_KEY" in os.environ
+            key = os.environ["OPENAI_API_KEY"]
 
-    def __init__(self, model_name: str) -> None:
-        """See https://beta.openai.com/docs/models/gpt-3 for the list of
-        available model names."""
-        self._model_name = model_name
-        # Note that max_tokens is the maximum response length (not prompt).
-        # From OpenAI docs: "The token count of your prompt plus max_tokens
-        # cannot exceed the model's context length."
-        self._max_tokens = CFG.llm_openai_max_response_tokens
-        assert "OPENAI_API_KEY" in os.environ
-
-    def get_id(self) -> str:
-        return f"openai-{self._model_name}"
-
-    def _sample_completions(
-            self,
-            prompt: str,
-            imgs: Optional[List[PIL.Image.Image]],
-            temperature: float,
-            seed: int,
-            stop_token: Optional[str] = None,
-            num_completions: int = 1) -> List[str]:  # pragma: no cover
-        del imgs, seed  # unused
-        response = client.chat.completions.create(
-            model=self._model_name,
-            messages=[{"role": "user", "content": prompt}],
+    @retry(wait=wait_random_exponential(min=1, max=60),
+           stop=stop_after_attempt(10))
+    def call_openai_api(self,
+                        messages: list,
+                        model: str = "gpt-4",
+                        seed: Optional[int] = None,
+                        max_tokens: int = 32,
+                        temperature: float = 0.2,
+                        verbose: bool = False) -> str:  # pragma: no cover
+        """Make an API call to OpenAI."""
+        client = openai.OpenAI()
+        completion = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            seed=seed,
+            max_tokens=max_tokens,
             temperature=temperature,
-            max_tokens=self._max_tokens,
-            stop=stop_token,
-            n=num_completions)
-        assert len(response.choices) == num_completions
-        text_responses = [
-            response.choices[i].message.content for i in range(num_completions)
-        ]
-        return text_responses
+        )
+        if verbose:
+            logging.debug(f"OpenAI API response: {completion}")
+        assert len(completion.choices) == 1
+        assert completion.choices[0].message.content is not None
+        return completion.choices[0].message.content
 
 
-class GoogleGeminiVLM(VisionLanguageModel):
-    """Interface to the Google Gemini VLM (1.5).
+class GoogleGeminiModel():
+    """Common interface and methods for all Gemini-based models.
 
     Assumes that an environment variable GOOGLE_API_KEY is set with the
     necessary API key to query the particular model name.
@@ -228,9 +211,87 @@ class GoogleGeminiVLM(VisionLanguageModel):
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
         self._model = genai.GenerativeModel(self._model_name)  # pylint:disable=no-member
 
+
+class OpenAILLM(LargeLanguageModel, OpenAIModel):
+    """Interface to openAI LLMs.
+
+    Assumes that an environment variable OPENAI_API_KEY is set to a
+    private API key for beta.openai.com.
+    """
+
+    def __init__(self, model_name: str) -> None:
+        """See https://platform.openai.com/docs/models for the list of
+        available model names."""
+        self._model_name = model_name
+        # Note that max_tokens is the maximum response length (not prompt).
+        # From OpenAI docs: "The token count of your prompt plus max_tokens
+        # cannot exceed the model's context length."
+        self._max_tokens = CFG.llm_openai_max_response_tokens
+        self.set_openai_key()
+
+    def get_id(self) -> str:
+        return f"openai-{self._model_name}"
+
+    def _sample_completions(
+            self,
+            prompt: str,
+            imgs: Optional[List[PIL.Image.Image]],
+            temperature: float,
+            seed: int,
+            stop_token: Optional[str] = None,
+            num_completions: int = 1) -> List[str]:  # pragma: no cover
+        del imgs, seed, stop_token  # unused
+        messages = [{"role": "user", "content": prompt, "type": "text"}]
+        responses = [
+            self.call_openai_api(messages,
+                                 model=self._model_name,
+                                 temperature=temperature,
+                                 max_tokens=self._max_tokens)
+            for _ in range(num_completions)
+        ]
+        return responses
+
+
+class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
+    """Interface to the Google Gemini VLM (1.5).
+
+    Assumes that an environment variable GOOGLE_API_KEY is set with the
+    necessary API key to query the particular model name.
+    """
+
+    @retry(wait=wait_random_exponential(min=1, max=60),
+           stop=stop_after_attempt(10))
+    def _sample_completions(
+            self,
+            prompt: str,
+            imgs: Optional[List[PIL.Image.Image]],
+            temperature: float,
+            seed: int,
+            stop_token: Optional[str] = None,
+            num_completions: int = 1) -> List[str]:  # pragma: no cover
+        del seed, stop_token  # unused
+        assert imgs is None
+        generation_config = genai.types.GenerationConfig(  # pylint:disable=no-member
+            candidate_count=num_completions,
+            temperature=temperature)
+        response = self._model.generate_content(
+            [prompt], generation_config=generation_config)  # type: ignore
+        response.resolve()
+        return [response.text]
+
     def get_id(self) -> str:
         return f"Google-{self._model_name}"
 
+
+class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
+    """Interface to the Google Gemini VLM (1.5).
+
+    Assumes that an environment variable GOOGLE_API_KEY is set with the
+    necessary API key to query the particular model name.
+    """
+
+    @retry(wait=wait_random_exponential(min=1, max=60),
+           stop=stop_after_attempt(20))
     def _sample_completions(
             self,
             prompt: str,
@@ -244,48 +305,42 @@ class GoogleGeminiVLM(VisionLanguageModel):
         generation_config = genai.types.GenerationConfig(  # pylint:disable=no-member
             candidate_count=num_completions,
             temperature=temperature)
-        response = None
-        while response is None:
-            try:
-                response = self._model.generate_content(
-                    [prompt] + imgs,
-                    generation_config=generation_config)  # type: ignore
-                break
-            except google.api_core.exceptions.ResourceExhausted:
-                # In this case, we've hit a rate limit. Simply wait 3s and
-                # try again.
-                logging.debug(
-                    "Hit rate limit for Gemini queries; trying again in 3s!")
-                time.sleep(3.0)
+        response = self._model.generate_content(
+            [prompt] + imgs,
+            generation_config=generation_config)  # type: ignore
         response.resolve()
         return [response.text]
 
+    def get_id(self) -> str:
+        return f"Google-{self._model_name}"
 
-class OpenAIVLM(VisionLanguageModel):
+
+class OpenAIVLM(VisionLanguageModel, OpenAIModel):
     """Interface for OpenAI's VLMs, including GPT-4 Turbo (and preview
     versions)."""
 
-    def __init__(self, model_name: str = "gpt-4-turbo", detail: str = "auto"):
+    def __init__(self, model_name: str):
         """Initialize with a specific model name."""
         self.model_name = model_name
-        self.detail = detail
-        assert "OPENAI_API_KEY" in os.environ
+        # Note that max_tokens is the maximum response length (not prompt).
+        # From OpenAI docs: "The token count of your prompt plus max_tokens
+        # cannot exceed the model's context length."
+        self._max_tokens = CFG.llm_openai_max_response_tokens
+        self.set_openai_key()
 
-    def prepare_vision_messages(self,
-                                images: List[PIL.Image.Image],
-                                prefix: Optional[str] = None,
-                                suffix: Optional[str] = None,
-                                image_size: Optional[int] = 512,
-                                detail: str = "auto") -> List[Dict[str, str]]:
+    def prepare_vision_messages(
+        self,
+        images: List[PIL.Image.Image],
+        prefix: Optional[str] = None,
+        suffix: Optional[str] = None,
+        image_size: Optional[int] = 512,
+        detail: str = "auto"
+    ) -> List[Dict[str, Union[str, List[Dict[str, str]], List[Dict[
+            str, Collection[str]]]]]]:
         """Prepare text and image messages for the OpenAI API."""
-        content = []
-
-        if detail is None or detail == "auto":
-            detail = self.detail
-
+        content: List[Dict[str, Union[str, Collection[str]]]] = []
         if prefix:
             content.append({"text": prefix, "type": "text"})
-
         assert images
         assert detail in ["auto", "low", "high"]
         for img in images:
@@ -294,48 +349,22 @@ class OpenAIVLM(VisionLanguageModel):
                 factor = image_size / max(img.size)
                 img_resized = img.resize(
                     (int(img.size[0] * factor), int(img.size[1] * factor)))
-
             # Convert the image to PNG format and encode it in base64
             buffer = BytesIO()
             img_resized.save(buffer, format="PNG")
-            buffer_bytes = buffer.getvalue()
-            frame = base64.b64encode(buffer_bytes).decode("utf-8")
-
-            content.append({
+            buf = buffer.getvalue()
+            frame = base64.b64encode(buf).decode("utf-8")
+            content_str = {
                 "image_url": {
                     "url": f"data:image/png;base64,{frame}",
                     "detail": "auto"
                 },
                 "type": "image_url"
-            })
-
+            }
+            content.append(content_str)
         if suffix:
             content.append({"text": suffix, "type": "text"})
-
         return [{"role": "user", "content": content}]
-
-    @retry(wait=wait_random_exponential(min=1, max=60),
-           stop=stop_after_attempt(6))
-    def call_openai_api(self,
-                        messages: list,
-                        model: str = "gpt-4",
-                        seed: Optional[int] = None,
-                        max_tokens: int = 32,
-                        temperature: float = 0.2,
-                        verbose: bool = False) -> str:
-        """Make an API call to OpenAI."""
-        client = OpenAI()
-        completion = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            seed=seed,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        if verbose:
-            print(f"OpenAI API response: {completion}")
-        assert len(completion.choices) == 1
-        return completion.choices[0].message.content
 
     def get_id(self) -> str:
         """Get an identifier for the model."""
@@ -349,19 +378,19 @@ class OpenAIVLM(VisionLanguageModel):
         seed: int,
         stop_token: Optional[str] = None,
         num_completions: int = 1,
-        max_tokens: int = 512,
-    ) -> List[str]:
+    ) -> List[str]:  # pragma: no cover
         """Query the model and get responses."""
-        assert imgs is not None
+        del seed, stop_token  # unused.
+        if imgs is None:
+            raise ValueError("images cannot be None")
         messages = self.prepare_vision_messages(prefix=prompt,
                                                 images=imgs,
                                                 detail="auto")
-        responses = []
-        for _ in range(num_completions):
-            responses.append(
-                self.call_openai_api(messages,
-                                        model=self.model_name,
-                                        max_tokens=max_tokens,
-                                        temperature=temperature)
-            )
+        responses = [
+            self.call_openai_api(messages,
+                                 model=self.model_name,
+                                 max_tokens=self._max_tokens,
+                                 temperature=temperature)
+            for _ in range(num_completions)
+        ]
         return responses

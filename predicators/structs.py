@@ -15,6 +15,8 @@ from gym.spaces import Box
 from numpy.typing import NDArray
 from tabulate import tabulate
 
+import predicators.pretrained_model_interface
+import predicators.utils as utils  # pylint: disable=consider-using-from-import
 from predicators.settings import CFG
 
 
@@ -30,12 +32,15 @@ class Type:
         """Dimensionality of the feature vector of this object type."""
         return len(self.feature_names)
 
-    @property
-    def oldest_ancestor(self) -> Type:
-        """Crawl up all the parent types to return the one at the top."""
-        if self.parent is None:
-            return self
-        return self.parent.oldest_ancestor
+    def get_ancestors(self) -> Set[Type]:
+        """Get the set of all types that are ancestors (i.e. parents,
+        grandparents, great-grandparents, etc.) of the current type."""
+        curr_type: Optional[Type] = self
+        ancestors_set = set()
+        while curr_type is not None:
+            ancestors_set.add(curr_type)
+            curr_type = curr_type.parent
+        return ancestors_set
 
     def __call__(self, name: str) -> _TypedEntity:
         """Convenience method for generating _TypedEntities."""
@@ -125,10 +130,10 @@ class State:
     visible_objects: Optional[Any] = None
     # This is directly copied from the images in raw Observation
     camera_images: Optional[Dict[str, Any]] = None
-    
+
     # Add storage for ground truth predicate values
     non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
-    
+
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
@@ -173,7 +178,8 @@ class State:
         new_data = {}
         for obj in self:
             new_data[obj] = self._copy_state_value(self.data[obj])
-        return State(new_data, simulator_state=self.simulator_state)
+        return State(new_data,
+                     simulator_state=copy.deepcopy(self.simulator_state))
 
     def _copy_state_value(self, val: Any) -> Any:
         if val is None or isinstance(val, (float, bool, int, str)):
@@ -188,9 +194,11 @@ class State:
         objects are the same, and the features are close."""
         if self.simulator_state is not None or \
                 other.simulator_state is not None:
-            raise NotImplementedError("Cannot use allclose when "
-                                      "simulator_state is not None.")
-
+            if not CFG.allow_state_allclose_comparison_despite_simulator_state:
+                raise NotImplementedError("Cannot use allclose when "
+                                          "simulator_state is not None.")
+            if self.simulator_state != other.simulator_state:
+                return False
         return self._allclose(other)
 
     def _allclose(self, other: State) -> bool:
@@ -209,7 +217,7 @@ class State:
             if obj.type not in type_to_table:
                 type_to_table[obj.type] = []
             type_to_table[obj.type].append([obj.name] + \
-                                           list(map(str, self[obj])))
+                                            list(map(str, self[obj])))
         table_strs = []
         for t in sorted(type_to_table):
             headers = ["type: " + t.name] + list(t.feature_names)
@@ -220,6 +228,34 @@ class State:
                                                           4) + "\n"
         suffix = "\n" + "#" * ll + "\n"
         return prefix + "\n\n".join(table_strs) + suffix
+
+    def dict_str(self, indent: int = 0, object_features: bool = True) -> str:
+        """Return a dictionary representation of the state."""
+        state_dict = {}
+        for obj in self:
+            obj_dict = {}
+            if obj.type.name == "robot" or object_features:
+                for attribute, value in zip(obj.type.feature_names, self[obj]):
+                    obj_dict[attribute] = value
+            obj_name = obj.name
+            state_dict[f"{obj_name}:{obj.type.name}"] = obj_dict
+
+        # Create a string of n_space spaces
+        spaces = " " * indent
+
+        # Create a PrettyPrinter with a large width
+        dict_str = spaces + "{"
+        n_keys = len(state_dict.keys())
+        for i, (key, value) in enumerate(state_dict.items()):
+            value_str = ', '.join(f"'{k}': {v}" for k, v in value.items())
+            if i == 0:
+                dict_str += f"'{key}': {{{value_str}}},\n"
+            elif i == n_keys - 1:
+                dict_str += spaces + f" '{key}': {{{value_str}}}"
+            else:
+                dict_str += spaces + f" '{key}': {{{value_str}}},\n"
+        dict_str += "}"
+        return dict_str
 
 
 DefaultState = State({})
@@ -317,8 +353,24 @@ class Predicate:
         # Separate this into a named function for pickling reasons.
         return not self._classifier(state, objects)
 
+    def __lt__(self, other: Predicate) -> bool:
+        return str(self) < str(other)
 
-@dataclass(frozen=True, order=True, repr=False)
+
+@dataclass(frozen=True, order=False, repr=False, eq=False)
+class VLMPredicate(Predicate):
+    """Struct defining a predicate that calls a VLM as part of returning its
+    truth value.
+
+    NOTE: when instantiating a VLMPredicate, we typically pass in a 'Dummy'
+    classifier (i.e., one that returns simply raises some kind of error instead
+    of actually outputting a value of any kind).
+    """
+    get_vlm_query_str: Callable[[Sequence[Object]], str]
+
+
+# @dataclass(frozen=True, order=True, repr=False)
+@dataclass(frozen=True, order=False, repr=False, eq=False)
 class VLMPredicate(Predicate):
     """Struct defining a predicate (a lifted classifier over states) that uses
     a VLM for evaluation.
@@ -327,12 +379,17 @@ class VLMPredicate(Predicate):
     predicate value in the State. Instead, it supports a query method
     that generates VLM query, where all VLM predicates will be evaluated
     at once.
+
+    NOTE: This is merged version of Linfeng's and Nishanth's implementation
     """
 
     # A classifier is not needed for VLM predicates
     _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
     # An optional prompt additionally provided for each VLM predicate
     prompt: Optional[str] = None
+
+    # Another version from Nishanth
+    get_vlm_query_str: Optional[Callable[[Sequence[Object]], str]] = None
 
     def __hash__(self) -> int:
         """Have to add this to override the default hash method again."""
@@ -352,8 +409,8 @@ class VLMPredicate(Predicate):
         # It is stored in a dictionary of VLMGroundAtom -> bool
         assert state.vlm_atom_dict is not None
         return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
-    
-    
+
+
 @dataclass(frozen=True, order=True, repr=False)
 class GroundTruthPredicate(Predicate):
     """Struct defining a predicate (a lifted classifier over states) that directly
@@ -493,6 +550,12 @@ class GroundAtom(_Atom):
         """Check whether this ground atom holds in the given state."""
         return self.predicate.holds(state, self.objects)
 
+    def get_vlm_query_str(self) -> str:
+        """If this GroundAtom is associated with a VLMPredicate, then get the
+        string that will be used to query the VLM."""
+        assert isinstance(self.predicate, VLMPredicate)
+        return self.predicate.get_vlm_query_str(self.objects)  # pylint:disable=no-member
+
 
 @dataclass(frozen=True, repr=False, eq=False)
 class VLMGroundAtom(GroundAtom):
@@ -542,15 +605,43 @@ class Task:
     """Struct defining a task, which is an initial state and goal."""
     init: State
     goal: Set[GroundAtom]
+    # Sometimes we want the task presented to the agent to have goals described
+    # in terms of predicates that are different than those describing the goal
+    # of the task presented to the demonstrator. In these cases, we will store
+    # an "alternative goal" in this field and replace the goal with the
+    # alternative goal before giving the task to the agent.
+    alt_goal: Optional[Set[GroundAtom]] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         # Verify types.
         for atom in self.goal:
             assert isinstance(atom, GroundAtom)
 
-    def goal_holds(self, state: State) -> bool:
+    def goal_holds(
+        self,
+        state: State,
+        vlm: Optional[
+            predicators.pretrained_model_interface.VisionLanguageModel] = None
+    ) -> bool:
         """Return whether the goal of this task holds in the given state."""
-        return all(goal_atom.holds(state) for goal_atom in self.goal)
+        vlm_atoms = set(atom for atom in self.goal
+                        if isinstance(atom.predicate, VLMPredicate))
+        for atom in self.goal:
+            if atom not in vlm_atoms:
+                if not atom.holds(state):
+                    return False
+        true_vlm_atoms = utils.query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        return len(true_vlm_atoms) == len(vlm_atoms)
+
+    def replace_goal_with_alt_goal(self) -> Task:
+        """Return a Task with the goal replaced with the alternative goal if it
+        exists."""
+        # We may not want the agent to access the goal predicates given to the
+        # demonstrator. To prevent leakage of this information, we discard the
+        # original goal.
+        if self.alt_goal:
+            return Task(self.init, goal=self.alt_goal)
+        return self
 
 
 DefaultTask = Task(DefaultState, set())
@@ -560,19 +651,37 @@ DefaultTask = Task(DefaultState, set())
 class EnvironmentTask:
     """An initial observation and goal description.
 
-    Environments produce environment tasks and agents produce and solve tasks.
+    Environments produce environment tasks and agents produce and solve
+    tasks.
 
     In fully observed settings, the init_obs will be a State and the
-    goal_description will be a Set[GroundAtom]. For convenience, we can convert
-    an EnvironmentTask into a Task in those cases.
+    goal_description will be a Set[GroundAtom]. For convenience, we can
+    convert an EnvironmentTask into a Task in those cases.
     """
     init_obs: Observation
     goal_description: GoalDescription
+    # See Task._alt_goal for the reason for this field.
+    alt_goal_desc: Optional[GoalDescription] = field(default=None)
 
     @cached_property
     def task(self) -> Task:
         """Convenience method for environment tasks that are fully observed."""
-        return Task(self.init, self.goal)
+        # If the environment task's goal is replaced with the alternative goal
+        # before turning the environment task into a task, or no alternative
+        # goal exists, then there's nothing particular to set the task's
+        # alt_goal field to.
+        if self.alt_goal_desc is None:
+            return Task(self.init, self.goal)
+        # If we turn the environment task into a task before replacing the goal
+        # with the alternative goal, we have to set the task's alt_goal field
+        # accordingly to leave open the possibility of doing that replacement
+        # later.
+        # Assumption: we currently assume the alternative goal description is
+        # always a set of ground atoms.
+        assert isinstance(self.alt_goal_desc, set)
+        for atom in self.alt_goal_desc:
+            assert isinstance(atom, GroundAtom)
+        return Task(self.init, self.goal, alt_goal=self.alt_goal_desc)
 
     @cached_property
     def init(self) -> State:
@@ -587,6 +696,18 @@ class EnvironmentTask:
         assert not self.goal_description or isinstance(
             next(iter(self.goal_description)), GroundAtom)
         return self.goal_description
+
+    def replace_goal_with_alt_goal(self) -> EnvironmentTask:
+        """Return an EnvironmentTask with the goal description replaced with
+        the alternative goal description if it exists.
+
+        See Task.replace_goal_with_alt_goal for the reason for this
+        function.
+        """
+        if self.alt_goal_desc is not None:
+            return EnvironmentTask(self.init_obs,
+                                   goal_description=self.alt_goal_desc)
+        return self
 
 
 DefaultEnvironmentTask = EnvironmentTask(DefaultState, set())
@@ -656,6 +777,12 @@ class ParameterizedOption:
             objects=objects,
             params=params,
             memory=memory)
+
+    def pddl_str(self) -> str:
+        """Turn this option into a string that is PDDL-like."""
+        params_str = " ".join(f"?x{i} - {t.name}"
+                              for i, t in enumerate(self.types))
+        return f"{self.name}({params_str})"
 
 
 @dataclass(eq=False)
@@ -1637,7 +1764,7 @@ class LDLRule:
         # The preconditions and goal preconditions should only use variables in
         # the rule parameters.
         for atom in self.pos_state_preconditions | \
-                    self.neg_state_preconditions | self.goal_preconditions:
+            self.neg_state_preconditions | self.goal_preconditions:
             assert all(v in self.parameters for v in atom.variables)
 
     @lru_cache(maxsize=None)

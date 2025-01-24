@@ -51,6 +51,14 @@ class GlobalSettings:
     enable_vlm_eval_predicate = False
     # Whether to use rich logging output
     log_rich = True
+    # Normally, excluding goal predicates does not make sense, because then
+    # there is no goal for the agent to plan towards. This is intended to be
+    # used by VLM predicate invention, where we want to invent goal predicates
+    # and different task goals are provided to the agent and the demonstrator.
+    allow_exclude_goal_predicates = False
+    # Normally, State.allclose() raises an error if the simulator state of
+    # either of its arguments is not None.
+    allow_state_allclose_comparison_despite_simulator_state = False
 
     # cover_multistep_options env parameters
     cover_multistep_action_limits = [-np.inf, np.inf]
@@ -187,7 +195,7 @@ class GlobalSettings:
     spot_vlm_eval_predicate = False
     vlm_eval_verbose = False
     fm_planning_verbose = True
-    
+
     # Mock robot environment ("MockSpotEnv") parameters
     mock_env_data_dir = "mock_env_data"
     mock_env_use_belief_operators = False
@@ -306,6 +314,10 @@ class GlobalSettings:
     doors_birrt_num_iters = 100
     doors_birrt_smooth_amt = 50
     doors_draw_debug = False
+
+    # doorknobs env parameters
+    doorknobs_target_value = 0.75
+    test_doors_room_map_size = 10
 
     # narrow_passage env parameters
     narrow_passage_open_door_refine_penalty = 0

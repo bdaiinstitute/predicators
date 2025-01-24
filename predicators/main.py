@@ -40,8 +40,7 @@ import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional, Sequence, Set, Tuple
-from typing import Type as TypingType
+from typing import List, Optional, Sequence, Tuple
 
 import dill as pkl
 import matplotlib
@@ -51,7 +50,7 @@ matplotlib.use('Agg')
 from predicators import utils
 from predicators.approaches import ApproachFailure, ApproachTimeout, \
     create_approach
-from predicators.cogman import CogMan
+from predicators.cogman import CogMan, run_episode_and_get_observations
 from predicators.datasets import create_dataset
 from predicators.envs import BaseEnv, create_new_env
 from predicators.execution_monitoring import create_execution_monitor
@@ -59,8 +58,8 @@ from predicators.ground_truth_models import get_gt_options, \
     parse_config_included_options
 from predicators.perception import create_perceiver
 from predicators.settings import CFG, get_allowed_query_type_names
-from predicators.structs import Action, Dataset, InteractionRequest, \
-    InteractionResult, Metrics, Observation, Response, Task, Video, _Option
+from predicators.structs import Dataset, InteractionRequest, \
+    InteractionResult, Metrics, Response, Task, Video
 from predicators.teacher import Teacher, TeacherInteractionMonitorWithVideo
 
 assert os.environ.get("PYTHONHASHSEED") == "0", \
@@ -107,7 +106,20 @@ def main() -> None:
     # is often created during env __init__().
     env.action_space.seed(CFG.seed)
     assert env.goal_predicates.issubset(env.predicates)
-    preds, _ = utils.parse_config_excluded_predicates(env)
+    included_preds, excluded_preds = utils.parse_config_excluded_predicates(
+        env)
+    # The known predicates are passed into the approach and into dataset
+    # creation. In some cases, like when inventing geometric and VLM predicates,
+    # we want to hide certain goal predicates from the agent because we may
+    # want to invent them. So we can replace them with agent-specific goal
+    # predicates that the environment defines. Note that inside dataset
+    # creation, the known predicates are only used to create a VLM dataset, so
+    # we can just overwrite the variable `preds`. No replacing is done if the
+    # approach is oracle because the ground truth operators are defined in terms
+    # of the original goal predicates.
+    preds = utils.replace_goals_with_agent_specific_goals(
+        included_preds, excluded_preds,
+        env) if CFG.approach != "oracle" else included_preds
     # Create the train tasks.
     env_train_tasks = env.get_train_tasks()
     # We assume that a train Task can be constructed from a EnvironmentTask.
@@ -124,6 +136,16 @@ def main() -> None:
     stripped_train_tasks = [
         utils.strip_task(task, preds) for task in train_tasks
     ]
+    # If the goals of the tasks that the approaches solve need to be described
+    # using predicates that differ from those in the goals of the tasks that the
+    # demonstrator solves, then replace those predicates accordingly. This is
+    # used in VLM predicate invention where we want to invent certain goal
+    # predicates that the demonstrator needed to solve the task. We don't need
+    # worry about not doing this replacing if the approach is oracle because the
+    # "unedited" train tasks are passed into offline dataset creation.
+    approach_train_tasks = [
+        task.replace_goal_with_alt_goal() for task in stripped_train_tasks
+    ]
     if CFG.option_learner == "no_learning":
         # If we are not doing option learning, pass in all the environment's
         # oracle options.
@@ -137,19 +159,19 @@ def main() -> None:
     if CFG.approach_wrapper and approach_name != "maple_q":
         approach_name = f"{CFG.approach_wrapper}[{approach_name}]"
     approach = create_approach(approach_name, preds, options, env.types,
-                               env.action_space, stripped_train_tasks)
+                               env.action_space, approach_train_tasks)
     if approach.is_learning_based:
         # Create the offline dataset. Note that this needs to be done using
         # the non-stripped train tasks because dataset generation may need
         # to use the oracle predicates (e.g. demo data generation).
-        offline_dataset = create_dataset(env, train_tasks, options)
+        offline_dataset = create_dataset(env, train_tasks, options, preds)
     else:
         offline_dataset = None
     # Create the cognitive manager.
     execution_monitor = create_execution_monitor(CFG.execution_monitor)
     cogman = CogMan(approach, perceiver, execution_monitor)
     # Run the full pipeline.
-    _run_pipeline(env, cogman, stripped_train_tasks, offline_dataset)
+    _run_pipeline(env, cogman, approach_train_tasks, offline_dataset)
     script_time = time.perf_counter() - script_start
     logging.info(f"\n\nMain script terminated in {script_time:.5f} seconds")
 
@@ -287,7 +309,7 @@ def _generate_interaction_results(
         cogman.set_termination_function(request.termination_function)
         env_task = env.get_train_tasks()[request.train_task_idx]
         cogman.reset(env_task)
-        observed_traj, _, _ = _run_episode(
+        observed_traj, _, _ = run_episode_and_get_observations(
             cogman,
             env,
             "train",
@@ -325,7 +347,16 @@ def _generate_interaction_results(
 
 
 def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
+    # If the goals of the tasks that the approaches solve need to be described
+    # using predicates that differ from those in the goals of the tasks that the
+    # demonstrator solves, then replace those predicates accordingly. This is
+    # used in VLM predicate invention where we want to invent certain goal
+    # predicates that the demonstrator needed to solve the task. No replacing is
+    # done if the approach is oracle because the ground truth operators are
+    # defined in terms of the original goal predicates.
     test_tasks = env.get_test_tasks()
+    if CFG.approach != "oracle":
+        test_tasks = [task.replace_goal_with_alt_goal() for task in test_tasks]
     num_found_policy = 0
     num_solved = 0
     cogman.reset_metrics()
@@ -343,9 +374,10 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
     for test_task_idx, env_task in enumerate(test_tasks):
         solve_start = time.perf_counter()
         try:
-            # We call reset here, outside of run_episode, so that we can log
-            # planning failures, timeouts, etc. This is mostly for legacy
-            # reasons (before cogman existed separately from approaches).
+            # We call reset here, outside of run_episode_and_get_observations,
+            # so that we can log planning failures, timeouts, etc. This is
+            # mostly for legacy reasons (before cogman existed separately
+            # from approaches).
             cogman.reset(env_task)
         except (ApproachTimeout, ApproachFailure) as e:
             logging.info(f"Task {test_task_idx+1} / {len(test_tasks)}: "
@@ -384,7 +416,7 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
             monitor = None
         try:
             # Now, measure success by running the policy in the environment.
-            traj, solved, execution_metrics = _run_episode(
+            traj, solved, execution_metrics = run_episode_and_get_observations(
                 cogman,
                 env,
                 "test",
@@ -399,17 +431,19 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
                 total_low_level_action_cost += (
                     len(traj[1]) *
                     CFG.refinement_data_low_level_execution_cost)
-            # Save the successful trajectory, e.g., for playback on a robot.
-            traj_file = f"{save_prefix}__task{test_task_idx+1}.traj"
-            traj_file_path = Path(CFG.eval_trajectories_dir) / traj_file
-            # Include the original task too so we know the goal.
-            traj_data = {
-                "task": env_task,
-                "trajectory": traj,
-                "pybullet_robot": CFG.pybullet_robot
-            }
-            with open(traj_file_path, "wb") as f:
-                pkl.dump(traj_data, f)
+            if CFG.save_eval_trajs:
+                # Save the successful trajectory, e.g., for playback on a
+                # robot.
+                traj_file = f"{save_prefix}__task{test_task_idx+1}.traj"
+                traj_file_path = Path(CFG.eval_trajectories_dir) / traj_file
+                # Include the original task too so we know the goal.
+                traj_data = {
+                    "task": env_task,
+                    "trajectory": traj,
+                    "pybullet_robot": CFG.pybullet_robot
+                }
+                with open(traj_file_path, "wb") as f:
+                    pkl.dump(traj_data, f)
         except utils.EnvironmentFailure as e:
             log_message = f"Environment failed with error: {e}"
             caught_exception = True
@@ -427,6 +461,7 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
             total_suc_time += (solve_time + exec_time)
             make_video = CFG.make_test_videos
             video_file = f"{save_prefix}__task{test_task_idx+1}.mp4"
+            metrics[f"PER_TASK_task{test_task_idx}_num_steps"] = len(traj[1])
         else:
             if not caught_exception:
                 log_message = "Policy failed to reach goal"
@@ -473,91 +508,6 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
         metrics[f"avg_{metric_name}"] = (
             total / num_found_policy if num_found_policy > 0 else float("inf"))
     return metrics
-
-
-def _run_episode(
-    cogman: CogMan,
-    env: BaseEnv,
-    train_or_test: str,
-    task_idx: int,
-    max_num_steps: int,
-    do_env_reset: bool = True,
-    terminate_on_goal_reached: bool = True,
-    exceptions_to_break_on: Optional[Set[TypingType[Exception]]] = None,
-    monitor: Optional[utils.LoggingMonitor] = None
-) -> Tuple[Tuple[List[Observation], List[Action]], bool, Metrics]:
-    """Execute cogman starting from the initial state of a train or test task
-    in the environment.
-
-    Note that the environment and cogman internal states are updated.
-
-    Terminates when any of these conditions hold:
-    (1) cogman.step returns None, indicating termination
-    (2) max_num_steps is reached
-    (3) cogman or env raise an exception of type in exceptions_to_break_on
-    (4) terminate_on_goal_reached is True and the env goal is reached.
-
-    Note that in the case where the exception is raised in step, we exclude the
-    last action from the returned trajectory to maintain the invariant that
-    the trajectory states are of length one greater than the actions.
-
-    This is defined here mostly to avoid circular import issues for cogman.
-    We may want to move it eventually.
-    """
-    if do_env_reset:
-        env.reset(train_or_test, task_idx)
-        if monitor is not None:
-            monitor.reset(train_or_test, task_idx)
-    obs = env.get_observation()
-    observations = [obs]
-    actions: List[Action] = []
-    curr_option: Optional[_Option] = None
-    metrics: Metrics = defaultdict(float)
-    metrics["policy_call_time"] = 0.0
-    metrics["num_options_executed"] = 0.0
-    exception_raised_in_step = False
-    if not (terminate_on_goal_reached and env.goal_reached()):
-        for _ in range(max_num_steps):
-            monitor_observed = False
-            exception_raised_in_step = False
-            try:
-                start_time = time.perf_counter()
-                act = cogman.step(obs)
-                metrics["policy_call_time"] += time.perf_counter() - start_time
-                if act is None:
-                    break
-                if act.has_option() and act.get_option() != curr_option:
-                    curr_option = act.get_option()
-                    metrics["num_options_executed"] += 1
-                # Note: it's important to call monitor.observe() before
-                # env.step(), because the monitor may, for example, call
-                # env.render(), which outputs images of the current env
-                # state. If we instead called env.step() first, we would
-                # mistakenly record images of the next time step instead of
-                # the current one.
-                if monitor is not None:
-                    monitor.observe(obs, act)
-                    monitor_observed = True
-                obs = env.step(act)
-                actions.append(act)
-                observations.append(obs)
-            except Exception as e:
-                if exceptions_to_break_on is not None and \
-                   any(issubclass(type(e), c) for c in exceptions_to_break_on):
-                    if monitor_observed:
-                        exception_raised_in_step = True
-                    break
-                if monitor is not None and not monitor_observed:
-                    monitor.observe(obs, None)
-                raise e
-            if terminate_on_goal_reached and env.goal_reached():
-                break
-    if monitor is not None and not exception_raised_in_step:
-        monitor.observe(obs, None)
-    cogman.finish_episode(obs)
-    traj = (observations, actions)
-    solved = env.goal_reached()
-    return traj, solved, metrics
 
 
 def _save_test_results(results: Metrics,
