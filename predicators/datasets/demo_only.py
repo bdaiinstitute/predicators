@@ -18,6 +18,7 @@ from predicators.envs import BaseEnv
 from predicators.execution_monitoring import create_execution_monitor
 from predicators.ground_truth_models import get_gt_options
 from predicators.perception import create_perceiver
+from predicators.pretrained_model_interface import create_vlm_by_name
 from predicators.settings import CFG
 from predicators.structs import Action, Dataset, LowLevelTrajectory, \
     ParameterizedOption, State, Task
@@ -218,7 +219,9 @@ def _generate_demonstrations(env: BaseEnv, train_tasks: List[Task],
                             f"{e}")
             continue
         # Check that the goal holds at the end. Print a warning if not.
-        if not task.goal_holds(traj.states[-1]):  # pragma: no cover
+        # NOTE: create in-place vlm
+        vlm = create_vlm_by_name(CFG.vlm_model_name)
+        if not task.goal_holds(traj.states[-1], vlm=vlm):  # pragma: no cover
             logging.warning("WARNING: Oracle failed on training task.")
             continue
         if CFG.demonstrator == "human":  # pragma: no cover
