@@ -202,15 +202,15 @@ class OpenAIModel():
     def log_total_costs(cls) -> None:
         """Log the total costs and token usage for all OpenAI API calls."""
         if cls._total_costs:
-            logging.debug("\n=== OpenAI API Usage (Latest Pricing) ===")
+            logging.info("\n=== OpenAI API Usage (Latest Pricing) ===")
             total = 0.0
             for model, cost in sorted(cls._total_costs.items()):
                 tokens = cls._total_tokens[model]
-                logging.debug(f"{model}:")
-                logging.debug(f"  Cost: ${cost:.4f}")
-                logging.debug(f"  Tokens - Input: {tokens['prompt']}, Output: {tokens['completion']}, Total: {tokens['total']}")
+                logging.info(f"{model}:")
+                logging.info(f"  Cost: ${cost:.4f}")
+                logging.info(f"  Tokens - Input: {tokens['prompt']}, Output: {tokens['completion']}, Total: {tokens['total']}")
                 total += cost
-            logging.debug(f"Total Cost: ${total:.4f}")
+            logging.info(f"Total Cost: ${total:.4f}")
 
     @retry(wait=wait_random_exponential(min=1, max=60),
            stop=stop_after_attempt(10))
