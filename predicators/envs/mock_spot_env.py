@@ -857,11 +857,7 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
 
     def get_train_tasks(self) -> List[EnvironmentTask]:
         """Get list of training tasks."""
-        # Reset environment to get initial observation
-        obs = self.reset("train", 0)
-        # Create task with initial observation and goal
-        task = EnvironmentTask(obs, self.goal_atoms)
-        return [task]
+        return []
 
     def get_test_tasks(self) -> List[EnvironmentTask]:
         """Get list of test tasks."""
