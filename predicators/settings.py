@@ -186,6 +186,7 @@ class GlobalSettings:
     # Evaluate some predicates with VLM; need additional setup; WIP
     spot_vlm_eval_predicate = False
     vlm_eval_verbose = False
+    fm_planning_verbose = True
     
     # Mock robot environment ("MockSpotEnv") parameters
     mock_env_data_dir = "mock_env_data"
