@@ -58,7 +58,7 @@ from rich.text import Text
 from scipy.stats import beta as BetaRV
 
 from predicators.args import create_arg_parser
-from predicators.pretrained_model_interface import VisionLanguageModel, create_vlm_by_name
+# from predicators.pretrained_model_interface import VisionLanguageModel, create_vlm_by_name
 from predicators.pybullet_helpers.joint import JointPositions
 from predicators.settings import CFG, GlobalSettings
 from predicators.structs import NSRT, Action, Array, DummyOption, \
@@ -2582,8 +2582,9 @@ def query_vlm_for_atom_vals(
         label_history, images_history, prev_state_cropped_imgs_history,
         skill_history)
     # Query VLM.
-    if vlm is None:
-        vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover.
+    assert vlm is not None
+    # if vlm is None:
+    #     vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover.
     vlm_input_imgs = \
         [PIL.Image.fromarray(img_arr) for img_arr in imgs] # type: ignore
     vlm_output = vlm.sample_completions(vlm_query_str,

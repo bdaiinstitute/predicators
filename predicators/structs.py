@@ -15,7 +15,7 @@ from gym.spaces import Box
 from numpy.typing import NDArray
 from tabulate import tabulate
 
-import predicators.pretrained_model_interface
+# import predicators.pretrained_model_interface
 import predicators.utils as utils  # pylint: disable=consider-using-from-import
 from predicators.settings import CFG
 
@@ -608,8 +608,9 @@ class Task:
     def goal_holds(
         self,
         state: State,
-        vlm: Optional[
-            predicators.pretrained_model_interface.VisionLanguageModel] = None
+        # vlm: Optional[
+        #     predicators.pretrained_model_interface.VisionLanguageModel] = None
+        vlm: Any
     ) -> bool:
         """Return whether the goal of this task holds in the given state."""
         vlm_atoms = set(atom for atom in self.goal
