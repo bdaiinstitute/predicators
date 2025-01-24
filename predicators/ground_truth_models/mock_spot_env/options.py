@@ -103,9 +103,13 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
         """
         def policy(state: State, memory: Dict, objects: Sequence[Object],
                   params: Array) -> Action:
-            del state, memory, objects, params  # unused
+            del state, memory, params  # unused
             # Create a dummy action array but store operator name in extra_info
             arr = np.zeros(0, dtype=np.float32)  # Zero-dimensional array to match params_space
-            return Action(arr, extra_info={"operator_name": operator_name})
+            return Action(arr, extra_info={
+                "operator_name": operator_name,
+                # "objects": {obj.name: obj for obj in objects}
+                "objects": list(objects)  # Store objects as a list instead of dict
+            })
             
         return policy 
