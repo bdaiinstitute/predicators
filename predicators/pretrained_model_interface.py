@@ -104,9 +104,10 @@ class PretrainedLargeModel(abc.ABC):
                 raise ValueError("No cached response found for prompt.")
             logging.debug(f"Querying model {model_id} with new prompt.")
             # Query the model.
-            completions = self._sample_completions(prompt, imgs, temperature,
-                                                   seed, stop_token,
-                                                   num_completions)
+            with timing("[Model API Query]"):
+                completions = self._sample_completions(prompt, imgs, temperature,
+                                                       seed, stop_token,
+                                                       num_completions)
             # Cache the completion.
             cache_str = prompt + _CACHE_SEP + _CACHE_SEP.join(completions)
             with open(cache_filepath, 'w', encoding='utf-8') as f:
@@ -357,7 +358,7 @@ class OpenAIVLM(VisionLanguageModel, OpenAIModel):
             content_str = {
                 "image_url": {
                     "url": f"data:image/png;base64,{frame}",
-                    "detail": "auto"
+                    "detail": detail
                 },
                 "type": "image_url"
             }

@@ -34,7 +34,8 @@ def get_vlm():
     global _vlm
     if _vlm is None:
         if "OPENAI_API_KEY" in os.environ:
-            _vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
+            # _vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
+            _vlm = OpenAIVLM(model_name=available_choices[2])
     return _vlm
 
 # Engineer the prompt for VLM
