@@ -61,6 +61,7 @@ from predicators.settings import CFG, get_allowed_query_type_names
 from predicators.structs import Dataset, InteractionRequest, \
     InteractionResult, Metrics, Response, Task, Video
 from predicators.teacher import Teacher, TeacherInteractionMonitorWithVideo
+from predicators.pretrained_model_interface import OpenAIModel
 
 assert os.environ.get("PYTHONHASHSEED") == "0", \
         "Please add `export PYTHONHASHSEED=0` to your bash profile!"
@@ -160,7 +161,8 @@ def main() -> None:
         approach_name = f"{CFG.approach_wrapper}[{approach_name}]"
     approach = create_approach(approach_name, preds, options, env.types,
                                env.action_space, approach_train_tasks)
-    if approach.is_learning_based:
+    # NOTE: only create dataset when is learning-based and load_data is True
+    if approach.is_learning_based and CFG.load_data:
         # Create the offline dataset. Note that this needs to be done using
         # the non-stripped train tasks because dataset generation may need
         # to use the oracle predicates (e.g. demo data generation).
@@ -173,6 +175,10 @@ def main() -> None:
     # Run the full pipeline.
     _run_pipeline(env, cogman, approach_train_tasks, offline_dataset)
     script_time = time.perf_counter() - script_start
+    
+    # Log OpenAI API costs if any were incurred
+    OpenAIModel.log_total_costs()
+    
     logging.info(f"\n\nMain script terminated in {script_time:.5f} seconds")
 
 
@@ -183,7 +189,8 @@ def _run_pipeline(env: BaseEnv,
     # If agent is learning-based, allow the agent to learn from the generated
     # offline dataset, and then proceed with the online learning loop. Test
     # after each learning call. If agent is not learning-based, just test once.
-    if cogman.is_learning_based:
+    # NOTE: temp flag to disable offline learning
+    if cogman.is_learning_based and CFG.load_data:
         assert offline_dataset is not None, "Missing offline dataset"
         num_offline_transitions = sum(
             len(traj.actions) for traj in offline_dataset.trajectories)
