@@ -78,15 +78,35 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
     def _get_llm_based_plan(
             self, state: State, atoms: Set[GroundAtom],
             goal: Set[GroundAtom]) -> Optional[List[_GroundNSRT]]:
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Planning ===")
+            logging.info(f"Initial atoms: {sorted(atoms)}")
+            logging.info(f"Goal atoms: {sorted(goal)}")
+            
         # Try to convert each output into an abstract plan.
         # Return the first abstract plan that is found this way.
         objects = set(state)
         for option_plan in self._get_llm_based_option_plans(
                 atoms, objects, goal):
+            if CFG.fm_planning_verbose:
+                logging.info("\nTrying option plan:")
+                for option, objs in option_plan:
+                    logging.info(f"  {option.name}({[obj.name for obj in objs]})")
+                    
             ground_nsrt_plan = self._option_plan_to_nsrt_plan(
                 option_plan, atoms, objects, goal)
+                
             if ground_nsrt_plan is not None:
+                if CFG.fm_planning_verbose:
+                    logging.info("\nFound valid NSRT plan:")
+                    for nsrt in ground_nsrt_plan:
+                        logging.info(f"  {nsrt}")
                 return ground_nsrt_plan
+            elif CFG.fm_planning_verbose:
+                logging.info("Plan validation failed")
+                
+        if CFG.fm_planning_verbose:
+            logging.warning("No valid plans found")
         return None
 
     def _get_llm_based_option_plans(
@@ -95,6 +115,11 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
     ) -> Iterator[List[Tuple[ParameterizedOption, Sequence[Object]]]]:
         new_prompt = self._create_prompt(atoms, goal, [])
         prompt = self._prompt_prefix + new_prompt
+        
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Query ===")
+            logging.info(f"Prompt:\n{prompt}")
+            
         # Query the LLM.
         llm_predictions = self._llm.sample_completions(
             prompt=prompt,
@@ -102,8 +127,21 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
             temperature=CFG.llm_temperature,
             seed=CFG.seed,
             num_completions=CFG.llm_num_completions)
+            
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Responses ===")
+            for i, pred in enumerate(llm_predictions):
+                logging.info(f"\nPrediction {i+1}:")
+                logging.info(pred)
+                
         for pred in llm_predictions:
             option_plan = self._llm_prediction_to_option_plan(pred, objects)
+            if CFG.fm_planning_verbose:
+                logging.info("\n=== Formatted Option Plan ===")
+                if not option_plan:
+                    logging.info("Empty plan (parsing failed)")
+                for option, objs in option_plan:
+                    logging.info(f"  {option.name}({', '.join(obj.name for obj in objs)})")
             yield option_plan
 
     def _option_plan_to_nsrt_plan(
