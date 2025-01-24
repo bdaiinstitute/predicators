@@ -198,9 +198,16 @@ class MockSpotEnv(BaseEnv):
         op_name = info.get("operator_name")
         op_objects = info.get("objects", [])
         
+        # Log received action
+        logging.info(f"\n=== Environment Step ===")
+        logging.info(f"Current State: {current_state_id}")
+        logging.info(f"Received Action: {op_name}")
+        logging.info(f"Action Objects: {[obj.name for obj in op_objects]}")
+        
         if op_name is None:
             # Invalid action format - stay in current state
             logging.warning(f"Invalid action format: {action}")
+            logging.info("Staying in current state due to invalid action format")
             return self._current_observation
             
         # Check if this is an observation operator
@@ -215,6 +222,8 @@ class MockSpotEnv(BaseEnv):
             # Only update beliefs in current observation
             # The observation update should be handled by the agent's `perceiver`
             # when setting up the environment data
+            logging.info(f"Observation operator detected: {op_name}")
+            logging.info("State unchanged - belief updates handled by perceiver")
             return self._current_observation
             
         # Get next state ID from transitions
@@ -224,16 +233,20 @@ class MockSpotEnv(BaseEnv):
             if (source_id == current_state_id and
                 isinstance(op_dict, dict) and
                 op_dict.get("name") == op_name and
-                op_dict.get("objects", []) == [obj.name for obj in op_objects]):
+                op_dict.get("objects", []) == [obj.name for obj in op_objects]):  # Compare object names
                 next_state_id = dest_id
                 break
                 
         if next_state_id is None:
             # No valid transition found - stay in current state
             logging.warning(
-                f"No valid transition found for action {op_name} with objects {op_objects} "
+                f"No valid transition found for action {op_name} with objects {[obj.name for obj in op_objects]} "
                 f"from state {current_state_id}"
             )
+            logging.info("Available transitions from this state:")
+            for source_id, op_dict, dest_id in self._str_transitions:
+                if source_id == current_state_id:
+                    logging.info(f"  {op_dict.get('name')} with objects {op_dict.get('objects', [])} -> {dest_id}")
             return self._current_observation
             
         # Try to load next observation
@@ -251,11 +264,13 @@ class MockSpotEnv(BaseEnv):
                 vlm_atom_dict=None,  # Will be populated if needed
                 vlm_predicates=VLM_PREDICATES if CFG.mock_env_vlm_eval_predicate else None
             )
+            logging.info(f"Successfully transitioned to state {next_state_id}")
             return self._current_observation
             
         except FileNotFoundError:
             # No observation data for next state - stay in current state
             logging.warning(f"No observation data found for state {next_state_id}")
+            logging.info("Staying in current state due to missing observation data")
             return self._current_observation
 
     def reset(self, train_or_test: str, task_idx: int) -> Observation:
