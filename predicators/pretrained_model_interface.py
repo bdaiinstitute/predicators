@@ -11,6 +11,7 @@ import logging
 import os
 from io import BytesIO
 from typing import Collection, Dict, List, Optional, Union
+from collections import defaultdict
 
 import google.generativeai as genai
 import imagehash
@@ -168,11 +169,48 @@ class LargeLanguageModel(PretrainedLargeModel):
 class OpenAIModel():
     """Common interface with methods for all OpenAI-based models."""
 
+    # Class variables to track costs and usage across all instances
+    _total_costs = defaultdict(float)
+    _total_tokens = defaultdict(lambda: {"prompt": 0, "completion": 0, "total": 0})
+    
+    # Latest pricing per 1M tokens from https://platform.openai.com/docs/pricing
+    _COSTS = {
+        # GPT-4 Optimized (gpt-4o)
+        "gpt-4o": (2.50/1000000, 1.25/1000000),  # $2.50/1M input, $1.25/1M output
+        "gpt-4o-2024-08-06": (2.50/1000000, 1.25/1000000),
+        
+        # GPT-4 Optimized Mini
+        "gpt-4o-mini": (0.15/1000000, 0.075/1000000),  # $0.15/1M input, $0.075/1M output
+        "gpt-4o-mini-2024-07-18": (0.15/1000000, 0.075/1000000),
+        
+        # O1 Models
+        "o1": (15.00/1000000, 7.50/1000000),  # $15.00/1M input, $7.50/1M output
+        "o1-2024-12-17": (15.00/1000000, 7.50/1000000),
+        
+        # O1 Mini
+        "o1-mini": (3.00/1000000, 1.50/1000000),  # $3.00/1M input, $1.50/1M output
+        "o1-mini-2024-09-12": (3.00/1000000, 1.50/1000000),
+    }
+
     def set_openai_key(self, key: Optional[str] = None) -> None:
         """Set the OpenAI API key."""
         if key is None:
             assert "OPENAI_API_KEY" in os.environ
             key = os.environ["OPENAI_API_KEY"]
+
+    @classmethod
+    def log_total_costs(cls) -> None:
+        """Log the total costs and token usage for all OpenAI API calls."""
+        if cls._total_costs:
+            logging.debug("\n=== OpenAI API Usage (Latest Pricing) ===")
+            total = 0.0
+            for model, cost in sorted(cls._total_costs.items()):
+                tokens = cls._total_tokens[model]
+                logging.debug(f"{model}:")
+                logging.debug(f"  Cost: ${cost:.4f}")
+                logging.debug(f"  Tokens - Input: {tokens['prompt']}, Output: {tokens['completion']}, Total: {tokens['total']}")
+                total += cost
+            logging.debug(f"Total Cost: ${total:.4f}")
 
     @retry(wait=wait_random_exponential(min=1, max=60),
            stop=stop_after_attempt(10))
@@ -192,8 +230,27 @@ class OpenAIModel():
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        
         if verbose:
             logging.debug(f"OpenAI API response: {completion}")
+
+
+        # Track costs and tokens
+        if model in self._COSTS:
+            input_cost, output_cost = self._COSTS[model]
+            total_cost = (completion.usage.prompt_tokens * input_cost) + \
+                        (completion.usage.completion_tokens * output_cost)
+            self._total_costs[model] += total_cost
+            
+            # Update token counts
+            self._total_tokens[model]["prompt"] += completion.usage.prompt_tokens
+            self._total_tokens[model]["completion"] += completion.usage.completion_tokens
+            self._total_tokens[model]["total"] += completion.usage.total_tokens
+            
+            # Simple running cost display
+            total_cost = sum(self._total_costs.values())
+            logging.info(f"[OpenAI Models Running Cost in Entire Run: ${total_cost:.4f}]")
+
         assert len(completion.choices) == 1
         assert completion.choices[0].message.content is not None
         return completion.choices[0].message.content
