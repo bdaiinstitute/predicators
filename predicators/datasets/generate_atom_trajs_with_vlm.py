@@ -20,6 +20,7 @@ import dill as pkl
 import numpy as np
 import PIL.Image
 
+import predicators.pretrained_model_interface
 from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.envs.burger import BurgerEnv, BurgerNoMoveEnv
@@ -1105,7 +1106,7 @@ def create_ground_atom_data_from_generated_demos(
     _save_img_option_trajs_in_folder(img_option_trajs)
     # Now, given these trajectories, we can query the VLM.
     if vlm is None:
-        vlm = utils.create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
+        vlm = predicators.pretrained_model_interface.create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
     if CFG.vlm_predicate_vision_api_generate_ground_atoms:
         generate_func = _generate_ground_atoms_with_vlm_oo_code_gen
     else:
@@ -1284,7 +1285,7 @@ def create_ground_atom_data_from_saved_img_trajs(
     # Given trajectories, we can now query the VLM to get proposals for ground
     # atoms that might be relevant to decision-making.
     if vlm is None:
-        vlm = utils.create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
+        vlm = predicators.pretrained_model_interface.create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
     ground_atoms_trajs = _generate_ground_atoms_with_vlm_pure_visual_preds(
         image_option_trajs, env, train_tasks, known_predicates, all_task_objs,
         vlm)

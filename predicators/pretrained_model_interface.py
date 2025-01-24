@@ -3,6 +3,7 @@
 These might be joint Vision-Language Models (VLM's) or Large Language
 Models (LLM's)
 """
+from __future__ import annotations
 
 import abc
 import base64
@@ -18,6 +19,7 @@ import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
+from predicators.utils import timing
 
 # This is a special string that we assume will never appear in a prompt, and
 # which we use to separate prompt and completion in the cache. The reason to
@@ -395,3 +397,19 @@ class OpenAIVLM(VisionLanguageModel, OpenAIModel):
             for _ in range(num_completions)
         ]
         return responses
+
+
+def create_llm_by_name(
+        model_name: str) -> LargeLanguageModel:  # pragma: no cover
+    """Create particular llm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiLLM(model_name)
+    return OpenAILLM(model_name)
+
+
+def create_vlm_by_name(
+        model_name: str) -> VisionLanguageModel:  # pragma: no cover
+    """Create particular vlm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiVLM(model_name)
+    return OpenAIVLM(model_name)

@@ -4,6 +4,7 @@ symbolic learning of any kind."""
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import predicators.pretrained_model_interface
 from predicators import utils
 from predicators.nsrt_learning.strips_learning import BaseSTRIPSLearner
 from predicators.settings import CFG
@@ -26,7 +27,7 @@ class LLMStripsLearner(BaseSTRIPSLearner):
         super().__init__(trajectories, train_tasks, predicates,
                          segmented_trajs, verify_harmlessness, annotations,
                          verbose)
-        self._llm = utils.create_llm_by_name(CFG.llm_model_name)
+        self._llm = predicators.pretrained_model_interface.create_llm_by_name(CFG.llm_model_name)
         prompt_file = utils.get_path_to_predicators_root() + \
         "/predicators/nsrt_learning/strips_learning/" + \
         "llm_op_learning_prompts/naive_no_examples.txt"

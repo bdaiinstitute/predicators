@@ -51,7 +51,7 @@ from predicators.planning import task_plan_with_option_plan_constraint
 from predicators.settings import CFG
 from predicators.structs import Box, Dataset, GroundAtom, Object, \
     ParameterizedOption, Predicate, State, Task, Type, _GroundNSRT, _Option
-from predicators.utils import create_llm_by_name
+from predicators.pretrained_model_interface import create_llm_by_name
 
 
 class LLMOpenLoopApproach(NSRTMetacontrollerApproach):

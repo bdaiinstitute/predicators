@@ -24,6 +24,7 @@ import numpy as np
 import PIL
 from PIL import ImageDraw
 
+import predicators.pretrained_model_interface
 from predicators import utils
 from predicators.approaches import ApproachFailure
 from predicators.approaches.bilevel_planning_approach import \
@@ -48,7 +49,7 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         super().__init__(initial_predicates, initial_options, types,
                          action_space, train_tasks)
         # Set up the vlm and base prompt.
-        self._vlm = utils.create_vlm_by_name(CFG.vlm_model_name)
+        self._vlm = predicators.pretrained_model_interface.create_vlm_by_name(CFG.vlm_model_name)
         filepath_to_vlm_prompt = utils.get_path_to_predicators_root() + \
         "/predicators/approaches/vlm_planning_prompts/no_few_shot.txt"
         if CFG.vlm_open_loop_use_training_demos:
