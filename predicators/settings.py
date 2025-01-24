@@ -360,6 +360,9 @@ class GlobalSettings:
     # kitchen env parameters
     kitchen_use_perfect_samplers = False
     kitchen_goals = "all"
+    kitchen_render_set_of_marks = False
+    kitchen_use_combo_move_nsrts = False
+    kitchen_randomize_init_state = False
 
     # sticky table env parameters
     sticky_table_num_tables = 5
@@ -376,6 +379,17 @@ class GlobalSettings:
 
     # grid row env parameters
     grid_row_num_cells = 100
+
+    # burger env parameters
+    burger_render_set_of_marks = True
+    # Which type of train/test tasks to generate. Options are "more_stacks",
+    # "fatter_burger", "combo_burger".
+    burger_no_move_task_type = "more_stacks"
+    # Replace actual rendering with dummy rendering (black 16x16 image) to speed
+    # up rendering -- used in testing or when debugging.
+    burger_dummy_render = False
+    # Number of test tasks where you start out holding a patty.
+    burger_num_test_start_holding = 5
 
     # parameters for random options approach
     random_options_max_tries = 100
@@ -435,7 +449,16 @@ class GlobalSettings:
     override_json_with_input = False  # Only works with SpotEnv for now
 
     # parameters for vision language models
-    vlm_model_name = "gemini-pro-vision"  # "gemini-1.5-pro-latest"
+    # gemini-1.5-pro-latest, gpt-4-turbo, gpt-4o
+    vlm_model_name = "gemini-pro-vision"
+    vlm_temperature = 0.0
+    vlm_num_completions = 1
+    vlm_include_cropped_images = False
+    use_hardcoded_vlm_atom_proposals = False
+    vlm_double_check_output = False
+
+    # parameters for the vlm_open_loop planning approach
+    vlm_open_loop_use_training_demos = False
 
     # SeSamE parameters
     sesame_task_planner = "astar"  # "astar" or "fdopt" or "fdsat"
@@ -471,6 +494,7 @@ class GlobalSettings:
     approach_dir = "saved_approaches"
     data_dir = "saved_datasets"
     video_dir = "videos"
+    image_dir = "images"
     video_fps = 2
     failure_video_mode = "longest_only"
 
@@ -500,6 +524,7 @@ class GlobalSettings:
     strips_learner = "cluster_and_intersect"
     disable_harmlessness_check = False  # some methods may want this to be True
     enable_harmless_op_pruning = False  # some methods may want this to be True
+    precondition_soft_intersection_threshold_percent = 0.8  # between 0 and 1
     backchaining_check_intermediate_harmlessness = False
     pnad_search_without_del = False
     pnad_search_timeout = 10.0
@@ -512,6 +537,13 @@ class GlobalSettings:
     cluster_and_search_score_func_max_groundings = 10000
     cluster_and_search_var_count_weight = 0.1
     cluster_and_search_precon_size_weight = 0.01
+    cluster_and_intersect_prune_low_data_pnads = False
+    # If cluster_and_intersect_prune_low_data_pnads is set to True, PNADs must
+    # have at least this fraction of the segments produced by the option that is
+    # associated with their PNAD in order to not be pruned during operator
+    # learning.
+    cluster_and_intersect_min_datastore_fraction = 0.0
+    cluster_and_intersect_soft_intersection_for_preconditions = False
 
     # torch GPU usage setting
     use_torch_gpu = False
@@ -599,6 +631,10 @@ class GlobalSettings:
     active_sampler_learning_batch_size = 64
     active_sampler_learning_save_every_datum = False
 
+    # maple q function parameters
+    use_epsilon_annealing = True
+    min_epsilon = 0.05
+
     # skill competence model parameters
     skill_competence_model = "optimistic"
     skill_competence_model_num_em_iters = 3
@@ -656,6 +692,7 @@ class GlobalSettings:
     grammar_search_grammar_use_diff_features = False
     grammar_search_grammar_use_euclidean_dist = False
     grammar_search_use_handcoded_debug_grammar = False
+    grammar_search_forall_penalty = 1
     grammar_search_pred_selection_approach = "score_optimization"
     grammar_search_pred_clusterer = "oracle"
     grammar_search_true_pos_weight = 10
@@ -684,9 +721,14 @@ class GlobalSettings:
     grammar_search_expected_nodes_backtracking_cost = 1e3
     grammar_search_expected_nodes_allow_noops = True
     grammar_search_classifier_pretty_str_names = ["?x", "?y", "?z"]
-    grammar_search_vlm_atom_proposal_prompt_type = "options_labels_whole_traj"
+    grammar_search_vlm_atom_proposal_prompt_type = \
+        "options_labels_whole_traj_diverse"
     grammar_search_vlm_atom_label_prompt_type = "per_scene_naive"
     grammar_search_vlm_atom_proposal_use_debug = False
+    grammar_search_parallelize_vlm_labeling = True
+    grammar_search_select_all_debug = False
+    grammar_search_invent_geo_predicates_only = False
+    grammar_search_early_termination_heuristic_thresh = 0.0
 
     # grammar search clustering algorithm parameters
     grammar_search_clustering_gmm_num_components = 10
@@ -695,8 +737,14 @@ class GlobalSettings:
     # demo+labelled_atoms
     handmade_demo_filename = ""
     # filepath to be used if offline_data_method is set to
-    # img_demos
+    # saved_vlm_img_demos_folder
     vlm_trajs_folder_name = ""
+    vlm_predicate_vision_api_generate_ground_atoms = False
+    # At test-time, we will use the below number of states
+    # as part of labelling the current state's VLM atoms.
+    vlm_test_time_atom_label_prompt_type = "per_scene_naive"
+    # Whether or not to save eval trajectories
+    save_eval_trajs = True
 
     @classmethod
     def get_arg_specific_settings(cls, args: Dict[str, Any]) -> Dict[str, Any]:
