@@ -557,6 +557,12 @@ def _save_test_results(results: Metrics,
             return [_convert_to_yaml_friendly(x) for x in obj]
         if isinstance(obj, dict):
             return {k: _convert_to_yaml_friendly(v) for k, v in obj.items()}
+        # Handle _Option objects specially
+        if hasattr(obj, 'name') and hasattr(obj, 'objects'):
+            return {
+                'name': obj.name,
+                'objects': [str(o) for o in obj.objects]
+            }
         if hasattr(obj, '__dict__'):
             clean_dict = {}
             for k, v in vars(obj).items():
@@ -571,7 +577,7 @@ def _save_test_results(results: Metrics,
     # Create a YAML-friendly version of the data
     yaml_data = {
         "config": _convert_to_yaml_friendly(CFG),
-        "results": dict(results),  # Convert defaultdict to regular dict
+        "results": _convert_to_yaml_friendly(dict(results)),  # Convert defaultdict to regular dict and make YAML friendly
         "git_commit_hash": utils.get_git_commit_hash()
     }
     
