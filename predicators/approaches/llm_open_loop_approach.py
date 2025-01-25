@@ -41,8 +41,8 @@ Easier setting:
 from __future__ import annotations
 
 from typing import Collection, Dict, Iterator, List, Optional, Sequence, Set, \
-    Tuple
-
+    Tuple, Any
+import logging
 from predicators import utils
 from predicators.approaches import ApproachFailure
 from predicators.approaches.nsrt_metacontroller_approach import \
@@ -66,6 +66,12 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
         self._llm = create_llm_by_name(CFG.llm_model_name)
         # Set after learning.
         self._prompt_prefix = ""
+        # Store the current plan for monitoring
+        self._current_plan: Optional[List[_GroundNSRT]] = None
+        # Store the current state for sampling options
+        self._current_state: Optional[State] = None
+        # Store the current goal for sampling options
+        self._current_goal: Optional[Set[GroundAtom]] = None
 
     @classmethod
     def get_name(cls) -> str:
@@ -73,6 +79,9 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
 
     def _predict(self, state: State, atoms: Set[GroundAtom],
                  goal: Set[GroundAtom], memory: Dict) -> _GroundNSRT:
+        # Store current state and goal for sampling options
+        self._current_state = state
+        self._current_goal = goal
         # If we already have an abstract plan, execute the next step.
         if "abstract_plan" in memory and memory["abstract_plan"]:
             return memory["abstract_plan"].pop(0)
@@ -83,6 +92,17 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
             memory["abstract_plan"] = action_seq
             return memory["abstract_plan"].pop(0)
         raise ApproachFailure("No LLM predicted plan achieves the goal.")
+
+    def get_execution_monitoring_info(self) -> List[Any]:
+        """Return the current plan in a format expected by the execution monitor."""
+        if self._current_plan is None or self._current_state is None or self._current_goal is None:
+            return []
+        # Sample options for each ground NSRT in the plan
+        options = []
+        for nsrt in self._current_plan:
+            option = nsrt.sample_option(self._current_state, self._current_goal, self._rng)
+            options.append(option)
+        return [{"current_option_plan": options}]
 
     def _get_llm_based_plan(
             self, state: State, atoms: Set[GroundAtom],
@@ -110,6 +130,8 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
                     logging.info("\nFound valid NSRT plan:")
                     for nsrt in ground_nsrt_plan:
                         logging.info(f"  {nsrt}")
+                # Store the current plan for monitoring
+                self._current_plan = ground_nsrt_plan
                 return ground_nsrt_plan
             elif CFG.fm_planning_verbose:
                 logging.info("Plan validation failed")
