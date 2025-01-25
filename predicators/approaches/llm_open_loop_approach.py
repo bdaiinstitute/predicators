@@ -43,6 +43,7 @@ from __future__ import annotations
 from typing import Collection, Dict, Iterator, List, Optional, Sequence, Set, \
     Tuple, Any
 import logging
+import os
 from predicators import utils
 from predicators.approaches import ApproachFailure
 from predicators.approaches.nsrt_metacontroller_approach import \
@@ -64,8 +65,11 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
                          action_space, train_tasks)
         # Set up the LLM.
         self._llm = create_llm_by_name(CFG.llm_model_name)
-        # Set after learning.
-        self._prompt_prefix = ""
+        # Load the base prompt from file
+        filepath_to_llm_prompt = utils.get_path_to_predicators_root() + \
+            "/predicators/approaches/llm_planning_prompts/zero_shot.txt"
+        with open(filepath_to_llm_prompt, "r", encoding="utf-8") as f:
+            self.base_prompt = f.read()
         # Store the current plan for monitoring
         self._current_plan: Optional[List[_GroundNSRT]] = None
         # Store the current state for sampling options
@@ -144,14 +148,32 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
         self, atoms: Set[GroundAtom], objects: Set[Object],
         goal: Set[GroundAtom]
     ) -> Iterator[List[Tuple[ParameterizedOption, Sequence[Object]]]]:
-        new_prompt = self._create_prompt(atoms, goal, [])
-        prompt = self._prompt_prefix + new_prompt
+        # Format options with their parameter types and spaces
+        options_str = "\n  ".join(
+            f"{opt.name}, params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}, params_space={opt.params_space}"
+            for opt in sorted(self._initial_options))
+            
+        # Format objects with their types
+        objects_str = "\n  ".join(f"{obj}: {obj.type.name}" for obj in sorted(objects))
         
+        # Create type hierarchy string
+        type_hierarchy_str = utils.create_pddl_types_str(self._types)
+        
+        # Format goal atoms
+        goal_str = "\n  ".join(map(str, sorted(goal)))
+        
+        # Create the prompt using the template
+        prompt = self.base_prompt.format(
+            options=options_str,
+            typed_objects=objects_str,
+            type_hierarchy=type_hierarchy_str,
+            goal_str=goal_str)
+            
         if CFG.fm_planning_verbose:
             logging.info("\n=== LLM Query ===")
             logging.info(f"Prompt:\n{prompt}")
             
-        # Query the LLM.
+        # Query the LLM
         llm_predictions = self._llm.sample_completions(
             prompt=prompt,
             imgs=None,
@@ -172,7 +194,7 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
                 if not option_plan:
                     logging.info("Empty plan (parsing failed)")
                 for option, objs in option_plan:
-                    logging.info(f"  {option.name}({', '.join(obj.name for obj in objs)})")
+                    logging.info(f"{option.name}({', '.join(obj.name for obj in objs)})")
             yield option_plan
 
     def _option_plan_to_nsrt_plan(
@@ -241,6 +263,52 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
 )
 Solution:
   {options_str}"""
+        return prompt
+
+    def _create_detailed_prompt(self, atoms: Set[GroundAtom], 
+                              objects: Set[Object],
+                              goal: Set[GroundAtom]) -> str:
+        """Create a more detailed prompt including state and operator information."""
+        # Format objects with their types
+        objects_str = "\n  ".join(f"{obj}: {obj.type.name}" for obj in sorted(objects))
+        
+        # Format available options with their parameter types and spaces
+        options_str = "\n  ".join(
+            f"{opt.name}, params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}, params_space={opt.params_space}"
+            for opt in sorted(self._initial_options))
+            
+        # Format current state atoms and goal atoms
+        atoms_str = "\n  ".join(map(str, sorted(atoms)))
+        goal_str = "\n  ".join(map(str, sorted(goal)))
+        
+        # Create type hierarchy string
+        type_hierarchy_str = utils.create_pddl_types_str(self._types)
+        
+        prompt = f"""
+Available objects and their types:
+  {objects_str}
+
+Type hierarchy:
+  {type_hierarchy_str}
+
+Available operators:
+  {options_str}
+
+Current state atoms:
+  {atoms_str}
+
+Goal atoms:
+  {goal_str}
+
+Provide ONLY a sequence of actions to achieve the goal, one per line, with NO additional text or formatting.
+Each action must be in the exact format:
+option_name(obj0:type0, obj1:type1, ...)
+
+Example response:
+PickObjectFromTop(robot:robot, red_cup:container, table:immovable_object)
+DropObjectInside(robot:robot, red_cup:container, target:container)
+
+Solution:"""
         return prompt
 
     @staticmethod
