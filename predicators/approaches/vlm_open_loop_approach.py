@@ -34,6 +34,7 @@ from predicators.nsrt_learning.segmentation import segment_trajectory
 from predicators.settings import CFG
 from predicators.structs import Action, Box, Dataset, ParameterizedOption, \
     Predicate, State, Task, Type, _Option
+from predicators.ground_truth_models import get_gt_nsrts
 
 
 class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
@@ -137,9 +138,13 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         return None
 
     def _get_current_nsrts(self) -> Set[utils.NSRT]:
-        """This method doesn't explicitly learn NSRTs, so we simply return the
-        empty set."""
-        return set()
+        """Get NSRTs for planning. If CFG.fm_planning_with_oracle_nsrts is True,
+        use oracle NSRTs from the factory. Otherwise, return an empty set."""
+        if not CFG.fm_planning_with_oracle_nsrts:
+            return set()
+        # Get oracle NSRTs from the factory
+        return get_gt_nsrts(CFG.env, set(self._initial_predicates), 
+                          set(self._initial_options))
 
     def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
         try:
@@ -191,9 +196,29 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             imgs_for_vlm.append(
                 img_with_txt._image)  # type: ignore[attr-defined]
             # pylint: enable=protected-access
-        options_str = "\n".join(
-            str(opt) + ", params_space=" + str(opt.params_space)
-            for opt in curr_options)
+        # options_str = "\n".join(
+        #     str(opt) + ", params_space=" + str(opt.params_space)
+        #     for opt in curr_options)
+        
+        # Get NSRTs to access preconditions and effects
+        nsrts = self._get_current_nsrts()
+        nsrt_by_option = {nsrt.option.name: nsrt for nsrt in nsrts}
+        
+        # Format options with their parameter types, preconditions, and effects
+        options_str = []
+        for opt in sorted(curr_options):
+            params_str = f"params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}"
+            if opt.name in nsrt_by_option:
+                nsrt = nsrt_by_option[opt.name]
+                precond_str = f"preconditions={[str(p) for p in nsrt.op.preconditions]}"
+                add_effects_str = f"add_effects={[str(e) for e in nsrt.op.add_effects]}"
+                delete_effects_str = f"delete_effects={[str(e) for e in nsrt.op.delete_effects]}"
+                options_str.append(f"{opt.name}, {params_str}, {precond_str}, {add_effects_str}, {delete_effects_str}")
+            else:
+                # If no NSRT available, just show parameter types
+                options_str.append(f"{opt.name}, {params_str}")
+        options_str = "\n  ".join(options_str)
+        
         objects_list = sorted(set(task.init))
         objects_str = "\n".join(str(obj) for obj in objects_list)
         goal_expr_list = sorted(set(task.goal))
