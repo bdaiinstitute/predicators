@@ -48,6 +48,7 @@ from predicators import utils
 from predicators.approaches import ApproachFailure
 from predicators.approaches.nsrt_metacontroller_approach import \
     NSRTMetacontrollerApproach
+from predicators.ground_truth_models import get_gt_nsrts
 from predicators.planning import task_plan_with_option_plan_constraint
 from predicators.settings import CFG
 from predicators.structs import Box, Dataset, GroundAtom, Object, \
@@ -143,18 +144,42 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
         if CFG.fm_planning_verbose:
             logging.warning("No valid plans found")
         return None
+    
+    def _get_current_nsrts(self) -> Set[utils.NSRT]:
+        """Get NSRTs for planning. If CFG.fm_planning_with_oracle_nsrts is True,
+        use oracle NSRTs from the factory. Otherwise, return an empty set."""
+        if not CFG.fm_planning_with_oracle_nsrts:
+            return set()
+        # Get oracle NSRTs from the factory
+        return get_gt_nsrts(CFG.env, set(self._initial_predicates), 
+                          set(self._initial_options))
 
     def _get_llm_based_option_plans(
         self, atoms: Set[GroundAtom], objects: Set[Object],
         goal: Set[GroundAtom]
     ) -> Iterator[List[Tuple[ParameterizedOption, Sequence[Object]]]]:
-        # Format options with their parameter types and spaces
-        options_str = "\n  ".join(
-            f"{opt.name}, params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}, params_space={opt.params_space}"
-            for opt in sorted(self._initial_options))
+        # Get NSRTs to access preconditions and effects
+        nsrts = self._get_current_nsrts()
+        nsrt_by_option = {nsrt.option.name: nsrt for nsrt in nsrts}
+        curr_options = sorted(self._initial_options)
+        
+        # Format options with their parameter types, preconditions, and effects
+        options_str = []
+        for opt in curr_options:
+            params_str = f"params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}"
+            if opt.name in nsrt_by_option:
+                nsrt = nsrt_by_option[opt.name]
+                precond_str = f"preconditions={[str(p) for p in nsrt.op.preconditions]}"
+                add_effects_str = f"add_effects={[str(e) for e in nsrt.op.add_effects]}"
+                delete_effects_str = f"delete_effects={[str(e) for e in nsrt.op.delete_effects]}"
+                options_str.append(f"{opt.name}, {params_str}, {precond_str}, {add_effects_str}, {delete_effects_str}")
+            else:
+                # If no NSRT available, just show parameter types
+                options_str.append(f"{opt.name}, {params_str}")
+        options_str = "\n  ".join(options_str)
             
         # Format objects with their types
-        objects_str = "\n  ".join(f"{obj}: {obj.type.name}" for obj in sorted(objects))
+        objects_str = "\n  ".join(f"{obj.name}: {obj.type.name}" for obj in sorted(objects))
         
         # Create type hierarchy string
         type_hierarchy_str = utils.create_pddl_types_str(self._types)
@@ -217,99 +242,25 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
         ParameterizedOptions coupled with a list of objects that will be used
         to ground the ParameterizedOption."""
         option_plan: List[Tuple[ParameterizedOption, Sequence[Object]]] = []
-        option_plan_with_cont_params = utils.\
-            parse_model_output_into_option_plan(
-            llm_prediction, objects, self._types, self._initial_options, False)
-        option_plan = [(option, objs)
-                       for option, objs, _ in option_plan_with_cont_params]
-        return option_plan
+        try:
+            # Look for the "Plan:" section
+            if "Plan:" not in llm_prediction:
+                raise ValueError("No 'Plan:' section found in LLM output")
+            plan_section = llm_prediction.split("Plan:")[1].strip()
+            
+            # Use the same parsing as VLM approach
+            parsed_option_plan = utils.parse_model_output_into_option_plan(
+                plan_section, objects, self._types,
+                self._initial_options, parse_continuous_params=False)
+            
+            # Convert to expected format
+            return [(option, objs) for option, objs, _ in parsed_option_plan]
+        except Exception as e:
+            raise ValueError(f"Failed to parse LLM output: {e}")
 
     def learn_from_offline_dataset(self, dataset: Dataset) -> None:
         # First, learn NSRTs.
         super().learn_from_offline_dataset(dataset)
-        # Then, parse the data into the prompting format expected by the LLM.
-        self._prompt_prefix = self._data_to_prompt_prefix(dataset)
-
-    def _data_to_prompt_prefix(self, dataset: Dataset) -> str:
-        # In this approach, we learned NSRTs, so we just use the segmented
-        # trajectories that NSRT learning returned to us.
-        prompts = []
-        assert len(self._segmented_trajs) == len(dataset.trajectories)
-        for segment_traj, ll_traj in zip(self._segmented_trajs,
-                                         dataset.trajectories):
-            if not ll_traj.is_demo:
-                continue
-            init = segment_traj[0].init_atoms
-            goal = self._train_tasks[ll_traj.train_task_idx].goal
-            seg_options = []
-            for segment in segment_traj:
-                assert segment.has_option()
-                seg_options.append(segment.get_option())
-            prompt = self._create_prompt(init, goal, seg_options)
-            prompts.append(prompt)
-        return "\n\n".join(prompts) + "\n\n"
-
-    def _create_prompt(self, init: Set[GroundAtom], goal: Set[GroundAtom],
-                       options: Sequence[_Option]) -> str:
-        init_str = "\n  ".join(map(str, sorted(init)))
-        goal_str = "\n  ".join(map(str, sorted(goal)))
-        options_str = "\n  ".join(map(self._option_to_str, options))
-        prompt = f"""
-(:init
-  {init_str}
-)
-(:goal
-  {goal_str}
-)
-Solution:
-  {options_str}"""
-        return prompt
-
-    def _create_detailed_prompt(self, atoms: Set[GroundAtom], 
-                              objects: Set[Object],
-                              goal: Set[GroundAtom]) -> str:
-        """Create a more detailed prompt including state and operator information."""
-        # Format objects with their types
-        objects_str = "\n  ".join(f"{obj}: {obj.type.name}" for obj in sorted(objects))
-        
-        # Format available options with their parameter types and spaces
-        options_str = "\n  ".join(
-            f"{opt.name}, params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}, params_space={opt.params_space}"
-            for opt in sorted(self._initial_options))
-            
-        # Format current state atoms and goal atoms
-        atoms_str = "\n  ".join(map(str, sorted(atoms)))
-        goal_str = "\n  ".join(map(str, sorted(goal)))
-        
-        # Create type hierarchy string
-        type_hierarchy_str = utils.create_pddl_types_str(self._types)
-        
-        prompt = f"""
-Available objects and their types:
-  {objects_str}
-
-Type hierarchy:
-  {type_hierarchy_str}
-
-Available operators:
-  {options_str}
-
-Current state atoms:
-  {atoms_str}
-
-Goal atoms:
-  {goal_str}
-
-Provide ONLY a sequence of actions to achieve the goal, one per line, with NO additional text or formatting.
-Each action must be in the exact format:
-option_name(obj0:type0, obj1:type1, ...)
-
-Example response:
-PickObjectFromTop(robot:robot, red_cup:container, table:immovable_object)
-DropObjectInside(robot:robot, red_cup:container, target:container)
-
-Solution:"""
-        return prompt
 
     @staticmethod
     def _option_to_str(option: _Option) -> str:
