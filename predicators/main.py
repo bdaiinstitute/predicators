@@ -373,6 +373,7 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
     total_num_solve_failures = 0
     total_num_execution_timeouts = 0
     total_num_execution_failures = 0
+    total_steps = 0  # Add this to track total steps
 
     save_prefix = utils.get_config_path_str()
     metrics: Metrics = defaultdict(float)
@@ -468,7 +469,9 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
             total_suc_time += (solve_time + exec_time)
             make_video = CFG.make_test_videos
             video_file = f"{save_prefix}__task{test_task_idx+1}.mp4"
-            metrics[f"PER_TASK_task{test_task_idx}_num_steps"] = len(traj[1])
+            steps_taken = len(traj[1])  # Number of steps in trajectory
+            total_steps += steps_taken
+            metrics[f"PER_TASK_task{test_task_idx}_num_steps"] = steps_taken
         else:
             if not caught_exception:
                 log_message = "Policy failed to reach goal"
@@ -514,6 +517,9 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
         total = cogman.metrics[f"total_{metric_name}"]
         metrics[f"avg_{metric_name}"] = (
             total / num_found_policy if num_found_policy > 0 else float("inf"))
+    # Add average and total steps to metrics
+    metrics["total_steps"] = total_steps
+    metrics["avg_steps_per_solved"] = (total_steps / num_solved if num_solved > 0 else float("inf"))
     return metrics
 
 
