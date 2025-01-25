@@ -162,6 +162,7 @@ class MockEnvCreatorBase(ABC):
         Args:
             output_dir: Directory to save output files
             env_info: Environment information
+            env: Optional environment instance
         """
         self.output_dir = Path(output_dir)
         self.path_dir = self.output_dir
@@ -189,12 +190,18 @@ class MockEnvCreatorBase(ABC):
             self.options = {o.name: o for o in env.options}
             self.nsrts = env.nsrts
             self.objects = {o.name: o for o in env.objects}
+            # Store initial and goal atoms from environment
+            self.env_initial_atoms = env.initial_atoms
+            self.env_goal_atoms = env.goal_atoms
         elif env_info is not None:
             self.types = {t.name: t for t in env_info["types"]}
             self.predicates = {p.name: p for p in env_info["predicates"]}
             self.options = {o.name: o for o in env_info["options"]}
             self.nsrts = env_info["nsrts"]
             self.objects: Dict[str, Object] = {o.name: o for o in env_info["objects"]}
+            # Store initial and goal atoms from env_info if available
+            self.env_initial_atoms = env_info.get("initial_atoms", None)
+            self.env_goal_atoms = env_info.get("goal_atoms", None)
         else:
             raise ValueError("Either env or env_info must be provided")
 
@@ -1389,7 +1396,37 @@ class MockEnvCreatorBase(ABC):
         }
         self.str_transitions.append((source_id, op_dict, dest_id))
         
-    def save_transitions(self) -> None:
+    def _find_optimal_path(self, init_atoms: Optional[Set[GroundAtom]] = None, 
+                          goal_atoms: Optional[Set[GroundAtom]] = None, 
+                          objects: Optional[Set[Object]] = None) -> Optional[Tuple[List[_GroundNSRT], List[Set[GroundAtom]], int]]:
+        """Find optimal path from initial state to goal state.
+        
+        Args:
+            init_atoms: Initial state atoms (defaults to environment initial atoms)
+            goal_atoms: Goal state atoms (defaults to environment goal atoms)
+            objects: Objects in the environment (defaults to all objects)
+            
+        Returns:
+            If path found, tuple containing:
+            - List of operators (the plan)
+            - List of states (sets of ground atoms)
+            - Number of steps in plan
+            None if no path found
+        """
+        # Get default values from environment
+        init_atoms_to_use = self.env_initial_atoms if init_atoms is None else init_atoms
+        goal_atoms_to_use = self.env_goal_atoms if goal_atoms is None else goal_atoms
+        objects_to_use = set(self.objects.values()) if objects is None else objects
+        
+        planner = self._create_planner(init_atoms_to_use, goal_atoms_to_use, objects_to_use)
+        try:
+            skeleton, atoms_sequence, metrics = next(planner())
+            return skeleton, atoms_sequence, len(skeleton)
+        except StopIteration:
+            return None
+
+    def save_transitions(self, save_plan: bool = True, init_atoms: Optional[Set[GroundAtom]] = None, 
+                        goal_atoms: Optional[Set[GroundAtom]] = None) -> None:
         """Save the transition system to a YAML file.
         
         The transition system includes:
@@ -1397,8 +1434,18 @@ class MockEnvCreatorBase(ABC):
         2. States with their atoms and fluent atoms
         3. Transitions between states
         4. Metadata about predicates and types
+        5. Optimal path information (if save_plan=True)
+        
+        Args:
+            save_plan: Whether to save optimal path information
+            init_atoms: Initial state atoms (defaults to environment initial atoms)
+            goal_atoms: Goal state atoms (defaults to environment goal atoms)
         """
         assert self.states or self.transitions, "States/Transitions not explored yet"
+        
+        # Use environment atoms as defaults
+        init_atoms_to_use = self.env_initial_atoms if init_atoms is None else init_atoms
+        goal_atoms_to_use = self.env_goal_atoms if goal_atoms is None else goal_atoms
         
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1439,6 +1486,25 @@ class MockEnvCreatorBase(ABC):
                 }
             }
         }
+        
+        # Add optimal path information if requested
+        if save_plan:
+            optimal_path = self._find_optimal_path(init_atoms_to_use, goal_atoms_to_use)
+            if optimal_path is not None:
+                plan, states, num_steps = optimal_path
+                system_data["optimal_path"] = {
+                    "num_steps": num_steps,
+                    "plan": [
+                        {
+                            "operator": op.name,
+                            "objects": [obj.name for obj in op.objects],
+                            "state_id": self.state_to_id[frozenset(state)]
+                        }
+                        for op, state in zip(plan, states[1:])  # Skip initial state
+                    ],
+                    "initial_state_id": self.state_to_id[frozenset(init_atoms_to_use)],
+                    "goal_state_id": self.state_to_id[frozenset(states[-1])]
+                }
         
         # Save to YAML file
         output_path = self.output_dir / "transition_system.yaml"
