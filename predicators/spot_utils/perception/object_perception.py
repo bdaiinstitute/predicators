@@ -225,10 +225,11 @@ def vlm_predicate_batch_query(
         PIL.Image.fromarray(v.rotated_rgb) for _, v in images.items()
     ]
 
-    logging.info(f"VLM predicate evaluation input (with prompt): \n{question}")
     if CFG.vlm_eval_verbose:
+        logging.info(f"VLM predicate evaluation input (with prompt): \n{question}")
         logging.info(f"Prompt: {full_prompt}")
     else:
+        logging.debug(f"VLM predicate evaluation input (with prompt): \n{question}")
         logging.debug(f"Prompt: {full_prompt}")
 
     # Run the queries in parallel
