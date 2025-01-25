@@ -441,21 +441,53 @@ class GlobalSettings:
 
     # parameters for large language models
     pretrained_model_prompt_cache_dir = "pretrained_model_cache"
-    llm_openai_max_response_tokens = 700
+    llm_openai_max_response_tokens = 500
     llm_use_cache_only = False
-    llm_model_name = "text-curie-001"  # "text-davinci-002"
-    llm_temperature = 0.5
+    llm_model_name = "gpt-4o"  # Using GPT-4o
+    llm_temperature = 0.7
     llm_num_completions = 1
     override_json_with_input = False  # Only works with SpotEnv for now
+    # LLM text planner settings
+    llm_text_planner_max_tokens = 500
+    llm_text_planner_temperature = 0.7
+    llm_text_planner_num_samples = 3  # Number of plans to generate and try
+    llm_text_planner_prompt_template = """
+Current state:
+{state_desc}
+
+Goal:
+{goal_desc}
+
+Solution:"""
 
     # parameters for vision language models
-    # gemini-1.5-pro-latest, gpt-4-turbo, gpt-4o
-    vlm_model_name = "gemini-pro-vision"
-    vlm_temperature = 0.0
+    vlm_model_name = "gpt-4o"
+    vlm_temperature = 0.7
     vlm_num_completions = 1
     vlm_include_cropped_images = False
     use_hardcoded_vlm_atom_proposals = False
     vlm_double_check_output = False
+    # VLM text perceiver settings
+    vlm_text_perceiver_prompt = """Describe the scene in detail, focusing on:
+1. Objects present and their properties (color, size, shape)
+2. Spatial relationships between objects (on, in, next to, etc.)
+3. Any relevant state information (open/closed, empty/full, etc.)
+
+Be specific and precise in your description."""
+    vlm_text_perceiver_max_tokens = 1000
+    vlm_text_perceiver_include_spatial = True  # Whether to include spatial relationships
+    vlm_text_perceiver_include_attributes = True  # Whether to include object attributes
+    
+    
+    # VLM/LLM planning settings
+    vlm_open_loop_use_training_demos = False
+    vlm_eval_verbose = False
+    vlm_temperature = 0.7
+    vlm_num_completions = 1
+    vlm_model_name = "gpt-4o"
+    vlm_max_tokens = 1000
+    vlm_max_image_tokens = 1000
+    fm_planning_with_oracle_nsrts = True  # Whether to use oracle NSRTs in VLM/LLM planning
 
     # parameters for the vlm_open_loop planning approach
     vlm_open_loop_use_training_demos = False
