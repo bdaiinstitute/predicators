@@ -62,6 +62,7 @@ from predicators.structs import Dataset, InteractionRequest, \
     InteractionResult, Metrics, Response, Task, Video
 from predicators.teacher import Teacher, TeacherInteractionMonitorWithVideo
 from predicators.pretrained_model_interface import OpenAIModel
+import yaml
 
 assert os.environ.get("PYTHONHASHSEED") == "0", \
         "Please add `export PYTHONHASHSEED=0` to your bash profile!"
@@ -176,6 +177,7 @@ def main() -> None:
     _run_pipeline(env, cogman, approach_train_tasks, offline_dataset)
     script_time = time.perf_counter() - script_start
     
+    # NOTE: debugging pring
     # Log OpenAI API costs if any were incurred
     OpenAIModel.log_total_costs()
     
@@ -530,8 +532,10 @@ def _save_test_results(results: Metrics,
     avg_suc_time = results["avg_suc_time"]
     logging.info(f"Tasks solved: {num_solved} / {num_total}")
     logging.info(f"Average time for successes: {avg_suc_time:.5f} seconds")
-    outfile = (f"{CFG.results_dir}/{utils.get_config_path_str()}__"
-               f"{online_learning_cycle}.pkl")
+    base_outfile = f"{CFG.results_dir}/{utils.get_config_path_str()}__{online_learning_cycle}"
+    
+    # Save pickle file
+    pkl_outfile = base_outfile + ".pkl"
     # Save CFG alongside results.
     outdata = {
         "config": CFG,
@@ -539,15 +543,57 @@ def _save_test_results(results: Metrics,
         "git_commit_hash": utils.get_git_commit_hash()
     }
     # Dump the CFG, results, and git commit hash to a pickle file.
-    with open(outfile, "wb") as f:
+    with open(pkl_outfile, "wb") as f:
         pkl.dump(outdata, f)
+        
+    # Save YAML file
+    yaml_outfile = base_outfile + ".yaml"
+    
+    def _convert_to_yaml_friendly(obj):
+        """Helper to convert objects to YAML-friendly format."""
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        if isinstance(obj, (list, tuple)):
+            return [_convert_to_yaml_friendly(x) for x in obj]
+        if isinstance(obj, dict):
+            return {k: _convert_to_yaml_friendly(v) for k, v in obj.items()}
+        if hasattr(obj, '__dict__'):
+            clean_dict = {}
+            for k, v in vars(obj).items():
+                if not callable(v) and not k.startswith('_'):
+                    try:
+                        clean_dict[k] = _convert_to_yaml_friendly(v)
+                    except:  # Skip any values that can't be converted
+                        pass
+            return clean_dict
+        return str(obj)  # Fallback to string representation
+            
+    # Create a YAML-friendly version of the data
+    yaml_data = {
+        "config": _convert_to_yaml_friendly(CFG),
+        "results": dict(results),  # Convert defaultdict to regular dict
+        "git_commit_hash": utils.get_git_commit_hash()
+    }
+    
+    # Dump to YAML file
+    with open(yaml_outfile, "w") as f:
+        yaml.dump(yaml_data, f, default_flow_style=False)
+        
     # Before printing the results, filter out keys that start with the
     # special prefix "PER_TASK_", to prevent an annoyingly long printout.
     del_keys = [k for k in results if k.startswith("PER_TASK_")]
     for k in del_keys:
         del results[k]
-    logging.info(f"Test results: {results}")
-    logging.info(f"Wrote out test results to {outfile}")
+    
+    # Print results in a clean format using rich
+    logging.info("\n=== Test Results ===")
+    for key, value in sorted(results.items()):
+        if isinstance(value, float):
+            logging.info(f"{key}: {value:.5f}")
+        else:
+            logging.info(f"{key}: {value}")
+            
+    logging.info(f"\nWrote out test results to {pkl_outfile} and {yaml_outfile}")
 
 
 if __name__ == "__main__":  # pragma: no cover
