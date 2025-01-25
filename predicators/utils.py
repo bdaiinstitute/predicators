@@ -1523,6 +1523,7 @@ def sample_applicable_option(param_options: List[ParameterizedOption],
     for _ in range(CFG.random_options_max_tries):
         param_opt = param_options[rng.choice(len(param_options))]
         objs = get_random_object_combination(list(state), param_opt.types, rng)
+        
         if objs is None:
             continue
         params = param_opt.params_space.sample()
@@ -1628,6 +1629,17 @@ def get_all_ground_atoms_for_predicate(
         ground_atom = GroundAtom(predicate, args)
         ground_atoms.add(ground_atom)
     return ground_atoms
+
+
+def get_all_ground_atom_combinations_for_predicate_set(
+    objects: Sequence[Object], preds: Set[Predicate]) -> Set[GroundAtom]:
+    """Get all possible combinations of objects for a set of predicates."""
+    atoms = set()
+    for pred in preds:
+        param_objects = get_object_combinations(objects, pred.types)
+        for objs in param_objects:
+            atoms.add(GroundAtom(pred, objs))
+    return atoms
 
 
 def get_all_lifted_atoms_for_predicate(
