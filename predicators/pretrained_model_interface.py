@@ -173,7 +173,7 @@ class OpenAIModel():
     _total_costs = defaultdict(float)
     _total_tokens = defaultdict(lambda: {"prompt": 0, "completion": 0, "total": 0})
     
-    # Latest pricing per 1M tokens from https://platform.openai.com/docs/pricing
+    # [2025/01] Latest pricing per 1M tokens from https://platform.openai.com/docs/pricing
     _COSTS = {
         # GPT-4 Optimized (gpt-4o)
         "gpt-4o": (2.50/1000000, 1.25/1000000),  # $2.50/1M input, $1.25/1M output
@@ -202,7 +202,7 @@ class OpenAIModel():
     def log_total_costs(cls) -> None:
         """Log the total costs and token usage for all OpenAI API calls."""
         if cls._total_costs:
-            logging.info("\n=== OpenAI API Usage (Latest Pricing) ===")
+            logging.info("\n=== OpenAI API Usage (2025/01 Pricing) ===")
             total = 0.0
             for model, cost in sorted(cls._total_costs.items()):
                 tokens = cls._total_tokens[model]
