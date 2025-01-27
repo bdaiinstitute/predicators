@@ -258,6 +258,25 @@ class MockSpotEnv(BaseEnv):
                 self._images_dir,
                 objects_dict
             )
+            
+            # NOTE: tracking objects in view
+            # # Update InHandView predicates based on action
+            # if op_name == "MoveToHandViewObject" or op_name == "MoveToHandViewObjectInContainer":
+            #     # Object being viewed should be in hand view
+            #     target_obj = op_objects[1]  # Second object is the target
+            #     loaded_obs.atoms.add(GroundAtom(_InHandView, [self.robot, target_obj]))
+            # elif op_name in ["PickObjectFromTop", "PickObjectFromContainer", "PlaceObjectOnTop", "DropObjectInside"]:
+            #     # After picking or placing, object is no longer in hand view
+            #     target_obj = op_objects[1]  # Second object is the target
+            #     loaded_obs.atoms.discard(GroundAtom(_InHandView, [self.robot, target_obj]))
+            # elif op_name == "CloseDrawer":
+            #     # When drawer closes, objects inside are no longer in view
+            #     drawer = op_objects[0]
+            #     for obj in self.objects:
+            #         if isinstance(obj, Object) and obj.type == _movable_object_type:
+            #             if GroundAtom(_Inside, [obj, drawer]) in loaded_obs.atoms:
+            #                 loaded_obs.atoms.discard(GroundAtom(_InHandView, [self.robot, obj]))
+            
             self._current_observation = _MockSpotObservation.init_from_saved(
                 loaded_obs,
                 object_dict=objects_dict,
@@ -843,6 +862,134 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
             "PickObjectFromTop",
             # "PlaceObjectOnTop",
             "DropObjectInside"
+        }
+        
+        # Filter operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
+
+
+class MockSpotDrawerCleaningEnv(MockSpotEnv):
+    """A mock environment for testing drawer cleaning with two cups."""
+    
+    # Set the preset data directory
+    preset_data_dir = os.path.join("mock_env_data", "task_phone_drawer_cleaning")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_drawer_cleaning"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = "mock_spot_drawer_cleaning"
+        
+        # Create objects
+        self.robot = Object("robot", _robot_type)
+        self.drawer = Object("drawer", _container_type)
+        self.container = Object("container_box", _container_type)  # Changed to container_type
+        self.red_cup = Object("red_cup", _movable_object_type)
+        self.blue_cup = Object("blue_cup", _movable_object_type)
+        
+        # Set up initial state
+        self._objects = {
+            "robot": self.robot,
+            "drawer": self.drawer,
+            "container": self.container,
+            "red_cup": self.red_cup,
+            "blue_cup": self.blue_cup
+        }
+        self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial and goal atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Container box state
+            GroundAtom(_NotBlocked, [self.container]),
+            GroundAtom(_IsPlaceable, [self.container]),
+            GroundAtom(_NotInsideAnyContainer, [self.container]),
+            GroundAtom(_HasFlatTopSurface, [self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.container]),
+            
+            # Drawer state
+            GroundAtom(_NotBlocked, [self.drawer]),
+            GroundAtom(_IsPlaceable, [self.drawer]),
+            GroundAtom(_NotInsideAnyContainer, [self.drawer]),
+            GroundAtom(_HasFlatTopSurface, [self.drawer]),
+            GroundAtom(_NotHolding, [self.robot, self.drawer]),
+            GroundAtom(_DrawerClosed, [self.drawer]),  # Drawer is closed
+            GroundAtom(_Reachable, [self.robot, self.drawer]),  # Robot can reach drawer
+            
+            # Red cup state
+            GroundAtom(_Inside, [self.red_cup, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.red_cup]),
+            GroundAtom(_FitsInXY, [self.red_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.red_cup]),
+            GroundAtom(_NEq, [self.red_cup, self.container]),
+            GroundAtom(_NEq, [self.red_cup, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.red_cup]),
+            GroundAtom(_NotBlocked, [self.red_cup]),
+            
+            # Blue cup state
+            GroundAtom(_Inside, [self.blue_cup, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.blue_cup]),
+            GroundAtom(_FitsInXY, [self.blue_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.blue_cup]),
+            GroundAtom(_NEq, [self.blue_cup, self.container]),
+            GroundAtom(_NEq, [self.blue_cup, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.blue_cup]),
+            GroundAtom(_NotBlocked, [self.blue_cup]),
+            
+            # Object relationships
+            GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
+        }
+        
+        self.goal_atoms = {
+            GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
+            GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
+            GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
+        }
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to drawer cleaning tasks."""
+        # Get all operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "MoveToHandViewObjectInContainer",
+            "PickObjectFromTop",
+            "PickObjectFromContainer",
+            "PlaceObjectOnTop",
+            "DropObjectInside",  # Added this for placing in container
+            "OpenDrawer",
+            "CloseDrawer"
         }
         
         # Filter operators
