@@ -43,7 +43,7 @@ class MockSpotGroundTruthOptionFactory(GroundTruthOptionFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         """Get the env names that this factory builds options for."""
-        return {"mock_spot", "mock_spot_pick_place_two_cup"}
+        return {"mock_spot", "mock_spot_pick_place_two_cup", "mock_spot_drawer_cleaning"}
 
     @classmethod
     def get_options(cls, env_name: str, types: Dict[str, Type],
