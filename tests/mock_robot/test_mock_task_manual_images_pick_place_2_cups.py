@@ -213,9 +213,9 @@ def test_load_saved_two_cup_pick_place():
         "objects": env.objects
     })
     
-    # Initialize objects in creator
-    for obj in env.objects:
-        creator.objects[obj.name] = obj
+    # # Initialize objects in creator
+    # for obj in env.objects:
+    #     creator.objects[obj.name] = obj
     
     # Load and verify each state
     for state_id in ["0", "1", "2", "3", "4"]:
