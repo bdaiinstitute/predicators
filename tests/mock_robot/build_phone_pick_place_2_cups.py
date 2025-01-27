@@ -253,9 +253,9 @@ def test_load_saved_two_cup_phone():
         "objects": env.objects
     })
     
-    # Initialize objects in creator
-    for obj in env.objects:
-        creator.objects[obj.name] = obj
+    # # Initialize objects in creator
+    # for obj in env.objects:
+    #     creator.objects[obj.name] = obj
     
     # Get total number of states from saved data
     image_dir = Path(test_dir) / "images"
