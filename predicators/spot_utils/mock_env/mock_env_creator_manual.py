@@ -115,10 +115,45 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
                     default="done",
                     show_default=True
                 )
-                
+
                 if img_path.lower() in ["done", "skip", "d"]:
                     # Save all collected images for this state
                     if collected_images:
+                        # First display numbered list of objects
+                        self.console.print("\nAvailable objects:")
+                        object_map = {}
+                        for i, (obj_name, obj) in enumerate(self.objects.items(), 1):
+                            object_map[str(i)] = obj
+                            self.console.print(f"{i}. {obj_name}")
+
+                        # Ask for object numbers
+                        objects_in_view_str = Prompt.ask(
+                            f"\nWhat objects are visible in this image? (comma-separated list of numbers, or 'none')",
+                            default="none"
+                        )
+                        
+                        # Parse objects in view
+                        objects_in_view = set()
+                        if objects_in_view_str.lower() != "none":
+                            # Split on commas and clean up each number
+                            object_nums = [num.strip() for num in objects_in_view_str.split(",")]
+                            # Add each valid object to the set
+                            for num in object_nums:
+                                if num in object_map:
+                                    objects_in_view.add(object_map[num])
+                                else:
+                                    self.console.print(f"[yellow]Warning: Invalid object number '{num}' - skipping[/yellow]")
+                                    
+                        # Show summary of collected images and objects
+                        self.console.print("\nSummary for this state:")
+                        self.console.print(f"\nVisible objects ({len(objects_in_view)}):")
+                        for obj in sorted(objects_in_view, key=str):
+                            self.console.print(f"  - {obj}")
+                        self.console.print(f"Images collected ({len(collected_images)}):")
+                        for camera_name in collected_images:
+                            self.console.print(f"  - Camera: {camera_name}")
+                            self.console.print(f"    File: {collected_images[camera_name].rgb_path}")
+                        
                         try:
                             self.save_observation(
                                 state_id=canonical_id,
@@ -251,8 +286,8 @@ def main():
     # Find all subclasses of MockSpotEnv in the module
     mock_env_classes = {}
     for name, obj in inspect.getmembers(sys.modules["predicators.envs.mock_spot_env"]):
-        if inspect.isclass(obj) and issubclass(obj, MockSpotEnv) and obj != MockSpotEnv:
-            mock_env_classes[name] = obj
+        # if inspect.isclass(obj) and issubclass(obj, MockSpotEnv) and obj != MockSpotEnv:
+        mock_env_classes[name] = obj
     
     if not mock_env_classes:
         print("No mock environment classes found!")
