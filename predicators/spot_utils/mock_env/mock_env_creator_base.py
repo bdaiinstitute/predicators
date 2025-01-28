@@ -126,6 +126,21 @@ from predicators.spot_utils.mock_env.mock_env_utils import _SavedMockSpotObserva
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Key predicates that affect observations and world state
+KEY_PREDICATES = {
+    # VLM predicates for world state
+    "Inside",  # Object containment
+    "On",      # Object placement
+    # "Empty",   # Cup emptiness
+    "DrawerOpen",  # Drawer state
+    
+    # View-related predicates
+    # "InHandView",  # Object visible in hand camera
+    # "InNavView",   # Object visible in navigation camera
+    # "HandEmpty",   # Gripper state
+    # "Holding",     # Object being held
+}
+
 class MockEnvCreatorBase(ABC):
     """Base class for mock environment creators.
     
@@ -156,7 +171,7 @@ class MockEnvCreatorBase(ABC):
         console (Console): Rich console for pretty printing
     """
 
-    def __init__(self, output_dir: str, env_info: Dict[str, Any], env: Optional[Any] = None) -> None:
+    def __init__(self, output_dir: str, env_info: Optional[Dict[str, Any]] = None, env: Optional[Any] = None) -> None:
         """Initialize the mock environment creator.
         
         Args:
@@ -164,6 +179,7 @@ class MockEnvCreatorBase(ABC):
             env_info: Environment information
             env: Optional environment instance
         """
+        super().__init__()
         self.output_dir = Path(output_dir)
         self.path_dir = self.output_dir
         self.image_dir = self.output_dir / "images"
@@ -178,12 +194,18 @@ class MockEnvCreatorBase(ABC):
         self.transitions: List[Tuple[str, _GroundNSRT, str]] = []  # (source_id, op, dest_id)
         self.str_transitions: List[Tuple[str, Dict[str, Any], str]] = []  # For saving to JSON
         
-        # Set data directory in config for environment to use
-        utils.reset_config({
-            "mock_env_data_dir": output_dir
-        })
+        # Initialize unique state tracking
+        self._unique_world_states: Dict[str, Set[str]] = {}  # world state hash -> set of state IDs
+        self._state_to_canonical: Dict[str, str] = {}  # state ID -> canonical state ID
+        self._canonical_state_to_id: Dict[str, Set[str]] = {}  # canonical state ID -> set of state IDs
         
-        # Store environment info
+        # Add ground atom to state mappings
+        self._atom_to_states: Dict[str, Set[str]] = {}  # ground atom str -> set of state IDs
+        self._atom_to_canonical_states: Dict[str, Set[str]] = {}  # ground atom str -> set of canonical state IDs
+        
+        # Store key predicates
+        self._key_predicates = KEY_PREDICATES
+
         if env is not None:
             self.types = {t.name: t for t in env.types}
             self.predicates = {p.name: p for p in env.predicates}
@@ -242,7 +264,24 @@ class MockEnvCreatorBase(ABC):
                 fluent_predicates.add(effect.predicate.name)
         return fluent_predicates
 
-    def add_state(self, 
+    def _get_world_state_hash(self, atoms: Set[GroundAtom]) -> str:
+        """Get a hash representing the world state based on key predicates."""
+        # Only consider key predicates for world state
+        key_atoms = self.get_key_predicate_values(atoms)
+        return f"world:{','.join(sorted(str(atom) for atom in key_atoms))}"
+
+    def get_key_predicate_values(self, state_atoms: Set[GroundAtom]) -> Set[GroundAtom]:
+        """Get values of key predicates from a state.
+        
+        Args:
+            state_atoms: Set of ground atoms representing the state
+            
+        Returns:
+            Set of ground atoms for key predicates only
+        """
+        return {atom for atom in state_atoms if atom.predicate.name in self._key_predicates}
+
+    def _save_state(self, 
                  state_id: str,
                  images: Dict[str, UnposedImageWithContext],
                  objects_in_view: Set[Object],
@@ -250,77 +289,122 @@ class MockEnvCreatorBase(ABC):
                  gripper_open: bool = True,
                  atom_dict: Optional[Dict[str, bool]] = None,
                  non_vlm_atom_dict: Optional[Dict[GroundAtom, bool]] = None,
-                 metadata: Optional[Dict[str, Any]] = None) -> None:
-        """Add a state to the environment."""
-        # Create observation
-        obs = _SavedMockSpotObservation(
-            images=images,
-            gripper_open=gripper_open,
-            objects_in_view=objects_in_view,
-            objects_in_hand=objects_in_hand,
-            state_id=state_id,
-            atom_dict=atom_dict or {},
-            non_vlm_atom_dict=non_vlm_atom_dict or {},
-            metadata=metadata or {}
+                 metadata: Optional[Dict[str, Any]] = None,
+                 cover_equivalent_states: bool = True) -> None:
+        """Add a state to the environment.
+        
+        Args:
+            state_id: ID for the state
+            images: Dict of images for this state
+            objects_in_view: Objects visible in the images
+            objects_in_hand: Objects being held
+            gripper_open: Whether gripper is open
+            atom_dict: Optional dict of VLM atom values
+            non_vlm_atom_dict: Optional dict of non-VLM atom values
+            metadata: Optional metadata dict
+            cover_equivalent_states: If True, save data for all equivalent states
+        """
+        # Get all states to save data for
+        states_to_save = set()
+        if cover_equivalent_states:
+            # Get canonical state for this state
+            canonical_id = self._state_to_canonical.get(state_id)
+            if canonical_id is not None:
+                # Add all states that map to this canonical state
+                states_to_save.update(self._canonical_state_to_id[canonical_id])
+        else:
+            # Override state if really want to save this state
+            states_to_save.add(state_id)
+            
+        # Save observation data for each state
+        for curr_state_id in states_to_save:
+            obs = _SavedMockSpotObservation(
+                state_id=curr_state_id,  # Use this state's ID
+                images=images,  # Share the same images
+                gripper_open=gripper_open,
+                non_vlm_atom_dict=non_vlm_atom_dict or {},
+                objects_in_view=objects_in_view,  # Not actively used
+                objects_in_hand=objects_in_hand,  # Not actively used
+                atom_dict=atom_dict or {},  # Not used anymore
+                metadata=metadata or {}
+            )
+            
+            # Save state
+            obs.save_state(self.image_dir)
+            
+            # Track objects and state
+            for obj in objects_in_view | objects_in_hand:
+                self.objects[obj.name] = obj
+            self.states[curr_state_id] = obs
+            
+    def save_observation(self, 
+                            state_id: str,
+                            images: Dict[str, UnposedImageWithContext],
+                            objects_in_view: Set[Object],
+                            objects_in_hand: Set[Object],
+                            gripper_open: bool = True) -> None:
+        """Add observational data for a known state.
+        
+        Args:
+            state_id: ID of an existing state in the transition graph
+            images: RGB-D images for this state
+            objects_in_view: Objects visible in the images
+            objects_in_hand: Objects being held
+            gripper_open: Whether gripper is open
+            
+        Note:
+            We use a closed world assumption for non-VLM predicates. This means:
+            - All possible ground atoms for GroundTruthPredicates are explicitly stored
+            - If a ground atom is in state_atoms, its value is True
+            - If a ground atom is not in state_atoms, its value is False
+            - There are no "unknown" values for non-VLM predicates
+        """
+        if state_id not in self.id_to_state:
+            raise ValueError(f"State {state_id} not found in transition graph")
+            
+        # Create observation with ground atoms from known state
+        state_atoms = self.id_to_state[state_id]
+        
+        # Get all possible ground atoms for GroundTruthPredicates
+        ground_truth_preds = {p for p in self.predicates.values() 
+                            if isinstance(p, GroundTruthPredicate)}
+        # NOTE: We add the robot object to the list of objects because it may not be in the objects dict
+        objects = list(self.objects.values())
+        if self.robot_object not in objects:
+            objects.append(self.robot_object)
+            
+        all_ground_atoms = utils.get_all_ground_atom_combinations_for_predicate_set(
+            objects, cast(Set[Predicate], ground_truth_preds)
         )
         
-        # Save state
-        obs.save_state(self.image_dir)
+        # Create dictionary with True/False values based on closed world assumption
+        non_vlm_atoms = {atom: (atom in state_atoms) for atom in all_ground_atoms}
         
-        # Track objects and state
-        for obj in objects_in_view | objects_in_hand:
-            self.objects[obj.name] = obj
-        self.states[state_id] = obs
+        self._save_state(state_id=state_id, images=images, objects_in_view=objects_in_view, 
+                       objects_in_hand=objects_in_hand, gripper_open=gripper_open, 
+                       atom_dict={}, non_vlm_atom_dict=non_vlm_atoms, metadata={})
         
-    def process_rgb_image(self, image_path: str) -> np.ndarray:
-        """Process an RGB image file.
+        # # Create observation
+        # obs = _SavedMockSpotObservation(
+        #     images=images,
+        #     gripper_open=gripper_open,
+        #     objects_in_view=objects_in_view,
+        #     objects_in_hand=objects_in_hand,
+        #     state_id=state_id,
+        #     atom_dict={},  # Not used anymore
+        #     non_vlm_atom_dict=non_vlm_atoms,
+        #     metadata={}
+        # )
         
-        Args:
-            image_path: Path to RGB image file (supports .jpg, .png, .heic)
-            
-        Returns:
-            RGB array (H, W, 3) in uint8 format
-            
-        Raises:
-            RuntimeError: If image loading fails
-        """
-        try:
-            # Check if file is HEIC
-            if image_path.lower().endswith('.heic'):
-                # Read HEIC file and convert to PIL Image
-                heif_file = pillow_heif.read_heif(image_path)
-                image = heif_file.to_pillow()
-                # Convert to numpy array
-                rgb = np.array(image)
-            else:
-                # Use matplotlib for other formats
-                rgb = plt.imread(image_path)
-                
-            if rgb.dtype == np.float32:
-                rgb = (rgb * 255).astype(np.uint8)
-            return rgb
-        except Exception as e:
-            raise RuntimeError(f"Failed to load RGB image from {image_path}: {e}")
-
-    def process_depth_image(self, image_path: str) -> np.ndarray:
-        """Process a depth image file.
+        # # Save observation
+        # obs.save_state(self.image_dir)
         
-        Args:
-            image_path: Path to depth image file
+        # # Track objects
+        # for obj in objects_in_view | objects_in_hand:
+        #     self.objects[obj.name] = obj
             
-        Returns:
-            Depth array (H, W) in float32 format
-            
-        Raises:
-            RuntimeError: If image loading fails
-        """
-        try:
-            depth = np.load(image_path)  # Assuming depth is saved as .npy
-            if depth.dtype != np.float32:
-                depth = depth.astype(np.float32)
-            return depth
-        except Exception as e:
-            raise RuntimeError(f"Failed to load depth image from {image_path}: {e}")
+        # # Store observation
+        # self.states[state_id] = obs
 
     def add_state_from_raw_images(
         self,
@@ -388,7 +472,7 @@ class MockEnvCreatorBase(ABC):
             raise ValueError(f"State {state_id} not found in transition graph")
 
         # Add observation data for the state
-        self.add_state_observation(
+        self.save_observation(
             state_id=state_id,
             images=images,
             objects_in_view=objects_in_view or set(),
@@ -397,22 +481,28 @@ class MockEnvCreatorBase(ABC):
         )
 
     def load_state(self, state_id: str) -> _SavedMockSpotObservation:
-        """Load a state's observation.
+        """Load a state from disk.
         
         Args:
-            state_id: ID of state to load
+            state_id: ID of the state to load
             
         Returns:
-            SavedMockSpotObservation for the state
+            The state observation data
+            
+        Raises:
+            ValueError: If state cannot be loaded
         """
-        # Return cached state if available
+        # First check if state is already loaded
         if state_id in self.states:
             return self.states[state_id]
-        
-        # Load state from disk
-        obs = _SavedMockSpotObservation.load_state(state_id, self.image_dir, self.objects)
-        self.states[state_id] = obs
-        return obs
+            
+        # Load state using _SavedMockSpotObservation's load_state
+        try:
+            obs = _SavedMockSpotObservation.load_state(state_id, self.image_dir, self.objects)
+            self.states[state_id] = obs
+            return obs
+        except Exception as e:
+            raise ValueError(f"Error loading state {state_id}: {str(e)}")
 
     def save_plan(self, plan: List[Any], states: List[Set[GroundAtom]], 
                  init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
@@ -899,6 +989,56 @@ class MockEnvCreatorBase(ABC):
         # Save graph
         graph_path = self.transitions_dir / f"{task_name}"
         dot.render(graph_path, format='png', cleanup=True)
+        
+    def process_rgb_image(self, image_path: str) -> np.ndarray:
+        """Process an RGB image file.
+        
+        Args:
+            image_path: Path to RGB image file (supports .jpg, .png, .heic)
+            
+        Returns:
+            RGB array (H, W, 3) in uint8 format
+            
+        Raises:
+            RuntimeError: If image loading fails
+        """
+        try:
+            # Check if file is HEIC
+            if image_path.lower().endswith('.heic'):
+                # Read HEIC file and convert to PIL Image
+                heif_file = pillow_heif.read_heif(image_path)
+                image = heif_file.to_pillow()
+                # Convert to numpy array
+                rgb = np.array(image)
+            else:
+                # Use matplotlib for other formats
+                rgb = plt.imread(image_path)
+                
+            if rgb.dtype == np.float32:
+                rgb = (rgb * 255).astype(np.uint8)
+            return rgb
+        except Exception as e:
+            raise RuntimeError(f"Failed to load RGB image from {image_path}: {e}")
+
+    def process_depth_image(self, image_path: str) -> np.ndarray:
+        """Process a depth image file.
+        
+        Args:
+            image_path: Path to depth image file
+            
+        Returns:
+            Depth array (H, W) in float32 format
+            
+        Raises:
+            RuntimeError: If image loading fails
+        """
+        try:
+            depth = np.load(image_path)  # Assuming depth is saved as .npy
+            if depth.dtype != np.float32:
+                depth = depth.astype(np.float32)
+            return depth
+        except Exception as e:
+            raise RuntimeError(f"Failed to load depth image from {image_path}: {e}")
 
     def _check_operator_preconditions(self, state_atoms: Set[GroundAtom], operator: _GroundNSRT) -> bool:
         """Check if operator preconditions are satisfied in the current state."""
@@ -1031,7 +1171,8 @@ class MockEnvCreatorBase(ABC):
         return str(hash(frozenset(str(a) for a in atoms)))
 
     def explore_states(self, init_atoms: Set[GroundAtom], objects: Set[Object]) -> None:
-        """Internally explore and store all reachable states and transitions."""
+        """Internally explore and store all reachable states and transitions.
+        Also identifies canonical states based on key predicates."""
         # Start with initial state
         init_state_frozen = frozenset(init_atoms)
         init_id = "0"  # Use integer ID
@@ -1047,6 +1188,21 @@ class MockEnvCreatorBase(ABC):
             curr_atoms, _ = frontier.pop(0)
             curr_id = self.state_to_id[frozenset(curr_atoms)]
             
+            # Get current state's key predicate values
+            curr_key_atoms = self.get_key_predicate_values(curr_atoms)
+            curr_hash = self._get_world_state_hash(curr_key_atoms)
+            
+            # Map to canonical state if needed
+            if curr_hash in self._unique_world_states:
+                canonical_id = next(iter(self._unique_world_states[curr_hash]))
+                self._state_to_canonical[curr_id] = canonical_id
+                self._canonical_state_to_id[canonical_id].add(curr_id)
+            else:
+                # This is a new canonical state
+                self._unique_world_states[curr_hash] = {curr_id}
+                self._state_to_canonical[curr_id] = curr_id
+                self._canonical_state_to_id[curr_id] = {curr_id}
+            
             # Get applicable operators
             applicable_ops = self._get_applicable_operators(curr_atoms, objects)
             
@@ -1057,80 +1213,15 @@ class MockEnvCreatorBase(ABC):
                 # Add new state if not seen
                 if next_frozen not in visited:
                     visited.add(next_frozen)
-                    next_id = str(state_count)  # Use integer ID
+                    next_id = str(state_count)
                     state_count += 1
                     self.state_to_id[next_frozen] = next_id
                     self.id_to_state[next_id] = next_atoms
-                    frontier.append((next_atoms, next_id))  # next_id is Optional[str]
+                    frontier.append((next_atoms, next_id))
                 
                 # Add transition
                 next_id = self.state_to_id[next_frozen]
-                # self.transitions.append((curr_id, op, next_id))  # source_id, op, dest_id
                 self.add_transition(curr_id, op, next_id)
-
-    def add_state_observation(self, 
-                            state_id: str,
-                            images: Dict[str, UnposedImageWithContext],
-                            objects_in_view: Set[Object],
-                            objects_in_hand: Set[Object],
-                            gripper_open: bool = True) -> None:
-        """Add observational data for a known state.
-        
-        Args:
-            state_id: ID of an existing state in the transition graph
-            images: RGB-D images for this state
-            objects_in_view: Objects visible in the images
-            objects_in_hand: Objects being held
-            gripper_open: Whether gripper is open
-            
-        Note:
-            We use a closed world assumption for non-VLM predicates. This means:
-            - All possible ground atoms for GroundTruthPredicates are explicitly stored
-            - If a ground atom is in state_atoms, its value is True
-            - If a ground atom is not in state_atoms, its value is False
-            - There are no "unknown" values for non-VLM predicates
-        """
-        if state_id not in self.id_to_state:
-            raise ValueError(f"State {state_id} not found in transition graph")
-            
-        # Create observation with ground atoms from known state
-        state_atoms = self.id_to_state[state_id]
-        
-        # Get all possible ground atoms for GroundTruthPredicates
-        ground_truth_preds = {p for p in self.predicates.values() 
-                            if isinstance(p, GroundTruthPredicate)}
-        # NOTE: We add the robot object to the list of objects because it may not be in the objects dict
-        objects = list(self.objects.values())
-        if self.robot_object not in objects:
-            objects.append(self.robot_object)
-            
-        all_ground_atoms = utils.get_all_ground_atom_combinations_for_predicate_set(
-            objects, cast(Set[Predicate], ground_truth_preds))
-        
-        # Create dictionary with True/False values based on closed world assumption
-        non_vlm_atoms = {atom: (atom in state_atoms) for atom in all_ground_atoms}
-        
-        # Create observation
-        obs = _SavedMockSpotObservation(
-            images=images,
-            gripper_open=gripper_open,
-            objects_in_view=objects_in_view,
-            objects_in_hand=objects_in_hand,
-            state_id=state_id,
-            atom_dict={},  # Not used anymore
-            non_vlm_atom_dict=non_vlm_atoms,
-            metadata={}
-        )
-        
-        # Save observation
-        obs.save_state(self.image_dir)
-        
-        # Track objects
-        for obj in objects_in_view | objects_in_hand:
-            self.objects[obj.name] = obj
-            
-        # Store observation
-        self.states[state_id] = obs
 
     def _get_applicable_operators(self, atoms: Set[GroundAtom], objects: Set[Object]) -> List[_GroundNSRT]:
         """Get applicable operators for the given atoms and objects."""
@@ -1427,7 +1518,7 @@ class MockEnvCreatorBase(ABC):
 
     def save_transitions(self, save_plan: bool = True, init_atoms: Optional[Set[GroundAtom]] = None, 
                         goal_atoms: Optional[Set[GroundAtom]] = None) -> None:
-        """Save the transition system to a YAML file.
+        """Save the transition system and state mapping to a YAML file.
         
         The transition system includes:
         1. Objects with their types and parent types
@@ -1435,6 +1526,11 @@ class MockEnvCreatorBase(ABC):
         3. Transitions between states
         4. Metadata about predicates and types
         5. Optimal path information (if save_plan=True)
+        6. State mapping information including:
+           - Canonical state mappings
+           - Unique view and world states
+           - Atom to state mappings
+           - Key atoms
         
         Args:
             save_plan: Whether to save optimal path information
@@ -1506,10 +1602,109 @@ class MockEnvCreatorBase(ABC):
                     "goal_state_id": self.state_to_id[frozenset(states[-1])]
                 }
         
+        # Add state mapping data
+        system_data["state_mapping"] = {
+            "state_to_canonical": self._state_to_canonical,
+            "canonical_state_to_id": {k: list(v) for k, v in self._canonical_state_to_id.items()},
+            "unique_view_states": {k: list(v) for k, v in self._unique_world_states.items()},
+            "unique_world_states": {k: list(v) for k, v in self._unique_world_states.items()},
+            "atom_to_states": {k: list(v) for k, v in self._atom_to_states.items()},
+            "atom_to_canonical_states": {k: list(v) for k, v in self._atom_to_canonical_states.items()},
+            "key_predicates": list(self._key_predicates)  # Save key predicates instead of atoms
+        }
+        
         # Save to YAML file
         output_path = self.output_dir / "transition_system.yaml"
         with open(output_path, 'w') as f:
             yaml.dump(system_data, f, default_flow_style=False, sort_keys=False)
+
+    def load_state_mapping(self) -> None:
+        """Load the state mapping from the transition system YAML file."""
+        transition_path = self.output_dir / "transition_system.yaml"
+        if not transition_path.exists():
+            return
+            
+        with open(transition_path) as f:
+            system_data = yaml.safe_load(f)
+            
+        if "state_mapping" not in system_data:
+            return
+            
+        mapping_data = system_data["state_mapping"]
+        self._state_to_canonical = mapping_data["state_to_canonical"]
+        self._canonical_state_to_id = {k: set(v) for k, v in mapping_data["canonical_state_to_id"].items()}
+        self._unique_world_states = {k: set(v) for k, v in mapping_data["unique_view_states"].items()}
+        self._atom_to_states = {k: set(v) for k, v in mapping_data["atom_to_states"].items()}
+        self._atom_to_canonical_states = {k: set(v) for k, v in mapping_data["atom_to_canonical_states"].items()}
+        # Load key predicates if available, otherwise use default
+        self._key_predicates = set(mapping_data.get("key_predicates", KEY_PREDICATES))
+
+    def get_unique_states(self) -> Iterator[Tuple[str, Set[str]]]:
+        """Get iterator over unique states and their equivalent states.
+        
+        Returns:
+            Iterator yielding (canonical_id, set of equivalent state IDs)
+        """
+        for canonical_id, equivalent_ids in self._canonical_state_to_id.items():
+            yield canonical_id, equivalent_ids
+
+    def get_states_with_atom(self, atom: Union[GroundAtom, str]) -> Set[str]:
+        """Get all states that have a particular ground atom.
+        
+        Args:
+            atom: Ground atom or its string representation
+            
+        Returns:
+            Set of state IDs where the atom is true
+        """
+        atom_str = str(atom)
+        return self._atom_to_states.get(atom_str, set())
+
+    def get_canonical_states_with_atom(self, atom: Union[GroundAtom, str]) -> Set[str]:
+        """Get all canonical states that have a particular ground atom.
+        
+        Args:
+            atom: Ground atom or its string representation
+            
+        Returns:
+            Set of canonical state IDs where the atom is true
+        """
+        atom_str = str(atom)
+        return self._atom_to_canonical_states.get(atom_str, set())
+
+    def get_key_atoms(self) -> Set[str]:
+        """Get all key atoms that are being tracked.
+        
+        These are atoms whose predicates are in KEY_PREDICATES.
+        """
+        return self._key_predicates
+
+    def add_key_atom(self, atom: Union[GroundAtom, str]) -> None:
+        """Add a key atom to track.
+        
+        Only adds the atom if its predicate is in KEY_PREDICATES.
+        
+        Args:
+            atom: Ground atom or its string representation to track
+        """
+        # Convert to string if needed
+        atom_str = str(atom) if isinstance(atom, GroundAtom) else atom
+        
+        # Only add if the predicate is a key predicate
+        predicate_name = atom_str.split("(")[0]
+        if predicate_name in self._key_predicates:
+            self._key_atoms.add(atom_str)
+            
+    def is_key_predicate(self, predicate_name: str) -> bool:
+        """Check if a predicate is a key predicate.
+        
+        Args:
+            predicate_name: Name of the predicate to check
+            
+        Returns:
+            True if the predicate is in KEY_PREDICATES
+        """
+        return predicate_name in self._key_predicates
 
 def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
                                 task_name: str,
@@ -1585,4 +1780,83 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: Pa
     
     # Write HTML file
     with open(output_path, 'w') as f:
-        f.write(html_content) 
+        f.write(html_content)
+
+# def main():
+#     """CLI interface for mapping images to states."""
+#     import argparse
+    
+#     parser = argparse.ArgumentParser(description="Map images to states for mock environment")
+#     parser.add_argument("--output_dir", type=str, required=True,
+#                        help="Directory to store environment data")
+#     parser.add_argument("--image_dir", type=str, required=True,
+#                        help="Directory containing raw images")
+#     parser.add_argument("--env_name", type=str, required=True,
+#                        help="Name of environment to use (e.g., mock_spot_drawer_cleaning)")
+    
+#     args = parser.parse_args()
+    
+#     # Import environment dynamically
+#     from importlib import import_module
+#     env_module = import_module("predicators.envs." + args.env_name)
+#     env_class = getattr(env_module, args.env_name.title().replace("_", ""))
+#     env = env_class()
+    
+#     # Create environment creator
+#     creator = MockEnvCreatorBase(args.output_dir, env=env)
+    
+#     # Load existing state mapping if it exists
+#     creator.load_state_mapping()
+    
+#     # Get list of image files
+#     image_dir = Path(args.image_dir)
+#     image_files = sorted(list(image_dir.glob("*.HEIC")))
+    
+#     if not image_files:
+#         print("No HEIC images found in directory")
+#         return
+        
+#     # Show available states
+#     print("\nAvailable states:")
+#     for canonical_id, equivalent_ids in creator.get_unique_states():
+#         print(f"State {canonical_id} (equivalent to {equivalent_ids})")
+#         state = creator.load_state(canonical_id)
+#         print(f"  Objects in view: {[obj.name for obj in state.objects_in_view]}")
+#         print(f"  Objects in hand: {[obj.name for obj in state.objects_in_hand]}")
+#         print(f"  Gripper open: {state.gripper_open}")
+#         print()
+    
+#     # Process each image
+#     for img_file in image_files:
+#         print(f"\nProcessing {img_file.name}")
+        
+#         # Show image info
+#         print(f"Image size: {img_file.stat().st_size / 1024:.1f} KB")
+        
+#         # Get state ID from user
+#         while True:
+#             state_id = input("Enter state ID to map this image to (or 'skip' to skip): ")
+#             if state_id == "skip":
+#                 break
+                
+#             if state_id not in creator.id_to_state:
+#                 print("Invalid state ID")
+#                 continue
+                
+#             # Add image to state
+#             creator.add_state_from_raw_images(
+#                 raw_images={"cam1.seed0.rgb": (str(img_file), "rgb")},
+#                 state_id=state_id,
+#                 objects_in_view=creator.load_state(state_id).objects_in_view,
+#                 objects_in_hand=creator.load_state(state_id).objects_in_hand,
+#                 gripper_open=creator.load_state(state_id).gripper_open
+#             )
+#             print(f"Added image to state {state_id}")
+#             break
+    
+#     # Save transitions (which now includes state mapping)
+#     creator.save_transitions()
+#     print("\nSaved transition system with state mapping")
+
+# if __name__ == "__main__":
+#     main() 
