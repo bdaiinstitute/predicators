@@ -54,13 +54,7 @@ def test_create_two_cup_pick_place_transition_graph():
     env = MockSpotPickPlaceTwoCupEnv()
     
     # Create environment creator with pick-place specific env
-    creator = MockEnvCreatorBase(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts,
-        "objects": env.objects
-    })
+    creator = MockEnvCreatorBase(test_dir, env=env)
     
     # Plan and visualize transitions
     name = f'Transition Graph, {env.name.replace("_", " ").title()}'
@@ -108,13 +102,7 @@ def test_two_cup_pick_place_with_phone_images():
     env = MockSpotPickPlaceTwoCupEnv()
     
     # Create environment creator with pick-place specific env
-    creator = MockEnvCreatorBase(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts,
-        "objects": env.objects
-    })
+    creator = MockEnvCreatorBase(test_dir, env=env)
     
     # Plan and visualize transitions
     name = f'Transition Graph, {env.name.replace("_", " ").title()}'
@@ -245,17 +233,7 @@ def test_load_saved_two_cup_phone():
     env = MockSpotPickPlaceTwoCupEnv()
     
     # Create environment creator for loading
-    creator = MockEnvCreatorBase(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts,
-        "objects": env.objects
-    })
-    
-    # # Initialize objects in creator
-    # for obj in env.objects:
-    #     creator.objects[obj.name] = obj
+    creator = MockEnvCreatorBase(test_dir, env=env)
     
     # Get total number of states from saved data
     image_dir = Path(test_dir) / "images"
@@ -276,7 +254,7 @@ def test_load_saved_two_cup_phone():
             
             # Print state info
             rprint(f"[green]State {state_id} loaded:[/green]")
-            rprint(f"  Images: {loaded_state.images}")
+            rprint(f"  Images: {loaded_state.images.keys() if loaded_state.images else 'None'}")
             rprint(f"  Objects in view: {loaded_state.objects_in_view}")
             rprint(f"  Objects in hand: {loaded_state.objects_in_hand}")
             rprint(f"  Gripper open: {loaded_state.gripper_open}")
