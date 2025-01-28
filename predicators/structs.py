@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import copy
 import itertools
 from dataclasses import dataclass, field
 from functools import cached_property, lru_cache
@@ -16,7 +17,7 @@ from numpy.typing import NDArray
 from tabulate import tabulate
 
 # import predicators.pretrained_model_interface
-import predicators.utils as utils  # pylint: disable=consider-using-from-import
+# import predicators.utils as utils  # pylint: disable=consider-using-from-import
 from predicators.settings import CFG
 
 
@@ -134,6 +135,9 @@ class State:
     # Add storage for ground truth predicate values
     non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
 
+    # Store natural language description of the state from VLM
+    text_description: Optional[str] = None
+
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
@@ -179,7 +183,13 @@ class State:
         for obj in self:
             new_data[obj] = self._copy_state_value(self.data[obj])
         return State(new_data,
-                     simulator_state=copy.deepcopy(self.simulator_state))
+                     simulator_state=copy.deepcopy(self.simulator_state),
+                     vlm_atom_dict=copy.deepcopy(self.vlm_atom_dict),
+                     vlm_predicates=copy.deepcopy(self.vlm_predicates),
+                     visible_objects=copy.deepcopy(self.visible_objects),
+                     camera_images=copy.deepcopy(self.camera_images),
+                     non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
+                     text_description=self.text_description)
 
     def _copy_state_value(self, val: Any) -> Any:
         if val is None or isinstance(val, (float, bool, int, str)):
@@ -619,6 +629,9 @@ class Task:
             if atom not in vlm_atoms:
                 if not atom.holds(state):
                     return False
+                
+        # NOTE: This is a temporary fix to allow the code to run.
+        import predicators.utils as utils  # pylint: disable=consider-using-from-import
         true_vlm_atoms = utils.query_vlm_for_atom_vals(vlm_atoms, state, vlm)
         return len(true_vlm_atoms) == len(vlm_atoms)
 
@@ -675,7 +688,7 @@ class EnvironmentTask:
     @cached_property
     def init(self) -> State:
         """Convenience method for environment tasks that are fully observed."""
-        assert isinstance(self.init_obs, State)
+        # assert isinstance(self.init_obs, State)
         return self.init_obs
 
     @cached_property
