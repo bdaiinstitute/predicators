@@ -35,12 +35,13 @@ def create_base_command(seed: int = 0) -> List[str]:
         "--env", "mock_spot_pick_place_two_cup",
         "--seed", str(seed),
         "--perceiver", "mock_spot_perceiver",
-        "--mock_env_vlm_eval_predicate", "True",
+        # "--mock_env_vlm_eval_predicate", "True",
         "--num_train_tasks", "0",
         "--num_test_tasks", "1",
-        "--log_rich", "True",
+        # "--log_rich", "True",
         "--bilevel_plan_without_sim", "True",
-        "--horizon", "20"
+        "--horizon", "20",
+        "--load_approach",
     ]
 
 def run_command(cmd: List[str], name: str) -> None:
@@ -100,6 +101,7 @@ def main(args: argparse.Namespace) -> None:
                 "--random_options_max_tries", "1000",
                 "--max_num_steps_option_rollout", "100",
                 "--timeout", "60"
+                "--horizon", "20",  # NOTE: should need more steps, but need to decide one
             ]
         },
         {
@@ -116,7 +118,8 @@ def main(args: argparse.Namespace) -> None:
                 "--approach", "llm_open_loop",
                 "--llm_model_name", "gpt-4o",
                 "--llm_temperature", "0.2",
-                "--execution_monitor", "mpc"
+                # "--execution_monitor", "mpc"
+                "--execution_monitor", "expected_atoms"
             ]
         },
         {
@@ -133,7 +136,8 @@ def main(args: argparse.Namespace) -> None:
                 "--approach", "vlm_open_loop",
                 "--vlm_model_name", "gpt-4o",
                 "--llm_temperature", "0.2",
-                "--execution_monitor", "mpc"
+                # "--execution_monitor", "mpc"
+                "--execution_monitor", "expected_atoms"
             ]
         },
         {
@@ -153,8 +157,8 @@ def main(args: argparse.Namespace) -> None:
             continue
             
         cmd = base_cmd + planner["args"]
-        if args.load_approach:
-            cmd.append("--load_approach")
+        # if args.load_approach:
+        #     cmd.append("--load_approach")
         run_command(cmd, planner["name"])
 
 def parse_args() -> argparse.Namespace:
@@ -165,8 +169,8 @@ def parse_args() -> argparse.Namespace:
                        help="Random seed")
     parser.add_argument("--planner", type=str,
                        help="Run only this planner (by name)")
-    parser.add_argument("--load_approach", action="store_true",
-                       help="Load saved approach")
+    # parser.add_argument("--load_approach", action="store_true",
+    #                    help="Load saved approach")
     return parser.parse_args()
 
 if __name__ == "__main__":
