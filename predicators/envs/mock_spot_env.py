@@ -891,7 +891,7 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
     """A mock environment for testing drawer cleaning with two cups."""
     
     # Set the preset data directory
-    preset_data_dir = os.path.join("mock_env_data", "task_phone_drawer_cleaning")
+    preset_data_dir = os.path.join("mock_env_data", "saved_task_phone_drawer_cleaning")
 
     @classmethod
     def get_name(cls) -> str:
@@ -910,15 +910,30 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
         self.red_cup = Object("red_cup", _movable_object_type)
         self.blue_cup = Object("blue_cup", _movable_object_type)
         
-        # Set up initial state
-        self._objects = {
-            "robot": self.robot,
-            "drawer": self.drawer,
-            "container": self.container,
-            "red_cup": self.red_cup,
-            "blue_cup": self.blue_cup
-        }
-        self._set_initial_state_and_goal()
+        self.oracle_env = False
+        
+        if self.oracle_env:
+            # Set up initial state
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+                "red_cup": self.red_cup,
+                "blue_cup": self.blue_cup
+            }
+            self._set_initial_state_and_goal()
+        else:
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+            }
+            self._objects_oracle = self._objects | {
+                "red_cup": self.red_cup,
+                "blue_cup": self.blue_cup
+            }
+            # FIXME: for agent with partial observability, we need to set up initial state and goal
+            self._set_initial_state_and_goal()
     
     def _set_initial_state_and_goal(self) -> None:
         """Set up initial state and goal atoms."""
@@ -968,11 +983,21 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
             GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
         }
         
-        self.goal_atoms = {
-            GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
-            GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
-            GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
-        }
+        
+        GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
+        
+        if self.oracle_env:
+            self.goal_atoms = {
+                GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
+                GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
+                GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
+            }
+        else:
+            self.goal_atoms_list = [
+                    {
+                    GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
+                }
+            ]
     
     def _create_operators(self) -> Iterator[STRIPSOperator]:
         """Create STRIPS operators specific to drawer cleaning tasks."""
@@ -991,7 +1016,14 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
             "OpenDrawer",
             "CloseDrawer"
         }
-        
+
+        if not self.oracle_env:
+            op_names_to_keep.update({
+                # TODO check
+                "ObserveObject",
+                "ObserveObjectInContainer"
+            })
+            
         # Filter operators
         for op in all_operators:
             if op.name in op_names_to_keep:
