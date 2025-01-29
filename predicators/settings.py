@@ -468,7 +468,10 @@ Solution:"""
     use_hardcoded_vlm_atom_proposals = False
     vlm_double_check_output = False
     # VLM text perceiver settings
-    vlm_text_perceiver_prompt = """Describe the scene in detail, focusing on:
+    vlm_text_perceiver_prompt = """
+    This is a history of in-order observations resulting from partial execution of a task.
+    
+    Describe the current state in detail, focusing on:
 1. Objects present and their properties (color, size, shape)
 2. Spatial relationships between objects (on, in, next to, etc.)
 3. Any relevant state information (open/closed, empty/full, etc.)
@@ -489,7 +492,7 @@ Be specific and precise in your description."""
     vlm_max_image_tokens = 1000
     fm_planning_with_oracle_nsrts = True  # Whether to use oracle NSRTs in VLM/LLM planning
     # Image history settings
-    vlm_enable_image_history = False  # Whether to maintain history of images in state
+    vlm_enable_image_history = True  # Whether to maintain history of images in state
     vlm_max_history_steps = 5  # Maximum number of previous steps to keep in history
     vlm_max_images_per_prompt = 10  # Maximum number of images to include in a single VLM prompt
 

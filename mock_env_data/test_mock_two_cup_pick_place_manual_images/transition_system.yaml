@@ -1,0 +1,464 @@
+objects:
+  table:
+    type: immovable_object
+    parent_type: base_object
+  cup2:
+    type: container
+    parent_type: movable_object
+  target:
+    type: container
+    parent_type: movable_object
+  cup1:
+    type: container
+    parent_type: movable_object
+  robot:
+    type: robot
+    parent_type: null
+states:
+  '0':
+    atoms:
+    - NotHolding(robot:robot, cup2:container)
+    - On(target:container, table:immovable_object)
+    - NotBlocked(cup1:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - IsPlaceable(cup2:container)
+    - On(cup1:container, table:immovable_object)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - NEq(cup1:container, table:immovable_object)
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - HandEmpty(robot:robot)
+    - NotInsideAnyContainer(cup1:container)
+    - NEq(cup1:container, cup2:container)
+    - IsPlaceable(cup1:container)
+    - InHandView(robot:robot, cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - InHandView(robot:robot, cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - FitsInXY(cup1:container, target:container)
+    - NotHolding(robot:robot, cup1:container)
+    - On(cup2:container, table:immovable_object)
+    fluent_atoms:
+    - NotHolding(robot:robot, cup2:container)
+    - On(target:container, table:immovable_object)
+    - NotHolding(robot:robot, target:container)
+    - On(cup1:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - HandEmpty(robot:robot)
+    - NotInsideAnyContainer(cup1:container)
+    - InHandView(robot:robot, cup1:container)
+    - InHandView(robot:robot, cup2:container)
+    - NotHolding(robot:robot, cup1:container)
+    - On(cup2:container, table:immovable_object)
+  '1':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - Holding(robot:robot, cup1:container)
+    - NotBlocked(target:container)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - NEq(cup1:container, cup2:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - InHandView(robot:robot, cup2:container)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    - On(cup2:container, table:immovable_object)
+    fluent_atoms:
+    - Holding(robot:robot, cup1:container)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - NotHolding(robot:robot, target:container)
+    - InHandView(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup2:container)
+    - On(cup2:container, table:immovable_object)
+  '2':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - NEq(cup1:container, cup2:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - InHandView(robot:robot, cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NotHolding(robot:robot, cup1:container)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - Holding(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - On(cup1:container, table:immovable_object)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    fluent_atoms:
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - InHandView(robot:robot, cup1:container)
+    - NotHolding(robot:robot, cup1:container)
+    - Holding(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - On(cup1:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+  '3':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - NotHolding(robot:robot, cup2:container)
+    - HandEmpty(robot:robot)
+    - On(target:container, table:immovable_object)
+    - NEq(cup1:container, cup2:container)
+    - Inside(cup1:container, target:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NotHolding(robot:robot, cup1:container)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - InHandView(robot:robot, cup2:container)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    - On(cup2:container, table:immovable_object)
+    fluent_atoms:
+    - NotHolding(robot:robot, cup2:container)
+    - HandEmpty(robot:robot)
+    - On(target:container, table:immovable_object)
+    - Inside(cup1:container, target:container)
+    - NotHolding(robot:robot, cup1:container)
+    - NotHolding(robot:robot, target:container)
+    - InHandView(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup2:container)
+    - On(cup2:container, table:immovable_object)
+  '4':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - HandEmpty(robot:robot)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - NEq(cup1:container, cup2:container)
+    - Inside(cup2:container, target:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - InHandView(robot:robot, cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - On(cup1:container, table:immovable_object)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NotHolding(robot:robot, cup1:container)
+    fluent_atoms:
+    - HandEmpty(robot:robot)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - Inside(cup2:container, target:container)
+    - InHandView(robot:robot, cup1:container)
+    - NotHolding(robot:robot, target:container)
+    - On(cup1:container, table:immovable_object)
+    - NotHolding(robot:robot, cup1:container)
+  '5':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - NEq(cup1:container, cup2:container)
+    - On(target:container, table:immovable_object)
+    - Inside(cup1:container, target:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - Holding(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NotInsideAnyContainer(cup2:container)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NotHolding(robot:robot, cup1:container)
+    fluent_atoms:
+    - On(target:container, table:immovable_object)
+    - Inside(cup1:container, target:container)
+    - Holding(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - NotInsideAnyContainer(cup2:container)
+    - NotHolding(robot:robot, cup1:container)
+  '6':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - Holding(robot:robot, cup1:container)
+    - NotBlocked(target:container)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - NEq(cup1:container, cup2:container)
+    - Inside(cup2:container, target:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    fluent_atoms:
+    - Holding(robot:robot, cup1:container)
+    - NotHolding(robot:robot, cup2:container)
+    - NotInsideAnyContainer(cup1:container)
+    - On(target:container, table:immovable_object)
+    - Inside(cup2:container, target:container)
+    - NotHolding(robot:robot, target:container)
+  '7':
+    atoms:
+    - Reachable(robot:robot, cup1:container)
+    - Reachable(robot:robot, target:container)
+    - NotBlocked(target:container)
+    - HandEmpty(robot:robot)
+    - NotHolding(robot:robot, cup2:container)
+    - NEq(cup1:container, cup2:container)
+    - On(target:container, table:immovable_object)
+    - Inside(cup1:container, target:container)
+    - Inside(cup2:container, target:container)
+    - NotBlocked(cup1:container)
+    - IsPlaceable(cup1:container)
+    - Reachable(robot:robot, table:immovable_object)
+    - NotHolding(robot:robot, cup1:container)
+    - NEq(cup2:container, target:container)
+    - NEq(cup1:container, target:container)
+    - Reachable(robot:robot, cup2:container)
+    - NotHolding(robot:robot, target:container)
+    - IsPlaceable(cup2:container)
+    - FitsInXY(cup2:container, target:container)
+    - HasFlatTopSurface(table:immovable_object)
+    - NEq(cup2:container, table:immovable_object)
+    - NEq(target:container, table:immovable_object)
+    - NotBlocked(cup2:container)
+    - FitsInXY(cup1:container, target:container)
+    - NEq(cup1:container, table:immovable_object)
+    fluent_atoms:
+    - HandEmpty(robot:robot)
+    - NotHolding(robot:robot, cup2:container)
+    - On(target:container, table:immovable_object)
+    - Inside(cup1:container, target:container)
+    - Inside(cup2:container, target:container)
+    - NotHolding(robot:robot, cup1:container)
+    - NotHolding(robot:robot, target:container)
+transitions:
+- !!python/tuple
+  - '0'
+  - name: PickObjectFromTop
+    objects:
+    - robot
+    - cup1
+    - table
+  - '1'
+- !!python/tuple
+  - '0'
+  - name: PickObjectFromTop
+    objects:
+    - robot
+    - cup2
+    - table
+  - '2'
+- !!python/tuple
+  - '1'
+  - name: DropObjectInside
+    objects:
+    - robot
+    - cup1
+    - target
+  - '3'
+- !!python/tuple
+  - '2'
+  - name: DropObjectInside
+    objects:
+    - robot
+    - cup2
+    - target
+  - '4'
+- !!python/tuple
+  - '3'
+  - name: PickObjectFromTop
+    objects:
+    - robot
+    - cup2
+    - table
+  - '5'
+- !!python/tuple
+  - '4'
+  - name: PickObjectFromTop
+    objects:
+    - robot
+    - cup1
+    - table
+  - '6'
+- !!python/tuple
+  - '5'
+  - name: DropObjectInside
+    objects:
+    - robot
+    - cup2
+    - target
+  - '7'
+- !!python/tuple
+  - '6'
+  - name: DropObjectInside
+    objects:
+    - robot
+    - cup1
+    - target
+  - '7'
+metadata:
+  fluent_predicates:
+  - 'On'
+  - InHandView
+  - HandEmpty
+  - Inside
+  - Holding
+  - NotHolding
+  - NotInsideAnyContainer
+  predicate_types:
+    HasFlatTopSurface:
+    - base_object
+    IsNotPlaceable:
+    - movable_object
+    HandEmpty:
+    - robot
+    Inside:
+    - movable_object
+    - container
+    Reachable:
+    - robot
+    - base_object
+    ContainingWaterKnown:
+    - container
+    NotContainingWater:
+    - container
+    ContainingWaterUnknown:
+    - container
+    Known_ContainerEmpty:
+    - container
+    DrawerClosed:
+    - container
+    NotInsideAnyContainer:
+    - movable_object
+    FitsInXY:
+    - movable_object
+    - base_object
+    InView:
+    - robot
+    - base_object
+    TopAbove:
+    - base_object
+    - base_object
+    IsPlaceable:
+    - movable_object
+    ContainerReadyForSweeping:
+    - container
+    ContainingWater:
+    - container
+    NotBlocked:
+    - base_object
+    Holding:
+    - robot
+    - movable_object
+    NotHolding:
+    - robot
+    - movable_object
+    BelieveFalse_ContainerEmpty:
+    - container
+    'On':
+    - movable_object
+    - base_object
+    InHandView:
+    - robot
+    - base_object
+    RobotReadyForSweeping:
+    - robot
+    BelieveTrue_ContainerEmpty:
+    - container
+    Blocking:
+    - base_object
+    - base_object
+    InHandViewFromTop:
+    - robot
+    - base_object
+    NEq:
+    - base_object
+    - base_object
+    DrawerOpen:
+    - container
+    ContainerEmpty:
+    - container
+    IsSweeper:
+    - movable_object
+    Unknown_ContainerEmpty:
+    - container
