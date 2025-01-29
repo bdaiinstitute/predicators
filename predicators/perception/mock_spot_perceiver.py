@@ -106,24 +106,28 @@ class MockSpotPerceiver(BasePerceiver):
         # Update camera images
         self._camera_images = observation.images
         
-        # Create and update state/image history if enabled
+        # Update action history
+        if self._prev_action is not None:
+            self._action_history.append(self._prev_action)
+            # Trim action history to max length
+            if len(self._action_history) > CFG.vlm_max_history_steps:
+                self._action_history = self._action_history[-CFG.vlm_max_history_steps:]
+        
+        # Create and update image history if enabled
         if CFG.vlm_enable_image_history and self._camera_images is not None:
-            # Add current images and action to history
+            # Add current images to history
             self._camera_images_history.append(self._camera_images)
-            if self._prev_action is not None:
-                self._action_history.append(self._prev_action)
-            # Trim history to max length
+            # Trim image history to max length
             if len(self._camera_images_history) > CFG.vlm_max_history_steps:
                 self._camera_images_history = self._camera_images_history[-CFG.vlm_max_history_steps:]
-                self._action_history = self._action_history[-CFG.vlm_max_history_steps:]
         
         # Create state
         state = self._obs_to_state(observation)
         
-        # Add history to state
-        if CFG.vlm_enable_image_history:
+        # Add histories to state
+        state.action_history = self._action_history.copy()  # Always add action history
+        if CFG.vlm_enable_image_history:  # Only add image history if enabled
             state.camera_images_history = self._camera_images_history.copy()
-            state.action_history = self._action_history.copy()
         
         return state
 
