@@ -18,11 +18,11 @@ python predicators/main.py --env burger --approach vlm_open_loop --seed 0 \
 
 from __future__ import annotations
 
-from typing import Callable, List, Sequence, Set
+from typing import Callable, List, Sequence, Set, Dict, Any, Optional
 
 import numpy as np
-import PIL
-from PIL import ImageDraw
+import PIL.Image
+import PIL.ImageDraw
 import logging
 
 import predicators.pretrained_model_interface
@@ -83,20 +83,22 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
                 font_size = 15
                 text = f"Demonstration {traj_num}, " + \
                     f"State {state_num}, Image {img_num}"
-                draw = ImageDraw.Draw(pil_img)
+                draw = PIL.ImageDraw.Draw(pil_img)
                 font = utils.get_scaled_default_font(draw, font_size)
-                text_width, text_height = draw.textbbox((0, 0),
-                                                        text,
-                                                        font=font)[2:]
+                text_bbox = draw.textbbox((0, 0),
+                                        text,
+                                        font=font)
+                text_width = text_bbox[2] - text_bbox[0]
+                text_height = text_bbox[3] - text_bbox[1]
                 # Create a new image with additional space for text!
                 new_image = PIL.Image.new("RGB",
-                                          (width, height + text_height + 10),
-                                          "white")
+                                        (width, height + int(text_height) + 10),
+                                        "white")
                 new_image.paste(pil_img, (0, 0))
-                draw = ImageDraw.Draw(new_image)
+                draw = PIL.ImageDraw.Draw(new_image)
                 text_x = (width - text_width) / 2
                 text_y = height + 5
-                draw.text((text_x, text_y), text, font=font, fill="black")
+                draw.text((int(text_x), int(text_y)), text, font=font, fill="black")
                 # pylint:disable=protected-access
                 self._prompt_state_imgs_list.append(
                     draw._image)  # type: ignore[attr-defined]
@@ -126,15 +128,18 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             self._prompt_demos_str += f"Demonstration {traj_num}, " + \
                 f"Goal: {str(sorted(traj_goal))}\n"
             assert len(segment_traj) > 0
+            last_seg = None
             for state_num, seg in enumerate(segment_traj):
                 state = seg.states[0]
                 _append_to_prompt_state_imgs_list(state)
                 action = seg.get_option()
                 self._prompt_demos_str += f"Action {state_num}, from " + \
                     f"state {state_num} is {action}\n"
+                last_seg = seg
             # Make sure to append the final state of the final segment!
-            state = seg.states[-1]  # pylint:disable=undefined-loop-variable
-            _append_to_prompt_state_imgs_list(state)
+            if last_seg is not None:
+                state = last_seg.states[-1]
+                _append_to_prompt_state_imgs_list(state)
         return None
 
     def _get_current_nsrts(self) -> Set[utils.NSRT]:
@@ -166,14 +171,13 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
     def _query_vlm_for_option_plan(self, task: Task) -> Sequence[_Option]:
         init_state = task.init
         
-        # NOTE: Temporary solution: add compatiability for my solution
+        # Get images from state, including history if available
+        imgs_for_vlm = []
         if init_state.simulator_state is not None and "camera_images" in init_state.simulator_state:
-            # assert init_state.simulator_state is not None
-            # assert isinstance(init_state.simulator_state["images"], List)
             imgs = init_state.simulator_state["images"]
             pil_imgs = [
-                PIL.Image.fromarray(img_arr)  # type: ignore
-                for img_arr in imgs
+                PIL.Image.fromarray(img)  # type: ignore
+                for img in imgs
             ]
         elif init_state.camera_images is not None:
             imgs = init_state.camera_images
@@ -183,26 +187,69 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             ]
         else:
             raise ValueError("No camera images found in the initial state")
-        
-        curr_options = sorted(self._initial_options)
-        imgs_for_vlm = []
+
+        # Add history images if available
+        # NOTE: This is only used when replanning is needed in closed-loop case
+        # NOTE: Check if images are correctly added to history 
+        history_imgs = []
+        if CFG.vlm_enable_image_history and init_state.camera_images_history is not None:
+            for history_step, history_imgs_dict in enumerate(init_state.camera_images_history):
+                for img_num, (name, img_arr) in enumerate(history_imgs_dict.items()):
+                    pil_img = PIL.Image.fromarray(img_arr.rgb)  # type: ignore
+                    draw = PIL.ImageDraw.Draw(pil_img)
+                    img_font = utils.get_scaled_default_font(draw, 10)
+                    text_bbox = draw.textbbox((0, 0), 
+                                            f"History step {history_step}, Image {img_num}",
+                                            font=img_font)
+                    text_width = text_bbox[2] - text_bbox[0]
+                    text_height = text_bbox[3] - text_bbox[1]
+                    width, height = pil_img.size
+                    new_image = PIL.Image.new("RGB",
+                                            (width, height + int(text_height) + 10),
+                                            "white")
+                    new_image.paste(pil_img, (0, 0))
+                    draw = PIL.ImageDraw.Draw(new_image)
+                    text_x = (width - text_width) / 2
+                    text_y = height + 5
+                    draw.text((int(text_x), int(text_y)), 
+                             f"History step {history_step}, Image {img_num}", 
+                             font=img_font, 
+                             fill="black")
+                    # pylint:disable=protected-access
+                    history_imgs.append(
+                        draw._image)  # type: ignore[attr-defined]
+                    # pylint: enable=protected-access
+
+        # Add current state images
         for img_num, pil_img in enumerate(pil_imgs):
-            draw = ImageDraw.Draw(pil_img)
+            draw = PIL.ImageDraw.Draw(pil_img)
             img_font = utils.get_scaled_default_font(draw, 10)
-            img_with_txt = utils.add_text_to_draw_img(
-                draw, (50, 50), f"Initial state to plan from, Image {img_num}",
-                img_font)
+            text_bbox = draw.textbbox((0, 0), 
+                                    f"Initial state to plan from, Image {img_num}",
+                                    font=img_font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            width, height = pil_img.size
+            new_image = PIL.Image.new("RGB",
+                                    (width, height + int(text_height) + 10),
+                                    "white")
+            new_image.paste(pil_img, (0, 0))
+            draw = PIL.ImageDraw.Draw(new_image)
+            text_x = (width - text_width) / 2
+            text_y = height + 5
+            draw.text((int(text_x), int(text_y)), 
+                     f"Initial state to plan from, Image {img_num}", 
+                     font=img_font, 
+                     fill="black")
             # pylint:disable=protected-access
             imgs_for_vlm.append(
-                img_with_txt._image)  # type: ignore[attr-defined]
+                draw._image)  # type: ignore[attr-defined]
             # pylint: enable=protected-access
-        # options_str = "\n".join(
-        #     str(opt) + ", params_space=" + str(opt.params_space)
-        #     for opt in curr_options)
         
         # Get NSRTs to access preconditions and effects
         nsrts = self._get_current_nsrts()
         nsrt_by_option = {nsrt.option.name: nsrt for nsrt in nsrts}
+        curr_options = sorted(self._initial_options)
         
         # Format options with their parameter types, preconditions, and effects
         options_str = []
@@ -224,14 +271,21 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         goal_expr_list = sorted(set(task.goal))
         type_hierarchy_str = utils.create_pddl_types_str(self._types)
         goal_str = "\n".join(str(obj) for obj in goal_expr_list)
+        
+        # Format action history if available
+        action_history_str = ""
+        if init_state.action_history:
+            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(init_state.action_history))
+        
         if not CFG.vlm_open_loop_use_training_demos:
             prompt = self.base_prompt.format(options=options_str,
                                              typed_objects=objects_str,
                                              type_hierarchy=type_hierarchy_str,
-                                             goal_str=goal_str)
+                                             goal_str=goal_str,
+                                             action_history=action_history_str)
             vlm_output = self._vlm.sample_completions(
                 prompt,
-                imgs_for_vlm,
+                history_imgs + imgs_for_vlm,
                 temperature=CFG.vlm_temperature,
                 seed=CFG.seed,
                 num_completions=1)
@@ -241,10 +295,11 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
                 demonstration_trajs=self._prompt_demos_str,
                 typed_objects=objects_str,
                 type_hierarchy=type_hierarchy_str,
-                goal_str=goal_str)
+                goal_str=goal_str,
+                action_history=action_history_str)
             vlm_output = self._vlm.sample_completions(
                 prompt,
-                self._prompt_state_imgs_list + imgs_for_vlm,
+                self._prompt_state_imgs_list + history_imgs + imgs_for_vlm,
                 temperature=CFG.vlm_temperature,
                 seed=CFG.seed,
                 num_completions=1)
