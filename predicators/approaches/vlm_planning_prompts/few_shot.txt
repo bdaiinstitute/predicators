@@ -27,6 +27,9 @@ And here are the available types (formatted in PDDL style as `<type_name1> <type
 Finally, here is an expression corresponding to the current task goal that must be achieved:
 {goal_str}
 
+Here is the history of actions executed so far (if any):
+{action_history}
+
 Please return a plan that achieves the provided goal from an initial state depicted by the image(s) below.
 Please provide your output in the following format (excluding the angle brackets and ellipsis, which are just for illustration purposes).
 Be sure to include the parens '(' and ')', as well as square brackets '[' and ']' even if there are no objects/continuous parameters.
