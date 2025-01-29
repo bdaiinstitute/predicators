@@ -50,6 +50,8 @@ class LLMOpenLoopApproach(BilevelPlanningApproach):
             "/predicators/approaches/llm_planning_prompts/zero_shot.txt"
         with open(filepath_to_llm_prompt, "r", encoding="utf-8") as f:
             self.base_prompt = f.read()
+        # Track action history
+        self._action_history: List[Action] = []
 
     @classmethod
     def get_name(cls) -> str:
@@ -71,6 +73,13 @@ class LLMOpenLoopApproach(BilevelPlanningApproach):
         # Get oracle NSRTs from the factory
         return get_gt_nsrts(CFG.env, set(self._initial_predicates), 
                           set(self._initial_options))
+
+    def solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
+        """Get the action history from the task state if available."""
+        # Get action history from cogman if available
+        if hasattr(task.init, "action_history") and task.init.action_history is not None:
+            self._action_history = task.init.action_history
+        return super().solve(task, timeout)
 
     def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
         try:
@@ -129,8 +138,8 @@ class LLMOpenLoopApproach(BilevelPlanningApproach):
         
         # Format action history if available
         action_history_str = ""
-        if task.init.action_history:
-            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(task.init.action_history))
+        if self._action_history:
+            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(self._action_history))
         
         # Create the prompt using the template
         prompt = self.base_prompt.format(

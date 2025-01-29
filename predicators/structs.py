@@ -131,6 +131,10 @@ class State:
     visible_objects: Optional[Any] = None
     # This is directly copied from the images in raw Observation
     camera_images: Optional[Dict[str, Any]] = None
+    # Store history of camera images from previous steps
+    camera_images_history: Optional[List[Dict[str, Any]]] = None
+    # Store history of actions from previous steps
+    action_history: Optional[List[Action]] = None
 
     # Add storage for ground truth predicate values
     non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
@@ -142,6 +146,11 @@ class State:
         # Check feature vector dimensions.
         for obj in self:
             assert len(self[obj]) == obj.type.dim
+        # Initialize empty history if not provided
+        if self.camera_images_history is None:
+            self.camera_images_history = []
+        if self.action_history is None:
+            self.action_history = []
 
     def __iter__(self) -> Iterator[Object]:
         """An iterator over the state's objects, in sorted order."""
@@ -188,6 +197,8 @@ class State:
                      vlm_predicates=copy.deepcopy(self.vlm_predicates),
                      visible_objects=copy.deepcopy(self.visible_objects),
                      camera_images=copy.deepcopy(self.camera_images),
+                     camera_images_history=copy.deepcopy(self.camera_images_history),
+                     action_history=copy.deepcopy(self.action_history),
                      non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
                      text_description=self.text_description)
 

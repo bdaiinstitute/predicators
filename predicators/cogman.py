@@ -87,6 +87,8 @@ class CogMan:
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
             assert self._current_goal is not None
+            # Pass action history to task state for replanning
+            state.action_history = self._episode_action_history
             task = Task(state, self._current_goal)
             self._reset_policy(task)
             self._exec_monitor.reset(task)
