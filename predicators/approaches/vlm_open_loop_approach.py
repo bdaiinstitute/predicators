@@ -286,6 +286,12 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
                                              type_hierarchy=type_hierarchy_str,
                                              goal_str=goal_str,
                                              action_history=action_history_str)
+            
+            if CFG.fm_planning_verbose:
+                logging.info("\n=== LLM Query ===")
+                logging.info(f"Prompt:\n{prompt}")
+            
+            print(len(history_imgs + imgs_for_vlm))
             vlm_output = self._vlm.sample_completions(
                 prompt,
                 history_imgs + imgs_for_vlm,
@@ -300,6 +306,12 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
                 type_hierarchy=type_hierarchy_str,
                 goal_str=goal_str,
                 action_history=action_history_str)
+            
+            if CFG.fm_planning_verbose:
+                logging.info("\n=== LLM Query ===")
+                logging.info(f"Prompt:\n{prompt}")
+            
+            print(len(self._prompt_state_imgs_list + history_imgs + imgs_for_vlm))
             vlm_output = self._vlm.sample_completions(
                 prompt,
                 self._prompt_state_imgs_list + history_imgs + imgs_for_vlm,
@@ -307,6 +319,12 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
                 seed=CFG.seed,
                 num_completions=1)
         plan_prediction_txt = vlm_output[0]
+        
+                    
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Response ===")
+            logging.info(plan_prediction_txt)
+            
         option_plan: List[_Option] = []
         try:
             start_index = plan_prediction_txt.index("Plan:\n") + len("Plan:\n")
