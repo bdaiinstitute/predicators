@@ -74,13 +74,20 @@ class LLMTextPlanningApproach(LLMOpenLoopApproach):
         goal_str = "\n".join(str(obj) for obj in goal_expr_list)
         
         
+        # Format action history if available
+        action_history_str = ""
+        if self._action_history:
+            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(self._action_history))
+            
+        
         # Create the prompt using the template
         prompt = self.base_prompt.format(
             options=options_str,
             typed_objects=objects_str,
             type_hierarchy=type_hierarchy_str,
             goal_str=goal_str,
-            state_str=state_desc)
+            state_str=state_desc,
+            action_history = action_history_str)
 
 
         if CFG.fm_planning_verbose:

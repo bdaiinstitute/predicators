@@ -161,7 +161,7 @@ def main(args: argparse.Namespace) -> None:
                 "--perceiver", "vlm_perceiver",
                 "--vlm_model_name", "gpt-4o",
                 "--vlm_temperature", "0.2",
-                "--execution_monitor", "expected_atoms"
+                "--execution_monitor", "mpc"
             ]
         }
     ]

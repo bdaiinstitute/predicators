@@ -233,23 +233,31 @@ class MockSpotPerceiver(BasePerceiver):
         self._objects_in_view = obs.objects_in_view
         self._objects_in_hand = obs.objects_in_hand
 
-        # Create and update state/image history if enabled
-        camera_images_history = []
+
         action_history = []
+        if hasattr(obs, 'action_history') and obs.action_history is not None:
+            action_history = obs.action_history.copy()
+            
+        if self._prev_action is not None:
+            action_history.append(self._prev_action)
+        
+        if len(action_history) > CFG.vlm_max_history_steps:
+            action_history = action_history[-CFG.vlm_max_history_steps:]
+            
+        # Create and update state/image history if enabled
+        camera_images_history = []                
         if CFG.vlm_enable_image_history and self._camera_images is not None:
             # Get previous history from last state if available
             if obs.camera_images_history is not None:
                 camera_images_history = obs.camera_images_history.copy()
-            if hasattr(obs, 'action_history') and obs.action_history is not None:
-                action_history = obs.action_history.copy()
+
             # Add current images and action to history
             camera_images_history.append(self._camera_images)
-            if self._prev_action is not None:
-                action_history.append(self._prev_action)
+
             # Trim history to max length
             if len(camera_images_history) > CFG.vlm_max_history_steps:
                 camera_images_history = camera_images_history[-CFG.vlm_max_history_steps:]
-                action_history = action_history[-CFG.vlm_max_history_steps:]
+
         
         # Create state with all atoms
         # NOTE: We use the object_dict from the observation to populate objects in data for planner
