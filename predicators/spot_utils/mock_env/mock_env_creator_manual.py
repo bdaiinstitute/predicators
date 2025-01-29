@@ -152,7 +152,6 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
                         self.console.print(f"Images collected ({len(collected_images)}):")
                         for camera_name in collected_images:
                             self.console.print(f"  - Camera: {camera_name}")
-                            # self.console.print(f"    File: {collected_images[camera_name].rgb_path}")
                         
                         try:
                             self.save_observation(
