@@ -24,14 +24,21 @@ Here is the history of actions executed so far (if any):
 {action_history}
 
 Please return a plan that achieves the provided goal from the current state.
-Please provide your output in the following format (excluding the angle brackets and ellipsis, which are just for illustration purposes).
-Be sure to include the parens '(' and ')', as well as square brackets '[' and ']' even if there are no objects/continuous parameters.
-Do not bold or italicize or otherwise apply any extra formaating to the plan text. Do not provide any numbers for steps in the plan, or
-any reasoning for each step below the 'Plan:' heading:
-<Explanation of scene + your reasoning>
+Please provide your output in the following format:
+1. First write "Explanation of scene + your reasoning" followed by your explanation
+2. Then write "Plan:" on a new line
+3. Then write each action on a new line in EXACTLY this format (no numbers, no code blocks, no extra formatting):
+skill_name(object1:type1, object2:type2)[param1, param2]
 
-Strictly follow the format of the required plan, and each line is a skill.
+For example:
+Explanation of scene + your reasoning
+This is a simple pick and place task where we need to...
+
 Plan:
-<skill 1 name>(<obj1_name>:<obj1_type_name>, <obj2_name>:<obj2_type_name>, ...)[<continuous_param1_value>, <continuous_param2_value>, ...]
-<skill 2 name>(<obj1_name>:<obj1_type_name>, <obj2_name>:<obj2_type_name>, ...)[<continuous_param1_value>, <continuous_param2_value>, ...]
+MoveToObject(robot:robot, cup:movable_object)[]
+PickObject(robot:robot, cup:movable_object)[]
+MoveToLocation(robot:robot, table:surface)[]
+PlaceObject(robot:robot, cup:movable_object, table:surface)[]
+
+Do not include any numbers, bullet points, code blocks, or other formatting. Just write the plan exactly as shown above.
 ...
