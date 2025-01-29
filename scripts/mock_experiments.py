@@ -89,41 +89,40 @@ def main(args: argparse.Namespace) -> None:
     
     # Define all planner configurations
     planners = [
-        # {
-        #     "name": "Oracle",
-        #     "args": ["--approach", "oracle"]
-        # },
-        # {
-        #     "name": "Random Options",
-        #     "args": [
-        #         "--approach", "random_options",
-        #         "--random_options_max_tries", "1000",
-        #         "--max_num_steps_option_rollout", "100",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--timeout", "60",
-        #         "--horizon", "20",  # NOTE: should need more steps, but need to decide one
-        #     ]
-        # },
-        # {
-        #     "name": "LLM Open Loop",
-        #     "args": [
-        #         "--approach", "llm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--llm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2"
-        #     ]
-        # },
-        # {
-        #     "name": "LLM Closed Loop (MPC)",
-        #     "args": [
-        #         "--approach", "llm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--llm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         # "--execution_monitor", "mpc"
-        #         "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
+        {
+            "name": "Oracle",
+            "args": ["--approach", "oracle"]
+        },
+        {
+            "name": "Random Options",
+            "args": [
+                "--approach", "random_options",
+                "--random_options_max_tries", "1000",
+                "--max_num_steps_option_rollout", "100",
+                "--perceiver", "mock_spot_perceiver",
+                "--timeout", "60",
+            ]
+        },
+        {
+            "name": "LLM Open Loop",
+            "args": [
+                "--approach", "llm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--llm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2"
+            ]
+        },
+        {
+            "name": "LLM Closed Loop (MPC)",
+            "args": [
+                "--approach", "llm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--llm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
         # {
         #     "name": "VLM Open Loop",
         #     "args": [
@@ -144,26 +143,16 @@ def main(args: argparse.Namespace) -> None:
                 # "--execution_monitor", "expected_atoms"
             ]
         },
-        # {
-        #     "name": "VLM Closed Loop (Bilevel + MPC)",
-        #     "args": [
-        #         "--approach", "vlm_oracle_bilevel_planning",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--vlm_temperature", "0.2",
-        #         "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
-        # {
-        #     "name": "VLM Captioning",
-        #     "args": [
-        #         "--approach", "vlm_captioning",
-        #         "--perceiver", "vlm_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--vlm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #     ]
-        # }
+        {
+            "name": "VLM Captioning",
+            "args": [
+                "--approach", "vlm_captioning",
+                "--perceiver", "vlm_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--vlm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+            ]
+        }
     ]
     
     # Run each planner
