@@ -71,6 +71,9 @@ class MockSpotPerceiver(BasePerceiver):
         self._vlm_atom_dict: Dict[VLMGroundAtom, bool] = {}  # Current VLM predicate evaluations
         self._non_vlm_atom_dict: Optional[Mapping[GroundAtom, bool]] = None  # Non-VLM atoms from env
         self._prev_action: Optional[Action] = None  # Track previous action
+        # Add history storage
+        self._camera_images_history = []
+        self._action_history = []
 
     @classmethod
     def get_name(cls) -> str:
@@ -79,6 +82,10 @@ class MockSpotPerceiver(BasePerceiver):
     
     def reset(self, env_task: EnvironmentTask) -> Task:
         """Reset the perceiver for a new task."""
+        # Reset history
+        self._camera_images_history = []
+        self._action_history = []
+        
         init_state = self._obs_to_state(env_task.init_obs)
         goal_description = env_task.goal_description
         
@@ -87,10 +94,32 @@ class MockSpotPerceiver(BasePerceiver):
         
         return Task(init_state, goal_description)
     
-    def step(self, observation: _MockSpotObservation) -> State:
-        """Process a new observation and return the current state."""
+    def step(self, observation: Observation) -> State:
+        """Process an observation into a state."""
         assert isinstance(observation, _MockSpotObservation)
-        return self._obs_to_state(observation)
+        # Update camera images
+        self._camera_images = observation.images
+        
+        # Create and update state/image history if enabled
+        if CFG.vlm_enable_image_history and self._camera_images is not None:
+            # Add current images and action to history
+            self._camera_images_history.append(self._camera_images)
+            if self._prev_action is not None:
+                self._action_history.append(self._prev_action)
+            # Trim history to max length
+            if len(self._camera_images_history) > CFG.vlm_max_history_steps:
+                self._camera_images_history = self._camera_images_history[-CFG.vlm_max_history_steps:]
+                self._action_history = self._action_history[-CFG.vlm_max_history_steps:]
+        
+        # Create state
+        state = self._obs_to_state(observation)
+        
+        # Add history to state
+        if CFG.vlm_enable_image_history:
+            state.camera_images_history = self._camera_images_history.copy()
+            state.action_history = self._action_history.copy()
+        
+        return state
 
     def _obs_to_state(self, obs: _MockSpotObservation) -> State:
         """Convert observation to state and update internal state.
@@ -117,7 +146,7 @@ class MockSpotPerceiver(BasePerceiver):
             # NOTE: if invisible objects are included, we will generate queries for them to VLM
             # However, these queries (1) for belief-space ones will be unknown and won't update VLM atoms
             # (2) for binary world-state ones, they may wrongly update VLM atoms
-            visible_objects = list(obs.object_dict.values())  + [self._spot_object]
+            visible_objects = list(obs.object_dict.values()) + [self._spot_object]
         else:
             visible_objects = list(obs.objects_in_view) + [self._spot_object]
         images = obs.images
@@ -228,37 +257,18 @@ class MockSpotPerceiver(BasePerceiver):
             self._vlm_atom_dict = updated_vlm_atom_values
             
         # Update internal state from observation
-        self._camera_images = obs.images
         self._gripper_open = obs.gripper_open
         self._objects_in_view = obs.objects_in_view
         self._objects_in_hand = obs.objects_in_hand
 
-        # Create and update state/image history if enabled
-        camera_images_history = []
-        action_history = []
-        if CFG.vlm_enable_image_history and self._camera_images is not None:
-            # Get previous history from last state if available
-            if obs.camera_images_history is not None:
-                camera_images_history = obs.camera_images_history.copy()
-            if hasattr(obs, 'action_history') and obs.action_history is not None:
-                action_history = obs.action_history.copy()
-            # Add current images and action to history
-            camera_images_history.append(self._camera_images)
-            if self._prev_action is not None:
-                action_history.append(self._prev_action)
-            # Trim history to max length
-            if len(camera_images_history) > CFG.vlm_max_history_steps:
-                camera_images_history = camera_images_history[-CFG.vlm_max_history_steps:]
-                action_history = action_history[-CFG.vlm_max_history_steps:]
-        
         # Create state with all atoms
         # NOTE: We use the object_dict from the observation to populate objects in data for planner
         state = State(
             data={o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()},  # type: ignore
             simulator_state=None,
             camera_images=self._camera_images,
-            camera_images_history=camera_images_history,
-            action_history=action_history,
+            camera_images_history=self._camera_images_history.copy(),
+            action_history=self._action_history.copy(),
             visible_objects=self._objects_in_view,
             vlm_atom_dict=self._vlm_atom_dict,  # type: ignore
             vlm_predicates=self._vlm_predicates,
