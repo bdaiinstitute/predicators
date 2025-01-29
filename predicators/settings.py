@@ -488,6 +488,10 @@ Be specific and precise in your description."""
     vlm_max_tokens = 1000
     vlm_max_image_tokens = 1000
     fm_planning_with_oracle_nsrts = True  # Whether to use oracle NSRTs in VLM/LLM planning
+    # Image history settings
+    vlm_enable_image_history = False  # Whether to maintain history of images in state
+    vlm_max_history_steps = 5  # Maximum number of previous steps to keep in history
+    vlm_max_images_per_prompt = 10  # Maximum number of images to include in a single VLM prompt
 
     # parameters for the vlm_open_loop planning approach
     vlm_open_loop_use_training_demos = False

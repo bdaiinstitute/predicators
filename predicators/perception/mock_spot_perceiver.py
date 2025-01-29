@@ -70,6 +70,7 @@ class MockSpotPerceiver(BasePerceiver):
         self._vlm_predicates: Set[VLMPredicate] = set()  # Current VLM predicates
         self._vlm_atom_dict: Dict[VLMGroundAtom, bool] = {}  # Current VLM predicate evaluations
         self._non_vlm_atom_dict: Optional[Mapping[GroundAtom, bool]] = None  # Non-VLM atoms from env
+        self._prev_action: Optional[Action] = None  # Track previous action
 
     @classmethod
     def get_name(cls) -> str:
@@ -82,6 +83,7 @@ class MockSpotPerceiver(BasePerceiver):
         goal_description = env_task.goal_description
         
         self.objects = init_state.visible_objects
+        self._prev_action = None  # Reset previous action
         
         return Task(init_state, goal_description)
     
@@ -232,17 +234,22 @@ class MockSpotPerceiver(BasePerceiver):
         self._objects_in_hand = obs.objects_in_hand
 
         # Create and update state/image history if enabled
-        # TODO include actions as well
         camera_images_history = []
+        action_history = []
         if CFG.vlm_enable_image_history and self._camera_images is not None:
             # Get previous history from last state if available
             if obs.camera_images_history is not None:
                 camera_images_history = obs.camera_images_history.copy()
-            # Add current images to history
+            if hasattr(obs, 'action_history') and obs.action_history is not None:
+                action_history = obs.action_history.copy()
+            # Add current images and action to history
             camera_images_history.append(self._camera_images)
+            if self._prev_action is not None:
+                action_history.append(self._prev_action)
             # Trim history to max length
             if len(camera_images_history) > CFG.vlm_max_history_steps:
                 camera_images_history = camera_images_history[-CFG.vlm_max_history_steps:]
+                action_history = action_history[-CFG.vlm_max_history_steps:]
         
         # Create state with all atoms
         # NOTE: We use the object_dict from the observation to populate objects in data for planner
@@ -251,6 +258,7 @@ class MockSpotPerceiver(BasePerceiver):
             simulator_state=None,
             camera_images=self._camera_images,
             camera_images_history=camera_images_history,
+            action_history=action_history,
             visible_objects=self._objects_in_view,
             vlm_atom_dict=self._vlm_atom_dict,  # type: ignore
             vlm_predicates=self._vlm_predicates,
@@ -295,3 +303,7 @@ class MockSpotPerceiver(BasePerceiver):
     def render_mental_images(self, observation: Observation,
                              env_task: EnvironmentTask) -> Video:
         return []
+
+    def update_perceiver_with_action(self, action: Action) -> None:
+        """Update the perceiver with the latest action."""
+        self._prev_action = action
