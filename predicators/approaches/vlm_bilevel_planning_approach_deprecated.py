@@ -41,7 +41,8 @@ class VLMBilevelPlanningApproach(VLMOpenLoopApproach):
 
     @classmethod
     def get_name(cls) -> str:
-        return "vlm_oracle_bilevel_planning"
+        # NOTE: this one is not using VLM
+        return "vlm_oracle_bilevel_planning_deprecated"
 
     def _get_current_nsrts(self) -> Set[utils.NSRT]:
         """Get the current set of NSRTs."""
