@@ -157,11 +157,11 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
                             self.save_observation(
                                 state_id=canonical_id,
                                 images=collected_images,
-                                objects_in_view=set(),  # Empty set since we don't know objects
-                                objects_in_hand=set(),  # Empty set since we don't know objects
+                                objects_in_view=objects_in_view,  # Use the collected objects
+                                objects_in_hand=set(),  # Empty set since we don't know objects in hand
                                 gripper_open=True  # Default value
                             )
-                            self.console.print(f"[green]✓ Successfully saved {len(collected_images)} images to state {canonical_id}[/green]")
+                            self.console.print(f"[green]✓ Successfully saved {len(collected_images)} images to state {canonical_id} with {len(objects_in_view)} visible objects[/green]")
                         except Exception as e:
                             self.console.print(f"[red]Error saving images: {str(e)}[/red]")
                     break
