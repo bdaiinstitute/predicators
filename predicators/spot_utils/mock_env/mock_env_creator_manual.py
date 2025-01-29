@@ -70,8 +70,14 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
         self.console.print(table)
         self.console.print()
 
-    def process_state_first(self, image_dir: Path) -> None:
-        """Process images by iterating over states first."""
+    def process_state_first(self, image_dir: Path, states_to_override: Optional[Set[str]] = None) -> None:
+        """Process images by iterating over states first.
+        
+        Args:
+            image_dir: Directory containing images
+            states_to_override: Optional set of state IDs to process. If provided, only process
+                canonical states that contain these state IDs.
+        """
         self.console.print(Panel.fit(
             "[bold green]State-First Processing Mode[/bold green]\n\n"
             "In this mode, we'll go through each canonical state and add images to it.\n"
@@ -82,6 +88,10 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
         # Show available canonical states
         self.console.print("\n[bold]Available Canonical States:[/bold]")
         for canonical_id, equivalent_ids in self.get_unique_states():
+            # Skip if we're only processing specific states and none match
+            if states_to_override and not (states_to_override & equivalent_ids):
+                continue
+
             # Create a table to show state info
             table = Table(title=f"State {canonical_id}", show_header=True, header_style="bold magenta")
             table.add_column("Property", style="cyan")
@@ -301,6 +311,8 @@ def main():
                        help="Name of environment class to use")
     parser.add_argument("--mode", type=str, choices=['state', 'image'], default='state',
                        help="Processing mode: 'state' to iterate over states first, 'image' to iterate over images first")
+    parser.add_argument("--states", type=str, nargs="+",
+                       help="Optional list of state IDs to override. Only processes canonical states containing these IDs.")
     
     args = parser.parse_args()
     
@@ -354,8 +366,10 @@ def main():
     
     # Process based on selected mode
     image_dir = Path(args.image_dir)
+    states_to_override = set(args.states) if args.states else None
+    
     if args.mode == 'state':
-        creator.process_state_first(image_dir)
+        creator.process_state_first(image_dir, states_to_override)
     else:
         creator.process_image_first(image_dir)
     

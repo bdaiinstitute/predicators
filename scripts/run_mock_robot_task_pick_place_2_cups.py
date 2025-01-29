@@ -32,7 +32,7 @@ def create_base_command(seed: int = 0) -> List[str]:
     """Create the base command with common arguments."""
     return [
         "python", "predicators/main.py",
-        "--env", "mock_spot_pick_place_two_cup",
+        "--env", "mock_spot_drawer_cleaning",
         "--seed", str(seed),
         "--perceiver", "mock_spot_perceiver",
         # "--mock_env_vlm_eval_predicate", "True",
@@ -90,28 +90,28 @@ def main(args: argparse.Namespace) -> None:
     
     # Define all planner configurations
     planners = [
-        {
-            "name": "Oracle",
-            "args": ["--approach", "oracle"]
-        },
-        {
-            "name": "Random Options",
-            "args": [
-                "--approach", "random_options",
-                "--random_options_max_tries", "1000",
-                "--max_num_steps_option_rollout", "100",
-                "--timeout", "60",
-                "--horizon", "20",  # NOTE: should need more steps, but need to decide one
-            ]
-        },
-        {
-            "name": "LLM Open Loop",
-            "args": [
-                "--approach", "llm_open_loop",
-                "--llm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
-            ]
-        },
+        # {
+        #     "name": "Oracle",
+        #     "args": ["--approach", "oracle"]
+        # },
+        # {
+        #     "name": "Random Options",
+        #     "args": [
+        #         "--approach", "random_options",
+        #         "--random_options_max_tries", "1000",
+        #         "--max_num_steps_option_rollout", "100",
+        #         "--timeout", "60",
+        #         "--horizon", "20",  # NOTE: should need more steps, but need to decide one
+        #     ]
+        # },
+        # {
+        #     "name": "LLM Open Loop",
+        #     "args": [
+        #         "--approach", "llm_open_loop",
+        #         "--llm_model_name", "gpt-4o",
+        #         "--llm_temperature", "0.2"
+        #     ]
+        # },
         {
             "name": "LLM Closed Loop (MPC)",
             "args": [
@@ -122,33 +122,33 @@ def main(args: argparse.Namespace) -> None:
                 "--execution_monitor", "expected_atoms"
             ]
         },
-        {
-            "name": "VLM Open Loop",
-            "args": [
-                "--approach", "vlm_open_loop",
-                "--vlm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
-            ]
-        },
-        {
-            "name": "VLM Closed Loop (Open Loop + MPC)",
-            "args": [
-                "--approach", "vlm_open_loop",
-                "--vlm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2",
-                # "--execution_monitor", "mpc"
-                "--execution_monitor", "expected_atoms"
-            ]
-        },
-        {
-            "name": "VLM Closed Loop (Bilevel + MPC)",
-            "args": [
-                "--approach", "vlm_oracle_bilevel_planning",
-                "--vlm_model_name", "gpt-4o",
-                "--vlm_temperature", "0.2",
-                "--execution_monitor", "expected_atoms"
-            ]
-        }
+        # {
+        #     "name": "VLM Open Loop",
+        #     "args": [
+        #         "--approach", "vlm_open_loop",
+        #         "--vlm_model_name", "gpt-4o",
+        #         "--llm_temperature", "0.2"
+        #     ]
+        # },
+        # {
+        #     "name": "VLM Closed Loop (Open Loop + MPC)",
+        #     "args": [
+        #         "--approach", "vlm_open_loop",
+        #         "--vlm_model_name", "gpt-4o",
+        #         "--llm_temperature", "0.2",
+        #         # "--execution_monitor", "mpc"
+        #         "--execution_monitor", "expected_atoms"
+        #     ]
+        # },
+        # {
+        #     "name": "VLM Closed Loop (Bilevel + MPC)",
+        #     "args": [
+        #         "--approach", "vlm_oracle_bilevel_planning",
+        #         "--vlm_model_name", "gpt-4o",
+        #         "--vlm_temperature", "0.2",
+        #         "--execution_monitor", "expected_atoms"
+        #     ]
+        # }
     ]
     
     # Run each planner

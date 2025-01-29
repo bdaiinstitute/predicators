@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>State Transition Graph: Transition Graph, Mock Spot Pick Place Two Cup</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.19.1/cytoscape.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.3.2/cytoscape-dagre.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f5f5f5;
+        }
+        #cy {
+            flex-grow: 1;
+            z-index: 999;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        #info-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .close-button {
+            float: right;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .state-header {
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        .predicate {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .self-loops {
+            margin-top: 10px;
+            padding-top: 5px;
+            border-top: 1px solid #ccc;
+        }
+        .control-label {
+            display: inline-block;
+            margin-left: 5px;
+        }
+        #edge-info-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .effect-add {
+            color: #2ca02c;  /* Green */
+            font-family: monospace;
+            margin: 2px 0;
+        }
+        .effect-delete {
+            color: #d62728;  /* Red */
+            font-family: monospace;
+            margin: 2px 0;
+        }
+        .edge-header {
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        .section-header {
+            margin-top: 10px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="cy"></div>
+    <div id="controls">
+        <div>
+            <input type="checkbox" id="shortest-path" checked title="Toggle shortest path visibility" aria-label="Toggle shortest path visibility">
+            <label for="shortest-path" class="control-label">Show shortest path</label>
+        </div>
+        <div>
+            <input type="checkbox" id="all-edges" checked title="Toggle all edges visibility" aria-label="Toggle all edges visibility">
+            <label for="all-edges" class="control-label">Show all edges</label>
+        </div>
+        <div>
+            <input type="checkbox" id="animate" checked title="Toggle animation" aria-label="Toggle animation">
+            <label for="animate" class="control-label">Animate layout changes</label>
+        </div>
+        <div><button onclick="cy.layout(layout_options).run()">Reset Layout</button></div>
+        <div style="margin-top: 10px">Press 'h' for keyboard shortcuts</div>
+    </div>
+    <div id="info-panel">
+        <span class="close-button" onclick="hideInfoPanel()">×</span>
+        <div id="state-info"></div>
+    </div>
+    <div id="edge-info-panel">
+        <span class="close-button" onclick="hideEdgeInfoPanel()">×</span>
+        <div id="edge-info"></div>
+    </div>
+    <script>
+        const graphData = {"nodes": [{"data": {"id": "0", "state_num": "0", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "NotHolding(robot:robot, cup2:container)", "HandEmpty(robot:robot)", "NotInsideAnyContainer(cup1:container)", "On(target:container, table:immovable_object)", "NEq(cup1:container, cup2:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "InHandView(robot:robot, cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NotHolding(robot:robot, cup1:container)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "InHandView(robot:robot, cup2:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "On(cup1:container, table:immovable_object)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NotInsideAnyContainer(cup2:container)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NEq(cup1:container, table:immovable_object)", "On(cup2:container, table:immovable_object)"], "is_initial": true, "is_goal": false, "is_shortest_path": true, "label": "Initial State 0", "fullLabel": "Initial State 0\n\nHandEmpty(robot)\nInHandView(robot, cup1)\nInHandView(robot, cup2)\nNotHolding(robot, cup1)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup1)\nNotInsideAnyContainer(cup2)\nOn(cup1, table)\nOn(cup2, table)\nOn(target, table)"}}, {"data": {"id": "1", "state_num": "1", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "Holding(robot:robot, cup1:container)", "NotBlocked(target:container)", "NotHolding(robot:robot, cup2:container)", "NotInsideAnyContainer(cup1:container)", "On(target:container, table:immovable_object)", "NEq(cup1:container, cup2:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "InHandView(robot:robot, cup2:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NotInsideAnyContainer(cup2:container)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NEq(cup1:container, table:immovable_object)", "On(cup2:container, table:immovable_object)"], "is_initial": false, "is_goal": false, "is_shortest_path": true, "label": "State 1", "fullLabel": "State 1\n\nHolding(robot, cup1)\nInHandView(robot, cup2)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup1)\nNotInsideAnyContainer(cup2)\nOn(cup2, table)\nOn(target, table)"}}, {"data": {"id": "2", "state_num": "2", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "NotInsideAnyContainer(cup1:container)", "On(target:container, table:immovable_object)", "NEq(cup1:container, cup2:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "InHandView(robot:robot, cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "Holding(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "NEq(cup1:container, table:immovable_object)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "On(cup1:container, table:immovable_object)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NotInsideAnyContainer(cup2:container)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NotHolding(robot:robot, cup1:container)"], "is_initial": false, "is_goal": false, "is_shortest_path": false, "label": "State 2", "fullLabel": "State 2\n\nHolding(robot, cup2)\nInHandView(robot, cup1)\nNotHolding(robot, cup1)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup1)\nNotInsideAnyContainer(cup2)\nOn(cup1, table)\nOn(target, table)"}}, {"data": {"id": "3", "state_num": "3", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "NotHolding(robot:robot, cup2:container)", "HandEmpty(robot:robot)", "NEq(cup1:container, cup2:container)", "On(target:container, table:immovable_object)", "Inside(cup1:container, target:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "NEq(cup1:container, table:immovable_object)", "InHandView(robot:robot, cup2:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NotInsideAnyContainer(cup2:container)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NotHolding(robot:robot, cup1:container)", "On(cup2:container, table:immovable_object)"], "is_initial": false, "is_goal": false, "is_shortest_path": true, "label": "State 3", "fullLabel": "State 3\n\nHandEmpty(robot)\nInHandView(robot, cup2)\nInside(cup1, target)\nNotHolding(robot, cup1)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup2)\nOn(cup2, table)\nOn(target, table)"}}, {"data": {"id": "4", "state_num": "4", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "HandEmpty(robot:robot)", "NotHolding(robot:robot, cup2:container)", "NotInsideAnyContainer(cup1:container)", "On(target:container, table:immovable_object)", "NEq(cup1:container, cup2:container)", "Inside(cup2:container, target:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "InHandView(robot:robot, cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NotHolding(robot:robot, cup1:container)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "On(cup1:container, table:immovable_object)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NEq(cup1:container, table:immovable_object)"], "is_initial": false, "is_goal": false, "is_shortest_path": false, "label": "State 4", "fullLabel": "State 4\n\nHandEmpty(robot)\nInHandView(robot, cup1)\nInside(cup2, target)\nNotHolding(robot, cup1)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup1)\nOn(cup1, table)\nOn(target, table)"}}, {"data": {"id": "5", "state_num": "5", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "NEq(cup1:container, cup2:container)", "On(target:container, table:immovable_object)", "Inside(cup1:container, target:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NotHolding(robot:robot, cup1:container)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "Holding(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NotInsideAnyContainer(cup2:container)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NEq(cup1:container, table:immovable_object)"], "is_initial": false, "is_goal": false, "is_shortest_path": true, "label": "State 5", "fullLabel": "State 5\n\nHolding(robot, cup2)\nInside(cup1, target)\nNotHolding(robot, cup1)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup2)\nOn(target, table)"}}, {"data": {"id": "6", "state_num": "6", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "Holding(robot:robot, cup1:container)", "NotBlocked(target:container)", "NotHolding(robot:robot, cup2:container)", "NotInsideAnyContainer(cup1:container)", "On(target:container, table:immovable_object)", "NEq(cup1:container, cup2:container)", "Inside(cup2:container, target:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NEq(cup1:container, table:immovable_object)"], "is_initial": false, "is_goal": false, "is_shortest_path": false, "label": "State 6", "fullLabel": "State 6\n\nHolding(robot, cup1)\nInside(cup2, target)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nNotInsideAnyContainer(cup1)\nOn(target, table)"}}, {"data": {"id": "7", "state_num": "7", "atoms": ["Reachable(robot:robot, cup1:container)", "Reachable(robot:robot, target:container)", "NotBlocked(target:container)", "HandEmpty(robot:robot)", "NotHolding(robot:robot, cup2:container)", "NEq(cup1:container, cup2:container)", "On(target:container, table:immovable_object)", "Inside(cup1:container, target:container)", "Inside(cup2:container, target:container)", "NotBlocked(cup1:container)", "IsPlaceable(cup1:container)", "Reachable(robot:robot, table:immovable_object)", "NEq(cup2:container, target:container)", "NEq(cup1:container, target:container)", "Reachable(robot:robot, cup2:container)", "NotHolding(robot:robot, target:container)", "NEq(cup1:container, table:immovable_object)", "IsPlaceable(cup2:container)", "FitsInXY(cup2:container, target:container)", "HasFlatTopSurface(table:immovable_object)", "NEq(cup2:container, table:immovable_object)", "NEq(target:container, table:immovable_object)", "NotBlocked(cup2:container)", "FitsInXY(cup1:container, target:container)", "NotHolding(robot:robot, cup1:container)"], "is_initial": false, "is_goal": true, "is_shortest_path": true, "label": "Goal State 7", "fullLabel": "Goal State 7\n\nHandEmpty(robot)\nInside(cup1, target)\nInside(cup2, target)\nNotHolding(robot, cup1)\nNotHolding(robot, cup2)\nNotHolding(robot, target)\nOn(target, table)"}}], "edges": [{"data": {"id": "edge_0", "source": "1", "target": "3", "label": "DropObjectInside(robot,cup1,target)", "fullLabel": "<strong>DropObjectInside(robot,cup1,target)</strong><br><br><span style='color: #2ca02c'>+ HandEmpty(robot:robot)<br>+ NotHolding(robot:robot, cup1:container)<br>+ Inside(cup1:container, target:container)<br></span><br><span style='color: #d62728'>- Holding(robot:robot, cup1:container)<br>- NotInsideAnyContainer(cup1:container)<br></span>", "is_shortest_path": true, "affects_belief": false}}, {"data": {"id": "edge_1", "source": "3", "target": "5", "label": "PickObjectFromTop(robot,cup2,table)", "fullLabel": "<strong>PickObjectFromTop(robot,cup2,table)</strong><br><br><span style='color: #2ca02c'>+ Holding(robot:robot, cup2:container)<br></span><br><span style='color: #d62728'>- HandEmpty(robot:robot)<br>- InHandView(robot:robot, cup2:container)<br>- NotHolding(robot:robot, cup2:container)<br>- On(cup2:container, table:immovable_object)<br></span>", "is_shortest_path": true, "affects_belief": false}}, {"data": {"id": "edge_2", "source": "5", "target": "7", "label": "DropObjectInside(robot,cup2,target)", "fullLabel": "<strong>DropObjectInside(robot,cup2,target)</strong><br><br><span style='color: #2ca02c'>+ HandEmpty(robot:robot)<br>+ NotHolding(robot:robot, cup2:container)<br>+ Inside(cup2:container, target:container)<br></span><br><span style='color: #d62728'>- Holding(robot:robot, cup2:container)<br>- NotInsideAnyContainer(cup2:container)<br></span>", "is_shortest_path": true, "affects_belief": false}}, {"data": {"id": "edge_3", "source": "2", "target": "4", "label": "DropObjectInside(robot,cup2,target)", "fullLabel": "<strong>DropObjectInside(robot,cup2,target)</strong><br><br><span style='color: #2ca02c'>+ HandEmpty(robot:robot)<br>+ NotHolding(robot:robot, cup2:container)<br>+ Inside(cup2:container, target:container)<br></span><br><span style='color: #d62728'>- Holding(robot:robot, cup2:container)<br>- NotInsideAnyContainer(cup2:container)<br></span>", "is_shortest_path": false, "affects_belief": false}}, {"data": {"id": "edge_4", "source": "4", "target": "6", "label": "PickObjectFromTop(robot,cup1,table)", "fullLabel": "<strong>PickObjectFromTop(robot,cup1,table)</strong><br><br><span style='color: #2ca02c'>+ Holding(robot:robot, cup1:container)<br></span><br><span style='color: #d62728'>- HandEmpty(robot:robot)<br>- InHandView(robot:robot, cup1:container)<br>- On(cup1:container, table:immovable_object)<br>- NotHolding(robot:robot, cup1:container)<br></span>", "is_shortest_path": false, "affects_belief": false}}, {"data": {"id": "edge_5", "source": "6", "target": "7", "label": "DropObjectInside(robot,cup1,target)", "fullLabel": "<strong>DropObjectInside(robot,cup1,target)</strong><br><br><span style='color: #2ca02c'>+ HandEmpty(robot:robot)<br>+ NotHolding(robot:robot, cup1:container)<br>+ Inside(cup1:container, target:container)<br></span><br><span style='color: #d62728'>- Holding(robot:robot, cup1:container)<br>- NotInsideAnyContainer(cup1:container)<br></span>", "is_shortest_path": false, "affects_belief": false}}, {"data": {"id": "edge_6", "source": "0", "target": "1", "label": "PickObjectFromTop(robot,cup1,table)", "fullLabel": "<strong>PickObjectFromTop(robot,cup1,table)</strong><br><br><span style='color: #2ca02c'>+ Holding(robot:robot, cup1:container)<br></span><br><span style='color: #d62728'>- HandEmpty(robot:robot)<br>- InHandView(robot:robot, cup1:container)<br>- On(cup1:container, table:immovable_object)<br>- NotHolding(robot:robot, cup1:container)<br></span>", "is_shortest_path": true, "affects_belief": false}}, {"data": {"id": "edge_7", "source": "0", "target": "2", "label": "PickObjectFromTop(robot,cup2,table)", "fullLabel": "<strong>PickObjectFromTop(robot,cup2,table)</strong><br><br><span style='color: #2ca02c'>+ Holding(robot:robot, cup2:container)<br></span><br><span style='color: #d62728'>- HandEmpty(robot:robot)<br>- InHandView(robot:robot, cup2:container)<br>- NotHolding(robot:robot, cup2:container)<br>- On(cup2:container, table:immovable_object)<br></span>", "is_shortest_path": false, "affects_belief": false}}]};
+        
+        // Initialize Cytoscape
+        const cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: graphData,
+            style: [
+                // Base node style
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': 'white',
+                        'border-width': 2,
+                        'border-color': '#666',
+                        'label': 'data(label)',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'width': '120px',
+                        'height': '50px',
+                        'font-size': '12px',
+                        'text-wrap': 'wrap',
+                        'padding': '10px'
+                    }
+                },
+                // Base edge style
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 1,
+                        'line-color': '#999',
+                        'target-arrow-color': '#999',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'label': 'data(label)',
+                        'font-size': '10px',
+                        'text-background-color': 'white',
+                        'text-background-opacity': 1,
+                        'text-background-padding': '5px',
+                        'text-rotation': 'autorotate',
+                        'text-margin-y': -10,
+                        'line-style': 'dashed',
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'edge-distances': 'node-position'
+                    }
+                },
+                // Non-shortest path edges (non-belief)
+                {
+                    selector: 'edge[!is_shortest_path][!affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'line-color': '#87CEEB',
+                        'target-arrow-color': '#87CEEB',
+                        'width': 1,
+                        'line-style': 'dashed'
+                    }
+                },
+                // Non-shortest path edges (belief)
+                {
+                    selector: 'edge[!is_shortest_path][?affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [70],
+                        'control-point-weights': [0.5],
+                        'line-color': '#FFB6C1',
+                        'target-arrow-color': '#FFB6C1',
+                        'width': 2,
+                        'line-style': 'dashed'
+                    }
+                },
+                // Shortest path edges (non-belief)
+                {
+                    selector: 'edge[?is_shortest_path][!affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [50],
+                        'control-point-weights': [0.5],
+                        'line-color': '#2171b5',
+                        'target-arrow-color': '#2171b5',
+                        'width': 2.5,
+                        'line-style': 'solid'
+                    }
+                },
+                // Shortest path edges (belief)
+                {
+                    selector: 'edge[?is_shortest_path][?affects_belief]',
+                    style: {
+                        'curve-style': 'unbundled-bezier',
+                        'control-point-distances': [70],
+                        'control-point-weights': [0.5],
+                        'line-color': '#E74C3C',
+                        'target-arrow-color': '#E74C3C',
+                        'width': 3,
+                        'line-style': 'solid'
+                    }
+                },
+                // Shortest path nodes (should be last to override other node styles)
+                {
+                    selector: 'node[?is_shortest_path]',
+                    style: {
+                        'background-color': '#fff7e6',
+                        'border-color': '#ff7f0e',
+                        'border-width': 3
+                    }
+                },
+                // Initial state
+                {
+                    selector: 'node[?is_initial]',
+                    style: {
+                        'background-color': '#e6f3ff',
+                        'border-color': '#2171b5',
+                        'border-width': 3
+                    }
+                },
+                // Goal state
+                {
+                    selector: 'node[?is_goal]',
+                    style: {
+                        'background-color': '#e6ffe6',
+                        'border-color': '#2ca02c',
+                        'border-width': 3
+                    }
+                },
+            ],
+            layout: {
+                name: 'breadthfirst',
+                rankDir: 'TB',  // Top to Bottom layout
+                nodeSep: 100,
+                rankSep: 150,
+                edgeSep: 50,
+                animate: true,
+                roots: '[?is_initial]'  // Start layout from initial state
+            },
+            wheelSensitivity: 0.2
+        });
+
+        // Layout options for reset
+        const layout_options = {
+            name: 'breadthfirst',
+            rankDir: 'TB',  // Top to Bottom layout
+            nodeSep: 100,
+            rankSep: 150,
+            edgeSep: 50,
+            animate: document.getElementById('animate').checked,
+            roots: '[?is_initial]'  // Start layout from initial state
+        };
+
+        function formatStateInfo(fullLabel) {
+            const lines = fullLabel.split('\n');
+            let html = `<div class="state-header"><strong>${lines[0]}</strong></div>`;
+            
+            let section = [];
+            for (let i = 2; i < lines.length; i++) {
+                const line = lines[i];
+                if (line === 'Self-loop operators:') {
+                    if (section.length > 0) {
+                        html += `<div class="predicates">${section.join('<br>')}</div>`;
+                        section = [];
+                    }
+                    html += `<div class="self-loops"><strong>${line}</strong>`;
+                } else if (line.trim() !== '') {
+                    section.push(`<div class="predicate">${line}</div>`);
+                }
+            }
+            if (section.length > 0) {
+                html += `<div class="predicates">${section.join('')}</div>`;
+            }
+            return html;
+        }
+
+        function showInfoPanel(node) {
+            const panel = document.getElementById('info-panel');
+            const info = document.getElementById('state-info');
+            info.innerHTML = formatStateInfo(node.data('fullLabel'));
+            panel.style.display = 'block';
+        }
+
+        function hideInfoPanel() {
+            document.getElementById('info-panel').style.display = 'none';
+        }
+
+        function formatEdgeInfo(fullLabel) {
+            const lines = fullLabel.split('\n');
+            let html = `<div class="edge-header"><strong>${lines[0]}</strong></div>`;
+            
+            let section = [];
+            for (let i = 2; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('+')) {
+                    section.push(`<div class="effect-add">${line}</div>`);
+                } else if (line.startsWith('-')) {
+                    section.push(`<div class="effect-delete">${line}</div>`);
+                } else {
+                    if (section.length > 0) {
+                        html += `<div class="effects">${section.join('')}</div>`;
+                        section = [];
+                    }
+                    html += `<div class="section-header">${line}</div>`;
+                }
+            }
+            if (section.length > 0) {
+                html += `<div class="effects">${section.join('')}</div>`;
+            }
+            return html;
+        }
+
+        function showEdgeInfoPanel(edge) {
+            const panel = document.getElementById('edge-info-panel');
+            const info = document.getElementById('edge-info');
+            info.innerHTML = formatEdgeInfo(edge.data('fullLabel'));
+            panel.style.display = 'block';
+        }
+
+        function hideEdgeInfoPanel() {
+            document.getElementById('edge-info-panel').style.display = 'none';
+        }
+
+        // Event handlers
+        cy.on('tap', 'node', function(evt) {
+            showInfoPanel(evt.target);
+        });
+
+        cy.on('tap', 'edge', function(evt) {
+            showEdgeInfoPanel(evt.target);
+            evt.preventDefault();
+        });
+
+        cy.on('tap', function(evt) {
+            if (evt.target === cy) {
+                hideEdgeInfoPanel();
+                hideInfoPanel();
+            }
+        });
+
+        // Toggle controls
+        document.getElementById('shortest-path').addEventListener('change', function(evt) {
+            cy.edges('[?is_shortest_path]').style('visibility', evt.target.checked ? 'visible' : 'hidden');
+        });
+
+        document.getElementById('all-edges').addEventListener('change', function(evt) {
+            cy.edges('[!is_shortest_path]').style('visibility', evt.target.checked ? 'visible' : 'hidden');
+        });
+
+        document.getElementById('animate').addEventListener('change', function(evt) {
+            layout_options.animate = evt.target.checked;
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(evt) {
+            switch(evt.key.toLowerCase()) {
+                case 'h':
+                    alert(
+                        'Keyboard Shortcuts:\n' +
+                        'h: Show this help\n' +
+                        's: Toggle shortest path\n' +
+                        'e: Toggle all edges\n' +
+                        'a: Toggle animation\n' +
+                        'r: Reset layout\n' +
+                        'Esc: Close info panel'
+                    );
+                    break;
+                case 's':
+                    const sp = document.getElementById('shortest-path');
+                    sp.checked = !sp.checked;
+                    sp.dispatchEvent(new Event('change'));
+                    break;
+                case 'e':
+                    const ae = document.getElementById('all-edges');
+                    ae.checked = !ae.checked;
+                    ae.dispatchEvent(new Event('change'));
+                    break;
+                case 'a':
+                    const an = document.getElementById('animate');
+                    an.checked = !an.checked;
+                    an.dispatchEvent(new Event('change'));
+                    break;
+                case 'r':
+                    cy.layout(layout_options).run();
+                    break;
+                case 'escape':
+                    hideInfoPanel();
+                    break;
+            }
+        });
+
+        // Print initial graph data
+        console.log('Initial graph data:', graphData);
+        console.log('Edges with shortest path:', cy.edges().filter(edge => edge.data('is_shortest_path')).length);
+        console.log('Edges without shortest path:', cy.edges().filter(edge => !edge.data('is_shortest_path')).length);
+
+        // Debug node data
+        console.log('\nNode data:');
+        cy.nodes().forEach(node => {
+            console.log('Node:', node.id(), {
+                'is_initial': node.data('is_initial'),
+                'is_goal': node.data('is_goal'),
+                'is_shortest_path': node.data('is_shortest_path'),
+                'background-color': node.style('background-color'),
+                'border-color': node.style('border-color')
+            });
+        });
+
+        // Debug edge data
+        console.log('\nEdge data:');
+        cy.edges().forEach(edge => {
+            console.log('Edge:', edge.id(), {
+                'is_shortest_path': edge.data('is_shortest_path'),
+                'line-color': edge.style('line-color'),
+                'source': edge.data('source'),
+                'target': edge.data('target')
+            });
+        });
+    </script>
+</body>
+</html> 
