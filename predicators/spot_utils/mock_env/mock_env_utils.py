@@ -337,14 +337,14 @@ class _MockSpotObservation(_SavedMockSpotObservation):
     object_dict: Dict[str, Object]
     vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
     vlm_predicates: Optional[Set[VLMPredicate]] = None
-    camera_images_history: Optional[List[Dict[str, Any]]] = None
+    # camera_images_history: Optional[List[Dict[str, Any]]] = None
     action_history: Optional[List[Action]] = None
     
     @classmethod
     def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, object_dict: Dict[str, Object],
                        vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
                         vlm_predicates: Optional[Set[VLMPredicate]] = None,
-                        camera_images_history: Optional[List[Dict[str, Any]]] = None,
+                        # camera_images_history: Optional[List[Dict[str, Any]]] = None,
                         action_history: Optional[List[Action]] = None) -> "_MockSpotObservation":
         """Initialize from a saved observation."""
         return cls(
@@ -360,6 +360,6 @@ class _MockSpotObservation(_SavedMockSpotObservation):
             object_dict=object_dict,
             vlm_atom_dict=vlm_atom_dict,
             vlm_predicates=vlm_predicates,
-            camera_images_history=camera_images_history,
+            # camera_images_history=camera_images_history,
             action_history=action_history
         )
