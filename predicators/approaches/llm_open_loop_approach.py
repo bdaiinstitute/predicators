@@ -118,6 +118,7 @@ class LLMOpenLoopApproach(BilevelPlanningApproach):
         type_hierarchy_str = utils.create_pddl_types_str(self._types)
         goal_str = "\n".join(str(obj) for obj in goal_expr_list)
         
+        # TODO: add including state history
         # Format current state (from task)
         assert task.init.vlm_atom_dict is not None
         assert task.init.non_vlm_atom_dict is not None
@@ -126,13 +127,19 @@ class LLMOpenLoopApproach(BilevelPlanningApproach):
         state_atoms = state_atoms_vlm | state_atoms_non_vlm
         state_str = "\n".join(str(atom) for atom in state_atoms)
         
+        # Format action history if available
+        action_history_str = ""
+        if task.init.action_history:
+            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(task.init.action_history))
+        
         # Create the prompt using the template
         prompt = self.base_prompt.format(
             options=options_str,
             typed_objects=objects_str,
             type_hierarchy=type_hierarchy_str,
             goal_str=goal_str,
-            state_str=state_str)
+            state_str=state_str,
+            action_history=action_history_str)
             
         if CFG.fm_planning_verbose:
             logging.info("\n=== LLM Query ===")
