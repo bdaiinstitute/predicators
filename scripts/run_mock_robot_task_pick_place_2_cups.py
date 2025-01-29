@@ -100,7 +100,7 @@ def main(args: argparse.Namespace) -> None:
                 "--approach", "random_options",
                 "--random_options_max_tries", "1000",
                 "--max_num_steps_option_rollout", "100",
-                "--timeout", "60"
+                "--timeout", "60",
                 "--horizon", "20",  # NOTE: should need more steps, but need to decide one
             ]
         },
