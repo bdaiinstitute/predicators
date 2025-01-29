@@ -910,7 +910,7 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
         self.red_cup = Object("red_cup", _movable_object_type)
         self.blue_cup = Object("blue_cup", _movable_object_type)
         
-        self.oracle_env = False
+        self.oracle_env = True
         
         if self.oracle_env:
             # Set up initial state
@@ -983,21 +983,26 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
             GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
         }
         
+        self.goal_atoms = {
+            GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
+            GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
+            GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
+        }
         
-        GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
+        # GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
         
-        if self.oracle_env:
-            self.goal_atoms = {
-                GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
-                GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
-                GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
-            }
-        else:
-            self.goal_atoms_list = [
-                    {
-                    GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
-                }
-            ]
+        # if self.oracle_env:
+        #     self.goal_atoms = {
+        #         GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
+        #         GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
+        #         GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
+        #     }
+        # else:
+        #     self.goal_atoms_list = [
+        #             {
+        #             GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
+        #         }
+        #     ]
     
     def _create_operators(self) -> Iterator[STRIPSOperator]:
         """Create STRIPS operators specific to drawer cleaning tasks."""
@@ -1017,12 +1022,12 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
             "CloseDrawer"
         }
 
-        if not self.oracle_env:
-            op_names_to_keep.update({
-                # TODO check
-                "ObserveObject",
-                "ObserveObjectInContainer"
-            })
+        # if not self.oracle_env:
+        #     op_names_to_keep.update({
+        #         # TODO check
+        #         "ObserveObject",
+        #         "ObserveObjectInContainer"
+        #     })
             
         # Filter operators
         for op in all_operators:
