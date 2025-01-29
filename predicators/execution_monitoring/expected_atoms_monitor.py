@@ -33,6 +33,8 @@ class ExpectedAtomsExecutionMonitor(BaseExecutionMonitor):
         # If the expected atoms are a subset of the current atoms, then
         # we don't have to replan.
         unsat_atoms = {a for a in next_expected_atoms if not a.holds(state)}
+
+        # NOTE: this is to update goal and objects
         # Check goal
         assert self.perceiver is not None and self.env_task is not None
         new_goal = self.perceiver._create_goal(state, self.env_task.goal_description)
@@ -45,6 +47,7 @@ class ExpectedAtomsExecutionMonitor(BaseExecutionMonitor):
             self._curr_goal = new_goal
             # Map th objects in the new goal to the objects in the state
             import jellyfish
+            # NOTE: this is goal atoms
             def map_goal_to_state(goal_predicates, state_data):
                 goal_to_state_mapping = {}
                 state_usage_count = {state_obj: 0 for state_obj in state_data.keys()}
