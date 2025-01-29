@@ -85,12 +85,18 @@ class MockSpotPerceiver(BasePerceiver):
         # Reset history
         self._camera_images_history = []
         self._action_history = []
+        self._prev_action = None
         
-        init_state = self._obs_to_state(env_task.init_obs)
+        # Get initial observation and update camera images
+        init_obs = env_task.init_obs
+        assert isinstance(init_obs, _MockSpotObservation)
+        self._camera_images = init_obs.images
+        
+        # Create initial state
+        init_state = self._obs_to_state(init_obs)
         goal_description = env_task.goal_description
         
         self.objects = init_state.visible_objects
-        self._prev_action = None  # Reset previous action
         
         return Task(init_state, goal_description)
     
