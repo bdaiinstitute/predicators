@@ -1,6 +1,6 @@
 """A VLM-based perceiver that generates text descriptions of states."""
 
-from typing import Dict, Optional, Set
+from typing import Dict
 
 import numpy as np
 import os
@@ -9,9 +9,10 @@ from predicators import utils
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.pretrained_model_interface import create_vlm_by_name
 from predicators.settings import CFG
-from predicators.structs import EnvironmentTask, GroundAtom, Object, \
+from predicators.structs import EnvironmentTask, \
     Observation, State, Task, Video
-
+import PIL
+from PIL import ImageDraw
 
 class VLMPerceiver(BasePerceiver):
     """A perceiver that uses a Vision Language Model to generate text descriptions of states."""
@@ -24,7 +25,7 @@ class VLMPerceiver(BasePerceiver):
 
     @classmethod
     def get_name(cls) -> str:
-        return "vlm"
+        return "vlm_perceiver"
 
     def reset(self, env_task: EnvironmentTask) -> Task:
         """Reset the perceiver with a new environment task."""
@@ -40,7 +41,7 @@ class VLMPerceiver(BasePerceiver):
     def _observation_to_state(self, obs: Observation) -> State:
         """Convert an observation into a state with text description."""
         # Extract images from observation
-        images = obs.get("images", {})
+        images = obs.images
         if not images:
             # If no images, create an empty state with no description
             return State({}, text_description=None)
@@ -50,17 +51,20 @@ class VLMPerceiver(BasePerceiver):
 
         # Create state with text description
         # For now, we'll keep an empty data dict since we're focusing on text
-        return State({}, text_description=text_description)
+        return State(data={o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()}, 
+                     text_description=text_description)
 
     def _get_text_description(self, images: Dict) -> str:
         """Use VLM to generate a text description of the images."""
         # Format prompt for VLM
         prompt = CFG.vlm_text_perceiver_prompt
         
+        
+        vlm_images = [PIL.Image.fromarray(img_arr.rgb) for img_arr in images.values()]
         # Query VLM with images
         completions = self._vlm.sample_completions(
             prompt=prompt,
-            imgs=list(images.values()),
+            imgs=vlm_images,
             temperature=CFG.vlm_temperature,
             seed=0,  # Fixed seed for deterministic behavior
             num_completions=1

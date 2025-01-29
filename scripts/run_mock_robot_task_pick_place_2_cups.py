@@ -28,13 +28,12 @@ sys.path.append(REPO_ROOT)
 from predicators.settings import CFG
 
 
-def create_base_command(seed: int = 0) -> List[str]:
+def create_base_command(env:str, seed: int = 0) -> List[str]:
     """Create the base command with common arguments."""
     return [
         "python", "predicators/main.py",
-        "--env", "mock_spot_drawer_cleaning",
+        "--env", env,
         "--seed", str(seed),
-        "--perceiver", "mock_spot_perceiver",
         # "--mock_env_vlm_eval_predicate", "True",
         "--num_train_tasks", "0",
         "--num_test_tasks", "1",
@@ -86,7 +85,7 @@ def run_command(cmd: List[str], name: str) -> None:
 def main(args: argparse.Namespace) -> None:
     """Run all planners on the mock robot pick and place task."""
     # Create base command
-    base_cmd = create_base_command(args.seed)
+    base_cmd = create_base_command(args.env, args.seed)
     
     # Define all planner configurations
     planners = [
@@ -100,6 +99,7 @@ def main(args: argparse.Namespace) -> None:
         #         "--approach", "random_options",
         #         "--random_options_max_tries", "1000",
         #         "--max_num_steps_option_rollout", "100",
+        #         "--perceiver", "mock_spot_perceiver",
         #         "--timeout", "60",
         #         "--horizon", "20",  # NOTE: should need more steps, but need to decide one
         #     ]
@@ -108,24 +108,27 @@ def main(args: argparse.Namespace) -> None:
         #     "name": "LLM Open Loop",
         #     "args": [
         #         "--approach", "llm_open_loop",
+        #         "--perceiver", "mock_spot_perceiver",
         #         "--llm_model_name", "gpt-4o",
         #         "--llm_temperature", "0.2"
         #     ]
         # },
-        {
-            "name": "LLM Closed Loop (MPC)",
-            "args": [
-                "--approach", "llm_open_loop",
-                "--llm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2",
-                # "--execution_monitor", "mpc"
-                "--execution_monitor", "expected_atoms"
-            ]
-        },
+        # {
+        #     "name": "LLM Closed Loop (MPC)",
+        #     "args": [
+        #         "--approach", "llm_open_loop",
+        #         "--perceiver", "mock_spot_perceiver",
+        #         "--llm_model_name", "gpt-4o",
+        #         "--llm_temperature", "0.2",
+        #         # "--execution_monitor", "mpc"
+        #         "--execution_monitor", "expected_atoms"
+        #     ]
+        # },
         # {
         #     "name": "VLM Open Loop",
         #     "args": [
         #         "--approach", "vlm_open_loop",
+        #         "--perceiver", "mock_spot_perceiver",
         #         "--vlm_model_name", "gpt-4o",
         #         "--llm_temperature", "0.2"
         #     ]
@@ -134,6 +137,7 @@ def main(args: argparse.Namespace) -> None:
         #     "name": "VLM Closed Loop (Open Loop + MPC)",
         #     "args": [
         #         "--approach", "vlm_open_loop",
+        #         "--perceiver", "mock_spot_perceiver",
         #         "--vlm_model_name", "gpt-4o",
         #         "--llm_temperature", "0.2",
         #         # "--execution_monitor", "mpc"
@@ -144,11 +148,22 @@ def main(args: argparse.Namespace) -> None:
         #     "name": "VLM Closed Loop (Bilevel + MPC)",
         #     "args": [
         #         "--approach", "vlm_oracle_bilevel_planning",
+        #         "--perceiver", "mock_spot_perceiver",
         #         "--vlm_model_name", "gpt-4o",
         #         "--vlm_temperature", "0.2",
         #         "--execution_monitor", "expected_atoms"
         #     ]
-        # }
+        # },
+        {
+            "name": "VLM Captioning",
+            "args": [
+                "--approach", "vlm_captioning",
+                "--perceiver", "vlm_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--vlm_temperature", "0.2",
+                "--execution_monitor", "expected_atoms"
+            ]
+        }
     ]
     
     # Run each planner
@@ -159,6 +174,7 @@ def main(args: argparse.Namespace) -> None:
         cmd = base_cmd + planner["args"]
         # if args.load_approach:
         #     cmd.append("--load_approach")
+        print(cmd)
         run_command(cmd, planner["name"])
 
 def parse_args() -> argparse.Namespace:
@@ -169,6 +185,8 @@ def parse_args() -> argparse.Namespace:
                        help="Random seed")
     parser.add_argument("--planner", type=str,
                        help="Run only this planner (by name)")
+    parser.add_argument('--env', type=str, default="mock_spot_drawer_cleaning", 
+                        choices=["mock_spot_drawer_cleaning", "mock_spot_pick_place_two_cup"])
     # parser.add_argument("--load_approach", action="store_true",
     #                    help="Load saved approach")
     return parser.parse_args()
