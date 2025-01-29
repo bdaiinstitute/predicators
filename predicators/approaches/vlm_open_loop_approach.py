@@ -192,6 +192,9 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         # NOTE: This is only used when replanning is needed in closed-loop case
         # NOTE: Check if images are correctly added to history 
         history_imgs = []
+        
+        print("init_state.camera_images_history")
+        print(len(init_state.camera_images_history))
         if CFG.vlm_enable_image_history and init_state.camera_images_history is not None:
             for history_step, history_imgs_dict in enumerate(init_state.camera_images_history):
                 for img_num, (name, img_arr) in enumerate(history_imgs_dict.items()):

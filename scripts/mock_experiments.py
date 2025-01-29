@@ -133,17 +133,17 @@ def main(args: argparse.Namespace) -> None:
         #         "--llm_temperature", "0.2"
         #     ]
         # },
-        # {
-        #     "name": "VLM Closed Loop (Open Loop + MPC)",
-        #     "args": [
-        #         "--approach", "vlm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         # "--execution_monitor", "mpc"
-        #         "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
+        {
+            "name": "VLM Closed Loop (Open Loop + MPC)",
+            "args": [
+                "--approach", "vlm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
         # {
         #     "name": "VLM Closed Loop (Bilevel + MPC)",
         #     "args": [
@@ -154,16 +154,16 @@ def main(args: argparse.Namespace) -> None:
         #         "--execution_monitor", "expected_atoms"
         #     ]
         # },
-        {
-            "name": "VLM Captioning",
-            "args": [
-                "--approach", "vlm_captioning",
-                "--perceiver", "vlm_perceiver",
-                "--vlm_model_name", "gpt-4o",
-                "--vlm_temperature", "0.2",
-                "--execution_monitor", "mpc"
-            ]
-        }
+        # {
+        #     "name": "VLM Captioning",
+        #     "args": [
+        #         "--approach", "vlm_captioning",
+        #         "--perceiver", "vlm_perceiver",
+        #         "--vlm_model_name", "gpt-4o",
+        #         "--vlm_temperature", "0.2",
+        #         "--execution_monitor", "mpc"
+        #     ]
+        # }
     ]
     
     # Run each planner
