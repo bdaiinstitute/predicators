@@ -109,7 +109,15 @@ class MockSpotPerceiver(BasePerceiver):
         if obs.non_vlm_atom_dict is not None:
             self._non_vlm_atom_dict = obs.non_vlm_atom_dict
             
-        visible_objects = list(obs.objects_in_view) + [self._spot_object]
+        if len(obs.objects_in_view) == 0:
+            # NOTE: This is a hack to handle the case when we didn't include any visible objects
+            # - Correct solution is to include them in creator during saving
+            # NOTE: if invisible objects are included, we will generate queries for them to VLM
+            # However, these queries (1) for belief-space ones will be unknown and won't update VLM atoms
+            # (2) for binary world-state ones, they may wrongly update VLM atoms
+            visible_objects = list(obs.object_dict.values())  + [self._spot_object]
+        else:
+            visible_objects = list(obs.objects_in_view) + [self._spot_object]
         images = obs.images
         
         # Handle VLM predicates and atoms if enabled
@@ -222,6 +230,19 @@ class MockSpotPerceiver(BasePerceiver):
         self._gripper_open = obs.gripper_open
         self._objects_in_view = obs.objects_in_view
         self._objects_in_hand = obs.objects_in_hand
+
+        # Create and update state/image history if enabled
+        # TODO include actions as well
+        camera_images_history = []
+        if CFG.vlm_enable_image_history and self._camera_images is not None:
+            # Get previous history from last state if available
+            if obs.camera_images_history is not None:
+                camera_images_history = obs.camera_images_history.copy()
+            # Add current images to history
+            camera_images_history.append(self._camera_images)
+            # Trim history to max length
+            if len(camera_images_history) > CFG.vlm_max_history_steps:
+                camera_images_history = camera_images_history[-CFG.vlm_max_history_steps:]
         
         # Create state with all atoms
         # NOTE: We use the object_dict from the observation to populate objects in data for planner
@@ -229,6 +250,7 @@ class MockSpotPerceiver(BasePerceiver):
             data={o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()},  # type: ignore
             simulator_state=None,
             camera_images=self._camera_images,
+            camera_images_history=camera_images_history,
             visible_objects=self._objects_in_view,
             vlm_atom_dict=self._vlm_atom_dict,  # type: ignore
             vlm_predicates=self._vlm_predicates,
