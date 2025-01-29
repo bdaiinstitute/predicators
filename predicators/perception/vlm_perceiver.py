@@ -42,6 +42,8 @@ class VLMPerceiver(BasePerceiver):
         # Get initial observation and initialize history with first images
         init_obs = env_task.init_obs
         assert isinstance(init_obs, _MockSpotObservation)
+        
+        # Initialize image history with first observation if enabled
         if CFG.vlm_enable_image_history and init_obs.images is not None:
             self._camera_images_history = [init_obs.images]
             
@@ -52,6 +54,20 @@ class VLMPerceiver(BasePerceiver):
 
     def step(self, observation: Observation) -> State:
         """Process a new observation into a state."""
+        assert isinstance(observation, _MockSpotObservation)
+        
+        # Update action history
+        if self._prev_action is not None:
+            self._action_history.append(self._prev_action)
+            if len(self._action_history) > CFG.vlm_max_history_steps:
+                self._action_history = self._action_history[-CFG.vlm_max_history_steps:]
+                
+        # Update camera images history if enabled
+        if CFG.vlm_enable_image_history and observation.images is not None:
+            self._camera_images_history.append(observation.images)
+            if len(self._camera_images_history) > CFG.vlm_max_history_steps:
+                self._camera_images_history = self._camera_images_history[-CFG.vlm_max_history_steps:]
+        
         return self._observation_to_state(observation)
 
     def update_perceiver_with_action(self, action: Action) -> None:
@@ -60,19 +76,6 @@ class VLMPerceiver(BasePerceiver):
 
     def _observation_to_state(self, obs: _MockSpotObservation) -> State:
         """Convert an observation into a state with text description."""
-        
-        # Update histories
-        # Update action history
-        if self._prev_action is not None:
-            self._action_history.append(self._prev_action)
-            if len(self._action_history) > CFG.vlm_max_history_steps:
-                self._action_history = self._action_history[-CFG.vlm_max_history_steps:]
-                
-        # Update camera images history if enabled
-        if CFG.vlm_enable_image_history and obs.images is not None:
-            self._camera_images_history.append(obs.images)
-            if len(self._camera_images_history) > CFG.vlm_max_history_steps:
-                self._camera_images_history = self._camera_images_history[-CFG.vlm_max_history_steps:]
       
         # Get text description from VLM
         vlm_images = []
