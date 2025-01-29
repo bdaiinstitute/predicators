@@ -111,7 +111,7 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
             # Get images for this canonical state
             while True:
                 img_path = Prompt.ask(
-                    f"\nEnter path to image for view {view_count} of state {canonical_id} (relative to image directory, 'done' to move to next state)",
+                    f"\nEnter path to image for view {view_count} of state {canonical_id} (relative to image directory, 'done'/'d' to move to next state)",
                     default="done",
                     show_default=True
                 )
@@ -152,7 +152,7 @@ class ManualMockEnvCreator(MockEnvCreatorBase):
                         self.console.print(f"Images collected ({len(collected_images)}):")
                         for camera_name in collected_images:
                             self.console.print(f"  - Camera: {camera_name}")
-                            self.console.print(f"    File: {collected_images[camera_name].rgb_path}")
+                            # self.console.print(f"    File: {collected_images[camera_name].rgb_path}")
                         
                         try:
                             self.save_observation(
@@ -300,7 +300,7 @@ def main():
                        help="Directory containing raw images")
     parser.add_argument("--env_name", type=str, choices=list(mock_env_classes.keys()),
                        help="Name of environment class to use")
-    parser.add_argument("--mode", type=str, choices=['state', 'image'], default='image',
+    parser.add_argument("--mode", type=str, choices=['state', 'image'], default='state',
                        help="Processing mode: 'state' to iterate over states first, 'image' to iterate over images first")
     
     args = parser.parse_args()
