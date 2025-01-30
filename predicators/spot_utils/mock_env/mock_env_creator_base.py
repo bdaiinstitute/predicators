@@ -133,6 +133,7 @@ KEY_PREDICATES = {
     "On",      # Object placement
     # "Empty",   # Cup emptiness
     "DrawerOpen",  # Drawer state
+    "DrawerClosed",  # Drawer state
     
     # View-related predicates
     # "InHandView",  # Object visible in hand camera
@@ -383,28 +384,6 @@ class MockEnvCreatorBase(ABC):
         self._save_state(state_id=state_id, images=images, objects_in_view=objects_in_view, 
                        objects_in_hand=objects_in_hand, gripper_open=gripper_open, 
                        atom_dict={}, non_vlm_atom_dict=non_vlm_atoms, metadata={})
-        
-        # # Create observation
-        # obs = _SavedMockSpotObservation(
-        #     images=images,
-        #     gripper_open=gripper_open,
-        #     objects_in_view=objects_in_view,
-        #     objects_in_hand=objects_in_hand,
-        #     state_id=state_id,
-        #     atom_dict={},  # Not used anymore
-        #     non_vlm_atom_dict=non_vlm_atoms,
-        #     metadata={}
-        # )
-        
-        # # Save observation
-        # obs.save_state(self.image_dir)
-        
-        # # Track objects
-        # for obj in objects_in_view | objects_in_hand:
-        #     self.objects[obj.name] = obj
-            
-        # # Store observation
-        # self.states[state_id] = obs
 
     def add_state_from_raw_images(
         self,
