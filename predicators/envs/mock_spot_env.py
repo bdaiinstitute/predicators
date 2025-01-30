@@ -773,7 +773,7 @@ class MockSpotPickPlaceTwoCupEnv(MockSpotEnv):
     
     # NOTE: This is a test transition system with manually created images
     # preset_data_dir = os.path.join("mock_env_data", "test_mock_two_cup_pick_place_manual_images")
-    preset_data_dir = os.path.join("mock_env_data", "test_mock_task_phone_pick_place_2_cups")
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotPickPlaceTwoCupEnv")
 
     @classmethod
     def get_name(cls) -> str:
