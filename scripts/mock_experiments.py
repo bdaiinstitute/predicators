@@ -51,6 +51,7 @@ def run_command(cmd: List[str], name: str) -> None:
     process = None
     try:
         # Run the command and stream output in real-time
+        print(cmd)
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -90,11 +91,11 @@ def main(args: argparse.Namespace) -> None:
     # Define all planner configurations
     planners = [
         {
-            "name": "Oracle",
+            "name": "oracle",
             "args": ["--approach", "oracle"]
         },
         {
-            "name": "Random Options",
+            "name": "random",
             "args": [
                 "--approach", "random_options",
                 "--random_options_max_tries", "1000",
@@ -104,7 +105,7 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         {
-            "name": "LLM Open Loop",
+            "name": "llm_open_loop",
             "args": [
                 "--approach", "llm_open_loop",
                 "--perceiver", "mock_spot_perceiver",
@@ -113,7 +114,7 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         {
-            "name": "LLM Closed Loop (MPC)",
+            "name": "llm_closed_loop",
             "args": [
                 "--approach", "llm_open_loop",
                 "--perceiver", "mock_spot_perceiver",
@@ -124,7 +125,7 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         # {
-        #     "name": "VLM Open Loop",
+        #     "name": "vlm_open_loop",
         #     "args": [
         #         "--approach", "vlm_open_loop",
         #         "--perceiver", "mock_spot_perceiver",
@@ -133,7 +134,7 @@ def main(args: argparse.Namespace) -> None:
         #     ]
         # },
         {
-            "name": "VLM Closed Loop (Open Loop + MPC)",
+            "name": "vlm_closed_loop",
             "args": [
                 "--approach", "vlm_open_loop",
                 "--perceiver", "mock_spot_perceiver",
@@ -144,7 +145,7 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         {
-            "name": "VLM Captioning",
+            "name": "vlm_captioning",
             "args": [
                 "--approach", "vlm_captioning",
                 "--perceiver", "vlm_perceiver",
