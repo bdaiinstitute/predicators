@@ -339,9 +339,13 @@ class _SavedMockSpotObservation:
         pred_name = atom_str[:atom_str.index("(")]
         obj_names = atom_str[atom_str.index("(")+1:atom_str.index(")")].split(",")
         # Get the predicate from the PREDICATES set
-        pred = next(p for p in PREDICATES if p.name == pred_name)
+        print(PREDICATES)
+        print(pred_name)
+        preds = [p for p in PREDICATES if p.name == pred_name]
+        assert len(preds)>0
+  
         objs = [objects[name] for name in obj_names]
-        return GroundAtom(pred, objs)
+        return GroundAtom(preds[0], objs)
 
     def save_state(self, save_dir: Optional[Path] = None) -> None:
         """Save state data and metadata.

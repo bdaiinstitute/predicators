@@ -56,3 +56,20 @@ See [these instructions](supercloud.md).
 * The second one is the static typing check, which uses Mypy to verify type annotations. If it doesn't work due to import errors, try `mypy -p predicators --config-file predicators/mypy.ini` from one directory up.
 * The third one is the linter check, which runs Pylint with the custom config file `.predicators_pylintrc` in the root of this repository. Feel free to edit this file as necessary.
 * The fourth one is the autoformatting check, which uses the custom config files `.style.yapf` and `.isort.cfg` in the root of this repository.
+
+
+
+# Create mock environments
+
+## Pick place
+```
+cd predicators/predicators/spot_utils/mock_env
+python mock_env_creator_manual.py --image_dir=/home/aidan/predicators/mock_task_images/pick_place --output_dir=/home/aidan/predicators/mock_env_data --env_name=MockSpotPickPlaceTwoCupEnv --mode=state
+```
+
+
+## Drawer cleaning
+```
+cd predicators/predicators/spot_utils/mock_env
+python mock_env_creator_manual.py --image_dir=/home/aidan/predicators/mock_task_images/drawer_clean --output_dir=/home/aidan/predicators/mock_env_data --env_name=MockSpotDrawerCleaningEnv --mode=state
+```
