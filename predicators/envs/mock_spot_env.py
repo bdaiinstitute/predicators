@@ -96,7 +96,7 @@ class MockSpotEnv(BaseEnv):
         
         # Create data directories
         self._data_dir = Path(data_dir)
-        self._images_dir = self._data_dir / "images"
+        self._images_dir = self._data_dir / "state_info"
         self._images_dir.mkdir(parents=True, exist_ok=True)
         logging.info("Initialized MockSpotEnv with data_dir: %s", data_dir)
         

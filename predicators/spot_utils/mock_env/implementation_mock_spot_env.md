@@ -18,7 +18,7 @@ class MockSpotEnv(BaseEnv):
     def __init__(self, use_gui: bool = True) -> None:
         """Initialize environment."""
         self._data_dir = Path(CFG.mock_env_data_dir)
-        self._images_dir = self._data_dir / "images"
+        self._images_dir = self._data_dir / "state_info"
         self._current_state_id: Optional[str] = None
         self._current_observation: Optional[_MockSpotObservation] = None
         
@@ -223,7 +223,7 @@ class MockEnvCreatorBase:
     def __init__(self, output_dir: str, env_info: Dict[str, Any]) -> None:
         """Initialize the mock environment creator."""
         self.output_dir = Path(output_dir)
-        self.image_dir = self.output_dir / "images"
+        self.image_dir = self.output_dir / "state_info"
         self.transitions_dir = self.output_dir / "transitions"
         self.image_dir.mkdir(parents=True, exist_ok=True)
         self.transitions_dir.mkdir(parents=True, exist_ok=True)

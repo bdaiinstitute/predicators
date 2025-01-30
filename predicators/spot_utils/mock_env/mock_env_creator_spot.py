@@ -81,7 +81,7 @@ class SpotDataCollector:
             return True
             
         # Save data
-        state_dir = self.output_dir / "images" / f"state_{state_id}"
+        state_dir = self.output_dir / "state_info" / f"state_{state_id}"
         state_dir.mkdir(parents=True, exist_ok=True)
         
         # Save raw data
@@ -244,7 +244,7 @@ class SpotMockEnvCreator(MockEnvCreatorBase):
         
         # Add rows
         for state_id in sorted(self.states.keys()):
-            state_dir = Path(self.output_dir) / "images" / f"state_{state_id}"
+            state_dir = Path(self.output_dir) / "state_info" / f"state_{state_id}"
             has_images = (state_dir / "rgb.npy").exists() and (state_dir / "depth.npy").exists()
             
             table.add_row(

@@ -12,6 +12,7 @@ from rich.logging import RichHandler
 from rich.console import Console
 import matplotlib.pyplot as plt
 import yaml
+from PIL import Image as PImage
 
 from predicators.envs import BaseEnv
 from predicators.spot_utils.perception.perception_structs import RGBDImageWithContext, UnposedImageWithContext
@@ -380,9 +381,7 @@ class _SavedMockSpotObservation:
         image_metadata = {}
         if self.images:
             for img_name, img_data in self.images.items():
-                # Save RGB
-                rgb_path = state_dir / f"{img_name}_rgb.npy"
-                np.save(rgb_path, img_data.rgb)
+
                 
                 # Also save as JPG for preview
                 jpg_path = state_dir / f"{img_name}_rgb.jpg"
@@ -396,7 +395,7 @@ class _SavedMockSpotObservation:
                 
                 # Track image metadata
                 image_metadata[img_name] = {
-                    "rgb_path": str(rgb_path.relative_to(state_dir)),
+                    "rgb_path": str(jpg_path.relative_to(state_dir)),
                     "depth_path": str(depth_path.relative_to(state_dir)) if depth_path else None,
                     "camera_name": img_data.camera_name,
                     "image_rot": img_data.image_rot
@@ -444,14 +443,12 @@ class _SavedMockSpotObservation:
         for img_name, img_meta in image_metadata.items():
             rgb_path = state_dir / img_meta["rgb_path"]
             depth_path = state_dir / img_meta["depth_path"] if img_meta["depth_path"] else None
-
             images[img_name] = UnposedImageWithContext(
-                rgb=np.load(rgb_path),
+                rgb=np.array(PImage.open(rgb_path)),  # Load as RGB NumPy array
                 depth=np.load(depth_path) if depth_path else None,
                 camera_name=img_meta["camera_name"],
                 image_rot=img_meta["image_rot"]
             )
-
         # Deserialize non_vlm_atom_dict if it exists
         non_vlm_atom_dict = {}  # Default to empty dict instead of None
         if state_metadata.get("non_vlm_atom_dict"):

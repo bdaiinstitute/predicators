@@ -183,7 +183,7 @@ class MockEnvCreatorBase(ABC):
         super().__init__()
         self.output_dir = Path(output_dir)
         self.path_dir = self.output_dir
-        self.image_dir = self.output_dir / "images"
+        self.image_dir = self.output_dir / "state_info"
         self.transitions_dir = self.output_dir / "transitions"
         self.image_dir.mkdir(parents=True, exist_ok=True)
         self.transitions_dir.mkdir(parents=True, exist_ok=True)
