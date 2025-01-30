@@ -45,7 +45,7 @@ from predicators.spot_utils.mock_env.mock_env_utils import (
     _InHandViewFromTop, _Holding, _Blocking, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _ContainingWaterUnknown,
     _ContainingWater, _NotContainingWater, _ContainerEmpty, _Unknown_ContainerEmpty,
-    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty
+    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, get_active_predicates, get_fluent_predicates
 )
 
 
@@ -119,6 +119,10 @@ class MockSpotEnv(BaseEnv):
 
         # Create operators
         self._operators = list(self._create_operators())
+        
+        # Calculate fluent predicates
+        self._fluent_predicates = get_fluent_predicates(set(self._operators))
+        self._active_predicates = get_active_predicates(set(self._operators))
         
         # NOTE: to update this from language
         self.goal_atoms = None
@@ -704,15 +708,18 @@ class MockSpotEnv(BaseEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         """Get the predicates used in this environment."""
-        preds: Set[Predicate] = set(PREDICATES)  # Explicit type hint
-        if CFG.mock_env_use_belief_operators:
-            preds.update(BELIEF_PREDICATES)
-        return preds
+        # NOTE: This is used in `abstract` (querying ground atoms), so only keep used predicates
+        # NOTE: These are all operators that appear in both preconditions and effects
+        return self._active_predicates
+        # preds: Set[Predicate] = set(PREDICATES)  # Explicit type hint
+        # if CFG.mock_env_use_belief_operators:
+        #     preds.update(BELIEF_PREDICATES)
+        # return preds
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
         """Get the goal predicates for this environment."""
-        return set(GOAL_PREDICATES)  # Convert to set with proper type
+        return {cast(Predicate, p) for p in GOAL_PREDICATES}.intersection(self._active_predicates)
 
     @property
     def action_space(self) -> Box:
@@ -891,7 +898,9 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
     """A mock environment for testing drawer cleaning with two cups."""
     
     # Set the preset data directory
-    preset_data_dir = os.path.join("mock_env_data", "MockSpotDrawerCleaningEnv")
+    # preset_data_dir = os.path.join("mock_env_data", "MockSpotDrawerCleaningEnv")
+    # preset_data_dir = os.path.join("mock_env_data", "saved_task_phone_drawer_cleaning")
+    preset_data_dir = os.path.join("mock_env_data", "test_mock_task", "MockSpotDrawerCleaningEnv")
 
     @classmethod
     def get_name(cls) -> str:
