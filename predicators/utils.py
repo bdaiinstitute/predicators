@@ -3777,7 +3777,7 @@ def get_config_path_str(experiment_id: Optional[str] = None) -> str:
     """
     if experiment_id is None:
         experiment_id = CFG.experiment_id
-    return (f"{CFG.env}__{CFG.approach}__{CFG.seed}__{CFG.excluded_predicates}"
+    return (f"{CFG.env}__{CFG.approach}__{CFG.execution_monitor}__{CFG.seed}__{CFG.excluded_predicates}"
             f"__{CFG.included_options}__{experiment_id}")
 
 
