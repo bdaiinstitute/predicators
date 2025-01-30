@@ -34,10 +34,8 @@ def create_base_command(env:str, seed: int = 0) -> List[str]:
         "python", "predicators/main.py",
         "--env", env,
         "--seed", str(seed),
-        # "--mock_env_vlm_eval_predicate", "True",
         "--num_train_tasks", "0",
         "--num_test_tasks", "1",
-        # "--log_rich", "True",
         "--bilevel_plan_without_sim", "True",
         "--horizon", "20",
         "--load_approach",
@@ -92,68 +90,70 @@ def main(args: argparse.Namespace) -> None:
     planners = [
         {
             "name": "oracle",
-            "args": ["--approach", "oracle"]
+            "args": ["--approach", 
+                     "oracle",
+                     "--perceiver", "mock_spot_perceiver"]
         },
-        # {
-        #     "name": "random",
-        #     "args": [
-        #         "--approach", "random_options",
-        #         "--random_options_max_tries", "1000",
-        #         "--max_num_steps_option_rollout", "100",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--timeout", "60",
-        #     ]
-        # },
-        # {
-        #     "name": "llm_open_loop",
-        #     "args": [
-        #         "--approach", "llm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--llm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2"
-        #     ]
-        # },
-        # {
-        #     "name": "llm_closed_loop",
-        #     "args": [
-        #         "--approach", "llm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--llm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #         # "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
-        # {
-        #     "name": "vlm_open_loop",
-        #     "args": [
-        #         "--approach", "vlm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2"
-        #     ]
-        # },
-        # {
-        #     "name": "vlm_closed_loop",
-        #     "args": [
-        #         "--approach", "vlm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #         # "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
-        # {
-        #     "name": "vlm_captioning",
-        #     "args": [
-        #         "--approach", "vlm_captioning",
-        #         "--perceiver", "vlm_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--vlm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #     ]
-        # }
+        {
+            "name": "random",
+            "args": [
+                "--approach", "random_options",
+                "--random_options_max_tries", "1000",
+                "--max_num_steps_option_rollout", "100",
+                "--perceiver", "mock_spot_perceiver",
+                "--timeout", "60",
+            ]
+        },
+        {
+            "name": "llm_open_loop",
+            "args": [
+                "--approach", "llm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--llm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2"
+            ]
+        },
+        {
+            "name": "llm_closed_loop",
+            "args": [
+                "--approach", "llm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--llm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
+        {
+            "name": "vlm_open_loop",
+            "args": [
+                "--approach", "vlm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2"
+            ]
+        },
+        {
+            "name": "vlm_closed_loop",
+            "args": [
+                "--approach", "vlm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
+        {
+            "name": "vlm_captioning",
+            "args": [
+                "--approach", "vlm_captioning",
+                "--perceiver", "vlm_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--vlm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+            ]
+        }
     ]
     
     # Run each planner
