@@ -121,8 +121,10 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
-                    img.save(os.path.join(imgs_folderpath, filename_suffix))
-            logging.debug(f"Saved model response to {cache_filepath}.")
+                    # Convert to RGB mode before saving to avoid potential mode issues
+                    img_rgb = img.convert('RGB')
+                    img_rgb.save(os.path.join(imgs_folderpath, filename_suffix), 'JPEG')
+                logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
@@ -236,16 +238,19 @@ class OpenAIModel():
 
 
         # Track costs and tokens
-        if model in self._COSTS:
+        if model in self._COSTS and hasattr(completion, 'usage') and completion.usage is not None:
             input_cost, output_cost = self._COSTS[model]
-            total_cost = (completion.usage.prompt_tokens * input_cost) + \
-                        (completion.usage.completion_tokens * output_cost)
+            prompt_tokens = getattr(completion.usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(completion.usage, 'completion_tokens', 0)
+            total_tokens = getattr(completion.usage, 'total_tokens', 0)
+            
+            total_cost = (prompt_tokens * input_cost) + (completion_tokens * output_cost)
             self._total_costs[model] += total_cost
             
             # Update token counts
-            self._total_tokens[model]["prompt"] += completion.usage.prompt_tokens
-            self._total_tokens[model]["completion"] += completion.usage.completion_tokens
-            self._total_tokens[model]["total"] += completion.usage.total_tokens
+            self._total_tokens[model]["prompt"] += prompt_tokens
+            self._total_tokens[model]["completion"] += completion_tokens
+            self._total_tokens[model]["total"] += total_tokens
             
             # Simple running cost display
             total_cost = sum(self._total_costs.values())
