@@ -130,10 +130,13 @@ class CogMan:
         # Log the executed actions at the end of the episode
         logging.info("\n=== Executed Actions ===")
         for act in self._episode_action_history:
-            if act.extra_info and "operator_name" in act.extra_info:
-                op_name = act.extra_info["operator_name"]
-                objects = [obj.name for obj in act.extra_info.get("objects", [])]
-                logging.info(f"{op_name}({', '.join(objects)})")
+            if(act is None):
+                logging.info("No actions available. Wait action taken.")
+            else:
+                if act.extra_info and "operator_name" in act.extra_info:
+                    op_name = act.extra_info["operator_name"]
+                    objects = [obj.name for obj in act.extra_info.get("objects", [])]
+                    logging.info(f"{op_name}({', '.join(objects)})")
 
     # The methods below provide an interface to the approach. In the future,
     # we may want to move some of these methods into cogman properly, e.g.,
