@@ -47,7 +47,6 @@ TYPES = {_robot_type, _base_object_type, _movable_object_type, _container_type, 
 _NEq = GroundTruthPredicate("NEq", [_base_object_type, _base_object_type], _dummy_classifier)
 _On = GroundTruthPredicate("On", [_movable_object_type, _base_object_type], _dummy_classifier)
 _TopAbove = GroundTruthPredicate("TopAbove", [_base_object_type, _base_object_type], _dummy_classifier)
-_Inside = GroundTruthPredicate("Inside", [_movable_object_type, _container_type], _dummy_classifier)
 _NotInsideAnyContainer = GroundTruthPredicate("NotInsideAnyContainer", [_movable_object_type], _dummy_classifier)
 _FitsInXY = GroundTruthPredicate("FitsInXY", [_movable_object_type, _base_object_type], _dummy_classifier)
 _HandEmpty = GroundTruthPredicate("HandEmpty", [_robot_type], _dummy_classifier)
@@ -64,65 +63,65 @@ _IsNotPlaceable = GroundTruthPredicate("IsNotPlaceable", [_movable_object_type],
 _IsSweeper = GroundTruthPredicate("IsSweeper", [_movable_object_type], _dummy_classifier)
 _HasFlatTopSurface = GroundTruthPredicate("HasFlatTopSurface", [_base_object_type], _dummy_classifier)
 _RobotReadyForSweeping = GroundTruthPredicate("RobotReadyForSweeping", [_robot_type], _dummy_classifier)
+# Add predicates for drawer state
+_DrawerClosed = GroundTruthPredicate("DrawerClosed", [_container_type], _dummy_classifier)
+_DrawerOpen = GroundTruthPredicate("DrawerOpen", [_container_type], _dummy_classifier)
+
+# Add predicates for Inside relation; Keep both world-state and belief-state version!
+_Inside = GroundTruthPredicate("Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_Unknown_Inside = GroundTruthPredicate("Unknown_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_Known_Inside = GroundTruthPredicate("Known_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_BelieveTrue_Inside = GroundTruthPredicate("BelieveTrue_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_BelieveFalse_Inside = GroundTruthPredicate("BelieveFalse_Inside", [_movable_object_type, _container_type], _dummy_classifier)
 
 # Add new predicates for cup emptiness
+_InHandViewFromTop = GroundTruthPredicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
+_ContainerEmpty = GroundTruthPredicate("ContainerEmpty", [_container_type], _dummy_classifier)
+# Belief predicates
 _ContainingWaterUnknown = GroundTruthPredicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
 _ContainingWaterKnown = GroundTruthPredicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
 _ContainingWater = GroundTruthPredicate("ContainingWater", [_container_type], _dummy_classifier)
 _NotContainingWater = GroundTruthPredicate("NotContainingWater", [_container_type], _dummy_classifier)
-_InHandViewFromTop = GroundTruthPredicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
-_ContainerEmpty = GroundTruthPredicate("ContainerEmpty", [_container_type], _dummy_classifier)
 
-# Add new predicates for container emptiness
+# Add new belief predicates for container emptiness
 _Unknown_ContainerEmpty = GroundTruthPredicate("Unknown_ContainerEmpty", [_container_type], _dummy_classifier)
 _Known_ContainerEmpty = GroundTruthPredicate("Known_ContainerEmpty", [_container_type], _dummy_classifier)
 _BelieveTrue_ContainerEmpty = GroundTruthPredicate("BelieveTrue_ContainerEmpty", [_container_type], _dummy_classifier)
 _BelieveFalse_ContainerEmpty = GroundTruthPredicate("BelieveFalse_ContainerEmpty", [_container_type], _dummy_classifier)
 
-# Add predicates for drawer state
-_DrawerClosed = GroundTruthPredicate("DrawerClosed", [_container_type], _dummy_classifier)
-_DrawerOpen = GroundTruthPredicate("DrawerOpen", [_container_type], _dummy_classifier)
-
-# Group belief-space predicates
-BELIEF_PREDICATES = {
-    _ContainingWaterUnknown,
-    _ContainingWaterKnown,
-    _ContainingWater,
-    _NotContainingWater,
-    _InHandViewFromTop,
-    _Unknown_ContainerEmpty,
-    _Known_ContainerEmpty,
-    _BelieveTrue_ContainerEmpty,
-    _BelieveFalse_ContainerEmpty
-}
+# Add belief predicates for Inside
+_Unknown_Inside = GroundTruthPredicate("Unknown_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_Known_Inside = GroundTruthPredicate("Known_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_BelieveTrue_Inside = GroundTruthPredicate("BelieveTrue_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+_BelieveFalse_Inside = GroundTruthPredicate("BelieveFalse_Inside", [_movable_object_type, _container_type], _dummy_classifier)
 
 # Export all predicates
 PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
              _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-             _DrawerClosed, _DrawerOpen, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
-             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, _InHandViewFromTop,
-             _ContainingWaterUnknown, _ContainingWaterKnown, _ContainingWater, _NotContainingWater,
-             _ContainerEmpty}
+             _DrawerClosed, _DrawerOpen, _InHandViewFromTop, _Inside}
 # Note: Now adding belief predicates
+BELIEF_PREDICATES = {_Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
+                     _Unknown_ContainerEmpty, _Known_ContainerEmpty, _BelieveTrue_ContainerEmpty,
+                     _BelieveFalse_ContainerEmpty, _InHandViewFromTop, _ContainingWaterUnknown,
+                     _ContainingWaterKnown, _ContainingWater, _NotContainingWater}
+PREDICATES = PREDICATES | BELIEF_PREDICATES
 
 # Export goal predicates
 GOAL_PREDICATES = {_On, _Inside, _ContainingWaterKnown, _Known_ContainerEmpty, _DrawerOpen}  # Add DrawerOpen to goal predicates
 
 
-def get_vlm_predicates() -> Set[VLMPredicate]:
+def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
     """Get VLM predicates for mock spot environment."""
+    
+    # NOTE: VLM Ground Truth predicates
     _On = VLMPredicate(
         "On", [_movable_object_type, _base_object_type],
         prompt=
         "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
     )
-    _Inside = VLMPredicate(
-        "Inside", [_movable_object_type, _container_type],
-        prompt=
-        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
-    )
+    
     _Blocking = VLMPredicate(
         "Blocking", [_base_object_type, _base_object_type],
         prompt="This means if an object is blocking the Spot robot approaching another one."
@@ -136,10 +135,119 @@ def get_vlm_predicates() -> Set[VLMPredicate]:
         prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
     )
     
-    return {_On, _Inside, _Blocking, _NotBlocked, _NotInsideAnyContainer}
+    # NOTE: let's put Inside also a belief predicate, but keep this one here
+    _Inside = VLMPredicate(
+        "Inside", [_movable_object_type, _container_type],
+        prompt=
+        "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
+    )
+    
+    _Unknown_Inside = VLMPredicate(
+        "Unknown_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the first object is inside the second object (container). If you can tell whether it's inside or not, answer [no]."
+    )
+    
+    _Known_Inside = VLMPredicate(
+        "Known_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the first object is inside the second object (container). If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_Inside = VLMPredicate(
+        "BelieveTrue_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the first object is inside the second object (container) based on what you can see. If you believe it's not inside, answer [no]."
+    )
+    
+    _BelieveFalse_Inside = VLMPredicate(
+        "BelieveFalse_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the first object is not inside the second object (container) based on what you can see. If you believe it is inside, answer [no]."
+    )
+    
+    # NOTE: VLM Belief Predicates for container emptiness
+    _ContainingWaterKnown = VLMPredicate(
+        "ContainingWaterKnown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains water or not. If you don't know, answer [no]."
+    )
+    
+    _ContainingWaterUnknown = VLMPredicate(
+        "ContainingWaterUnknown", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
+    )
+    
+    _ContainingWater = VLMPredicate(
+        "ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container has water in it. If you know it doesn't have water, answer [no]."
+    )
+    
+    _NotContainingWater = VLMPredicate(
+        "NotContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
+    )
+    
+    _InHandViewFromTop = VLMPredicate(
+        "InHandViewFromTop", [_robot_type, _base_object_type],
+        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
+    )
+    
+    # NOTE: VLM Belief Predicates for container emptiness
+    _Unknown_ContainerEmpty = VLMPredicate(
+        "Unknown_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container is empty or not. If you can tell whether it's empty or not, answer [no]."
+    )
+    
+    _Known_ContainerEmpty = VLMPredicate(
+        "Known_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container is empty or contains objects inside. If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_ContainerEmpty = VLMPredicate(
+        "BelieveTrue_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container is empty based on what you can see. If you believe it contains objects, answer [no]."
+    )
+    
+    _BelieveFalse_ContainerEmpty = VLMPredicate(
+        "BelieveFalse_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains objects based on what you can see. If you believe it is empty, answer [no]."
+    )
+    
+    # NOTE: VLM Predicates for drawer state
+    _DrawerClosed = VLMPredicate(
+        "DrawerClosed", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the drawer is closed. If the drawer is open, answer [no]."
+    )
+    
+    _DrawerOpen = VLMPredicate(
+        "DrawerOpen", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the drawer is open. If the drawer is closed, answer [no]."
+    )
+    
+    vlm_predicates = {_On, _Blocking, _NotBlocked, _NotInsideAnyContainer, 
+            _Inside, _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
+            _ContainingWaterKnown, _ContainingWaterUnknown, _ContainingWater, _NotContainingWater,
+            _InHandViewFromTop, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
+            _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty,
+            _DrawerClosed, _DrawerOpen}
+    
+    belief_predicates = {
+        _ContainingWaterUnknown,
+        _ContainingWaterKnown,
+        _ContainingWater,
+        _NotContainingWater,
+        _InHandViewFromTop,
+        _Unknown_ContainerEmpty,
+        _Known_ContainerEmpty,
+        _BelieveTrue_ContainerEmpty,
+        _BelieveFalse_ContainerEmpty,
+        _Inside,
+        _Unknown_Inside,
+        _Known_Inside,
+        _BelieveTrue_Inside,
+        _BelieveFalse_Inside
+    }
+    
+    return vlm_predicates, belief_predicates
 
 # Export VLM predicates
-VLM_PREDICATES = get_vlm_predicates()
+VLM_PREDICATES, VLM_BELIEF_PREDICATES = get_vlm_predicates()
 
 # Export all predicates - use VLM or non-VLM based on config
 def get_all_predicates() -> Set[Predicate]:
@@ -150,6 +258,39 @@ def get_all_predicates() -> Set[Predicate]:
         non_vlm_preds = {pred for pred in PREDICATES if pred.name not in vlm_names}
         return non_vlm_preds | VLM_PREDICATES
     return PREDICATES
+
+def get_fluent_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Calculate fluent predicates by looking at operator effects.
+    Similar to Fast Downward's get_fluents function.
+    
+    Returns:
+        Set of Predicate objects that appear in operator effects.
+    """
+    fluent_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            fluent_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            fluent_predicates.add(effect.predicate)
+    return fluent_predicates
+
+def get_active_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Get active predicates by looking at operator preconditions and effects.
+    """
+    active_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in preconditions
+        for precondition in op.preconditions:
+            active_predicates.add(precondition.predicate)
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            active_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            active_predicates.add(effect.predicate)
+    return active_predicates
 
 # Update PREDICATES_WITH_VLM to use function
 PREDICATES_WITH_VLM = get_all_predicates() if CFG.mock_env_vlm_eval_predicate else None
@@ -337,16 +478,17 @@ class _MockSpotObservation(_SavedMockSpotObservation):
     object_dict: Dict[str, Object]
     vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None
     vlm_predicates: Optional[Set[VLMPredicate]] = None
-    # camera_images_history: Optional[List[Dict[str, Any]]] = None
     action_history: Optional[List[Action]] = None
     
     @classmethod
     def init_from_saved(cls, saved_obs: _SavedMockSpotObservation, object_dict: Dict[str, Object],
                        vlm_atom_dict: Optional[Dict[VLMGroundAtom, bool]] = None,
-                        vlm_predicates: Optional[Set[VLMPredicate]] = None,
-                        # camera_images_history: Optional[List[Dict[str, Any]]] = None,
-                        action_history: Optional[List[Action]] = None) -> "_MockSpotObservation":
-        """Initialize from a saved observation."""
+                       vlm_predicates: Optional[Set[VLMPredicate]] = None,
+                       action_history: Optional[List[Action]] = None) -> "_MockSpotObservation":
+        """Initialize from a saved observation.
+        
+        Note: VLM predicates will be evaluated by the perceiver when needed, not here.
+        """
         return cls(
             images=saved_obs.images,
             gripper_open=saved_obs.gripper_open,
@@ -358,8 +500,7 @@ class _MockSpotObservation(_SavedMockSpotObservation):
             metadata=saved_obs.metadata,
             # Fields decided by VLM online evaluation
             object_dict=object_dict,
-            vlm_atom_dict=vlm_atom_dict,
+            vlm_atom_dict=vlm_atom_dict,  # Will be populated by perceiver when needed
             vlm_predicates=vlm_predicates,
-            # camera_images_history=camera_images_history,
             action_history=action_history
         )
