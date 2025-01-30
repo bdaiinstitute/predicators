@@ -98,8 +98,8 @@ def _move_to_hand_view_object_from_top_sampler(state: State, goal: Set[GroundAto
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 1.2
-    max_dist = 1.8
+    min_dist = 0.9
+    max_dist = 1.2
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
