@@ -134,6 +134,10 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         "NotInsideAnyContainer", [_movable_object_type],
         prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
     )
+    _InHandViewFromTop = VLMPredicate(
+        "InHandViewFromTop", [_robot_type, _base_object_type],
+        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
+    )
     
     # NOTE: let's put Inside also a belief predicate, but keep this one here
     _Inside = VLMPredicate(
@@ -183,11 +187,6 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
     )
     
-    _InHandViewFromTop = VLMPredicate(
-        "InHandViewFromTop", [_robot_type, _base_object_type],
-        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
-    )
-    
     # NOTE: VLM Belief Predicates for container emptiness
     _Unknown_ContainerEmpty = VLMPredicate(
         "Unknown_ContainerEmpty", [_container_type],
@@ -232,7 +231,6 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         _ContainingWaterKnown,
         _ContainingWater,
         _NotContainingWater,
-        _InHandViewFromTop,
         _Unknown_ContainerEmpty,
         _Known_ContainerEmpty,
         _BelieveTrue_ContainerEmpty,
