@@ -1556,13 +1556,30 @@ _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
 
+
+# NOTE: Define all regular or VLM predicates above
+_ALL_PREDICATES = {
+    _NEq, _TopAbove, _FitsInXY,
+    _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
+    _ContainerReadyForSweeping, _IsPlaceable,
+    _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
+    _IsSemanticallyGreaterThan
+}
+
 # DEBUG hardcode now; CFG not updated here?!
 # if CFG.spot_vlm_eval_predicate:
 tmp_vlm_flag = True
 
 if tmp_vlm_flag:
-    # _On = Predicate("On", [_movable_object_type, _base_object_type],
-    #                 _on_classifier)
+    # Define door type
+    _door_type = Type(
+        "door", 
+        list(_base_object_type.feature_names) + 
+        ["is_open", "in_hand_view"],
+        parent=_immovable_object_type
+    )
+
+    # Define VLM predicates
     _On = VLMPredicate(
         "On", [_movable_object_type, _base_object_type],
         prompt=
@@ -1573,12 +1590,8 @@ if tmp_vlm_flag:
         prompt=
         "This typically describes an object (obj1, first arg) inside a container (obj2, second arg) (so it's overlapping), and it's in conflict with the object being on a surface. This is obj1 inside obj2, so obj1 should be smaller than obj2."
     )
-    _FakeInside = VLMPredicate(
-        _Inside.name,
-        _Inside.types,
-    )
+    _FakeInside = VLMPredicate(_Inside.name, _Inside.types)
     
-    # NOTE: Check the classifier; try to make it consistent or document how this VLM predicate is different/better.
     _Blocking = VLMPredicate(
         "Blocking", [_base_object_type, _base_object_type],
         prompt="This means if an object is blocking the Spot robot approaching another one."
@@ -1591,7 +1604,116 @@ if tmp_vlm_flag:
         "NotInsideAnyContainer", [_movable_object_type],
         prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
     )
+
+    # Door state predicates
+    _DoorOpenKnownTrue = VLMPredicate(
+        "DoorOpenKnownTrue", [_door_type],
+        prompt="This predicate is true if you believe the door is open."
+    )
+    _DoorOpenKnownFalse = VLMPredicate(
+        "DoorOpenKnownFalse", [_door_type],
+        prompt="This predicate is true if you believe the door is closed."
+    )
     
+    _DrawerClosed = VLMPredicate(
+        "DrawerClosed", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the drawer is closed. If the drawer is open, answer [no]."
+    )
+    
+    _DrawerOpen = VLMPredicate(
+        "DrawerOpen", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the drawer is open. If the drawer is closed, answer [no]."
+    )
+    
+    # Belief predicates for container emptiness
+    _Unknown_ContainerEmpty = VLMPredicate(
+        "Unknown_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container is empty or not. If you can tell whether it's empty or not, answer [no]."
+    )
+    
+    _Known_ContainerEmpty = VLMPredicate(
+        "Known_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container is empty or contains objects inside. If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_ContainerEmpty = VLMPredicate(
+        "BelieveTrue_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container is empty based on what you can see. If you believe it contains objects, answer [no]."
+    )
+    
+    _BelieveFalse_ContainerEmpty = VLMPredicate(
+        "BelieveFalse_ContainerEmpty", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains objects based on what you can see. If you believe it is empty, answer [no]."
+    )
+
+    # Belief predicates for water content
+    _Unknown_ContainingWater = VLMPredicate(
+        "Unknown_ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
+    )
+    
+    _Known_ContainingWater = VLMPredicate(
+        "Known_ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container contains water or not. If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_ContainingWater = VLMPredicate(
+        "BelieveTrue_ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container has water in it. If you believe it doesn't have water, answer [no]."
+    )
+    
+    _BelieveFalse_ContainingWater = VLMPredicate(
+        "BelieveFalse_ContainingWater", [_container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container does not have water in it. If you believe it has water, answer [no]."
+    )
+
+    # Belief predicates for Inside relation
+    _Unknown_Inside = VLMPredicate(
+        "Unknown_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the first object is inside the second object (container). If you can tell whether it's inside or not, answer [no]."
+    )
+    
+    _Known_Inside = VLMPredicate(
+        "Known_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the first object is inside the second object (container). If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_Inside = VLMPredicate(
+        "BelieveTrue_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the first object is inside the second object (container) based on what you can see. If you believe it's not inside, answer [no]."
+    )
+    
+    _BelieveFalse_Inside = VLMPredicate(
+        "BelieveFalse_Inside", [_movable_object_type, _container_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the first object is not inside the second object (container) based on what you can see. If you believe it is inside, answer [no]."
+    )
+
+    _InHandViewFromTop = VLMPredicate(
+        "InHandViewFromTop", [_robot_type, _movable_object_type],
+        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
+    )
+
+    # Group all VLM predicates
+    _VLM_PREDICATES = {
+        _On, _Inside, _FakeInside, _Blocking, _NotBlocked, _NotInsideAnyContainer,
+        _DoorOpenKnownTrue, _DoorOpenKnownFalse,
+        _Unknown_ContainerEmpty, _Known_ContainerEmpty, _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty,
+        _Unknown_ContainingWater, _Known_ContainingWater, _BelieveTrue_ContainingWater, _BelieveFalse_ContainingWater,
+        _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
+        _InHandViewFromTop,
+        _DrawerClosed, _DrawerOpen
+    }
+
+    # Group belief predicates
+    _VLM_BELIEF_PREDICATES = {
+        _DoorOpenKnownTrue, _DoorOpenKnownFalse,
+        _Unknown_ContainerEmpty, _Known_ContainerEmpty, _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty,
+        _Unknown_ContainingWater, _Known_ContainingWater, _BelieveTrue_ContainingWater, _BelieveFalse_ContainingWater,
+        _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside
+    }
+    
+    _ALL_PREDICATES.update(_VLM_PREDICATES)
+
 else:
     _On = Predicate("On", [_movable_object_type, _base_object_type],
                     _on_classifier)
@@ -1608,79 +1730,15 @@ else:
                                        [_movable_object_type],
                                        _not_inside_any_container_classifier)
     
-    # NOTE: we won't actually call this
-    # _InHandViewFromTop = None
-
-# NOTE: Define all regular or VLM predicates above
-_ALL_PREDICATES = {
-    _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
-    _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
-    _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
-    _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan
-}
-_NONPERCEPT_PREDICATES: Set[Predicate] = set()
-
-# NOTE: add VLM-only predicates; they are not feasible to implement otherwise
-if tmp_vlm_flag:
-    _door_type = Type(
-        "door", 
-        list(_base_object_type.feature_names) + 
-        ["is_open", "in_hand_view"],
-        parent=_immovable_object_type
-    )
-    
-    _DoorOpenKnownTrue = VLMPredicate(
-        "DoorOpenKnownTrue", [_door_type],
-        prompt="This predicate is true if you believe the door is open."
-    )
-    _DoorOpenKnownFalse = VLMPredicate(
-        "DoorOpenKnownFalse", [_door_type],
-        prompt="This predicate is true if you believe the door is closed."
-    )
-    
-
-    # NOTE: How to express the belief-space 3-value predicate using state-space binary predicate is tricky, because the system doesn't support NOT (negation) or OR (disjunction). Thus, it couldn't do "NotKnownAsTrue OR NotKnownAsFalse".
-    # E.g,. _ContainingWaterKnownAsTrue won't work.
-    _ContainingWaterKnown = VLMPredicate(
-        "ContainingWaterKnown", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know whether the container contains stuff or not. If you don't know, answer [no]."
-    )
-    # _ContainerContentKnown = VLMPredicate(
-    #     "ContainerContentKnown", [_container_type],
-    #     prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container is empty or contains objects/contents inside. If you cannot tell, answer [no]."
-    # )
-    _ContainingWaterUnknown = VLMPredicate(
-        "ContainingWaterUnknown", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container contains water or not. If you know, answer [no]."
-    )
-    _ContainingWater = VLMPredicate(
-        "ContainingWater", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container has water in it. If you know it doesn't have water, answer [no]."
-    )
-    _NotContainingWater = VLMPredicate(
-        "NotContainingWater", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the container does not have water in it. If it has water, answer [no]."
-    )
-    
-    _InHandViewFromTop = VLMPredicate(
-        "InHandViewFromTop", [_robot_type, _movable_object_type],
-        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
-    )
-    
     _ALL_PREDICATES.update({
-        _DoorOpenKnownTrue,
-        _DoorOpenKnownFalse,
-        _ContainingWaterKnown,
-        _ContainingWaterUnknown,
-        _ContainingWater,
-        _NotContainingWater,
-        _InHandViewFromTop
+        _On, _Inside, _FakeInside, _Blocking, _NotBlocked, _NotInsideAnyContainer
     })
 
+_NONPERCEPT_PREDICATES: Set[Predicate] = set()
+
+# Define VLM classifier predicates
 _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
-    p
-    for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
+    p for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
 }
 
 
@@ -1716,54 +1774,52 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
     
-    # MoveToHandObserveObjectFromTop
-    robot = Variable("?robot", _robot_type)
-    obj = Variable("?object", _movable_object_type)
-    parameters = [robot, obj]
-    preconds = {
-        LiftedAtom(_NotBlocked, [obj]),
-        LiftedAtom(_HandEmpty, [robot])
-    }
-    add_effs = {
-        # NOTE: 
-        LiftedAtom(_InHandViewFromTop, [robot, obj]),
-        # NOTE: This is precondition for pick, so necessary
-        # This can be viewed as derived from InHandViewFromTop
-        LiftedAtom(_InHandView, [robot, obj]),
-    }
-    del_effs = set()
-    ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
-                         add_effs, del_effs, ignore_effs)
+    # # MoveToHandObserveObjectFromTop
+    # robot = Variable("?robot", _robot_type)
+    # obj = Variable("?object", _movable_object_type)
+    # parameters = [robot, obj]
+    # preconds = {
+    #     LiftedAtom(_NotBlocked, [obj]),
+    #     LiftedAtom(_HandEmpty, [robot])
+    # }
+    # add_effs = {
+    #     LiftedAtom(_InHandViewFromTop, [robot, obj]),
+    #     # This is precondition for pick, so necessary
+    #     # This can be viewed as derived from InHandViewFromTop
+    #     LiftedAtom(_InHandView, [robot, obj]),
+    # }
+    # del_effs = set()
+    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    # yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
+    #                      add_effs, del_effs, ignore_effs)
     
-    # ObserveFromTop
-    robot = Variable("?robot", _robot_type)
-    cup = Variable("?cup", _container_type)  # TODO update
-    # cup = Variable("?cup", _movable_object_type)  # TODO update
-    surface = Variable("?surface", _immovable_object_type)
-    parameters = [robot, cup, surface]
-    preconds = {
-        LiftedAtom(_On, [cup, surface]),
-        LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
-        LiftedAtom(_HandEmpty, [robot]),
-        LiftedAtom(_NotHolding, [robot, cup]),
-        LiftedAtom(_ContainingWaterUnknown, [cup]),
-    }
-    # NOTE: Determinized effect: both Containing and NotContaining
-    # The belief state will be updated after execution
-    add_effs = {
-        LiftedAtom(_ContainingWaterKnown, [cup]),
-        LiftedAtom(_ContainingWater, [cup]),
-        # TODO add not containing water
-        LiftedAtom(_NotContainingWater, [cup])
-    }
-    del_effs = {
-        LiftedAtom(_ContainingWaterUnknown, [cup])
-    }
-    # TODO check ignore effs
-    ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    ignore_effs = set()
-    yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs, del_effs, ignore_effs)
+    # # ObserveFromTop
+    # robot = Variable("?robot", _robot_type)
+    # cup = Variable("?cup", _container_type)  # TODO update
+    # # cup = Variable("?cup", _movable_object_type)  # TODO update
+    # surface = Variable("?surface", _immovable_object_type)
+    # parameters = [robot, cup, surface]
+    # preconds = {
+    #     LiftedAtom(_On, [cup, surface]),
+    #     LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
+    #     LiftedAtom(_HandEmpty, [robot]),
+    #     LiftedAtom(_NotHolding, [robot, cup]),
+    #     LiftedAtom(_Unknown_ContainingWater, [cup]),
+    # }
+    # # NOTE: Determinized effect: both Containing and NotContaining
+    # # The belief state will be updated after execution
+    # add_effs = {
+    #     LiftedAtom(_Known_ContainingWater, [cup]),
+    #     LiftedAtom(_BelieveTrue_ContainingWater, [cup]),
+    #     LiftedAtom(_BelieveFalse_ContainingWater, [cup])
+    # }
+    # del_effs = {
+    #     LiftedAtom(_Unknown_ContainingWater, [cup])
+    # }
+    # # TODO check ignore effs
+    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    # ignore_effs = set()
+    # yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs, del_effs, ignore_effs)
     
     # MoveToBodyViewObject
     robot = Variable("?robot", _robot_type)
@@ -2167,6 +2223,110 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = set()
     yield STRIPSOperator("PickAndDumpTwoFromContainer", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
+
+    # MoveToHandViewFromTop (manipulation action to get top view)
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?object", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {
+        LiftedAtom(_NotBlocked, [obj]),
+        LiftedAtom(_HandEmpty, [robot])
+    }
+    add_effs = {
+        LiftedAtom(_InHandViewFromTop, [robot, obj]),
+        # This is precondition for pick, so necessary
+        # This can be viewed as derived from InHandViewFromTop
+        LiftedAtom(_InHandView, [robot, obj]),
+    }
+    del_effs = set()
+    ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
+    yield STRIPSOperator("MoveToHandViewFromTop", parameters, preconds,
+                         add_effs, del_effs, ignore_effs)
+    
+    # ObserveWaterContentFindWater (belief update action)
+    robot = Variable("?robot", _robot_type)
+    cup = Variable("?cup", _container_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, cup, surface]
+    preconds = {
+        LiftedAtom(_On, [cup, surface]),
+        LiftedAtom(_InHandViewFromTop, [robot, cup]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, cup]),
+        LiftedAtom(_Unknown_ContainingWater, [cup]),
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainingWater, [cup]),
+        LiftedAtom(_BelieveTrue_ContainingWater, [cup]),
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainingWater, [cup])
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveWaterContentFindWater", parameters, preconds, add_effs, del_effs, ignore_effs)
+
+    # ObserveWaterContentFindEmpty (belief update action)
+    robot = Variable("?robot", _robot_type)
+    cup = Variable("?cup", _container_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, cup, surface]
+    preconds = {
+        LiftedAtom(_On, [cup, surface]),
+        LiftedAtom(_InHandViewFromTop, [robot, cup]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, cup]),
+        LiftedAtom(_Unknown_ContainingWater, [cup]),
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainingWater, [cup]),
+        LiftedAtom(_BelieveFalse_ContainingWater, [cup]),
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainingWater, [cup])
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveWaterContentFindEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
+
+    # ObserveDrawerEmpty (belief update action)
+    robot = Variable("?robot", _robot_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, container]
+    preconds = {
+        LiftedAtom(_Unknown_ContainerEmpty, [container]),
+        LiftedAtom(_DrawerOpen, [container]),  # Drawer must be open to observe
+        LiftedAtom(_Reachable, [robot, container]),  # Robot must be able to reach drawer
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainerEmpty, [container]),  # We now know the drawer's state
+        LiftedAtom(_BelieveTrue_ContainerEmpty, [container]),  # We believe it's empty
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainerEmpty, [container]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveDrawerEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
+
+    # ObserveDrawerNotEmpty (belief update action)
+    robot = Variable("?robot", _robot_type)
+    container = Variable("?container", _container_type)
+    parameters = [robot, container]
+    preconds = {
+        LiftedAtom(_Unknown_ContainerEmpty, [container]),
+        LiftedAtom(_DrawerOpen, [container]),  # Drawer must be open to observe
+        LiftedAtom(_Reachable, [robot, container]),  # Robot must be able to reach drawer
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainerEmpty, [container]),  # We now know the drawer's state
+        LiftedAtom(_BelieveFalse_ContainerEmpty, [container]),  # We believe it's not empty
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainerEmpty, [container]),
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveDrawerNotEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
+
+    if not CFG.mock_env_use_belief_operators:
+        return
 
 
 ###############################################################################
@@ -3759,9 +3919,9 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            # "MoveToHandViewObject",
-            "MoveToHandObserveObjectFromTop",  # For checking if cup is empty
-            "ObserveFromTop",
+            "MoveToHandViewFromTop",  # For checking if cup is empty
+            "ObserveWaterContentFindEmpty",  # For observing empty cup
+            "ObserveWaterContentFindWater",  # For observing cup with water
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3819,9 +3979,9 @@ class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            # "MoveToHandViewObject",
-            "MoveToHandObserveObjectFromTop",  # For checking if cup is empty
-            "ObserveFromTop",
+            "MoveToHandViewFromTop",  # For checking if cup is empty
+            "ObserveWaterContentFindEmpty",  # For observing empty cup
+            "ObserveWaterContentFindWater",  # For observing cup with water
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
