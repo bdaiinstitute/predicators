@@ -34,7 +34,7 @@ from predicators.envs import BaseEnv
 from predicators.structs import Action, GoalDescription, Observation, State, Object, Type, EnvironmentTask, Video, Image
 from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate, GroundAtom, GroundTruthPredicate, VLMPredicate, VLMGroundAtom, ParameterizedOption, NSRT, _GroundNSRT
 from predicators.settings import CFG
-from predicators.utils import get_object_combinations
+from predicators.utils import get_object_combinations, get_fluent_predicates, get_active_predicates
 from predicators.spot_utils.mock_env.mock_env_utils import (
     PREDICATES, PREDICATES_WITH_VLM, VLM_PREDICATES, TYPES, BELIEF_PREDICATES, GOAL_PREDICATES,
     _robot_type, _base_object_type, _movable_object_type, _container_type,
@@ -45,7 +45,7 @@ from predicators.spot_utils.mock_env.mock_env_utils import (
     _InHandViewFromTop, _Holding, _Blocking, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _ContainingWaterUnknown,
     _ContainingWater, _NotContainingWater, _ContainerEmpty, _Unknown_ContainerEmpty,
-    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, get_active_predicates, get_fluent_predicates
+    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty
 )
 
 

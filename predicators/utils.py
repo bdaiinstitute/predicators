@@ -2763,6 +2763,40 @@ def all_ground_ldl_rules(
                                         frozenset(init_atoms))
 
 
+def get_fluent_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Calculate fluent predicates by looking at operator effects.
+    Similar to Fast Downward's get_fluents function.
+    
+    Returns:
+        Set of Predicate objects that appear in operator effects.
+    """
+    fluent_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            fluent_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            fluent_predicates.add(effect.predicate)
+    return fluent_predicates
+
+def get_active_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Get active predicates by looking at operator preconditions and effects.
+    """
+    active_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in preconditions
+        for precondition in op.preconditions:
+            active_predicates.add(precondition.predicate)
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            active_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            active_predicates.add(effect.predicate)
+    return active_predicates
+
+
 @functools.lru_cache(maxsize=None)
 def _cached_all_ground_ldl_rules(
         rule: LDLRule, objects: FrozenSet[Object],
