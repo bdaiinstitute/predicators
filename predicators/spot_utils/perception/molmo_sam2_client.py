@@ -148,7 +148,8 @@ def render_result(image: Image.Image, result: Dict) -> Dict[str, Image.Image]:
 
 
 class MolmoSAM2Client:
-    def __init__(self, host: str = "localhost", port: int = 8100):
+    # def __init__(self, host: str = "localhost", port: int = 7100):
+    def __init__(self, host: str = "192.241.170.16", port: int = 7100):
         """Initialize client with host and port"""
         self.endpoint = f"http://{host}:{port}/molmo_sam2_service"
 

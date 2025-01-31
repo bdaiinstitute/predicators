@@ -631,7 +631,7 @@ class Task:
         state: State,
         # vlm: Optional[
         #     predicators.pretrained_model_interface.VisionLanguageModel] = None
-        vlm: Any
+        vlm: Optional[Any] = None
     ) -> bool:
         """Return whether the goal of this task holds in the given state."""
         vlm_atoms = set(atom for atom in self.goal
@@ -641,10 +641,11 @@ class Task:
                 if not atom.holds(state):
                     return False
                 
+        # FIXME debug here
         # NOTE: This is a temporary fix to allow the code to run.
-        import predicators.utils as utils  # pylint: disable=consider-using-from-import
-        true_vlm_atoms = utils.query_vlm_for_atom_vals(vlm_atoms, state, vlm)
-        return len(true_vlm_atoms) == len(vlm_atoms)
+        # import predicators.utils as utils  # pylint: disable=consider-using-from-import
+        # true_vlm_atoms = utils.query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        # return len(true_vlm_atoms) == len(vlm_atoms)
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
