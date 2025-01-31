@@ -1185,26 +1185,30 @@ class MockSpotSortWeight(MockSpotEnv):
         # self.goal_atoms_or = [{GroundAtom(_On, [self.white_box, self.scale])}]
         self.goal_atoms_or = [
             {
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-                GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
-                GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_Inside, [self.green_box, self.container]),  
+                GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-                GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-                GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  
+                GroundAtom(_Inside, [self.green_box, self.container]), 
             },
             {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]), 
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
             }
         ]
+        
+        self.real_goal_atoms_or = [{
+            GroundAtom(_Inside, [self.white_box, self.container]),
+        }]
         
     
     def _create_operators(self) -> Iterator[STRIPSOperator]:
@@ -1264,6 +1268,11 @@ class MockSpotSortWeight(MockSpotEnv):
         for op in all_operators:
             yield op
 
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
+        # NOTE: to update this from language
+        return self.goal_atoms_or
+    
     @property
     def objects(self) -> Set[Object]:
         """Get all objects in the environment."""

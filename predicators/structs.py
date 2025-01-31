@@ -623,9 +623,16 @@ class Task:
 
     def __post_init__(self) -> None:
         # Verify types.
-        for atom in self.goal:
-            assert isinstance(atom, GroundAtom)
+        
+        if(isinstance(self.goal, set)):
+            for atom in self.goal:
+                assert isinstance(atom, GroundAtom)
+        elif(isinstance(self.goal, list)):
+            for goal_set in self.goal:
+                for atom in goal_set:
+                    assert isinstance(atom, GroundAtom)
 
+            
     def goal_holds(
         self,
         state: State,
@@ -634,18 +641,25 @@ class Task:
         vlm: Optional[Any] = None
     ) -> bool:
         """Return whether the goal of this task holds in the given state."""
-        vlm_atoms = set(atom for atom in self.goal
-                        if isinstance(atom.predicate, VLMPredicate))
-        for atom in self.goal:
-            if atom not in vlm_atoms:
-                if not atom.holds(state):
-                    return False
-                
-        # FIXME debug here
-        # NOTE: This is a temporary fix to allow the code to run.
-        # import predicators.utils as utils  # pylint: disable=consider-using-from-import
-        # true_vlm_atoms = utils.query_vlm_for_atom_vals(vlm_atoms, state, vlm)
-        # return len(true_vlm_atoms) == len(vlm_atoms)
+        
+        if(isinstance(self.goal, set)):
+            vlm_atoms = set(atom for atom in self.goal if isinstance(atom.predicate, VLMPredicate))
+            for atom in self.goal:
+                if atom not in vlm_atoms:
+                    if not atom.holds(state):
+                        return False
+        elif(isinstance(self.goal, list)):
+            # Implement an or over the goal list
+            for goal_set in self.goal:
+                vlm_atoms = set(atom for atom in goal_set if isinstance(atom.predicate, VLMPredicate))
+                for atom in goal_set:
+                    if atom not in vlm_atoms:
+                        if not atom.holds(state):
+                            break
+                else:
+                    return True
+            return False
+
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
