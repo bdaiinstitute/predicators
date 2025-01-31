@@ -1082,9 +1082,11 @@ class MockEnvCreatorBase(ABC):
         )
         
         def skeleton_generator_or():
+            print("goal_atoms_or")
+            print(goal_atoms_or)
             for goal_atoms in goal_atoms_or:
                 try:
-                    
+                    print(goal_atoms)
                     # Create heuristic for planning
                     heuristic = utils.create_task_planning_heuristic(
                         CFG.sesame_task_planning_heuristic,

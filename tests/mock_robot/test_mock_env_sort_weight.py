@@ -38,7 +38,7 @@ if __name__ == '__main__':
     State 6: Drawer closed (final state)
     """
     # Set up configuration
-    test_name = "task_phone_drawer_cleaning"
+    test_name = "task_mock_env_sort_weight"
     test_dir = os.path.join("mock_env_data", test_name)
     utils.reset_config({
         "env": "mock_spot",
@@ -52,12 +52,12 @@ if __name__ == '__main__':
     
     # Create environment
     env = MockSpotSortWeight()
-    
     # Create environment creator
     creator = MockEnvCreatorBase(test_dir, env=env)
     
     # Plan and visualize transitions
     name = f'Transition Graph, {test_name.replace("_", " ").title()}'
+    
     creator.plan_and_visualize(env.initial_atoms, env.goal_atoms_or, env.objects, task_name=name)
     
     # Verify transition graph file exists
