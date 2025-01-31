@@ -1077,9 +1077,9 @@ class MockSpotSortWeight(MockSpotEnv):
         
         # Create objects
         self.robot = Object("robot", _robot_type)
-        self.scale = Object("robot", _immovable_object_type)
+        self.scale = Object("scale", _immovable_object_type)
+        self.table = Object("table", _immovable_object_type)
 
-        self.drawer = Object("drawer", _container_type)
         self.container = Object("container_box", _container_type)  # Changed to container_type
         self.green_box = Object("green_box", _movable_object_type)
         self.white_box = Object("white_box", _movable_object_type)
@@ -1090,7 +1090,8 @@ class MockSpotSortWeight(MockSpotEnv):
             # Set up initial state
             self._objects = {
                 "robot": self.robot,
-                "drawer": self.drawer,
+                "table": self.table,
+                "scale": self.scale ,
                 "container": self.container,
                 "green_box": self.green_box,
                 "white_box": self.white_box
@@ -1099,7 +1100,8 @@ class MockSpotSortWeight(MockSpotEnv):
         else:
             self._objects = {
                 "robot": self.robot,
-                "drawer": self.drawer,
+                "table": self.table,
+                "scale": self.scale ,
                 "container": self.container,
             }
             self._objects_oracle = self._objects | {
@@ -1113,9 +1115,37 @@ class MockSpotSortWeight(MockSpotEnv):
         """Set up initial state and goal atoms."""
         # Create initial and goal atoms
         self.initial_atoms = {
+            
+            # LiftedAtom(_Holding, [robot, held]),
+            # LiftedAtom(_Reachable, [robot, surface]),
+            # LiftedAtom(_NEq, [held, surface]),
+            # LiftedAtom(_IsPlaceable, [held]),
+            # LiftedAtom(_HasFlatTopSurface, [surface]),
+            # LiftedAtom(_FitsInXY, [held, surface]),
+            
             # Robot state
             GroundAtom(_HandEmpty, [self.robot]),
             
+            GroundAtom(_On, [self.green_box, self.table]),
+            GroundAtom(_On, [self.white_box, self.table]),
+
+            
+            GroundAtom(_FitsInXY, [self.green_box, self.scale]),
+            GroundAtom(_FitsInXY, [self.white_box, self.scale]),
+            
+            GroundAtom(_Reachable, [self.robot, self.scale]),
+            
+            GroundAtom(_IsPlaceable, [self.green_box]),
+            GroundAtom(_IsPlaceable, [self.white_box]),
+            GroundAtom(_NEq, [self.green_box, self.scale]),
+            GroundAtom(_NEq, [self.white_box, self.scale]),
+
+            GroundAtom(_HasFlatTopSurface, [self.scale]),
+            GroundAtom(_HasFlatTopSurface, [self.table]),
+
+            GroundAtom(_NotInsideAnyContainer, [self.green_box]),
+            GroundAtom(_NotInsideAnyContainer, [self.white_box]),
+
             # Container box state
             GroundAtom(_NotBlocked, [self.container]),
             GroundAtom(_IsPlaceable, [self.container]),
@@ -1124,32 +1154,20 @@ class MockSpotSortWeight(MockSpotEnv):
             GroundAtom(_NotHolding, [self.robot, self.container]),
             GroundAtom(_Reachable, [self.robot, self.container]),
             
-            # Drawer state
-            GroundAtom(_NotBlocked, [self.drawer]),
-            GroundAtom(_IsPlaceable, [self.drawer]),
-            GroundAtom(_NotInsideAnyContainer, [self.drawer]),
-            GroundAtom(_HasFlatTopSurface, [self.drawer]),
-            GroundAtom(_NotHolding, [self.robot, self.drawer]),
-            GroundAtom(_DrawerClosed, [self.drawer]),  # Drawer is closed
-            GroundAtom(_Reachable, [self.robot, self.drawer]),  # Robot can reach drawer
             
             # Red cup state
-            GroundAtom(_Inside, [self.green_box, self.drawer]),
             GroundAtom(_IsPlaceable, [self.green_box]),
             GroundAtom(_FitsInXY, [self.green_box, self.container]),
             GroundAtom(_NotHolding, [self.robot, self.green_box]),
             GroundAtom(_NEq, [self.green_box, self.container]),
-            GroundAtom(_NEq, [self.green_box, self.drawer]),
             GroundAtom(_Reachable, [self.robot, self.green_box]),
             GroundAtom(_NotBlocked, [self.green_box]),
             
             # Blue cup state
-            GroundAtom(_Inside, [self.white_box, self.drawer]),
             GroundAtom(_IsPlaceable, [self.white_box]),
             GroundAtom(_FitsInXY, [self.white_box, self.container]),
             GroundAtom(_NotHolding, [self.robot, self.white_box]),
             GroundAtom(_NEq, [self.white_box, self.container]),
-            GroundAtom(_NEq, [self.white_box, self.drawer]),
             GroundAtom(_Reachable, [self.robot, self.white_box]),
             GroundAtom(_NotBlocked, [self.white_box]),
                         
@@ -1161,36 +1179,36 @@ class MockSpotSortWeight(MockSpotEnv):
             GroundAtom(_IsScale, [self.scale]),
 
             # Object relationships
-            GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
+            GroundAtom(_NEq, [self.container, self.table]),  # Container and drawer are different objects
         }
         
-        self.goal_atoms_or = [{GroundAtom(_Holding, [self.robot, self.green_box])}]
-        # self.goal_atoms_or = [
-        #     {
-        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-        #         GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
-        #         GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
-        #         GroundAtom(_DrawerClosed, [self.drawer])
-        #     },
-        #     {
-        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-        #         GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
-        #         GroundAtom(_DrawerClosed, [self.drawer])
-        #     },
-        #     {
-        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-        #         GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
-        #         GroundAtom(_DrawerClosed, [self.drawer])
-        #     },
-        #     {
-        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
-        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
-        #         GroundAtom(_DrawerClosed, [self.drawer])
-        #     }
-        # ]
+        # self.goal_atoms_or = [{GroundAtom(_On, [self.white_box, self.scale])}]
+        self.goal_atoms_or = [
+            {
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_Inside, [self.green_box, self.container]),  
+                GroundAtom(_Inside, [self.white_box, self.container]), 
+            },
+            {
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_Inside, [self.white_box, self.container]), 
+            },
+            {
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
+                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  
+                GroundAtom(_Inside, [self.green_box, self.container]), 
+            },
+            {
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]), 
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
+            }
+        ]
+        
+        self.real_goal_atoms_or = [{
+            GroundAtom(_Inside, [self.white_box, self.container]),
+        }]
         
     
     def _create_operators(self) -> Iterator[STRIPSOperator]:
@@ -1207,11 +1225,9 @@ class MockSpotSortWeight(MockSpotEnv):
             "PickObjectFromContainer",
             "PlaceObjectOnTop",
             "DropObjectInside",  # Added this for placing in container
-            "OpenDrawer",
-            "CloseDrawer"
         }
-
-
+        all_operators = [op for op in all_operators if op.name in op_names_to_keep]
+        
         # MoveToHandViewObjectFromTop: Move robot's hand to view an object from above
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
@@ -1250,9 +1266,13 @@ class MockSpotSortWeight(MockSpotEnv):
         
         # Filter operators
         for op in all_operators:
-            if op.name in op_names_to_keep:
-                yield op
+            yield op
 
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
+        # NOTE: to update this from language
+        return self.goal_atoms_or
+    
     @property
     def objects(self) -> Set[Object]:
         """Get all objects in the environment."""

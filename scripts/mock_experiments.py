@@ -176,7 +176,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--planner", type=str,
                        help="Run only this planner (by name)")
     parser.add_argument('--env', type=str, default="mock_spot_drawer_cleaning", 
-                        choices=["mock_spot_drawer_cleaning", "mock_spot_pick_place_two_cup"])
+                        choices=["mock_spot_drawer_cleaning", "mock_spot_pick_place_two_cup", "mock_spot_sort_weight"])
     # parser.add_argument("--load_approach", action="store_true",
     #                    help="Load saved approach")
     return parser.parse_args()

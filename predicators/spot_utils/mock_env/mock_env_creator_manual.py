@@ -361,7 +361,7 @@ def main():
     
     # Then plan and visualize transitions
     name = f'Transition Graph, {env.name.replace("_", " ").title()}'
-    creator.plan_and_visualize(env.initial_atoms, env.goal_atoms, env.objects, task_name=name)
+    creator.plan_and_visualize(env.initial_atoms, env.goal_atoms_or, env.objects, task_name=name)
     # NOTE: Don't load existing state mapping, need unique state dict
     
     # Process based on selected mode

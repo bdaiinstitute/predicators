@@ -111,12 +111,12 @@ PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
              _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
              _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-             _DrawerClosed, _DrawerOpen, _InHandViewFromTop, _Inside}
+             _DrawerClosed, _DrawerOpen, _InHandViewFromTop, _Inside, _IsScale}
 # Note: Now adding belief predicates
 BELIEF_PREDICATES = {_Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
                      _Unknown_ContainerEmpty, _Known_ContainerEmpty, _BelieveTrue_ContainerEmpty,
                      _BelieveFalse_ContainerEmpty, _InHandViewFromTop, _ContainingWaterUnknown,
-                     _ContainingWaterKnown, _ContainingWater, _NotContainingWater}
+                     _ContainingWaterKnown, _ContainingWater, _NotContainingWater, _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy}
 PREDICATES = PREDICATES | BELIEF_PREDICATES
 
 # Export goal predicates
@@ -230,12 +230,34 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the drawer is open. If the drawer is closed, answer [no]."
     )
     
+    # NOTE: VLM Predicates for object weight
+    _Known_ObjectHeavy = VLMPredicate(
+        "Known_ObjectHeavy", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object is heavy (>1.0 oz) or not. If you cannot tell, answer [no]."
+    )
+    
+    _Unknown_ObjectHeavy = VLMPredicate(
+        "Unknown_ObjectHeavy", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the object is heavy (>1.0 oz) or not. If you can tell, answer [no]."
+    )
+    
+    _BelieveTrue_ObjectHeavy = VLMPredicate(
+        "BelieveTrue_ObjectHeavy", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object is heavy (>1.0 oz) based on what you can see. If you believe it is not heavy, answer [no]."
+    )
+    
+    _BelieveFalse_ObjectHeavy = VLMPredicate(
+        "BelieveFalse_ObjectHeavy", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object is not heavy (≤1.0 oz) based on what you can see. If you believe it is heavy, answer [no]."
+    )
+    
     vlm_predicates = {_On, _Blocking, _NotBlocked, _NotInsideAnyContainer, 
             _Inside, _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
             _ContainingWaterKnown, _ContainingWaterUnknown, _ContainingWater, _NotContainingWater,
             _InHandViewFromTop, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty,
-            _DrawerClosed, _DrawerOpen}
+            _DrawerClosed, _DrawerOpen,
+            _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy}
     
     belief_predicates = {
         _ContainingWaterUnknown,
@@ -250,7 +272,11 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         _Unknown_Inside,
         _Known_Inside,
         _BelieveTrue_Inside,
-        _BelieveFalse_Inside
+        _BelieveFalse_Inside,
+        _Known_ObjectHeavy,
+        _Unknown_ObjectHeavy, 
+        _BelieveTrue_ObjectHeavy,
+        _BelieveFalse_ObjectHeavy
     }
     
     return vlm_predicates, belief_predicates
