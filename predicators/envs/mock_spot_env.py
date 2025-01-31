@@ -42,7 +42,8 @@ from predicators.spot_utils.mock_env.mock_env_utils import (
     _NotBlocked, _NotHolding, _Reachable, _InHandView, _InView, _RobotReadyForSweeping,
     _HandEmpty, _NotInsideAnyContainer, _Inside, _DrawerOpen, _DrawerClosed,
     _ContainingWaterKnown, _Known_ContainerEmpty, _NEq, _On, _TopAbove, _FitsInXY,
-    _InHandViewFromTop, _Holding, _Blocking, _ContainerReadyForSweeping, _IsPlaceable,
+    _InHandViewFromTop, _Holding, _Known_ObjectHeavy, _Unknown_ObjectHeavy, 
+    _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy, _IsScale, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _ContainingWaterUnknown,
     _ContainingWater, _NotContainingWater, _ContainerEmpty, _Unknown_ContainerEmpty,
     _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty, get_active_predicates, get_fluent_predicates
@@ -1038,6 +1039,215 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
         #         "ObserveObjectInContainer"
         #     })
             
+        # Filter operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
+
+class MockSpotSortWeight(MockSpotEnv):
+    """A mock environment for putting all objects above a certain weight in a bin"""
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotSortWeight")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_sort_weight"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = MockSpotSortWeight.get_name()
+        
+        # Create objects
+        self.robot = Object("robot", _robot_type)
+        self.scale = Object("robot", _immovable_object_type)
+
+        self.drawer = Object("drawer", _container_type)
+        self.container = Object("container_box", _container_type)  # Changed to container_type
+        self.green_box = Object("green_box", _movable_object_type)
+        self.white_box = Object("white_box", _movable_object_type)
+        
+        self.oracle_env = True
+        
+        if self.oracle_env:
+            # Set up initial state
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+                "green_box": self.green_box,
+                "white_box": self.white_box
+            }
+            self._set_initial_state_and_goal()
+        else:
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+            }
+            self._objects_oracle = self._objects | {
+                "green_box": self.green_box,
+                "white_box": self.white_box
+            }
+            # FIXME: for agent with partial observability, we need to set up initial state and goal
+            self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial and goal atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Container box state
+            GroundAtom(_NotBlocked, [self.container]),
+            GroundAtom(_IsPlaceable, [self.container]),
+            GroundAtom(_NotInsideAnyContainer, [self.container]),
+            GroundAtom(_HasFlatTopSurface, [self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.container]),
+            
+            # Drawer state
+            GroundAtom(_NotBlocked, [self.drawer]),
+            GroundAtom(_IsPlaceable, [self.drawer]),
+            GroundAtom(_NotInsideAnyContainer, [self.drawer]),
+            GroundAtom(_HasFlatTopSurface, [self.drawer]),
+            GroundAtom(_NotHolding, [self.robot, self.drawer]),
+            GroundAtom(_DrawerClosed, [self.drawer]),  # Drawer is closed
+            GroundAtom(_Reachable, [self.robot, self.drawer]),  # Robot can reach drawer
+            
+            # Red cup state
+            GroundAtom(_Inside, [self.green_box, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.green_box]),
+            GroundAtom(_FitsInXY, [self.green_box, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.green_box]),
+            GroundAtom(_NEq, [self.green_box, self.container]),
+            GroundAtom(_NEq, [self.green_box, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.green_box]),
+            GroundAtom(_NotBlocked, [self.green_box]),
+            
+            # Blue cup state
+            GroundAtom(_Inside, [self.white_box, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.white_box]),
+            GroundAtom(_FitsInXY, [self.white_box, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.white_box]),
+            GroundAtom(_NEq, [self.white_box, self.container]),
+            GroundAtom(_NEq, [self.white_box, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.white_box]),
+            GroundAtom(_NotBlocked, [self.white_box]),
+                        
+            # Weights
+            GroundAtom(_Unknown_ObjectHeavy, [self.white_box]),
+            GroundAtom(_Unknown_ObjectHeavy, [self.green_box]),
+            
+            # Scale
+            GroundAtom(_IsScale, [self.scale]),
+
+            # Object relationships
+            GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
+        }
+        
+        self.goal_atoms_or = [{GroundAtom(_Holding, [self.robot, self.green_box])}]
+        # self.goal_atoms_or = [
+        #     {
+        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
+        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
+        #         GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
+        #         GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
+        #         GroundAtom(_DrawerClosed, [self.drawer])
+        #     },
+        #     {
+        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
+        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
+        #         GroundAtom(_Inside, [self.white_box, self.container]),  # Red cup should be inside container
+        #         GroundAtom(_DrawerClosed, [self.drawer])
+        #     },
+        #     {
+        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
+        #         GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
+        #         GroundAtom(_Inside, [self.green_box, self.container]),  # Red cup should be inside container
+        #         GroundAtom(_DrawerClosed, [self.drawer])
+        #     },
+        #     {
+        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  # Red cup should be inside container
+        #         GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  # Red cup should be inside container
+        #         GroundAtom(_DrawerClosed, [self.drawer])
+        #     }
+        # ]
+        
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to drawer cleaning tasks."""
+        # Get all operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "MoveToHandViewObjectInContainer",
+            "PickObjectFromTop",
+            "PickObjectFromContainer",
+            "PlaceObjectOnTop",
+            "DropObjectInside",  # Added this for placing in container
+            "OpenDrawer",
+            "CloseDrawer"
+        }
+
+
+        # MoveToHandViewObjectFromTop: Move robot's hand to view an object from above
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        scale = Variable("?surface", _immovable_object_type)
+
+        parameters = [robot, obj, scale]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_Unknown_ObjectHeavy, [obj]),
+            LiftedAtom(_IsPlaceable, [obj]),
+            LiftedAtom(_IsScale, [scale]),
+            LiftedAtom(_On, [obj, scale]),
+        }
+        add_effs = {LiftedAtom(_Known_ObjectHeavy, [obj]), LiftedAtom(_BelieveTrue_ObjectHeavy, [obj])}
+        del_effs = {LiftedAtom(_Unknown_ObjectHeavy, [obj])}
+        ignore_effs = {_InHandView, _InView, _RobotReadyForSweeping}
+        all_operators.append(
+            STRIPSOperator("ViewObjectWeightHeavy", parameters, preconds,
+                            add_effs, del_effs, ignore_effs))
+        
+        
+        parameters = [robot, obj, scale]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_Unknown_ObjectHeavy, [obj]),
+            LiftedAtom(_IsPlaceable, [obj]),
+            LiftedAtom(_IsScale, [scale]),
+            LiftedAtom(_On, [obj, scale]),
+        }
+        add_effs = {LiftedAtom(_Known_ObjectHeavy, [obj]), LiftedAtom(_BelieveFalse_ObjectHeavy, [obj])}
+        del_effs = {LiftedAtom(_Unknown_ObjectHeavy, [obj])}
+        ignore_effs = {_InHandView, _InView, _RobotReadyForSweeping}
+        all_operators.append(
+            STRIPSOperator("ViewObjectWeightNotHeavy", parameters, preconds,
+                            add_effs, del_effs, ignore_effs))
+        
         # Filter operators
         for op in all_operators:
             if op.name in op_names_to_keep:

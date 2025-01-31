@@ -47,7 +47,7 @@ def setup():
     # Cleanup (if needed)
     pass
 
-
+    
 def test_with_belief_observe_cup_emptiness():
     """Test transition graph for cup emptiness observation.
     
