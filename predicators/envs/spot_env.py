@@ -3575,9 +3575,9 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
         objects_to_detect = [
             # ("block", "green_block", _movable_object_type),
             # ("block", "green_cup", _movable_object_type),
-            ("cup1", "red_cup", _container_type),
-            ("cup2", "yellow_cup", _container_type),
-            ("cup3", "green_cup", _container_type),
+            ("cup1", "green_cup", _container_type),
+            # ("cup2", "yellow_cup", _container_type),
+            # ("cup3", "green_cup", _container_type),
         ]
         
         # Add detection object prompt and save object identifier
