@@ -461,7 +461,8 @@ Goal:
 Solution:"""
 
     # parameters for vision language models
-    vlm_model_name = "gpt-4o"
+    detection_pipeline = "detic_sam"  # "molmo_sam2" or "detic_sam"
+    vlm_model_name = "gpt-4o-mini"
     vlm_temperature = 0.7
     vlm_num_completions = 1
     vlm_include_cropped_images = False
@@ -487,7 +488,7 @@ Be specific and precise in your description."""
     vlm_eval_verbose = False
     vlm_temperature = 0.7
     vlm_num_completions = 1
-    vlm_model_name = "gpt-4o"
+    vlm_model_name = "gpt-4o-mini"
     vlm_max_tokens = 1000
     vlm_max_image_tokens = 1000
     fm_planning_with_oracle_nsrts = True  # Whether to use oracle NSRTs in VLM/LLM planning

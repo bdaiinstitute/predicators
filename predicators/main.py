@@ -38,6 +38,7 @@ import logging
 import os
 import sys
 import time
+import tkinter as tk
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
@@ -70,6 +71,10 @@ assert os.environ.get("PYTHONHASHSEED") == "0", \
 
 def main() -> None:
     """Main entry point for running approaches in environments."""
+    # Add Tkinter initialization at the start
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    
     script_start = time.perf_counter()
     # Parse & validate args
     args = utils.parse_args()
@@ -182,6 +187,13 @@ def main() -> None:
     OpenAIModel.log_total_costs()
     
     logging.info(f"\n\nMain script terminated in {script_time:.5f} seconds")
+
+    # Clean up Tkinter
+    try:
+        root.quit()
+        root.destroy()
+    except Exception:
+        pass
 
 
 def _run_pipeline(env: BaseEnv,
