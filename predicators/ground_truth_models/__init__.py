@@ -80,6 +80,8 @@ def get_gt_options(env_name: str) -> Set[ParameterizedOption]:
     """Create ground truth options for an env."""
     env = get_or_create_env(env_name)
     for cls in utils.get_all_subclasses(GroundTruthOptionFactory):
+        print(env_name)
+        print(cls.get_env_names())
         if not cls.__abstractmethods__ and env_name in cls.get_env_names():
             factory = cls()
             types = {t.name: t for t in env.types}

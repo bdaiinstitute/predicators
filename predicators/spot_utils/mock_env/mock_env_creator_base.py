@@ -215,7 +215,7 @@ class MockEnvCreatorBase(ABC):
             self.objects = {o.name: o for o in env.objects}
             # Store initial and goal atoms from environment
             self.env_initial_atoms = env.initial_atoms
-            self.env_goal_atoms = env.goal_atoms
+            self.env_goal_atoms_or = env.goal_atoms_or
         elif env_info is not None:
             self.types = {t.name: t for t in env_info["types"]}
             self.predicates = {p.name: p for p in env_info["predicates"]}
@@ -635,7 +635,7 @@ class MockEnvCreatorBase(ABC):
         except StopIteration:
             return None
 
-    def plan_and_visualize(self, initial_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: Set[Object], task_name: str, use_graphviz: bool = False) -> None:
+    def plan_and_visualize(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], task_name: str, use_graphviz: bool = False) -> None:
         """Plan and visualize transitions.
         
         Args:
@@ -654,14 +654,14 @@ class MockEnvCreatorBase(ABC):
         
         # Get transitions and edges
         transitions = self.get_operator_transitions(initial_atoms, objects)
-        edges = self.get_graph_edges(initial_atoms, goal_atoms, objects)
+        edges = self.get_graph_edges(initial_atoms, goal_atoms_or, objects)
         
         # Track shortest path edges and states
         shortest_path_edges = set()
         shortest_path_states = {frozenset(initial_atoms)}
         
         # Get plan to goal
-        planner = self._create_planner(initial_atoms, goal_atoms, objects)
+        planner = self._create_planner(initial_atoms, goal_atoms_or, objects)
         try:
             # TODO: visualize all shortest-path skeletons
             skeleton, atoms_sequence, metrics = next(planner())
@@ -724,7 +724,7 @@ class MockEnvCreatorBase(ABC):
             # Add node data
             for atoms, state_id in self.state_to_id.items():
                 is_initial = atoms == frozenset(initial_atoms)
-                is_goal = goal_atoms.issubset(atoms)
+                is_goal = any([goal_atoms.issubset(atoms) for goal_atoms in goal_atoms_or])
                 is_shortest_path = atoms in shortest_path_states
                 
                 # Get self loops
@@ -1061,7 +1061,7 @@ class MockEnvCreatorBase(ABC):
         
         return "#FFFFFF"  # White default
 
-    def _create_planner(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom],
+    def _create_planner(self, init_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]],
                        objects: Set[Object]) -> Any:
         """Create a planner for task planning.
         
@@ -1081,28 +1081,39 @@ class MockEnvCreatorBase(ABC):
             allow_noops=False
         )
         
-        # Create heuristic for planning
-        heuristic = utils.create_task_planning_heuristic(
-            CFG.sesame_task_planning_heuristic,
-            init_atoms,
-            goal_atoms,
-            ground_nsrts,
-            self.predicates.values(),
-            objects
-        )
+        def skeleton_generator_or():
+            for goal_atoms in goal_atoms_or:
+                try:
+                    
+                    # Create heuristic for planning
+                    heuristic = utils.create_task_planning_heuristic(
+                        CFG.sesame_task_planning_heuristic,
+                        init_atoms,
+                        goal_atoms,
+                        ground_nsrts,
+                        self.predicates.values(),
+                        objects
+                    )
+                    
+                    single_task_planner = task_plan(
+                        init_atoms=init_atoms,
+                        goal=goal_atoms,
+                        ground_nsrts=ground_nsrts,
+                        reachable_atoms=reachable_atoms,
+                        heuristic=heuristic,
+                        seed=CFG.seed,
+                        timeout=10.0,
+                        max_skeletons_optimized=CFG.sesame_max_skeletons_optimized,
+                        use_visited_state_set=True
+                    )
+                    skeleton, atoms_sequence, metrics = next(single_task_planner)
+                    yield skeleton, atoms_sequence, len(skeleton)
+                except StopIteration:
+                    continue
+            
+            raise StopIteration
         
-        # Return planner generator
-        return lambda: task_plan(
-            init_atoms=init_atoms,
-            goal=goal_atoms,
-            ground_nsrts=ground_nsrts,
-            reachable_atoms=reachable_atoms,
-            heuristic=heuristic,
-            seed=CFG.seed,
-            timeout=10.0,
-            max_skeletons_optimized=CFG.sesame_max_skeletons_optimized,
-            use_visited_state_set=True
-        )
+        return skeleton_generator_or
         
     def _visualize_state(self, state: Set[GroundAtom]) -> None:
         """Visualize a state's atoms, focusing on fluents."""
@@ -1336,7 +1347,7 @@ class MockEnvCreatorBase(ABC):
         
         return transitions
 
-    def get_graph_edges(self, init_atoms: Set[GroundAtom], goal_atoms: Set[GroundAtom], objects: Set[Object]) -> Set[Tuple[FrozenSet[GroundAtom], _GroundNSRT, FrozenSet[GroundAtom]]]:
+    def get_graph_edges(self, init_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object]) -> Set[Tuple[FrozenSet[GroundAtom], _GroundNSRT, FrozenSet[GroundAtom]]]:
         """Get edges in the transition graph based on initial and goal states.
         
         Args:
@@ -1485,10 +1496,10 @@ class MockEnvCreatorBase(ABC):
         """
         # Get default values from environment
         init_atoms_to_use = self.env_initial_atoms if init_atoms is None else init_atoms
-        goal_atoms_to_use = self.env_goal_atoms if goal_atoms is None else goal_atoms
+        goal_atoms_to_use_or = self.env_goal_atoms_or if goal_atoms is None else goal_atoms
         objects_to_use = set(self.objects.values()) if objects is None else objects
         
-        planner = self._create_planner(init_atoms_to_use, goal_atoms_to_use, objects_to_use)
+        planner = self._create_planner(init_atoms_to_use, goal_atoms_to_use_or, objects_to_use)
         try:
             skeleton, atoms_sequence, metrics = next(planner())
             return skeleton, atoms_sequence, len(skeleton)
@@ -1520,7 +1531,7 @@ class MockEnvCreatorBase(ABC):
         
         # Use environment atoms as defaults
         init_atoms_to_use = self.env_initial_atoms if init_atoms is None else init_atoms
-        goal_atoms_to_use = self.env_goal_atoms if goal_atoms is None else goal_atoms
+        goal_atoms_to_use_or = self.env_goal_atoms_or if goal_atoms is None else goal_atoms
         
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -1564,7 +1575,7 @@ class MockEnvCreatorBase(ABC):
         
         # Add optimal path information if requested
         if save_plan:
-            optimal_path = self._find_optimal_path(init_atoms_to_use, goal_atoms_to_use)
+            optimal_path = self._find_optimal_path(init_atoms_to_use, goal_atoms_to_use_or)
             if optimal_path is not None:
                 plan, states, num_steps = optimal_path
                 system_data["optimal_path"] = {

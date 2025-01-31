@@ -78,6 +78,8 @@ _BelieveFalse_Inside = GroundTruthPredicate("BelieveFalse_Inside", [_movable_obj
 # Add new predicates for cup emptiness
 _InHandViewFromTop = GroundTruthPredicate("InHandViewFromTop", [_robot_type, _base_object_type], _dummy_classifier)
 _ContainerEmpty = GroundTruthPredicate("ContainerEmpty", [_container_type], _dummy_classifier)
+
+
 # Belief predicates
 _ContainingWaterUnknown = GroundTruthPredicate("ContainingWaterUnknown", [_container_type], _dummy_classifier)
 _ContainingWaterKnown = GroundTruthPredicate("ContainingWaterKnown", [_container_type], _dummy_classifier)
@@ -95,6 +97,14 @@ _Unknown_Inside = GroundTruthPredicate("Unknown_Inside", [_movable_object_type, 
 _Known_Inside = GroundTruthPredicate("Known_Inside", [_movable_object_type, _container_type], _dummy_classifier)
 _BelieveTrue_Inside = GroundTruthPredicate("BelieveTrue_Inside", [_movable_object_type, _container_type], _dummy_classifier)
 _BelieveFalse_Inside = GroundTruthPredicate("BelieveFalse_Inside", [_movable_object_type, _container_type], _dummy_classifier)
+
+# Predicates for object weight
+_Known_ObjectHeavy = GroundTruthPredicate("Known_ObjectHeavy", [_movable_object_type], _dummy_classifier)
+_Unknown_ObjectHeavy = GroundTruthPredicate("Unknown_ObjectHeavy", [_movable_object_type], _dummy_classifier)
+_BelieveTrue_ObjectHeavy = GroundTruthPredicate("BelieveTrue_ObjectHeavy", [_movable_object_type], _dummy_classifier)
+_BelieveFalse_ObjectHeavy = GroundTruthPredicate("BelieveFalse_ObjectHeavy", [_movable_object_type], _dummy_classifier)
+
+_IsScale = GroundTruthPredicate("IsScale", [_immovable_object_type], _dummy_classifier)
 
 # Export all predicates
 PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
