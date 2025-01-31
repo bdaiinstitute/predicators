@@ -4,11 +4,12 @@ as well as continuous arguments (indicated by `params_space` field, which is for
 
 {options}
 
+Preconditions indicate the properties of the scene that must be true for you to execute an action. The effects are what will happen to the scene when you execute the actions.
 You are only allowed to use the provided skills. It's essential to stick to the format of these basic skills. When creating a plan, replace
 the arguments of each skill with specific items or continuous parameters. You can first describe the provided scene and what it indicates about the provided
 task objects to help you come up with a plan.
 
-Here is a list of objects present in this scene for this task, along with their type (formatted as <object_name>: <type_name>):
+Here is a list of objects present in this scene for this task, along with their type (formatted as <object_name>:<type_name>):
 {typed_objects}
 
 And here are the available types (formatted in PDDL style as `<type_name1> <type_name2>... - <parent_type_name>`). You can infer a hierarchy of types via this:
@@ -39,6 +40,7 @@ MoveToObject(robot:robot, cup:movable_object)[]
 PickObject(robot:robot, cup:movable_object)[]
 MoveToLocation(robot:robot, table:surface)[]
 PlaceObject(robot:robot, cup:movable_object, table:surface)[]
+OpenDrawer(robot:robot, drawer:container)[]
 
 Do not include any numbers, bullet points, code blocks, or other formatting. Just write the plan exactly as shown above.
 ...

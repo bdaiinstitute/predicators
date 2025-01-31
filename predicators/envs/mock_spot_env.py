@@ -900,7 +900,7 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
     # Set the preset data directory
     # preset_data_dir = os.path.join("mock_env_data", "MockSpotDrawerCleaningEnv")
     # preset_data_dir = os.path.join("mock_env_data", "saved_task_phone_drawer_cleaning")
-    preset_data_dir = os.path.join("mock_env_data", "test_mock_task", "MockSpotDrawerCleaningEnv")
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotDrawerCleaningEnv")
 
     @classmethod
     def get_name(cls) -> str:
