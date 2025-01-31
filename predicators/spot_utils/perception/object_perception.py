@@ -81,23 +81,22 @@ Do these predicates hold in the following images?
 8. EmptyKnownFalse(bowl:container)
 9. Inside(bowl:container, bowl:container)
 
-Answer with explanation and Yes/No for each question:
+Answer with explanation and Yes/No for each question. Important: Keep each explanation and answer in a single line, with no empty lines between responses:
 1. I can see the apple is clearly contained within the bowl's interior. [Yes]
 2. The apple appears to be floating above the table, not making contact. [No]
 3. The apple is positioned directly in front of the orange, preventing access. [Yes]
-
-4. No
-5. No
-6. Yes
-7. Yes
-8. No
-9. No
+4. ... [No]
+5. ... [No]
+6. ... [Yes]
+7. ... [Yes]
+8. ... [No]
+9. ... [No]
 
 Actual questions (separated by line or newline character):
 Do these predicates hold in the following images?
 {question}
 
-Answer with explanation and Yes/No for each question:
+Answer with explanation and Yes/No for each question. Important: Keep each explanation and answer in a single line, with no empty lines between responses:
 """
 
 # Provide some visual examples when needed
@@ -183,7 +182,8 @@ def vlm_predicate_batch_query(
                     logging.info(f"VLM response 0: {vlm_responses[0]}")
 
                 # Parse the responses
-                responses = vlm_responses[0].strip().split('\n')
+                # Split by newline and filter out empty lines
+                responses = [r.strip() for r in vlm_responses[0].strip().split('\n') if r.strip()]
                 if len(responses) != len(queries):
                     logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
                     print(f"VLM responses: {vlm_responses[0]}")
