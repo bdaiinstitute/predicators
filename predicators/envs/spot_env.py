@@ -657,8 +657,8 @@ class SpotRearrangementEnv(BaseEnv):
             all_object_detection_ids, hand_rgbd, self._allowed_regions)
 
         if CFG.spot_render_perception_outputs:
-            outdir = Path(CFG.spot_perception_outdir)
             time_str = time.strftime("%Y%m%d-%H%M%S")
+            outdir = Path(CFG.spot_perception_outdir, time_str)
             detections_outfile = outdir / f"detections_{time_str}.png"
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
