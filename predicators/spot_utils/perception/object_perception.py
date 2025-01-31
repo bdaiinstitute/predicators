@@ -19,12 +19,6 @@ from predicators.utils import get_object_combinations
 #                      VLM Predicate Evaluation Related                       #
 ###############################################################################
 
-# Available VLM models
-available_choices = [
-    "gpt-4-turbo",
-    "gpt-4o",
-    "gpt-4o-mini"
-]
 
 # Global VLM instance
 _vlm = None
@@ -34,8 +28,7 @@ def get_vlm():
     global _vlm
     if _vlm is None:
         if "OPENAI_API_KEY" in os.environ:
-            # _vlm = OpenAIVLM(model_name=available_choices[2], detail="auto")
-            _vlm = OpenAIVLM(model_name=available_choices[2])
+            _vlm = OpenAIVLM(model_name=CFG.vlm_model_name)
     return _vlm
 
 # Engineer the prompt for VLM
@@ -88,10 +81,11 @@ Do these predicates hold in the following images?
 8. EmptyKnownFalse(bowl:container)
 9. Inside(bowl:container, bowl:container)
 
-Answer (in a single word Yes/No for each question):
-1. Yes
-2. No
-3. Yes
+Answer with explanation and Yes/No for each question:
+1. I can see the apple is clearly contained within the bowl's interior. [Yes]
+2. The apple appears to be floating above the table, not making contact. [No]
+3. The apple is positioned directly in front of the orange, preventing access. [Yes]
+
 4. No
 5. No
 6. Yes
@@ -103,7 +97,7 @@ Actual questions (separated by line or newline character):
 Do these predicates hold in the following images?
 {question}
 
-Answer (in a single word Yes/No for each question):
+Answer with explanation and Yes/No for each question:
 """
 
 # Provide some visual examples when needed
@@ -173,46 +167,60 @@ def vlm_predicate_batch_query(
         logging.warning("VLM not initialized (no API key). Returning all False.")
         return [False] * len(queries)
 
-    def query_vlm(full_prompt, image_list):
-        while True:
-            vlm_responses = vlm.sample_completions(
-                prompt=full_prompt,
-                imgs=image_list,
-                temperature=0.1,
-                seed=int(time.time()),
-                num_completions=1,
-            )
-            if CFG.vlm_eval_verbose:
-                logging.info(f"VLM response 0: {vlm_responses[0]}")
+    def query_vlm(full_prompt, images_array):
+        # Convert numpy arrays to PIL Images inside the thread
+        image_list = [PIL.Image.fromarray(arr) for arr in images_array]
+        try:
+            while True:
+                vlm_responses = vlm.sample_completions(
+                    prompt=full_prompt,
+                    imgs=image_list,
+                    temperature=0.1,
+                    seed=int(time.time()),
+                    num_completions=1,
+                )
+                if CFG.vlm_eval_verbose:
+                    logging.info(f"VLM response 0: {vlm_responses[0]}")
 
-            # Parse the responses
-            responses = vlm_responses[0].strip().split('\n')
-            if len(responses) != len(queries):
-                logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
-                print(f"VLM responses: {vlm_responses[0]}")
-                continue
+                # Parse the responses
+                responses = vlm_responses[0].strip().split('\n')
+                if len(responses) != len(queries):
+                    logging.warning(f"[Warning] Number of responses ({len(responses)}) does not match number of queries ({len(queries)}). Retrying...")
+                    print(f"VLM responses: {vlm_responses[0]}")
+                    continue
 
-            results = []
-            retry = False
-            for i, r in enumerate(responses):
-                # FIXME add logic here
-                if any(x in r for x in ['Yes', 'No']):
-                    if 'Yes' in r:
-                        results.append(True)
-                    elif 'No' in r:
-                        results.append(False)
-                else:
-                    logging.warning(f"Invalid response in line {i}: {r}. Retrying...")
-                    retry = True
-                    break
+                results = []
+                explanations = []
+                retry = False
+                
+                for i, r in enumerate(responses):
+                    # Look for [Yes] or [No] at the end of the response
+                    if '[Yes]' in r or '[No]' in r:
+                        # Extract explanation (everything before the [Yes]/[No])
+                        explanation = r.split('[')[0].strip()
+                        explanations.append(explanation)
+                        
+                        if '[Yes]' in r:
+                            results.append(True)
+                        elif '[No]' in r:
+                            results.append(False)
+                    else:
+                        logging.warning(f"Invalid response format in line {i}: {r}. Retrying...")
+                        retry = True
+                        break
 
-            if not retry:
-                return results
-
-    # Ensure num_runs is at least 3
-    if num_runs < 3:
-        logging.info(f"Number of runs is less than 3 ({num_runs}). Setting it to 3.")
-        num_runs = 3
+                if not retry:
+                    # Log explanations if verbose
+                    if CFG.vlm_eval_verbose:
+                        for i, (query, expl, res) in enumerate(zip(queries, explanations, results)):
+                            logging.info(f"Query {i+1}: {query}")
+                            logging.info(f"Explanation: {expl}")
+                            logging.info(f"Result: {res}\n")
+                    return results
+        finally:
+            # Clean up PIL Images
+            for img in image_list:
+                img.close()
 
     # Assemble the full prompt
     numbered_queries = [f"{i+1}. {query}" for i, query in enumerate(queries)]
@@ -221,9 +229,8 @@ def vlm_predicate_batch_query(
     full_prompt = vlm_predicate_batch_eval_prompt.format(
         vlm_predicates=vlm_predicates, question=question)
 
-    image_list = [
-        PIL.Image.fromarray(v.rotated_rgb) for _, v in images.items()
-    ]
+    # Convert images to numpy arrays first
+    images_array = [v.rotated_rgb for _, v in images.items()]
 
     if CFG.vlm_eval_verbose:
         logging.info(f"VLM predicate evaluation input (with prompt): \n{question}")
@@ -234,7 +241,7 @@ def vlm_predicate_batch_query(
 
     # Run the queries in parallel
     with ThreadPoolExecutor(max_workers=num_runs) as executor:
-        futures = [executor.submit(query_vlm, full_prompt, image_list) for _ in range(num_runs)]
+        futures = [executor.submit(query_vlm, full_prompt, images_array) for _ in range(num_runs)]
         results = [future.result() for future in as_completed(futures)]
 
     # Apply voting mechanism
