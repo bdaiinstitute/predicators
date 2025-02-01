@@ -105,15 +105,6 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         {
-            "name": "llm_open_loop",
-            "args": [
-                "--approach", "llm_open_loop",
-                "--perceiver", "mock_spot_perceiver",
-                "--llm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
-            ]
-        },
-        {
             "name": "llm_closed_loop",
             "args": [
                 "--approach", "llm_open_loop",
@@ -122,15 +113,6 @@ def main(args: argparse.Namespace) -> None:
                 "--llm_temperature", "0.2",
                 "--execution_monitor", "mpc"
                 # "--execution_monitor", "expected_atoms"
-            ]
-        },
-        {
-            "name": "vlm_open_loop",
-            "args": [
-                "--approach", "vlm_open_loop",
-                "--perceiver", "mock_spot_perceiver",
-                "--vlm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
             ]
         },
         {
