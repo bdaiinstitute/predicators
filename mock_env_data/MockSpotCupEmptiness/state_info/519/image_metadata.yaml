@@ -1,0 +1,10 @@
+cam1.view0:
+  camera_name: cam1.view0
+  depth_path: null
+  image_rot: null
+  rgb_path: cam1.view0_rgb.jpg
+cam1.view1:
+  camera_name: cam1.view1
+  depth_path: null
+  image_rot: null
+  rgb_path: cam1.view1_rgb.jpg
