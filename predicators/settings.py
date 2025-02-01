@@ -441,7 +441,7 @@ class GlobalSettings:
 
     # parameters for large language models
     pretrained_model_prompt_cache_dir = "pretrained_model_cache"
-    llm_openai_max_response_tokens = 500
+    llm_openai_max_response_tokens = 3000
     llm_use_cache_only = False
     llm_model_name = "gpt-4o"  # Using GPT-4o
     llm_temperature = 0.7
