@@ -41,7 +41,7 @@ class MockSpotGroundTruthNSRTFactory(GroundTruthNSRTFactory):
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
-        return {"mock_spot", "mock_spot_pick_place_two_cup", "mock_spot_drawer_cleaning",  "mock_spot_sort_weight"}
+        return {"mock_spot", "mock_spot_pick_place_two_cup", "mock_spot_drawer_cleaning",  "mock_spot_sort_weight", "mock_spot_cup_emptiness"}
 
     @classmethod
     def get_nsrts(cls, env_name: str, types: Dict[str, Type],
