@@ -1185,25 +1185,21 @@ class MockSpotSortWeight(MockSpotEnv):
         # self.goal_atoms_or = [{GroundAtom(_On, [self.white_box, self.scale])}]
         self.goal_atoms_or = [
             {
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
                 GroundAtom(_Inside, [self.green_box, self.container]),  
                 GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
+                GroundAtom(_Inside, [self.green_box, self.container]),  
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  
+            },
+            {
+                GroundAtom(_Inside, [self.white_box, self.container]),  
                 GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
-                GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  
-                GroundAtom(_Inside, [self.green_box, self.container]), 
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
             },
-            {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]), 
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
-            }
         ]
         
         self.real_goal_atoms_or = [{
@@ -1287,5 +1283,5 @@ class MockSpotSortWeight(MockSpotEnv):
         # Reset environment to get initial observation
         obs = self.reset("test", 0)
         # Create task with initial observation and goal
-        task = EnvironmentTask(obs, self.goal_atoms)
+        task = EnvironmentTask(obs, self.goal_atoms_or)
         return [task]

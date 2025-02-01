@@ -233,22 +233,22 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
     # NOTE: VLM Predicates for object weight
     _Known_ObjectHeavy = VLMPredicate(
         "Known_ObjectHeavy", [_movable_object_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object is heavy (>1.0 oz) or not. If you cannot tell, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object weighs more than 1.0 oz or not by reading the scale. If you cannot tell, answer [no]."
     )
     
     _Unknown_ObjectHeavy = VLMPredicate(
         "Unknown_ObjectHeavy", [_movable_object_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the object is heavy (>1.0 oz) or not. If you can tell, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the object weighs more than 1.0 oz or not by reading the scale. If you can tell, answer [no]."
     )
     
     _BelieveTrue_ObjectHeavy = VLMPredicate(
         "BelieveTrue_ObjectHeavy", [_movable_object_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object is heavy (>1.0 oz) based on what you can see. If you believe it is not heavy, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object weighs more than 1.0 oz by reading the scale. If you believe it is not heavy, answer [no]."
     )
     
     _BelieveFalse_ObjectHeavy = VLMPredicate(
         "BelieveFalse_ObjectHeavy", [_movable_object_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object is not heavy (≤1.0 oz) based on what you can see. If you believe it is heavy, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object weighs less than 1.0 oz by reading the scale. If you believe it is heavy, answer [no]."
     )
     
     vlm_predicates = {_On, _Blocking, _NotBlocked, _NotInsideAnyContainer, 

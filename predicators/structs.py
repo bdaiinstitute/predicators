@@ -609,7 +609,7 @@ class VLMGroundAtom(GroundAtom):
         return state.vlm_atom_dict[self]
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=False, eq=False)
 class Task:
     """Struct defining a task, which is an initial state and goal."""
     init: State
@@ -659,7 +659,9 @@ class Task:
                 else:
                     return True
             return False
-
+        else:
+            print(type(self.goal))
+            raise NotImplementedError
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
@@ -720,9 +722,9 @@ class EnvironmentTask:
     @cached_property
     def goal(self) -> Set[GroundAtom]:
         """Convenience method for environment tasks that are fully observed."""
-        assert isinstance(self.goal_description, set)
-        assert not self.goal_description or isinstance(
-            next(iter(self.goal_description)), GroundAtom)
+        # assert isinstance(self.goal_description, set)
+        # assert not self.goal_description or isinstance(
+        #     next(iter(self.goal_description)), GroundAtom)
         return self.goal_description
 
     def replace_goal_with_alt_goal(self) -> EnvironmentTask:

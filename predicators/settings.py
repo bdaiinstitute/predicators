@@ -441,14 +441,14 @@ class GlobalSettings:
 
     # parameters for large language models
     pretrained_model_prompt_cache_dir = "pretrained_model_cache"
-    llm_openai_max_response_tokens = 500
+    llm_openai_max_response_tokens = 3000
     llm_use_cache_only = False
     llm_model_name = "gpt-4o"  # Using GPT-4o
     llm_temperature = 0.7
     llm_num_completions = 1
     override_json_with_input = False  # Only works with SpotEnv for now
     # LLM text planner settings
-    llm_text_planner_max_tokens = 500
+    llm_text_planner_max_tokens = 3000
     llm_text_planner_temperature = 0.7
     llm_text_planner_num_samples = 3  # Number of plans to generate and try
     llm_text_planner_prompt_template = """
@@ -478,7 +478,7 @@ Solution:"""
 3. Any relevant state information (open/closed, empty/full, etc.)
 
 Be specific and precise in your description."""
-    vlm_text_perceiver_max_tokens = 1000
+    vlm_text_perceiver_max_tokens = 3000
     vlm_text_perceiver_include_spatial = True  # Whether to include spatial relationships
     vlm_text_perceiver_include_attributes = True  # Whether to include object attributes
     
@@ -489,8 +489,8 @@ Be specific and precise in your description."""
     vlm_temperature = 0.7
     vlm_num_completions = 1
     vlm_model_name = "gpt-4o-mini"
-    vlm_max_tokens = 1000
-    vlm_max_image_tokens = 1000
+    vlm_max_tokens = 3000
+    vlm_max_image_tokens = 3000
     fm_planning_with_oracle_nsrts = True  # Whether to use oracle NSRTs in VLM/LLM planning
     # Image history settings
     vlm_enable_image_history = True  # Whether to maintain history of images in state
