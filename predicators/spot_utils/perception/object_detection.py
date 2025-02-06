@@ -68,7 +68,7 @@ class ModelType(Enum):
 
 # Add configuration - can be moved to CFG if needed
 # VISION_MODEL = ModelType.DETIC_SAM
-VISION_MODEL = ModelType.MOLMO_SAM2
+# VISION_MODEL = ModelType.MOLMO_SAM2
 
 
 def _preprocess_images(rgbds: Dict[str, RGBDImageWithContext]) -> Dict:
@@ -192,74 +192,63 @@ def _process_molmo_sam2_results(
 
     logging.info(f"Processing {len(result['results'])} Molmo-SAM2 results")
     
+    # Process each detection result
     for res_idx, res in enumerate(result["results"]):
         img_idx = res["image_index"]
         prompt_idx = res["prompt_index"]
         camera_name = camera_names[img_idx]
         obj_id = list(object_ids)[prompt_idx]
+        rgbd = rgbds[camera_name]
 
         logging.info(f"\nResult {res_idx + 1}:")
         logging.info(f"Camera: {camera_name}, Prompt: {obj_id.language_id}")
 
-        # Check if points were detected
-        points = res.get("points", [])
-        if not points:
-            logging.warning(f"No points detected for {obj_id.language_id} in {camera_name}")
-            continue
+        # Get rotated boxes and masks
+        rot_boxes = res.get("boxes", [])
+        rot_masks = res.get("masks", [])
 
-        # Get boxes and masks, which might be None if no points were detected
-        boxes = res.get("boxes") or []  # This handles both None and missing key
-        masks = res.get("masks") or []  # This handles both None and missing key
-
-        logging.info(f"Found {len(boxes)} boxes and {len(masks)} masks")
-        if boxes:
-            logging.info(f"Box scores: {[box[4] for box in boxes]}")
-
-        if not boxes or not masks:
+        if not rot_boxes or not rot_masks:
             logging.warning(f"No detection for {obj_id.language_id} in {camera_name}")
             continue
 
-        # Get best detection based on confidence score (box[4])
-        scores = [box[4] for box in boxes]
+        # Get scores and find best detection
+        scores = [box[4] for box in rot_boxes]
         max_score_idx = np.argmax(scores)
-        box = boxes[max_score_idx]
-        score = box[4]
+        score = scores[max_score_idx]
+        rot_box = rot_boxes[max_score_idx]
+        rot_mask = rot_masks[max_score_idx]
 
         logging.info(f"Best detection score: {score:.3f}")
-        logging.info(f"Original box: {[round(x, 3) for x in box]}")
+        logging.info(f"Original box: {[round(x, 3) for x in rot_box]}")
 
         if score < CFG.spot_vision_detection_threshold:
             logging.info(f"Score {score:.3f} below threshold {CFG.spot_vision_detection_threshold}")
             continue
 
-        # Invert rotation
-        rgbd = rgbds[camera_name]
+        # Process mask
+        if isinstance(rot_mask, dict) and "counts" in rot_mask:
+            logging.info("Processing RLE mask")
+            rot_mask = decode_rle_mask(rot_mask)
+        elif isinstance(rot_mask, list):
+            logging.info("Processing list mask")
+            rot_mask = np.array(rot_mask)
+        else:
+            logging.info(f"Mask type: {type(rot_mask)}")
+            rot_mask = np.array(rot_mask)
+
+        # Invert rotation for both box and mask
         h, w = rgbd.rgb.shape[:2]
         image_rot = rgbd.image_rot
-        box[:4] = _rotate_bounding_box(box[:4], -image_rot, h, w)
-        logging.info(f"Rotated box: {[round(x, 3) for x in box[:4]]}")
-
-        mask = masks[max_score_idx]
-        if isinstance(mask, dict) and "counts" in mask:
-            logging.info("Processing RLE mask")
-            mask = decode_rle_mask(mask)
-        elif isinstance(mask, list):
-            logging.info("Processing list mask")
-            mask = np.array(mask)
-        else:
-            logging.info(f"Mask type: {type(mask)}")
+        box = _rotate_bounding_box(rot_box[:4], -image_rot, h, w)
         
-        if mask is not None:
-            logging.info(f"Mask shape before rotation: {mask.shape}")
-            mask = ndimage.rotate(mask.squeeze(), -image_rot, reshape=False)
+        if rot_mask is not None:
+            logging.info(f"Mask shape before rotation: {rot_mask.shape}")
+            mask = ndimage.rotate(rot_mask.squeeze(), -image_rot, reshape=False)
             logging.info(f"Mask shape after rotation: {mask.shape}")
-            logging.info(f"Mask values: min={mask.min():.3f}, max={mask.max():.3f}, mean={mask.mean():.3f}")
+            mask = (mask > 0.5).astype(np.uint8)  # Binarize the mask
 
-        seg_bb = SegmentedBoundingBox(
-            bounding_box=box[:4],
-            mask=mask,
-            score=score
-        )
+        # TODO: checking here if this is correct
+        seg_bb = SegmentedBoundingBox(box, mask, score)
         object_id_to_img_detections[obj_id][camera_name] = seg_bb
         logging.info(f"Successfully added detection for {obj_id.language_id} in {camera_name}")
 
@@ -274,7 +263,8 @@ def detect_objects_from_language(
     """Detect an object pose using a vision-language model."""
     
     # Common preprocessing
-    if VISION_MODEL == ModelType.MOLMO_SAM2:
+    logging.info(f"Detection pipeline: {CFG.detection_pipeline}")
+    if CFG.detection_pipeline == ModelType.MOLMO_SAM2.value:
         images = []
         camera_names = []
         for camera_name, rgbd in rgbds.items():
@@ -285,13 +275,15 @@ def detect_objects_from_language(
         result = _request_molmo_sam2(images, prompts)
         object_id_to_img_detections = _process_molmo_sam2_results(
             result, object_ids, rgbds, camera_names)
-    else:
+    elif CFG.detection_pipeline == ModelType.DETIC_SAM.value:
         # DETIC-SAM processing
         buf_dict = _preprocess_images(rgbds)
         classes = sorted(o.language_id for o in object_ids)
         server_results = _request_detic_sam(buf_dict, classes)
         object_id_to_img_detections = _process_detic_sam_results(
             server_results, object_ids, rgbds)
+    else:
+        raise ValueError(f"Invalid detection pipeline: {CFG.detection_pipeline}")
 
     # Convert detections to poses
     detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
@@ -820,10 +812,18 @@ if __name__ == "__main__":
         # "red cup",
         # "point at the blue block",
         # "point at the blue cup",
-        "green cup on the floor",
+        # "green cup on the floor",
         # "yellow tape",
-        "cardboard box on the floor",
-        "black handle of the cabinet made with black tape"
+        # "cardboard box on the floor",
+        # "black handle of the cabinet made with black tape",
+        # "red cup/redish cup/red mug",  # NOTE: mixed, not sure; mix with blue
+        "red cup/redish cup/red mug/apple-like color", 
+        "yellow cup/yellowish cup/yellow mug",  # NOTE: mixed, but seems okay
+        "blue cup/blueish cup/blue mug",  # NOTE: okay
+        "green cup/greenish cup/green mug",  # NOTE: hard to detect, e.g., mix with yellow
+        "orange cup/orangeish cup/orange mug",  # NOTE: okay
+        "white cup/whiteish cup/white tall cup",  # NOTE: 
+        "red tape/redish tape/redish red tape",  # ?
     ]
 
     def _run_manual_test() -> None:
@@ -919,54 +919,54 @@ if __name__ == "__main__":
             # Start by using vision-language.
             language_id = LanguageObjectDetectionID("large cup")
             detections, artifacts = detect_objects([language_id], rgbds)
-            if not detections:
-                return None
-            # Crop using the bounding box. If there were multiple detections,
-            # choose the highest scoring one.
-            obj_id_to_img_detections = artifacts["language"][
-                "object_id_to_img_detections"]
-            img_detections = obj_id_to_img_detections[language_id]
-            assert len(img_detections) > 0
-            best_seg_bb: Optional[SegmentedBoundingBox] = None
-            best_seg_bb_score = -np.inf
-            best_camera: Optional[str] = None
-            for camera, seg_bb in img_detections.items():
-                if seg_bb.score > best_seg_bb_score:
-                    best_seg_bb_score = seg_bb.score
-                    best_seg_bb = seg_bb
-                    best_camera = camera
-            assert best_camera is not None
-            assert best_seg_bb is not None
-            x1, y1, x2, y2 = best_seg_bb.bounding_box
-            x_min, x_max = min(x1, x2), max(x1, x2)
-            y_min, y_max = min(y1, y2), max(y1, y2)
-            best_rgb = rgbds[best_camera].rgb
-            height, width = best_rgb.shape[:2]
-            r_min = min(max(int(y_min), 0), height)
-            r_max = min(max(int(y_max), 0), height)
-            c_min = min(max(int(x_min), 0), width)
-            c_max = min(max(int(x_max), 0), width)
-            cropped_img = best_rgb[r_min:r_max, c_min:c_max]
-            # Look for the blue tape inside the bounding box.
-            lo, hi = ((0, 130, 130), (130, 255, 255))
-            centroid = find_color_based_centroid(cropped_img, lo, hi)
-            blue_tape_found = (centroid is not None)
-            # If the blue tape was found, assume that the bowl is oriented
-            # upside-down; otherwise, it's right-side up.
-            if blue_tape_found:
-                roll = np.pi
-                print("Detected blue tape; bowl is upside-down!")
-            else:
-                roll = 0.0
-                print("Did NOT detect blue tape; bowl is right side-up!")
-            rot = math_helpers.Quat.from_roll(roll)
-            # Use the x, y, z from vision-language.
-            vision_language_pose = detections[language_id]
-            pose = math_helpers.SE3Pose(x=vision_language_pose.x,
-                                        y=vision_language_pose.y,
-                                        z=vision_language_pose.z,
-                                        rot=rot)
-            return pose
+        if not detections:
+            return None
+        # Crop using the bounding box. If there were multiple detections,
+        # choose the highest scoring one.
+        obj_id_to_img_detections = artifacts["language"][
+            "object_id_to_img_detections"]
+        img_detections = obj_id_to_img_detections[language_id]
+        assert len(img_detections) > 0
+        best_seg_bb: Optional[SegmentedBoundingBox] = None
+        best_seg_bb_score = -np.inf
+        best_camera: Optional[str] = None
+        for camera, seg_bb in img_detections.items():
+            if seg_bb.score > best_seg_bb_score:
+                best_seg_bb_score = seg_bb.score
+                best_seg_bb = seg_bb
+                best_camera = camera
+        assert best_camera is not None
+        assert best_seg_bb is not None
+        x1, y1, x2, y2 = best_seg_bb.bounding_box
+        x_min, x_max = min(x1, x2), max(x1, x2)
+        y_min, y_max = min(y1, y2), max(y1, y2)
+        best_rgb = rgbds[best_camera].rgb
+        height, width = best_rgb.shape[:2]
+        r_min = min(max(int(y_min), 0), height)
+        r_max = min(max(int(y_max), 0), height)
+        c_min = min(max(int(x_min), 0), width)
+        c_max = min(max(int(x_max), 0), width)
+        cropped_img = best_rgb[r_min:r_max, c_min:c_max]
+        # Look for the blue tape inside the bounding box.
+        lo, hi = ((0, 130, 130), (130, 255, 255))
+        centroid = find_color_based_centroid(cropped_img, lo, hi)
+        blue_tape_found = (centroid is not None)
+        # If the blue tape was found, assume that the bowl is oriented
+        # upside-down; otherwise, it's right-side up.
+        if blue_tape_found:
+            roll = np.pi
+            print("Detected blue tape; bowl is upside-down!")
+        else:
+            roll = 0.0
+            print("Did NOT detect blue tape; bowl is right side-up!")
+        rot = math_helpers.Quat.from_roll(roll)
+        # Use the x, y, z from vision-language.
+        vision_language_pose = detections[language_id]
+        pose = math_helpers.SE3Pose(x=vision_language_pose.x,
+                                    y=vision_language_pose.y,
+                                    z=vision_language_pose.z,
+                                    rot=rot)
+        return pose
 
         bowl_id = PythonicObjectDetectionID("bowl", _detect_bowl)
         detections, artifacts = detect_objects([bowl_id], rgbds)
