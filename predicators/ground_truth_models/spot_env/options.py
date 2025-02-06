@@ -526,20 +526,40 @@ def _move_to_hand_view_object_policy(state: State, memory: Dict,
 def _move_to_hand_view_object_from_above_policy(state: State, memory: Dict,
                                                 objects: Sequence[Object],
                                                 params: Array) -> Action:
-    name = "MoveToHandObserveObjectFromTop"
+    """Policy for viewing object from above, adapting to object position."""
+    name = "MoveToHandViewObjectFromTop"
     distance_param_idx = 0
     yaw_param_idx = 1
     robot_obj_idx = 0
     target_obj_idx = 1
-    # do_gaze = True
-    # NOTE: Willie's update
     do_gaze = False
+    
+    # Get target object position from state
+    target_obj = objects[target_obj_idx]
+    target_height = state.get(target_obj, "height")
+    
+    # Adjust hand pose based on object height
+    # Add some margin to the height to ensure good viewing
+    height_margin = DEFAULT_HAND_LOOK_FROM_TOP.y
+    view_height = target_height + height_margin
+    
+    # Create adaptive hand pose
+    adaptive_hand_pose = math_helpers.SE3Pose(
+        x=DEFAULT_HAND_LOOK_FROM_TOP.x,
+        y=DEFAULT_HAND_LOOK_FROM_TOP.y,
+        # z=view_height,  # Use calculated height
+        z=DEFAULT_HAND_LOOK_FROM_TOP.z,
+        rot=DEFAULT_HAND_LOOK_FROM_TOP.rot
+    )
+    
     robot, localizer, _ = get_robot()
-    move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_FROM_TOP)
+    # Move hand to adaptive pose
+    move_hand_to_relative_pose(robot, adaptive_hand_pose)
     open_gripper(robot)
+    
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
-                                  robot_obj_idx, target_obj_idx, do_gaze,
-                                  state, memory, objects, params)
+                                robot_obj_idx, target_obj_idx, do_gaze,
+                                state, memory, objects, params)
 
 
 
@@ -935,6 +955,35 @@ def _observe_from_top_policy(state: State, memory: Dict,
     return utils.create_spot_env_action(action_extra_info)
 
 
+def _observe_cup_content_find_empty_policy(state: State, memory: Dict,
+                                         objects: Sequence[Object],
+                                         params: Array) -> Action:
+    """Policy for ObserveCupContentFindEmpty operator.
+    Like ObserveFromTop, this is just a belief update action that doesn't move anything."""
+    name = "ObserveCupContentFindEmpty"
+    # No movement, just update the state to reflect the observation
+    def _fn() -> None:
+        return
+
+    # No simulation function needed
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+def _observe_cup_content_find_not_empty_policy(state: State, memory: Dict,
+                                             objects: Sequence[Object],
+                                             params: Array) -> Action:
+    """Policy for ObserveCupContentFindNotEmpty operator.
+    Like ObserveFromTop, this is just a belief update action that doesn't move anything."""
+    name = "ObserveCupContentFindNotEmpty"
+    # No movement, just update the state to reflect the observation
+    def _fn() -> None:
+        return
+
+    # No simulation function needed
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 
 
 ###############################################################################
@@ -944,7 +993,7 @@ def _observe_from_top_policy(state: State, memory: Dict,
 _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveToReachObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToHandViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
-    "MoveToHandObserveObjectFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveToHandViewObjectFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     "MoveToBodyViewObject": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
     # x, y pixel in image + quat (qw, qx, qy, qz). If quat is all 0's
     # then grasp is unconstrained
@@ -969,6 +1018,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
     "ObserveFromTop": Box(0, 1, (0, )),  # empty
+    "ObserveCupContentFindEmpty": Box(0, 1, (0,)),  # empty
+    "ObserveCupContentFindNotEmpty": Box(0, 1, (0,)),  # empty
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -976,7 +1027,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
 _OPERATOR_NAME_TO_POLICY = {
     "MoveToReachObject": _move_to_reach_object_policy,
     "MoveToHandViewObject": _move_to_hand_view_object_policy,
-    "MoveToHandObserveObjectFromTop": _move_to_hand_view_object_from_above_policy,
+    "MoveToHandViewObjectFromTop": _move_to_hand_view_object_from_above_policy,
     "MoveToBodyViewObject": _move_to_body_view_object_policy,
     "PickObjectFromTop": _pick_object_from_top_policy,
     "PickObjectToDrag": _pick_object_to_drag_policy,
@@ -994,6 +1045,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
     "ObserveFromTop": _observe_from_top_policy,
+    "ObserveCupContentFindEmpty": _observe_cup_content_find_empty_policy,
+    "ObserveCupContentFindNotEmpty": _observe_cup_content_find_not_empty_policy,
 }
 
 
@@ -1046,6 +1099,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "lis_spot_table_block_in_bowl_env",
             "lis_spot_empty_cup_box_env",
             "lis_spot_gather_cup_emptiness_env",
+            "lis_spot_table_two_cup_in_box_env",
         }
 
     @classmethod

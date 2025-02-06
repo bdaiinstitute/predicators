@@ -98,20 +98,25 @@ def _move_to_hand_view_object_from_top_sampler(state: State, goal: Set[GroundAto
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 0.9
-    max_dist = 1.2
-
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
+    
+    # Get object height from state
+    obj_height = state.get(obj_to_nav_to, "height")
+    
+    # Adjust distance based on height - taller objects need more distance
+    base_min_dist = 0.9
+    base_max_dist = 1.2
+    height_factor = 0.5  # Adjust this to change how much height affects distance
+    
+    min_dist = base_min_dist + (obj_height * height_factor)
+    max_dist = base_max_dist + (obj_height * height_factor)
 
-    # TODO NOTE: Ensure the angle is set to view from the top
+    # Get approach angles
     min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
-    # min_angle, max_angle = 0.8 * np.pi, np.pi
-    # min_angle, max_angle = -0.2 * np.pi, 0.2 * np.pi
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
-                                max_dist, min_angle, max_angle)
-
+                              max_dist, min_angle, max_angle)
 
 
 def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
@@ -325,6 +330,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "lis_spot_table_block_in_bowl_env",
             "lis_spot_empty_cup_box_env",
             "lis_spot_gather_cup_emptiness_env",
+            "lis_spot_table_two_cup_in_box_env",
         }
 
     @staticmethod
@@ -339,7 +345,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
 
         operator_name_to_sampler: Dict[str, NSRTSampler] = {
             "MoveToHandViewObject": _move_to_hand_view_object_sampler,
-            "MoveToHandObserveObjectFromTop": _move_to_hand_view_object_from_top_sampler,
+            "MoveToHandViewObjectFromTop": _move_to_hand_view_object_from_top_sampler,
             "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTop": _pick_object_from_top_sampler,
@@ -358,6 +364,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
             "ObserveFromTop": utils.null_sampler,
+            "ObserveCupContentFindEmpty": utils.null_sampler,
+            "ObserveCupContentFindNotEmpty": utils.null_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then
