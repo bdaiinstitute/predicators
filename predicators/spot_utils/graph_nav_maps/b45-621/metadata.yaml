@@ -13,8 +13,8 @@
 spot-home-pose:
   x: 2.5
   y: 0.0
-  angle: -1.57  # NOTE: facing fudicial 1
-  # angle: -2.8 # NOTE: facing fudicial 6
+  # angle: -1.57  # NOTE: facing fudicial 1
+  angle: -2.7 # NOTE: facing fudicial 6
   # angle: -2.1  # NOTE: facing fudicial 3
 
 april-tag-offsets:
@@ -56,6 +56,13 @@ static-object-features:
     width: 10000000
     flat_top_surface: 1
   wooden_table:
+    shape: 1 # cuboid
+    # NOTE: double check the shape
+    height: 0.75
+    length: 1.2
+    width: 0.8
+    flat_top_surface: 1
+  table:
     shape: 1 # cuboid
     # NOTE: double check the shape
     height: 0.75
