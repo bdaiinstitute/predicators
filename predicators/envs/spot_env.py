@@ -56,7 +56,7 @@ from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
     VLMGroundAtom, VLMPredicate
-from predicators.utils import log_rich_table
+from predicators.utils import get_active_predicates, get_fluent_predicates, log_rich_table
 
 ###############################################################################
 #                                Base Class                                   #
@@ -302,10 +302,29 @@ class SpotRearrangementEnv(BaseEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return set(_ALL_PREDICATES)
+        # return self._active_predicates
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
         return set(_ALL_PREDICATES)
+        # return self._fluent_predicates
+        
+    @property
+    def active_predicates(self) -> Set[Predicate]:
+        return get_active_predicates(self._strips_operators)
+    
+    @property
+    def fluent_predicates(self) -> Set[Predicate]:
+        return get_fluent_predicates(self._strips_operators)
+    
+    @property
+    def vlm_predicates(self) -> Set[VLMPredicate]:
+        if CFG.spot_vlm_eval_predicate:
+            # Only select active VLM predicates
+            vlm_predicates = _VLM_CLASSIFIER_PREDICATES & self.active_predicates
+        else:
+            vlm_predicates = set()
+        return vlm_predicates
 
     @property
     def percept_predicates(self) -> Set[Predicate]:
@@ -658,15 +677,29 @@ class SpotRearrangementEnv(BaseEnv):
 
         if CFG.spot_render_perception_outputs:
             time_str = time.strftime("%Y%m%d-%H%M%S")
-            outdir = Path(CFG.spot_perception_outdir, time_str)
+            base_dir = Path(CFG.spot_perception_outdir)
+            outdir = base_dir / time_str
+            
+            # Create the output directory and its parents if they don't exist
+            base_dir.mkdir(exist_ok=True)
+            outdir.mkdir(exist_ok=True)
+            
             detections_outfile = outdir / f"detections_{time_str}.png"
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
-            hand_detections_outfile = outdir / f"hand_detections_{time_str}.png"
+            hand_detections_outfile = outdir / f"hand_detections_{time_str}.png" 
             hand_no_detections_outfile = outdir / f"hand_no_detections_{time_str}.png"
-            p1 = mp.Process(target=visualize_all_artifacts, args=(all_artifacts, detections_outfile, no_detections_outfile))
-            p2 = mp.Process(target=visualize_all_artifacts, args=(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile))
-            p1.start()
-            p2.start()
+            
+            # Run sequentially instead of in parallel
+            visualize_all_artifacts(all_artifacts, detections_outfile, no_detections_outfile)
+            visualize_all_artifacts(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile)
+            
+            # Comment out multiprocessing version
+            # p1 = mp.Process(target=visualize_all_artifacts, 
+            #                 args=(all_artifacts, detections_outfile, no_detections_outfile))
+            # p2 = mp.Process(target=visualize_all_artifacts,
+            #                 args=(hand_artifacts, hand_detections_outfile, hand_no_detections_outfile))
+            # p1.start()
+            # p2.start()
 
         # Also, get detections that every camera except the back camera can
         # see. This is important for our 'InView' predicate.
@@ -754,18 +787,17 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Prepare the VLM predicates and ground atoms
         if CFG.spot_vlm_eval_predicate:
-            vlm_predicates = _VLM_CLASSIFIER_PREDICATES
             
             # Use currently visible objects to generate atom combinations
             objects = list(all_objects_in_view.keys())
             # NOTE: Also have the special robot object for robot-related predicates
             objects.append(self._spot_object)
             
-            vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
+            vlm_atoms = get_vlm_atom_combinations(objects, self.vlm_predicates)
             vlm_atom_new: Dict[VLMGroundAtom, bool] | Set[VLMGroundAtom] = vlm_predicate_batch_classify(
                                    vlm_atoms,
                                    rgbds,
-                                   predicates=vlm_predicates,
+                                   predicates=self.vlm_predicates,
                                    get_dict=True)
             assert isinstance(vlm_atom_new, dict)
 
@@ -805,7 +837,6 @@ class SpotRearrangementEnv(BaseEnv):
                 f"{dict(filter(lambda it: it[1], vlm_atom_return.items()))}")
 
         else:
-            vlm_predicates = set()
             vlm_atom_return = {}
 
         obs = _SpotObservation(rgbds, all_objects_in_view,
@@ -813,7 +844,7 @@ class SpotRearrangementEnv(BaseEnv):
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds,
-                               vlm_atom_return, vlm_predicates)
+                               vlm_atom_return, self.vlm_predicates)
 
         return obs
 
@@ -908,7 +939,6 @@ class SpotRearrangementEnv(BaseEnv):
         # Prepare and evaluate VLM predicates for the initial state
         objects_in_view, vlm_atom_dict = self._actively_construct_initial_object_views(
         )
-        vlm_predicates = _VLM_CLASSIFIER_PREDICATES
 
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
@@ -924,7 +954,7 @@ class SpotRearrangementEnv(BaseEnv):
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds,
-                               vlm_atom_dict, vlm_predicates)
+                               vlm_atom_dict, self.vlm_predicates)
         goal_description = self._generate_goal_description()
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
@@ -1096,7 +1126,7 @@ class SpotRearrangementEnv(BaseEnv):
             self._localizer,
             detection_ids,
             allowed_regions=self._allowed_regions,
-            vlm_predicates=_VLM_CLASSIFIER_PREDICATES,
+            vlm_predicates=self.vlm_predicates,
             id2object=self._detection_id_to_obj,
         )
         if CFG.spot_render_perception_outputs:
@@ -1583,7 +1613,8 @@ if tmp_vlm_flag:
     _On = VLMPredicate(
         "On", [_movable_object_type, _base_object_type],
         prompt=
-        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface."
+        "This predicate typically describes a movable object on a flat surface, so it's in conflict with the object being inside a container. Please check the image and confirm the object is on the surface. For a movable object (e.g., cup), if it's on a surface (even asked for floor), this predicate should be true. An objcet must be on some surface (if not really inside) - it can't be not on any surface."
+        # So anwswer object on floor if you don't have other better answers. E.g., if you are not asked if an object on desk but only query if an object on floor, even if you only see the object on desk, you should answer object on floor.
     )
     _Inside = VLMPredicate(
         "Inside", [_movable_object_type, _container_type],
@@ -1602,7 +1633,7 @@ if tmp_vlm_flag:
 
     _NotInsideAnyContainer = VLMPredicate(
         "NotInsideAnyContainer", [_movable_object_type],
-        prompt="This predicate is true if the given object is not inside any container. Check the image and confirm the object is not inside any container."
+        prompt="This predicate is true if the given object is not inside any container, such as on a surface (e.g., a floor). It is contradictory to the object being inside a container - if an object is not inside a container, this should be true. Check the image and confirm the object is not inside any container."
     )
 
     # Door state predicates
@@ -1628,22 +1659,22 @@ if tmp_vlm_flag:
     # Belief predicates for container emptiness
     _Unknown_ContainerEmpty = VLMPredicate(
         "Unknown_ContainerEmpty", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether the container is empty or not. If you can tell whether it's empty or not, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) only if you do not know whether the container is empty or not (about information of emptiness). Only if you can absolutely tell whether it's empty or not by viewing the entire container from top, answer [no]. Note that this is the negation of Known_ContainerEmpty - you must answer [yes] if you answer [no] to Unknown_ContainerEmpty. If you have either _BelieveTrue_ContainerEmpty or _BelieveFalse_ContainerEmpty as True, you should answer [no] to this Unknown_ContainerEmpty."
     )
     
     _Known_ContainerEmpty = VLMPredicate(
         "Known_ContainerEmpty", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the container is empty or contains objects inside. If you cannot tell, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) only if you can very surely determine whether the container is empty or contains objects inside, by viewing the entire container completely from top (about information of emptiness). If you cannot tell, answer [no]. Note that this is the negation of Unknown_ContainerEmpty - you must answer [yes] if you answer [no] to Unknown_ContainerEmpty. If you have either _BelieveTrue_ContainerEmpty or _BelieveFalse_ContainerEmpty as True, you should answer [yes] to this Known_ContainerEmpty."
     )
     
     _BelieveTrue_ContainerEmpty = VLMPredicate(
         "BelieveTrue_ContainerEmpty", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container is empty based on what you can see. If you believe it contains objects, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container is empty based on what you can see. We use single-color cup, so if you see only a single color, it's likely empty ([yes]), otherwise it's likely contains objects ([no]). If you believe it contains objects, answer [no]. Note that this is the negation of _BelieveFalse_ContainerEmpty - you must answer [yes] if you answer [no] to _BelieveFalse_ContainerEmpty. If you don't know, then _BelieveFalse_ContainerEmpty and _BelieveTrue_ContainerEmpty should be both [no]."
     )
     
     _BelieveFalse_ContainerEmpty = VLMPredicate(
         "BelieveFalse_ContainerEmpty", [_container_type],
-        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains objects based on what you can see. If you believe it is empty, answer [no]."
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the container contains objects based on what you can see. We use single-color cup, so if you see only a single color, it's likely empty ([no]), otherwise it's likely contains objects ([yes]). If you believe it is empty, answer [no]. Note that this is the negation of _BelieveTrue_ContainerEmpty - you must answer [yes] if you answer [no] to _BelieveTrue_ContainerEmpty. If you don't know, then _BelieveFalse_ContainerEmpty and _BelieveTrue_ContainerEmpty should be both [no]."
     )
 
     # Belief predicates for water content
@@ -1690,7 +1721,7 @@ if tmp_vlm_flag:
 
     _InHandViewFromTop = VLMPredicate(
         "InHandViewFromTop", [_robot_type, _movable_object_type],
-        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top, so it could see e.g., if the container has anything in it."
+        prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top (so you can basically see the entire container from top), so it could see e.g., if the container has anything in it."
     )
 
     # Group all VLM predicates
@@ -2224,7 +2255,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     yield STRIPSOperator("PickAndDumpTwoFromContainer", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
 
-    # MoveToHandViewFromTop (manipulation action to get top view)
+    # MoveToHandViewObjectFromTop (manipulation action to get top view)
     robot = Variable("?robot", _robot_type)
     obj = Variable("?object", _movable_object_type)
     parameters = [robot, obj]
@@ -2240,7 +2271,7 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     del_effs = set()
     ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    yield STRIPSOperator("MoveToHandViewFromTop", parameters, preconds,
+    yield STRIPSOperator("MoveToHandViewObjectFromTop", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
     
     # ObserveWaterContentFindWater (belief update action)
@@ -2286,6 +2317,50 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     ignore_effs = set()
     yield STRIPSOperator("ObserveWaterContentFindEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
+    
+    # ObserveCupContentFindNotEmpty (belief update action)
+    robot = Variable("?robot", _robot_type)
+    cup = Variable("?cup", _container_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, cup, surface]
+    preconds = {
+        LiftedAtom(_On, [cup, surface]),
+        LiftedAtom(_InHandViewFromTop, [robot, cup]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, cup]),
+        LiftedAtom(_Unknown_ContainerEmpty, [cup]),
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainerEmpty, [cup]),
+        LiftedAtom(_BelieveFalse_ContainerEmpty, [cup]),
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainerEmpty, [cup])
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveCupContentFindNotEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
+
+    # ObserveCupContentFindEmpty (belief update action)
+    robot = Variable("?robot", _robot_type)
+    cup = Variable("?cup", _container_type)
+    surface = Variable("?surface", _immovable_object_type)
+    parameters = [robot, cup, surface]
+    preconds = {
+        LiftedAtom(_On, [cup, surface]),
+        LiftedAtom(_InHandViewFromTop, [robot, cup]),
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, cup]),
+        LiftedAtom(_Unknown_ContainerEmpty, [cup]),
+    }
+    add_effs = {
+        LiftedAtom(_Known_ContainerEmpty, [cup]),
+        LiftedAtom(_BelieveTrue_ContainerEmpty, [cup]),
+    }
+    del_effs = {
+        LiftedAtom(_Unknown_ContainerEmpty, [cup])
+    }
+    ignore_effs = set()
+    yield STRIPSOperator("ObserveCupContentFindEmpty", parameters, preconds, add_effs, del_effs, ignore_effs)
 
     # ObserveDrawerEmpty (belief update action)
     robot = Variable("?robot", _robot_type)
@@ -3520,12 +3595,14 @@ _OBJECT_PROMPTS = {
     
     # Movable objects: cups, potentially with lids and non-empty
     "cup": "orange cup/orange cylinder/orange-ish mug",
-    "orange_cup": "orange cup/orange cylinder/orange-ish mug",
-    "blue_cup": "blue cup/blue mug/uncovered blue cup",
+    "orange_cup": "orange cup/orange cylinder/orange-ish mug/orange cup with content filled",
+    "blue_cup": "blue cup/blue mug/blueish cup",
     # "green_cup": "green cup/greenish cup/green cylinder",
     "green_cup": "green cup on a flat surface",
-    "red_cup": "red cup on a flat surface",
-    "yellow_cup": "yellow cup on a flat surface",
+    "red_cup": "red cup/red mug/redish cup",
+    # "red_cup": "red cup on a flat surface",
+    # "yellow_cup": "yellow cup on a flat surface",
+    "yellow_cup": "yellow cup/yellowish cup/yellowish mug",
     
     # Containers
     "green_bowl": "green bowl/greenish bowl",
@@ -3666,14 +3743,9 @@ class LISSpotBlockInBoxEnv(SpotRearrangementEnv):
 
         op_to_name = {o.name: o for o in _create_operators()}
         op_names_to_keep = {
-            # "MoveToReachObject",
-            # "PickObjectFromTop",
-            # "PlaceObjectOnTop",
-            # "DropObjectInside",
-            # "MoveToHandViewObject",
-            # "ObserveFromTop",
             "MoveToReachObject",
-            "MoveToHandViewObject",
+            # "MoveToHandViewObject",
+            "MoveToHandViewObjectFromTop",
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
@@ -3790,8 +3862,8 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            "MoveToHandViewObject",
-            "ObserveFromTop",
+            # "MoveToHandViewObject",
+            "MoveToHandViewObjectFromTop",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3817,14 +3889,23 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
             detection_id_to_obj[detection_id] = obj
         
         # AprilTag object
-        wooden_table = Object("wooden_table", _immovable_object_type)
-        wooden_table_detection = AprilTagObjectDetectionID(32)
-        detection_id_to_obj[wooden_table_detection] = wooden_table
+        # wooden_table = Object("wooden_table", _immovable_object_type)
+        # wooden_table_detection = AprilTagObjectDetectionID(32)
+        # detection_id_to_obj[wooden_table_detection] = wooden_table
             
         # Add known immovable objects
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[detection_id] = obj
+            
+        # TODO hack by adding a table object
+        table = Object("table", _immovable_object_type)
+        # NOTE: debug pose
+        yaw = 0.0
+        rot = math_helpers.Quat.from_yaw(yaw)
+        pose = math_helpers.SE3Pose(1.4, 1.4, 0., rot=rot)
+        table_detection = KnownStaticObjectDetectionID("table", pose)
+        detection_id_to_obj[table_detection] = table
 
         return detection_id_to_obj
 
@@ -3835,7 +3916,66 @@ class LISSpotTableCupInBoxEnv(SpotRearrangementEnv):
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
     
-    
+
+class LISSpotTableTwoCupInBoxEnv(SpotRearrangementEnv):
+    """A partially observable environment where two cups on a table need to be moved into a cardboard box."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        # Include all necessary operators for the task
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "PickObjectFromTop", 
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+            # "MoveToHandViewObject",
+            "MoveToHandViewObjectFromTop",  # TODO test 
+            # "ObserveFromTop",  # Added for better perception
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_table_two_cup_in_box_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        
+        # List object identifier, object name (to find prompt), and type
+        objects_to_detect = [
+            ("cardboard_box", "cardboard_box", _container_type),
+            ("cup1", "orange_cup", _movable_object_type),
+            ("cup2", "yellow_cup", _movable_object_type),
+            # ("cup2", "green_cup", _movable_object_type),
+            # ("cup2", "blue_cup", _movable_object_type),
+            # ("cup2", "red_cup", _movable_object_type),
+            # ("cup2", "green_block", _movable_object_type),
+        ]
+        
+        # Add detection object prompt and save object identifier  
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
+        
+        # Add known immovable objects
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put two cups into the cardboard box on floor"
+        
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
 class LISSpotTableMultiCupInBoxEnv(SpotRearrangementEnv):
     """A partially observable environment where a cup (with certain property) on a table needs to be moved into a cardboard box."""
 
@@ -3919,9 +4059,9 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            "MoveToHandViewFromTop",  # For checking if cup is empty
-            "ObserveWaterContentFindEmpty",  # For observing empty cup
-            "ObserveWaterContentFindWater",  # For observing cup with water
+            "MoveToHandViewObjectFromTop",  # For checking if cup is empty
+            "ObserveCupContentFindNotEmpty",
+            "ObserveCupContentFindEmpty",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3938,7 +4078,6 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
         # NOTE: cup is container type
         objects_to_detect = [
             ("cardboard_box", "cardboard_box", _container_type),
-            # Case 1: Cup facing up without lid
             ("cup", "orange_cup", _container_type),
         ]
         
@@ -3956,7 +4095,7 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
     
     
     def _generate_goal_description(self) -> GoalDescription:
-        return "place empty cup into the box"
+        return "know cup emptiness"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
@@ -3979,9 +4118,9 @@ class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
             "PickObjectFromTop", 
             "PlaceObjectOnTop",
             "DropObjectInside",
-            "MoveToHandViewFromTop",  # For checking if cup is empty
-            "ObserveWaterContentFindEmpty",  # For observing empty cup
-            "ObserveWaterContentFindWater",  # For observing cup with water
+            "MoveToHandViewObjectFromTop",  # For checking if cup is empty
+            "ObserveCupContentFindNotEmpty",
+            "ObserveCupContentFindEmpty",
         }
         self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
 
@@ -3996,9 +4135,13 @@ class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
         # List object identifier, object name (to find prompt), and type
         # NOTE: cup is container type
         objects_to_detect = [
-            ("cup1", "red_cup", _container_type),
-            ("cup2", "yellow_cup", _container_type), 
-            ("cup3", "green_cup", _container_type),
+            # ("cup1", "red_cup", _container_type),
+            # ("cup2", "yellow_cup", _container_type), 
+            # ("cup3", "green_cup", _container_type),
+            # [orange, blue, green]
+            ("cup1", "orange_cup", _container_type),
+            ("cup2", "blue_cup", _container_type),
+            # ("cup3", "green_cup", _container_type),
         ]
         
         # Add detection object prompt and save object identifier
@@ -4016,7 +4159,8 @@ class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         # return "pick up the empty cup"
-        return "know cup1-3 emptiness"
+        # return "know cup1-3 emptiness"
+        return "know cup1-3 emptiness [orange,blue,green]"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
