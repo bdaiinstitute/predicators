@@ -554,6 +554,7 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(Inside, [block, bin]),
             }
+        # [Old below]
         if goal_description == "put the empty cup into the box, otherwise stay on floor":
             # TODO can we do: IMPLY AND OR?
             cup = Object("empty_cup", _movable_object_type)
@@ -582,19 +583,15 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingWaterKnown, [cup]),
                 GroundAtom(ContainingWater, [cup]),
             }
-        if goal_description == "know cup1-3 emptiness":
-            cup1 = Object("cup1", _container_type)
-            # cup2 = Object("cup2", _container_type)
-            # cup3 = Object("cup3", _container_type)
-            ContainingWaterKnown = pred_name_to_pred["ContainingWaterKnown"]
-            ContainingWater = pred_name_to_pred["ContainingWater"]
+        if goal_description == "know cup1-3 emptiness [orange,blue,green]":
+            cup1 = Object("orange_cup", _container_type)
+            cup2 = Object("blue_cup", _container_type)
+            # cup3 = Object("green_cup", _container_type)
+            Known_ContainerEmpty = pred_name_to_pred["Known_ContainerEmpty"]
             return {
-                GroundAtom(ContainingWaterKnown, [cup1]),
-                GroundAtom(ContainingWater, [cup1]),
-                # GroundAtom(ContainingWaterKnown, [cup2]),
-                # GroundAtom(ContainingWater, [cup2]),
-                # GroundAtom(ContainingWaterKnown, [cup3]),
-                # GroundAtom(ContainingWater, [cup3]),
+                GroundAtom(Known_ContainerEmpty, [cup1]),
+                GroundAtom(Known_ContainerEmpty, [cup2]),
+                # GroundAtom(Known_ContainerEmpty, [cup3]),
             }
         if goal_description == "place empty cup into the box":
             cup = Object("cup", _container_type)
@@ -615,6 +612,14 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainingWaterKnown, [cup]),
                 GroundAtom(NotContainingWater, [cup]),
             }
+        # [Old above]
+        if goal_description == "know cup emptiness":
+            cup = Object("cup", _container_type)
+            Known_ContainerEmpty = pred_name_to_pred["Known_ContainerEmpty"]
+            return {
+                GroundAtom(Known_ContainerEmpty, [cup]),
+            }
+
         if goal_description == "put the cup into the cardboard box on floor":
             cup = Object("cup", _container_type)
             cardboard_box = Object("cardboard_box", _container_type)
@@ -628,6 +633,15 @@ class SpotPerceiver(BasePerceiver):
             Inside = pred_name_to_pred["Inside"]
             return {
                 GroundAtom(Inside, [cup1, cardboard_box]),
+            }
+        if goal_description == "put two cups into the cardboard box on floor":
+            cup1 = Object("cup1", _movable_object_type)
+            cup2 = Object("cup2", _movable_object_type)
+            cardboard_box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [cup1, cardboard_box]),
+                GroundAtom(Inside, [cup2, cardboard_box]),
             }
         if goal_description == "pick up the cup1":
             cup1 = Object("cup1", _container_type)
