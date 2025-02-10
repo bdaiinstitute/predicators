@@ -1,0 +1,71 @@
+atom_dict: {}
+gripper_open: true
+non_vlm_atom_dict:
+  FitsInXY(green_cup,green_cup): false
+  FitsInXY(green_cup,red_cup): false
+  FitsInXY(green_cup,table): false
+  FitsInXY(green_cup,target): true
+  FitsInXY(red_cup,green_cup): false
+  FitsInXY(red_cup,red_cup): false
+  FitsInXY(red_cup,table): false
+  FitsInXY(red_cup,target): true
+  FitsInXY(target,green_cup): false
+  FitsInXY(target,red_cup): false
+  FitsInXY(target,table): false
+  FitsInXY(target,target): false
+  HandEmpty(robot): false
+  HasFlatTopSurface(green_cup): false
+  HasFlatTopSurface(red_cup): false
+  HasFlatTopSurface(table): true
+  HasFlatTopSurface(target): false
+  Holding(robot,green_cup): true
+  Holding(robot,red_cup): false
+  Holding(robot,target): false
+  InHandView(robot,green_cup): false
+  InHandView(robot,red_cup): false
+  InHandView(robot,table): false
+  InHandView(robot,target): false
+  Inside(green_cup,green_cup): false
+  Inside(green_cup,red_cup): false
+  Inside(green_cup,target): false
+  Inside(red_cup,green_cup): false
+  Inside(red_cup,red_cup): false
+  Inside(red_cup,target): true
+  Inside(target,green_cup): false
+  Inside(target,red_cup): false
+  Inside(target,target): false
+  IsPlaceable(green_cup): true
+  IsPlaceable(red_cup): true
+  IsPlaceable(target): false
+  NotBlocked(green_cup): true
+  NotBlocked(red_cup): true
+  NotBlocked(table): false
+  NotBlocked(target): true
+  NotHolding(robot,green_cup): false
+  NotHolding(robot,red_cup): true
+  NotHolding(robot,target): true
+  NotInsideAnyContainer(green_cup): true
+  NotInsideAnyContainer(red_cup): false
+  NotInsideAnyContainer(target): false
+  On(green_cup,green_cup): false
+  On(green_cup,red_cup): false
+  On(green_cup,table): false
+  On(green_cup,target): false
+  On(red_cup,green_cup): false
+  On(red_cup,red_cup): false
+  On(red_cup,table): false
+  On(red_cup,target): false
+  On(target,green_cup): false
+  On(target,red_cup): false
+  On(target,table): true
+  On(target,target): false
+  Reachable(robot,green_cup): true
+  Reachable(robot,red_cup): true
+  Reachable(robot,table): true
+  Reachable(robot,target): true
+objects_in_hand: []
+objects_in_view:
+- target
+- table
+- red_cup
+- robot

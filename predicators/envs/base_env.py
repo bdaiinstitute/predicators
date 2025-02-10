@@ -208,10 +208,17 @@ class BaseEnv(abc.ABC):
         # ground atoms. In the future, it may be better to implement this on a
         # per-environment basis anyway, to make clear that we do not need to
         # make this assumption about goal descriptions in general.
+        
         goal = self._current_task.goal_description
-        assert isinstance(goal, set)
-        assert not goal or isinstance(next(iter(goal)), GroundAtom)
-        return all(goal_atom.holds(self._current_state) for goal_atom in goal)
+        if isinstance(goal, set):
+        
+            return all(goal_atom.holds(self._current_state) for goal_atom in goal)
+        elif isinstance(goal, list):
+            truths = []
+            for goal_atoms in goal:
+                truths.append(all(goal_atom.holds(self._current_state) for goal_atom in goal_atoms))
+            return any(truths)
+        
 
     def _parse_object_name_to_object_from_json(
             self, json_dict: Dict) -> Dict[str, Object]:

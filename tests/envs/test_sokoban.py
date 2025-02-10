@@ -76,6 +76,12 @@ def test_sokoban():
     obs = env.reset("test", 1)
     assert all(np.allclose(m1, m2) for m1, m2 in zip(obs, env_task.init_obs))
     imgs = env.render()
+
+    # NOTE: uncomment to visualize env image
+    # import matplotlib.pyplot as plt
+    # plt.imshow(imgs[0])
+    # plt.show()
+
     assert len(imgs) == 1
     task = perceiver.reset(env_task)
     with pytest.raises(NotImplementedError):

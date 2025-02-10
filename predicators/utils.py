@@ -42,6 +42,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pathos.multiprocessing as mp
+import rich.table
 import PIL.Image
 from bosdyn.client import math_helpers
 from gym.spaces import Box
@@ -51,12 +52,13 @@ from PIL import ImageDraw, ImageFont
 from pyperplan.heuristics.heuristic_base import \
     Heuristic as _PyperplanBaseHeuristic
 from pyperplan.planner import HEURISTICS as _PYPERPLAN_HEURISTICS
+from rich import print
+from rich.console import Console
+from rich.text import Text
 from scipy.stats import beta as BetaRV
 
 from predicators.args import create_arg_parser
-from predicators.pretrained_model_interface import GoogleGeminiLLM, \
-    GoogleGeminiVLM, LargeLanguageModel, OpenAILLM, OpenAIVLM, \
-    VisionLanguageModel
+# from predicators.pretrained_model_interface import VisionLanguageModel, create_vlm_by_name
 from predicators.pybullet_helpers.joint import JointPositions
 from predicators.settings import CFG, GlobalSettings
 from predicators.structs import NSRT, Action, Array, DummyOption, \
@@ -1521,6 +1523,7 @@ def sample_applicable_option(param_options: List[ParameterizedOption],
     for _ in range(CFG.random_options_max_tries):
         param_opt = param_options[rng.choice(len(param_options))]
         objs = get_random_object_combination(list(state), param_opt.types, rng)
+        
         if objs is None:
             continue
         params = param_opt.params_space.sample()
@@ -1626,6 +1629,17 @@ def get_all_ground_atoms_for_predicate(
         ground_atom = GroundAtom(predicate, args)
         ground_atoms.add(ground_atom)
     return ground_atoms
+
+
+def get_all_ground_atom_combinations_for_predicate_set(
+    objects: Sequence[Object], preds: Set[Predicate]) -> Set[GroundAtom]:
+    """Get all possible combinations of objects for a set of predicates."""
+    atoms = set()
+    for pred in preds:
+        param_objects = get_object_combinations(objects, pred.types)
+        for objs in param_objects:
+            atoms.add(GroundAtom(pred, objs))
+    return atoms
 
 
 def get_all_lifted_atoms_for_predicate(
@@ -2327,9 +2341,11 @@ def strip_task(task: Task, included_predicates: Set[Predicate]) -> Task:
     classifiers removed."""
     stripped_goal: Set[GroundAtom] = set()
     for atom in task.goal:
+        # The atom's goal is known.
         if atom.predicate in included_predicates:
             stripped_goal.add(atom)
             continue
+        # The atom's goal is unknown.
         stripped_pred = strip_predicate(atom.predicate)
         stripped_atom = GroundAtom(stripped_pred, atom.objects)
         stripped_goal.add(stripped_atom)
@@ -2348,22 +2364,6 @@ def create_vlm_predicate(
         raise Exception("VLM predicate classifier should never be called!")
 
     return VLMPredicate(name, types, _stripped_classifier, get_vlm_query_str)
-
-
-def create_llm_by_name(
-        model_name: str) -> LargeLanguageModel:  # pragma: no cover
-    """Create particular llm using a provided name."""
-    if "gemini" in model_name:
-        return GoogleGeminiLLM(model_name)
-    return OpenAILLM(model_name)
-
-
-def create_vlm_by_name(
-        model_name: str) -> VisionLanguageModel:  # pragma: no cover
-    """Create particular vlm using a provided name."""
-    if "gemini" in model_name:
-        return GoogleGeminiVLM(model_name)
-    return OpenAIVLM(model_name)
 
 
 def parse_model_output_into_option_plan(
@@ -2594,8 +2594,9 @@ def query_vlm_for_atom_vals(
         label_history, images_history, prev_state_cropped_imgs_history,
         skill_history)
     # Query VLM.
-    if vlm is None:
-        vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover.
+    assert vlm is not None
+    # if vlm is None:
+    #     vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover.
     vlm_input_imgs = \
         [PIL.Image.fromarray(img_arr) for img_arr in imgs] # type: ignore
     vlm_output = vlm.sample_completions(vlm_query_str,
@@ -2623,33 +2624,47 @@ def query_vlm_for_atom_vals(
     return true_atoms
 
 
-def abstract(state: State,
-             preds: Collection[Predicate],
-             vlm: Optional[VisionLanguageModel] = None) -> Set[GroundAtom]:
+def abstract(state: State, preds: Collection[Predicate]) -> Set[GroundAtom]:
     """Get the atomic representation of the given state (i.e., a set of ground
     atoms), using the given set of predicates.
 
     Duplicate arguments in predicates are allowed.
     """
-    # Start by pulling out all VLM predicates.
-    vlm_preds = set(pred for pred in preds if isinstance(pred, VLMPredicate))
-    # Next, classify all non-VLM predicates.
     atoms = set()
     for pred in preds:
-        if pred not in vlm_preds:
-            for choice in get_object_combinations(list(state), pred.types):
-                if pred.holds(state, choice):
-                    atoms.add(GroundAtom(pred, choice))
-    if len(vlm_preds) > 0:
-        # Now, aggregate all the VLM predicates and make a single call to a
-        # VLM to get their values.
-        vlm_atoms = set()
-        for pred in vlm_preds:
-            for choice in get_object_combinations(list(state), pred.types):
-                vlm_atoms.add(GroundAtom(pred, choice))
-        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
-        atoms |= true_vlm_atoms
+        for choice in get_object_combinations(list(state), pred.types):
+            if pred.holds(state, choice):
+                atoms.add(GroundAtom(pred, choice))
     return atoms
+
+# NOTE: conflict with Linfeng's version with ternary+partially observable VLM predicates
+# def abstract(state: State,
+#              preds: Collection[Predicate],
+#              vlm: Optional[VisionLanguageModel] = None) -> Set[GroundAtom]:
+#     """Get the atomic representation of the given state (i.e., a set of ground
+#     atoms), using the given set of predicates.
+#
+#     Duplicate arguments in predicates are allowed.
+#     """
+#     # Start by pulling out all VLM predicates.
+#     vlm_preds = set(pred for pred in preds if isinstance(pred, VLMPredicate))
+#     # Next, classify all non-VLM predicates.
+#     atoms = set()
+#     for pred in preds:
+#         if pred not in vlm_preds:
+#             for choice in get_object_combinations(list(state), pred.types):
+#                 if pred.holds(state, choice):
+#                     atoms.add(GroundAtom(pred, choice))
+#     if len(vlm_preds) > 0:
+#         # Now, aggregate all the VLM predicates and make a single call to a
+#         # VLM to get their values.
+#         vlm_atoms = set()
+#         for pred in vlm_preds:
+#             for choice in get_object_combinations(list(state), pred.types):
+#                 vlm_atoms.add(GroundAtom(pred, choice))
+#         true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+#         atoms |= true_vlm_atoms
+#     return atoms
 
 
 def all_ground_operators(
@@ -2746,6 +2761,40 @@ def all_ground_ldl_rules(
     return _cached_all_ground_ldl_rules(rule, frozenset(objects),
                                         frozenset(static_predicates),
                                         frozenset(init_atoms))
+
+
+def get_fluent_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Calculate fluent predicates by looking at operator effects.
+    Similar to Fast Downward's get_fluents function.
+    
+    Returns:
+        Set of Predicate objects that appear in operator effects.
+    """
+    fluent_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            fluent_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            fluent_predicates.add(effect.predicate)
+    return fluent_predicates
+
+def get_active_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
+    """Get active predicates by looking at operator preconditions and effects.
+    """
+    active_predicates = set()
+    # Look at all operators
+    for op in operators:
+        # Add predicates that appear in preconditions
+        for precondition in op.preconditions:
+            active_predicates.add(precondition.predicate)
+        # Add predicates that appear in add or delete effects
+        for effect in op.add_effects:
+            active_predicates.add(effect.predicate)
+        for effect in op.delete_effects:
+            active_predicates.add(effect.predicate)
+    return active_predicates
 
 
 @functools.lru_cache(maxsize=None)
@@ -3762,7 +3811,7 @@ def get_config_path_str(experiment_id: Optional[str] = None) -> str:
     """
     if experiment_id is None:
         experiment_id = CFG.experiment_id
-    return (f"{CFG.env}__{CFG.approach}__{CFG.seed}__{CFG.excluded_predicates}"
+    return (f"{CFG.env}__{CFG.approach}__{CFG.execution_monitor}__{CFG.seed}__{CFG.excluded_predicates}"
             f"__{CFG.included_options}__{experiment_id}")
 
 
@@ -4261,3 +4310,67 @@ def add_text_to_draw_img(
     # Add the text to the image
     draw.text(position, text, fill="red", font=font)
     return draw
+
+
+def log_rich_table(rich_table: rich.table.Table) -> "Texssas":
+    """Generate an ascii formatted presentation of a Rich table.
+
+    Eliminates any column styling.
+    """
+    console = Console(width=150)
+    with console.capture() as capture:
+        console.print(rich_table)
+    return Text.from_ansi(capture.get())
+
+
+class Timer:
+    """
+    Timer context manager to measure the execution time of a block of code.
+    """
+
+    def __init__(self, enable_print=True, name="Block"):
+        self.enable_print = enable_print
+        self.name = name
+        # self.elapsed_time = 0  # Initialize elapsed_time
+
+    def get_elapsed_time(self):
+        """Get the elapsed time in seconds even in the context."""
+        return time.time() - self.start_time
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self  # Returning self to access its attributes
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Get the elapsed time when exiting the context."""
+        self.elapsed_time = self.get_elapsed_time()
+        if self.enable_print:
+            print(f"[{self.name}] executed in {self.elapsed_time:.4f} seconds")
+
+    @staticmethod
+    def get_current_time():
+        from datetime import datetime
+
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+
+@contextlib.contextmanager
+def timing(text, block=False):
+    """Context manager for timing code blocks.
+
+    Args:
+        text: Description of the code block being timed
+        block: Whether to print block-style logging
+    """
+    timer = Timer(enable_print=False)  # Create timer with printing disabled
+    logger = logging.getLogger(__name__)
+    if block:
+        logger.info("[STARTING] %s...", text)
+    else:
+        logger.info("[STARTING] %s...", text)
+    with timer:  # Use the timer context manager properly
+        yield
+    if block:
+        logger.info("[COMPLETED] %s [Time: %.3fs]", text, timer.elapsed_time)
+    else:
+        logger.info("[COMPLETED] [Time: %.3fs]", timer.elapsed_time)
