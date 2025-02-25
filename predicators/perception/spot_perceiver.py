@@ -464,6 +464,21 @@ class SpotPerceiver(BasePerceiver):
             block = Object("red_block", _movable_object_type)
             Holding = pred_name_to_pred["Holding"]
             return {GroundAtom(Holding, [robot, block])}
+        if goal_description == "pick up the blue block":
+            robot = Object("robot", _robot_type)
+            block = Object("blue_block", _movable_object_type)
+            Holding = pred_name_to_pred["Holding"]
+            return {GroundAtom(Holding, [robot, block])}
+        if goal_description == "open the drawer":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            Open = pred_name_to_pred["Open"]
+            return {GroundAtom(Open, [handle])}
+        if goal_description == "close the drawer":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            NotOpen = pred_name_to_pred["NotOpen"]
+            return {GroundAtom(NotOpen, [handle])}
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)

@@ -1072,6 +1072,15 @@ def _holding_classifier(state: State, objects: Sequence[Object]) -> bool:
         return False
     return state.get(obj, "held") > 0.5
 
+def _open_classifier(state: State, objects: Sequence[Object]) -> bool:
+    obj = objects[0]
+    return False
+
+def _not_open_classifier(state: State, objects: Sequence[Object]) -> bool:
+    obj = objects[0]
+    if not obj.is_instance(_movable_object_type):
+        return True
+    return not _open_classifier(state, objects)
 
 def _not_holding_classifier(state: State, objects: Sequence[Object]) -> bool:
     _, obj = objects
@@ -1395,6 +1404,10 @@ def _get_sweeping_surface_for_container(container: Object,
     return None
 
 
+_Open = Predicate("Open", [_movable_object_type],
+                     _open_classifier)
+_NotOpen = Predicate("NotOpen", [_movable_object_type],
+                     _not_open_classifier)
 _NEq = Predicate("NEq", [_base_object_type, _base_object_type],
                  _neq_classifier)
 _On = Predicate("On", [_movable_object_type, _base_object_type],
@@ -1448,7 +1461,7 @@ _ALL_PREDICATES = {
     _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
     _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
     _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan
+    _IsSemanticallyGreaterThan, _Open, _NotOpen
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -1684,6 +1697,44 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     }
     ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping, _Blocking}
     yield STRIPSOperator("DragToBlockObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+    
+    # DragToOpenObject
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?obj", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    add_effs = {
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, obj]),
+        LiftedAtom(_Open, [obj]),
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping, _Blocking}
+    yield STRIPSOperator("DragToOpenObject", parameters, preconds, add_effs,
+                         del_effs, ignore_effs)
+    
+    # DragToCloseObject
+    robot = Variable("?robot", _robot_type)
+    obj = Variable("?obj", _movable_object_type)
+    parameters = [robot, obj]
+    preconds = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    add_effs = {
+        LiftedAtom(_HandEmpty, [robot]),
+        LiftedAtom(_NotHolding, [robot, obj]),
+        LiftedAtom(_NotOpen, [obj]),
+    }
+    del_effs = {
+        LiftedAtom(_Holding, [robot, obj]),
+    }
+    ignore_effs = {_InHandView, _Reachable, _RobotReadyForSweeping, _Blocking}
+    yield STRIPSOperator("DragToCloseObject", parameters, preconds, add_effs,
                          del_effs, ignore_effs)
 
     # MoveToReadySweep
@@ -3062,10 +3113,10 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
 
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
 
-        red_block = Object("red_block", _movable_object_type)
-        red_block_detection = LanguageObjectDetectionID(
-            "red block/orange block/yellow block")
-        detection_id_to_obj[red_block_detection] = red_block
+        blue_block = Object("blue_block", _movable_object_type)
+        blue_block_detection = LanguageObjectDetectionID(
+            "blue block/blue-ish block/blue-green block")
+        detection_id_to_obj[blue_block_detection] = blue_block
 
         for obj, pose in get_known_immovable_objects().items():
             detection_id = KnownStaticObjectDetectionID(obj.name, pose)
@@ -3074,7 +3125,60 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:
-        return "pick up the red block"
+        return "pick up the blue block"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+    
+
+class LISSpotBlockDrawerEnv(SpotRearrangementEnv):
+    """An extremely basic environment where a block needs to be picked up and
+    is specifically used for testing in the LIS Spot room.
+
+    Very simple and mostly just for testing.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectToDrag",
+            "DragToOpenObject",
+            "DragToCloseObject",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_block_drawer_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        blue_block = Object("blue_block", _movable_object_type)
+        blue_block_detection = LanguageObjectDetectionID(
+            "blue block/blue-ish block/blue-green block")
+        detection_id_to_obj[blue_block_detection] = blue_block
+
+        green_handle = Object("green_handle", _movable_object_type)
+        green_handle_detection = LanguageObjectDetectionID(
+            "green duct tape/green handle/green object")
+        detection_id_to_obj[green_handle_detection] = green_handle
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "open the drawer"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:

@@ -333,7 +333,8 @@ def _grasp_policy(name: str,
                   memory: Dict,
                   objects: Sequence[Object],
                   params: Array,
-                  do_dump: bool = False) -> Action:
+                  do_dump: bool = False,
+                  do_not_stow: bool = False) -> Action:
     del memory  # not used
 
     robot, _, _ = get_robot()
@@ -369,7 +370,8 @@ def _grasp_policy(name: str,
                          state.get(target_obj, "width"))
 
     do_stow = not do_dump and \
-              target_obj_volume < CFG.spot_grasp_stow_volume_threshold
+              target_obj_volume < CFG.spot_grasp_stow_volume_threshold and \
+              not do_not_stow
     fn = _grasp_at_pixel_and_maybe_stow_or_dump
     sim_fn = None  # NOTE: cannot simulate using this option, so this
     # shouldn't be called anyways...
@@ -593,6 +595,8 @@ def _pick_object_to_drag_policy(state: State, memory: Dict,
                                 params: Array) -> Action:
     name = "PickObjectToDrag"
     target_obj_idx = 1
+    if objects[target_obj_idx ].name == 'green_handle':
+        return _grasp_policy(name, target_obj_idx, state, memory, objects, params, do_not_stow=True)
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
 
 
@@ -791,6 +795,35 @@ def _drag_to_unblock_object_policy(state: State, memory: Dict,
                                             tuple())
     return utils.create_spot_env_action(action_extra_info)
 
+def _drag_to_open_object_policy(state: State, memory: Dict,
+                                   objects: Sequence[Object],
+                                   params: Array) -> Action:
+    del state, memory  # not used
+
+    name = "DragToOpenObject"
+    robot, _, _ = get_robot()
+    dx, dy, dyaw = params
+    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
+    # Note that simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(name, objects, _drag_and_release,
+                                            (robot, move_rel_pos), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+def _drag_to_close_object_policy(state: State, memory: Dict,
+                                   objects: Sequence[Object],
+                                   params: Array) -> Action:
+    del state, memory  # not used
+
+    name = "DragToCloseObject"
+    robot, _, _ = get_robot()
+    dx, dy, dyaw = params
+    move_rel_pos = math_helpers.SE2Pose(dx, dy, angle=dyaw)
+    # Note that simulation fn and args not yet implemented.
+    action_extra_info = SpotActionExtraInfo(name, objects, _drag_and_release,
+                                            (robot, move_rel_pos), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 def _drag_to_block_object_policy(state: State, memory: Dict,
                                  objects: Sequence[Object],
@@ -922,6 +955,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
                                           (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
+    "DragToOpenObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
+    "DragToCloseObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "DragToBlockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
     "SweepIntoContainer": Box(-np.inf, np.inf, (1, )),  # velocity
     "SweepTwoObjectsIntoContainer": Box(-np.inf, np.inf, (1, )),  # same
@@ -945,6 +980,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropObjectInside": _drop_object_inside_policy,
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
+    "DragToOpenObject": _drag_to_open_object_policy,
+    "DragToCloseObject": _drag_to_close_object_policy,
     "DragToBlockObject": _drag_to_block_object_policy,
     "SweepIntoContainer": _sweep_into_container_policy,
     "SweepTwoObjectsIntoContainer": _sweep_two_objects_into_container_policy,
@@ -996,6 +1033,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env",
             "lis_spot_block_floor_env",
+            "lis_spot_block_drawer_env",
         }
 
     @classmethod

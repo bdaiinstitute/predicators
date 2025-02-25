@@ -121,6 +121,8 @@ def _get_approach_angle_bounds(obj: Object,
     if surface is not None and surface.name in angle_bounds:
         return angle_bounds[surface.name]
     # Default to all possible approach angles.
+    if obj.name == 'green_handle':
+        return (np.pi/2, np.pi/2)
     return (-np.pi, np.pi)
 
 
@@ -230,6 +232,20 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
     del state, goal, objs, rng  # randomization coming soon
     return np.array([0.0, 0.0, np.pi / 1.5])
 
+def _drag_to_open_object_sampler(state: State, goal: Set[GroundAtom],
+                                    rng: np.random.Generator,
+                                    objs: Sequence[Object]) -> Array:
+    # Parameters are relative dx, dy, dyaw to move while holding.
+    del state, goal, objs, rng  # randomization coming soon
+    return np.array([-0.5, 0.0, 0.0])
+
+def _drag_to_close_object_sampler(state: State, goal: Set[GroundAtom],
+                                    rng: np.random.Generator,
+                                    objs: Sequence[Object]) -> Array:
+    # Parameters are relative dx, dy, dyaw to move while holding.
+    del state, goal, objs, rng  # randomization coming soon
+    return np.array([0.5, 0.0, 0.0])
+
 
 def _drag_to_block_object_sampler(state: State, goal: Set[GroundAtom],
                                   rng: np.random.Generator,
@@ -288,7 +304,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env", "lis_spot_block_floor_env"
+            "spot_brush_shelf_env", "lis_spot_block_floor_env", "lis_spot_block_drawer_env"
         }
 
     @staticmethod
@@ -314,6 +330,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DropObjectInside": _drop_object_inside_sampler,
             "DropObjectInsideContainerOnTop": _drop_object_inside_sampler,
             "DragToUnblockObject": _drag_to_unblock_object_sampler,
+            "DragToOpenObject": _drag_to_open_object_sampler,
+            "DragToCloseObject": _drag_to_close_object_sampler,
             "DragToBlockObject": _drag_to_block_object_sampler,
             "SweepIntoContainer": _sweep_into_container_sampler,
             "SweepTwoObjectsIntoContainer": _sweep_into_container_sampler,
