@@ -462,8 +462,11 @@ Solution:"""
 
     # parameters for vision language models
     detection_pipeline = "detic_sam"  # "molmo_sam2" or "detic_sam"
-    vlm_model_name = "gpt-4o-mini"
-    vlm_temperature = 0.7
+    # gemini-1.5-pro-latest, gemini-1.5-pro-flash gpt-4-turbo, gpt-4o
+    # NOTE: we need to create a dummy vlm so that tests on CI pass.
+    vlm_model_name = "dummy"
+    # vlm_model_name = "gpt-4o-mini"
+    vlm_temperature = 0.0
     vlm_num_completions = 1
     vlm_include_cropped_images = False
     use_hardcoded_vlm_atom_proposals = False
@@ -481,8 +484,8 @@ Be specific and precise in your description."""
     vlm_text_perceiver_max_tokens = 3000
     vlm_text_perceiver_include_spatial = True  # Whether to include spatial relationships
     vlm_text_perceiver_include_attributes = True  # Whether to include object attributes
-    
-    
+
+
     # VLM/LLM planning settings
     vlm_open_loop_use_training_demos = False
     vlm_eval_verbose = False

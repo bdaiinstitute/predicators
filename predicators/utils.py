@@ -1491,6 +1491,7 @@ def nsrt_plan_to_greedy_option_policy(
             raise OptionExecutionFailure(
                 "Executing the NSRT failed to achieve the necessary atoms.")
         cur_nsrt = nsrt_queue.pop(0)
+        logging.info(f"Running nsrt: {cur_nsrt.name}, {cur_nsrt.objects}")
         cur_option = cur_nsrt.sample_option(state, goal, rng)
         logging.debug(f"Using option {cur_option.name}{cur_option.objects}"
                       f"{cur_option.params} from NSRT plan.")
@@ -1523,7 +1524,7 @@ def sample_applicable_option(param_options: List[ParameterizedOption],
     for _ in range(CFG.random_options_max_tries):
         param_opt = param_options[rng.choice(len(param_options))]
         objs = get_random_object_combination(list(state), param_opt.types, rng)
-        
+
         if objs is None:
             continue
         params = param_opt.params_space.sample()
@@ -2366,6 +2367,51 @@ def create_vlm_predicate(
     return VLMPredicate(name, types, _stripped_classifier, get_vlm_query_str)
 
 
+'''
+def create_llm_by_name(
+        model_name: str) -> LargeLanguageModel:  # pragma: no cover
+    """Create particular llm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiLLM(model_name)
+    return OpenAILLM(model_name)
+
+
+class _DummyVLM(VisionLanguageModel):
+
+    def get_id(self) -> str:  # pragma: no cover
+        """Return a unique identifier for this VLM."""
+        return "dummy"
+
+    def _sample_completions(
+            self,
+            prompt: str,
+            imgs: Optional[List[PIL.Image.Image]],
+            temperature: float,
+            seed: int,
+            stop_token: Optional[str] = None,
+            num_completions: int = 1) -> List[str]:  # pragma: no cover
+        """Sample completions from the model."""
+        del imgs  # unused.
+        completions = []
+        for _ in range(num_completions):
+            completion = (f"Prompt: {prompt}. Seed: {seed}. "
+                          f"Temp: {temperature:.1f}. Stop: {stop_token}.")
+            completions.append(completion)
+        return completions
+
+
+def create_vlm_by_name(
+        model_name: str) -> VisionLanguageModel:  # pragma: no cover
+    """Create particular vlm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiVLM(model_name)
+    if "gpt" in model_name:
+        return OpenAIVLM(model_name)
+    assert model_name == "dummy"
+    return _DummyVLM()
+'''
+
+
 def parse_model_output_into_option_plan(
     model_prediction: str, objects: Collection[Object],
     types: Collection[Type], options: Collection[ParameterizedOption],
@@ -2499,7 +2545,9 @@ def get_prompt_for_vlm_state_labelling(
         imgs_history: List[List[PIL.Image.Image]],
         cropped_imgs_history: List[List[PIL.Image.Image]],
         skill_history: List[_Option]) -> Tuple[str, List[PIL.Image.Image]]:
-    """Prompt for labelling atom values in a trajectory.
+    """Prompt for generating labels for an entire trajectory. Similar to the
+    above prompting method, this outputs a list of prompts to label the state
+    at each timestep of traj with atom values).
 
     Note that all our prompts are saved as separate txt files under the
     'vlm_input_data_prompts/atom_labelling' folder.
@@ -2578,7 +2626,8 @@ def query_vlm_for_atom_vals(
         prev_states_imgs_history = [
             s.simulator_state["images"] for s in prev_states
         ]
-        if "cropped_images" in prev_states[0].simulator_state:
+        if len(prev_states
+               ) > 0 and "cropped_images" in prev_states[0].simulator_state:
             prev_states_imgs_history = [
                 s.simulator_state["cropped_images"] for s in prev_states
             ]
@@ -2606,21 +2655,34 @@ def query_vlm_for_atom_vals(
                                         num_completions=1)
     assert len(vlm_output) == 1
     vlm_output_str = vlm_output[0]
-    all_vlm_responses = vlm_output_str.strip().split("\n")
-    # NOTE: this assumption is likely too brittle; if this is breaking, feel
-    # free to remove/adjust this and change the below parsing loop accordingly!
-    if len(atom_queries_list) != len(all_vlm_responses):
-        return set()
-    for i, (atom_query, curr_vlm_output_line) in enumerate(
-            zip(atom_queries_list, all_vlm_responses)):
-        try:
+    logging.info(f"VLM output: \n{vlm_output_str}")
+    # Parse out stuff.
+    if len(label_history) > 0:  # pragma: no cover
+        truth_values = re.findall(r'\* (.*): (True|False)', vlm_output_str)
+        for i, (atom_query,
+                pred_label) in enumerate(zip(atom_queries_list, truth_values)):
+            pred, label = pred_label
+            assert pred in atom_query
+            label = label.lower()
+            if label == "true":
+                true_atoms.add(vlm_atoms[i])
+    else:
+        all_vlm_responses = vlm_output_str.strip().split("\n")
+        # NOTE: this assumption is likely too brittle; if this is breaking,
+        # feel free to remove/adjust this and change the below parsing
+        # loop accordingly!
+        if len(atom_queries_list) != len(all_vlm_responses):
+            return true_atoms
+        for i, (atom_query, curr_vlm_output_line) in enumerate(
+                zip(atom_queries_list, all_vlm_responses)):
             assert atom_query + ":" in curr_vlm_output_line
             assert "." in curr_vlm_output_line
+            # period_idx = curr_vlm_output_line.find(".")
+            # value = curr_vlm_output_line[len(atom_query + ":"):
+            # period_idx].lower().strip()
             value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
             if value == "true":
                 true_atoms.add(vlm_atoms[i])
-        except AssertionError:  # pragma: no cover
-            continue
     return true_atoms
 
 
@@ -2636,6 +2698,42 @@ def abstract(state: State, preds: Collection[Predicate]) -> Set[GroundAtom]:
             if pred.holds(state, choice):
                 atoms.add(GroundAtom(pred, choice))
     return atoms
+
+
+# NOTE: Nishanth's latest version has conflict with Linfeng's implementation
+'''
+def abstract(state: State, preds: Collection[Predicate]) -> Set[GroundAtom]:
+    """Get the atomic representation of the given state (i.e., a set of ground
+    atoms), using the given set of predicates.
+
+    Duplicate arguments in predicates are allowed.
+    """
+    try:
+        if state.simulator_state is not None and "abstract_state" in \
+            state.simulator_state: # pragma: no cover
+            return state.simulator_state["abstract_state"]
+    except (AttributeError, TypeError):
+        pass
+    # Start by pulling out all VLM predicates.
+    vlm_preds = set(pred for pred in preds if isinstance(pred, VLMPredicate))
+    # Next, classify all non-VLM predicates.
+    atoms = set()
+    for pred in preds:
+        if pred not in vlm_preds:
+            for choice in get_object_combinations(list(state), pred.types):
+                if pred.holds(state, choice):
+                    atoms.add(GroundAtom(pred, choice))
+    if len(vlm_preds) > 0:
+        # Now, aggregate all the VLM predicates and make a single call to a
+        # VLM to get their values.
+        vlm_atoms = set()
+        for pred in vlm_preds:
+            for choice in get_object_combinations(list(state), pred.types):
+                vlm_atoms.add(GroundAtom(pred, choice))
+        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        atoms |= true_vlm_atoms
+    return atoms
+'''
 
 # NOTE: conflict with Linfeng's version with ternary+partially observable VLM predicates
 # def abstract(state: State,
@@ -2766,7 +2864,7 @@ def all_ground_ldl_rules(
 def get_fluent_predicates(operators: Set[STRIPSOperator]) -> Set[Predicate]:
     """Calculate fluent predicates by looking at operator effects.
     Similar to Fast Downward's get_fluents function.
-    
+
     Returns:
         Set of Predicate objects that appear in operator effects.
     """

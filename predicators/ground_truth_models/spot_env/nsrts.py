@@ -100,15 +100,15 @@ def _move_to_hand_view_object_from_top_sampler(state: State, goal: Set[GroundAto
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
-    
+
     # Get object height from state
     obj_height = state.get(obj_to_nav_to, "height")
-    
+
     # Adjust distance based on height - taller objects need more distance
     base_min_dist = 0.9
     base_max_dist = 1.2
     height_factor = 0.5  # Adjust this to change how much height affects distance
-    
+
     min_dist = base_min_dist + (obj_height * height_factor)
     max_dist = base_max_dist + (obj_height * height_factor)
 
@@ -314,6 +314,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
+            "spot_vlm_cup_table_env", "spot_vlm_dustpan_test_env",
             "spot_cube_env",
             "spot_soda_floor_env",
             "spot_soda_table_env",
@@ -366,6 +367,11 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "ObserveFromTop": utils.null_sampler,
             "ObserveCupContentFindEmpty": utils.null_sampler,
             "ObserveCupContentFindNotEmpty": utils.null_sampler,
+            "TeleopPick1": utils.null_sampler,
+            "PlaceNextTo": utils.null_sampler,
+            "TeleopPick2": utils.null_sampler,
+            "Sweep": utils.null_sampler,
+            "PlaceOnFloor": utils.null_sampler
         }
 
         # If we're doing proper bilevel planning with a simulator, then

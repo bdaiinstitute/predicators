@@ -44,7 +44,7 @@ from predicators.spot_utils.perception.object_specific_grasp_selection import \
 from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, PythonicObjectDetectionID, \
-    RGBDImageWithContext, SegmentedBoundingBox
+    RGBDImage, RGBDImageWithContext, SegmentedBoundingBox
 from predicators.spot_utils.utils import get_april_tag_transform, \
     get_graph_nav_dir
 from predicators.utils import rotate_point_in_image
@@ -90,7 +90,7 @@ def _request_detic_sam(
         try:
             r = requests.post("http://localhost:5550/batch_predict",
                             files=buf_dict,
-                            data={"classes": ",".join(classes), 
+                            data={"classes": ",".join(classes),
                                  "threshold": detection_threshold})
             break
         except requests.exceptions.ConnectionError:
@@ -121,7 +121,7 @@ def _process_detic_sam_results(
 ) -> Dict[ObjectDetectionID, Dict[str, SegmentedBoundingBox]]:
     """Process DETIC-SAM results."""
     object_id_to_img_detections = {obj_id: {} for obj_id in object_ids}
-    
+
     if server_results is None:
         return object_id_to_img_detections
 
@@ -139,7 +139,7 @@ def _process_detic_sam_results(
         h, w = rgbd.rgb.shape[:2]
         image_rot = rgbd.image_rot
         boxes = [_rotate_bounding_box(bb, -image_rot, h, w) for bb in rot_boxes]
-        masks = [ndimage.rotate(m.squeeze(), -image_rot, reshape=False) 
+        masks = [ndimage.rotate(m.squeeze(), -image_rot, reshape=False)
                 for m in rot_masks]
 
         for obj_id in object_ids:
@@ -182,7 +182,7 @@ def _process_molmo_sam2_results(
 ) -> Dict[ObjectDetectionID, Dict[str, SegmentedBoundingBox]]:
     """Process Molmo-SAM2 results."""
     object_id_to_img_detections = {obj_id: {} for obj_id in object_ids}
-    
+
     if result is None:
         logging.warning("Molmo-SAM2 returned None result")
         return object_id_to_img_detections
@@ -191,7 +191,7 @@ def _process_molmo_sam2_results(
         return object_id_to_img_detections
 
     logging.info(f"Processing {len(result['results'])} Molmo-SAM2 results")
-    
+
     # Process each detection result
     for res_idx, res in enumerate(result["results"]):
         img_idx = res["image_index"]
@@ -240,7 +240,7 @@ def _process_molmo_sam2_results(
         h, w = rgbd.rgb.shape[:2]
         image_rot = rgbd.image_rot
         box = _rotate_bounding_box(rot_box[:4], -image_rot, h, w)
-        
+
         if rot_mask is not None:
             logging.info(f"Mask shape before rotation: {rot_mask.shape}")
             mask = ndimage.rotate(rot_mask.squeeze(), -image_rot, reshape=False)
@@ -261,7 +261,7 @@ def detect_objects_from_language(
     allowed_regions: Optional[Collection[Delaunay]] = None,
 ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict]:
     """Detect an object pose using a vision-language model."""
-    
+
     # Common preprocessing
     logging.info(f"Detection pipeline: {CFG.detection_pipeline}")
     if CFG.detection_pipeline == ModelType.MOLMO_SAM2.value:
@@ -817,12 +817,12 @@ if __name__ == "__main__":
         # "cardboard box on the floor",
         # "black handle of the cabinet made with black tape",
         # "red cup/redish cup/red mug",  # NOTE: mixed, not sure; mix with blue
-        "red cup/redish cup/red mug/apple-like color", 
+        "red cup/redish cup/red mug/apple-like color",
         "yellow cup/yellowish cup/yellow mug",  # NOTE: mixed, but seems okay
         "blue cup/blueish cup/blue mug",  # NOTE: okay
         "green cup/greenish cup/green mug",  # NOTE: hard to detect, e.g., mix with yellow
         "orange cup/orangeish cup/orange mug",  # NOTE: okay
-        "white cup/whiteish cup/white tall cup",  # NOTE: 
+        "white cup/whiteish cup/white tall cup",  # NOTE:
         "red tape/redish tape/redish red tape",  # ?
     ]
 

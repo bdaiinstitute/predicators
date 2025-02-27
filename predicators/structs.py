@@ -623,7 +623,7 @@ class Task:
 
     def __post_init__(self) -> None:
         # Verify types.
-        
+
         if(isinstance(self.goal, set)):
             for atom in self.goal:
                 assert isinstance(atom, GroundAtom)
@@ -632,16 +632,9 @@ class Task:
                 for atom in goal_set:
                     assert isinstance(atom, GroundAtom)
 
-            
-    def goal_holds(
-        self,
-        state: State,
-        # vlm: Optional[
-        #     predicators.pretrained_model_interface.VisionLanguageModel] = None
-        vlm: Optional[Any] = None
-    ) -> bool:
+    def goal_holds(self, state: State, vlm: Optional[Any] = None) -> bool:
         """Return whether the goal of this task holds in the given state."""
-        
+
         if(isinstance(self.goal, set)):
             vlm_atoms = set(atom for atom in self.goal if isinstance(atom.predicate, VLMPredicate))
             for atom in self.goal:
@@ -662,6 +655,30 @@ class Task:
         else:
             print(type(self.goal))
             raise NotImplementedError
+
+        # Nithansh's latest version:
+        """
+        try:  # pragma: no cover
+            if state.simulator_state is not None and "abstract_state" in \
+                state.simulator_state:
+                abstract_state = state.simulator_state["abstract_state"]
+                return self.goal.issubset(abstract_state)
+        except TypeError:
+            pass
+        # NOTE: we have to do this to avoid circular imports... It's certainly
+        # ugly, but we weren't able to find a cleaner way that didn't involve
+        # a large amount of unnecessary refactoring.
+        from predicators.utils import \
+            query_vlm_for_atom_vals  # pylint:disable=import-outside-toplevel
+        vlm_atoms = set(atom for atom in self.goal
+                        if isinstance(atom.predicate, VLMPredicate))
+        for atom in self.goal:
+            if atom not in vlm_atoms:
+                if not atom.holds(state):
+                    return False
+        true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
+        return len(true_vlm_atoms) == len(vlm_atoms)
+        """
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
@@ -1422,7 +1439,9 @@ class ImageOptionTrajectory:
     """
     _objects: Collection[Object]
     _state_imgs: List[List[PIL.Image.Image]]
+    _cropped_state_imgs: List[List[PIL.Image.Image]]
     _actions: List[_Option]
+    _states: Optional[List[State]] = field(default=None)
     _is_demo: bool = field(default=False)
     _train_task_idx: Optional[int] = field(default=None)
 
@@ -1430,11 +1449,18 @@ class ImageOptionTrajectory:
         assert len(self._state_imgs) == len(self._actions) + 1
         if self._is_demo:
             assert self._train_task_idx is not None
+        if self._states is not None:
+            assert len(self._states) == len(self._state_imgs)
 
     @property
     def imgs(self) -> List[List[PIL.Image.Image]]:
-        """States in the trajectory."""
+        """State images in the trajectory."""
         return self._state_imgs
+
+    @property
+    def cropped_imgs(self) -> List[List[PIL.Image.Image]]:
+        """Cropped versions of state images in the trajectory."""
+        return self._cropped_state_imgs
 
     @property
     def objects(self) -> Collection[Object]:
@@ -1445,6 +1471,16 @@ class ImageOptionTrajectory:
     def actions(self) -> List[_Option]:
         """Actions in the trajectory."""
         return self._actions
+
+    @property
+    def states(self) -> Optional[List[State]]:
+        """States in the trajectory, if they exist."""
+        return self._states
+
+    @property
+    def train_task_idx(self) -> Optional[int]:
+        """Returns the idx of the train task."""
+        return self._train_task_idx
 
 
 @dataclass(repr=False, eq=False)
