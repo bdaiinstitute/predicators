@@ -16,6 +16,8 @@ from gym.spaces import Box
 from numpy.typing import NDArray
 from tabulate import tabulate
 
+# import predicators.pretrained_model_interface
+# import predicators.utils as utils  # pylint: disable=consider-using-from-import
 from predicators.settings import CFG
 
 
@@ -122,10 +124,33 @@ class State:
     # this field is provided.
     simulator_state: Optional[Any] = None
 
+    # Store additional fields for VLM predicate classifiers
+    # NOTE: adding in Spot subclass doesn't work; may need fix
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None
+    vlm_predicates: Optional[Collection[Predicate]] = None
+    visible_objects: Optional[Any] = None
+    # This is directly copied from the images in raw Observation
+    camera_images: Optional[Dict[str, Any]] = None
+    # Store history of camera images from previous steps
+    camera_images_history: Optional[List[Dict[str, Any]]] = None
+    # Store history of actions from previous steps
+    action_history: Optional[List[Action]] = None
+
+    # Add storage for ground truth predicate values
+    non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
+
+    # Store natural language description of the state from VLM
+    text_description: Optional[str] = None
+
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
             assert len(self[obj]) == obj.type.dim
+        # Initialize empty history if not provided
+        if self.camera_images_history is None:
+            self.camera_images_history = []
+        if self.action_history is None:
+            self.action_history = []
 
     def __iter__(self) -> Iterator[Object]:
         """An iterator over the state's objects, in sorted order."""
@@ -167,7 +192,15 @@ class State:
         for obj in self:
             new_data[obj] = self._copy_state_value(self.data[obj])
         return State(new_data,
-                     simulator_state=copy.deepcopy(self.simulator_state))
+                     simulator_state=copy.deepcopy(self.simulator_state),
+                     vlm_atom_dict=copy.deepcopy(self.vlm_atom_dict),
+                     vlm_predicates=copy.deepcopy(self.vlm_predicates),
+                     visible_objects=copy.deepcopy(self.visible_objects),
+                     camera_images=copy.deepcopy(self.camera_images),
+                     camera_images_history=copy.deepcopy(self.camera_images_history),
+                     action_history=copy.deepcopy(self.action_history),
+                     non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
+                     text_description=self.text_description)
 
     def _copy_state_value(self, val: Any) -> Any:
         if val is None or isinstance(val, (float, bool, int, str)):
@@ -181,7 +214,7 @@ class State:
         """Return whether this state is close enough to another one, i.e., its
         objects are the same, and the features are close."""
         if self.simulator_state is not None or \
-           other.simulator_state is not None:
+                other.simulator_state is not None:
             if not CFG.allow_state_allclose_comparison_despite_simulator_state:
                 raise NotImplementedError("Cannot use allclose when "
                                           "simulator_state is not None.")
@@ -345,16 +378,79 @@ class Predicate:
         return str(self) < str(other)
 
 
+# @dataclass(frozen=True, order=True, repr=False)
 @dataclass(frozen=True, order=False, repr=False, eq=False)
 class VLMPredicate(Predicate):
-    """Struct defining a predicate that calls a VLM as part of returning its
-    truth value.
+    """Struct defining a predicate (a lifted classifier over states) that uses
+    a VLM for evaluation.
 
-    NOTE: when instantiating a VLMPredicate, we typically pass in a 'Dummy'
-    classifier (i.e., one that returns simply raises some kind of error instead
-    of actually outputting a value of any kind).
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State. Instead, it supports a query method
+    that generates VLM query, where all VLM predicates will be evaluated
+    at once.
+
+    NOTE: This is merged version of Linfeng's and Nishanth's implementation
     """
-    get_vlm_query_str: Callable[[Sequence[Object]], str]
+
+    # A classifier is not needed for VLM predicates
+    _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
+    # An optional prompt additionally provided for each VLM predicate
+    prompt: Optional[str] = None
+
+    # Another version from Nishanth
+    get_vlm_query_str: Optional[Callable[[Sequence[Object]], str]] = None
+
+    def __hash__(self) -> int:
+        """Have to add this to override the default hash method again."""
+        return self._hash
+
+    def holds(self, state: State, objects: Sequence[Object]) -> bool:
+        """Public method for getting predicate value.
+
+        Performs type checking first. Directly use value
+        """
+        assert len(objects) == self.arity
+        for obj, pred_type in zip(objects, self.types):
+            assert isinstance(obj, Object)
+            assert obj.is_instance(pred_type)
+
+        # Get VLM predicate values from State
+        # It is stored in a dictionary of VLMGroundAtom -> bool
+        assert state.vlm_atom_dict is not None
+        return state.vlm_atom_dict[VLMGroundAtom(self, objects)]
+
+
+@dataclass(frozen=True, order=True, repr=False)
+class GroundTruthPredicate(Predicate):
+    """Struct defining a predicate (a lifted classifier over states) that directly
+    uses ground truth values from the State.
+
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State.
+    """
+
+    # A classifier is not needed for VLM predicates
+    _classifier: Optional[Callable[[State, Sequence[Object]], bool]] = None
+
+    def __hash__(self) -> int:
+        """Have to add this to override the default hash method again."""
+        return self._hash
+
+    def holds(self, state: State, objects: Sequence[Object]) -> bool:
+        """Public method for getting predicate value.
+
+        Performs type checking first. Directly use value
+        """
+        assert len(objects) == self.arity
+        for obj, pred_type in zip(objects, self.types):
+            assert isinstance(obj, Object)
+            assert obj.is_instance(pred_type)
+
+        # Get VLM predicate values from State
+        # It is stored in a dictionary of VLMGroundAtom -> bool
+        assert state.non_vlm_atom_dict is not None
+        assert GroundAtom(self, objects) in state.non_vlm_atom_dict
+        return state.non_vlm_atom_dict[GroundAtom(self, objects)]
 
 
 @dataclass(frozen=True, repr=False, eq=False)
@@ -470,7 +566,50 @@ class GroundAtom(_Atom):
         return self.predicate.get_vlm_query_str(self.objects)  # pylint:disable=no-member
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, repr=False, eq=False)
+class VLMGroundAtom(GroundAtom):
+    """Struct defining a ground atom (a predicate applied to objects) that uses
+    a VLM for evaluation.
+
+    It overrides the `holds` method, which only return the stored
+    predicate value in the State. Instead, it supports a query method
+    that generates VLM query, where all VLM predicates will be evaluated
+    at once.
+    """
+
+    # NOTE: This subclasses GroundAtom to support VLM predicates and classifiers
+    predicate: VLMPredicate
+
+    def get_query_str(self,
+                      without_type: bool = False,
+                      include_prompt: bool = True) -> str:
+        """Get a query string for this ground atom.
+
+        Instead of directly evaluating the ground atom, we will use the
+        VLM to evaluate all VLM predicate classifiers in a batched
+        manner.
+        """
+        if without_type:
+            string = self.predicate.name + "(" + ", ".join(
+                o.name for o in self.objects) + ")"
+        else:
+            string = str(self)
+
+        if self.predicate.prompt is not None and include_prompt:
+            string += f" [Prompt: {self.predicate.prompt}]"
+        return string
+
+    def holds(self, state: State) -> bool:
+        """Public method for getting predicate value.
+
+        Retrieve GroundAtom value from State directly.
+        """
+        assert isinstance(self.predicate, VLMPredicate)
+        assert state.vlm_atom_dict is not None
+        return state.vlm_atom_dict[self]
+
+
+@dataclass(frozen=False, eq=False)
 class Task:
     """Struct defining a task, which is an initial state and goal."""
     init: State
@@ -484,11 +623,41 @@ class Task:
 
     def __post_init__(self) -> None:
         # Verify types.
-        for atom in self.goal:
-            assert isinstance(atom, GroundAtom)
+
+        if(isinstance(self.goal, set)):
+            for atom in self.goal:
+                assert isinstance(atom, GroundAtom)
+        elif(isinstance(self.goal, list)):
+            for goal_set in self.goal:
+                for atom in goal_set:
+                    assert isinstance(atom, GroundAtom)
 
     def goal_holds(self, state: State, vlm: Optional[Any] = None) -> bool:
         """Return whether the goal of this task holds in the given state."""
+
+        if(isinstance(self.goal, set)):
+            vlm_atoms = set(atom for atom in self.goal if isinstance(atom.predicate, VLMPredicate))
+            for atom in self.goal:
+                if atom not in vlm_atoms:
+                    if not atom.holds(state):
+                        return False
+        elif(isinstance(self.goal, list)):
+            # Implement an or over the goal list
+            for goal_set in self.goal:
+                vlm_atoms = set(atom for atom in goal_set if isinstance(atom.predicate, VLMPredicate))
+                for atom in goal_set:
+                    if atom not in vlm_atoms:
+                        if not atom.holds(state):
+                            break
+                else:
+                    return True
+            return False
+        else:
+            print(type(self.goal))
+            raise NotImplementedError
+
+        # Nithansh's latest version:
+        """
         try:  # pragma: no cover
             if state.simulator_state is not None and "abstract_state" in \
                 state.simulator_state:
@@ -509,6 +678,7 @@ class Task:
                     return False
         true_vlm_atoms = query_vlm_for_atom_vals(vlm_atoms, state, vlm)
         return len(true_vlm_atoms) == len(vlm_atoms)
+        """
 
     def replace_goal_with_alt_goal(self) -> Task:
         """Return a Task with the goal replaced with the alternative goal if it
@@ -563,15 +733,15 @@ class EnvironmentTask:
     @cached_property
     def init(self) -> State:
         """Convenience method for environment tasks that are fully observed."""
-        assert isinstance(self.init_obs, State)
+        # assert isinstance(self.init_obs, State)
         return self.init_obs
 
     @cached_property
     def goal(self) -> Set[GroundAtom]:
         """Convenience method for environment tasks that are fully observed."""
-        assert isinstance(self.goal_description, set)
-        assert not self.goal_description or isinstance(
-            next(iter(self.goal_description)), GroundAtom)
+        # assert isinstance(self.goal_description, set)
+        # assert not self.goal_description or isinstance(
+        #     next(iter(self.goal_description)), GroundAtom)
         return self.goal_description
 
     def replace_goal_with_alt_goal(self) -> EnvironmentTask:
@@ -787,8 +957,8 @@ class STRIPSOperator:
                                           for i, t in enumerate(pred.types))
                 pred_eff_variables_str = " ".join(f"?x{i}"
                                                   for i in range(pred.arity))
-                effects_str += f"(forall ({pred_types_str})" +\
-                    f" (not ({pred.name} {pred_eff_variables_str})))"
+                effects_str += f"(forall ({pred_types_str})" + \
+                               f" (not ({pred.name} {pred_eff_variables_str})))"
                 effects_str += "\n        "
         return f"""(:action {self.name}
     :parameters ({params_str})
@@ -1256,9 +1426,9 @@ class LowLevelTrajectory:
 
 @dataclass(frozen=True, repr=False, eq=False)
 class ImageOptionTrajectory:
-    """A structure similar to a LowLevelTrajectory where we record images at
-    every state (i.e., observations), as well as the option that was executed
-    to get between observation images. States are optionally included too.
+    """A structure similar to a LowLevelTrajectory where instead of low-level
+    states and actions, we record images at every state (i.e., observations),
+    as well as the option that was executed to get between observation images.
 
     Invariant 1: If this trajectory is a demonstration, it must contain
     a train task idx and achieve the goal in the respective train task.

@@ -9,6 +9,21 @@ from bosdyn.client import math_helpers
 from numpy.typing import NDArray
 from scipy import ndimage
 
+@dataclass
+class UnposedImageWithContext:
+    """An image with context including the name of the camera."""
+    rgb: NDArray[np.uint8]
+    depth: Optional[NDArray[np.uint16]]  # Note: this is optional
+    image_rot: Optional[float]
+    camera_name: str
+    
+    @property
+    def rotated_rgb(self) -> NDArray[np.uint8]:
+        """The image rotated to be upright if there is rotation."""
+        if self.image_rot is None:
+            return self.rgb
+        return ndimage.rotate(self.rgb, self.image_rot, reshape=False).astype(np.uint8)
+
 
 @dataclass
 class RGBDImageWithContext:
@@ -16,7 +31,7 @@ class RGBDImageWithContext:
     camera."""
     rgb: NDArray[np.uint8]
     depth: NDArray[np.uint16]
-    image_rot: float
+    image_rot: Optional[float]
     camera_name: str
     world_tform_camera: math_helpers.SE3Pose
     depth_scale: float

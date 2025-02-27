@@ -78,8 +78,10 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 1.2
-    max_dist = 1.5
+    # min_dist = 1.2
+    # max_dist = 1.5
+    min_dist = 1.5
+    max_dist = 2.0
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
@@ -88,6 +90,33 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
                                 max_dist, min_angle, max_angle)
+
+
+def _move_to_hand_view_object_from_top_sampler(state: State, goal: Set[GroundAtom],
+                                        rng: np.random.Generator,
+                                        objs: Sequence[Object]) -> Array:
+    # Parameters are relative distance, dyaw (to the object you're moving to).
+    del goal
+
+    robot_obj = objs[0]
+    obj_to_nav_to = objs[1]
+
+    # Get object height from state
+    obj_height = state.get(obj_to_nav_to, "height")
+
+    # Adjust distance based on height - taller objects need more distance
+    base_min_dist = 0.9
+    base_max_dist = 1.2
+    height_factor = 0.5  # Adjust this to change how much height affects distance
+
+    min_dist = base_min_dist + (obj_height * height_factor)
+    max_dist = base_max_dist + (obj_height * height_factor)
+
+    # Get approach angles
+    min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
+
+    return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
+                              max_dist, min_angle, max_angle)
 
 
 def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
@@ -286,10 +315,23 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     def get_env_names(cls) -> Set[str]:
         return {
             "spot_vlm_cup_table_env", "spot_vlm_dustpan_test_env",
-            "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
-            "spot_soda_bucket_env", "spot_soda_chair_env",
-            "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env", "lis_spot_block_floor_env"
+            "spot_cube_env",
+            "spot_soda_floor_env",
+            "spot_soda_table_env",
+            "spot_soda_bucket_env",
+            "spot_soda_chair_env",
+            "spot_main_sweep_env",
+            "spot_ball_and_cup_sticky_table_env",
+            "spot_brush_shelf_env",
+            "lis_spot_block_floor_env",
+            "lis_spot_block_bowl_env",
+            "lis_spot_block_in_box_env",
+            "lis_spot_table_cup_in_box_env",
+            "lis_spot_table_multi_cup_in_box_env",
+            "lis_spot_table_block_in_bowl_env",
+            "lis_spot_empty_cup_box_env",
+            "lis_spot_gather_cup_emptiness_env",
+            "lis_spot_table_two_cup_in_box_env",
         }
 
     @staticmethod
@@ -304,6 +346,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
 
         operator_name_to_sampler: Dict[str, NSRTSampler] = {
             "MoveToHandViewObject": _move_to_hand_view_object_sampler,
+            "MoveToHandViewObjectFromTop": _move_to_hand_view_object_from_top_sampler,
             "MoveToBodyViewObject": _move_to_body_view_object_sampler,
             "MoveToReachObject": _move_to_reach_object_sampler,
             "PickObjectFromTop": _pick_object_from_top_sampler,
@@ -321,6 +364,9 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
+            "ObserveFromTop": utils.null_sampler,
+            "ObserveCupContentFindEmpty": utils.null_sampler,
+            "ObserveCupContentFindNotEmpty": utils.null_sampler,
             "TeleopPick1": utils.null_sampler,
             "PlaceNextTo": utils.null_sampler,
             "TeleopPick2": utils.null_sampler,

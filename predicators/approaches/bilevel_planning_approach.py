@@ -128,23 +128,52 @@ class BilevelPlanningApproach(BaseApproach):
         timeout: float, seed: int, **kwargs: Any
     ) -> Tuple[List[_GroundNSRT], List[Set[GroundAtom]], Metrics]:
 
-        try:
-            plan, atoms_seq, metrics = run_task_plan_once(
-                task,
-                nsrts,
-                preds,
-                self._types,
-                timeout,
-                seed,
-                task_planning_heuristic=self._task_planning_heuristic,
-                max_horizon=float(CFG.horizon),
-                **kwargs)
-        except PlanningFailure as e:
-            raise ApproachFailure(e.args[0], e.info)
-        except PlanningTimeout as e:
-            raise ApproachTimeout(e.args[0], e.info)
+        if(isinstance(task.goal, set)):
+            try:
+                plan, atoms_seq, metrics = run_task_plan_once(
+                    task,
+                    nsrts,
+                    preds,
+                    self._types,
+                    timeout,
+                    seed,
+                    task_planning_heuristic=self._task_planning_heuristic,
+                    max_horizon=float(CFG.horizon),
+                    **kwargs)
+            except PlanningFailure as e:
+                raise ApproachFailure(e.args[0], e.info)
+            except PlanningTimeout as e:
+                raise ApproachTimeout(e.args[0], e.info)
+            
+            return plan, atoms_seq, metrics
 
-        return plan, atoms_seq, metrics
+        elif(isinstance(task.goal, list)):
+            import copy
+            failures = []
+            for goal_atoms in task.goal:
+                new_task = copy.deepcopy(task)
+                new_task.goal = goal_atoms
+                try:
+                    plan, atoms_seq, metrics = run_task_plan_once(
+                        new_task,
+                        nsrts,
+                        preds,
+                        self._types,
+                        timeout,
+                        seed,
+                        task_planning_heuristic=self._task_planning_heuristic,
+                        max_horizon=float(CFG.horizon),
+                        **kwargs)
+                    return plan, atoms_seq, metrics
+                
+                except PlanningFailure as e:
+                    failures.append(ApproachFailure(e.args[0], e.info))
+                except PlanningTimeout as e:
+                    failures.append(ApproachTimeout(e.args[0], e.info))
+                    
+            assert len(failures)>0
+            raise failures[0]
+        
 
     def reset_metrics(self) -> None:
         super().reset_metrics()

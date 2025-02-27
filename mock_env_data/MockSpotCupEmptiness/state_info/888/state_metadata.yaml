@@ -1,0 +1,103 @@
+atom_dict: {}
+gripper_open: true
+non_vlm_atom_dict:
+  BelieveFalse_ContainerEmpty(container): false
+  BelieveFalse_ContainerEmpty(green_cup): false
+  BelieveFalse_ContainerEmpty(red_cup): false
+  BelieveTrue_ContainerEmpty(container): false
+  BelieveTrue_ContainerEmpty(green_cup): false
+  BelieveTrue_ContainerEmpty(red_cup): false
+  FitsInXY(container,container): false
+  FitsInXY(container,green_cup): false
+  FitsInXY(container,red_cup): false
+  FitsInXY(container,table): false
+  FitsInXY(green_cup,container): true
+  FitsInXY(green_cup,green_cup): false
+  FitsInXY(green_cup,red_cup): false
+  FitsInXY(green_cup,table): true
+  FitsInXY(red_cup,container): true
+  FitsInXY(red_cup,green_cup): false
+  FitsInXY(red_cup,red_cup): false
+  FitsInXY(red_cup,table): true
+  HandEmpty(robot): true
+  HasFlatTopSurface(container): true
+  HasFlatTopSurface(green_cup): false
+  HasFlatTopSurface(red_cup): false
+  HasFlatTopSurface(table): true
+  Holding(robot,container): false
+  Holding(robot,green_cup): false
+  Holding(robot,red_cup): false
+  InHandView(robot,container): false
+  InHandView(robot,green_cup): false
+  InHandView(robot,red_cup): false
+  InHandView(robot,table): false
+  InHandViewFromTop(robot,container): false
+  InHandViewFromTop(robot,green_cup): false
+  InHandViewFromTop(robot,red_cup): false
+  InHandViewFromTop(robot,table): false
+  Inside(container,container): false
+  Inside(container,green_cup): false
+  Inside(container,red_cup): false
+  Inside(green_cup,container): true
+  Inside(green_cup,green_cup): false
+  Inside(green_cup,red_cup): false
+  Inside(red_cup,container): true
+  Inside(red_cup,green_cup): false
+  Inside(red_cup,red_cup): false
+  IsPlaceable(container): true
+  IsPlaceable(green_cup): true
+  IsPlaceable(red_cup): true
+  Known_ContainerEmpty(container): false
+  Known_ContainerEmpty(green_cup): false
+  Known_ContainerEmpty(red_cup): false
+  NEq(container,container): false
+  NEq(container,green_cup): false
+  NEq(container,red_cup): false
+  NEq(container,table): true
+  NEq(green_cup,container): true
+  NEq(green_cup,green_cup): false
+  NEq(green_cup,red_cup): false
+  NEq(green_cup,table): true
+  NEq(red_cup,container): true
+  NEq(red_cup,green_cup): true
+  NEq(red_cup,red_cup): false
+  NEq(red_cup,table): true
+  NEq(table,container): false
+  NEq(table,green_cup): false
+  NEq(table,red_cup): false
+  NEq(table,table): false
+  NotBlocked(container): true
+  NotBlocked(green_cup): true
+  NotBlocked(red_cup): true
+  NotBlocked(table): false
+  NotHolding(robot,container): true
+  NotHolding(robot,green_cup): true
+  NotHolding(robot,red_cup): true
+  NotInsideAnyContainer(container): true
+  NotInsideAnyContainer(green_cup): false
+  NotInsideAnyContainer(red_cup): false
+  On(container,container): false
+  On(container,green_cup): false
+  On(container,red_cup): false
+  On(container,table): false
+  On(green_cup,container): false
+  On(green_cup,green_cup): false
+  On(green_cup,red_cup): false
+  On(green_cup,table): false
+  On(red_cup,container): false
+  On(red_cup,green_cup): false
+  On(red_cup,red_cup): false
+  On(red_cup,table): false
+  Reachable(robot,container): true
+  Reachable(robot,green_cup): true
+  Reachable(robot,red_cup): true
+  Reachable(robot,table): false
+  Unknown_ContainerEmpty(container): false
+  Unknown_ContainerEmpty(green_cup): true
+  Unknown_ContainerEmpty(red_cup): true
+objects_in_hand: []
+objects_in_view:
+- green_cup
+- container
+- red_cup
+- robot

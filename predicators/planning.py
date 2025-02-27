@@ -326,6 +326,8 @@ def task_plan(
         logging.info(f"Initial atoms: {init_atoms}")
         logging.info(
             f"Reachable atoms not in init: {reachable_atoms - init_atoms}")
+        logging.info(f"Unreachable goal atoms: {goal - reachable_atoms}")
+        logging.info("Ground NSRTs:\n" + "\n".join(f"{i}.\n {nsrt}" for i, nsrt in enumerate(ground_nsrts, start=1)))
         raise PlanningFailure(f"Goal {goal} not dr-reachable")
     dummy_task = Task(DefaultState, goal)
     metrics: Metrics = defaultdict(float)
@@ -1204,6 +1206,7 @@ def run_task_plan_once(
         ground_nsrts, reachable_atoms = task_plan_grounding(
             init_atoms, objects, nsrts)
         assert task_planning_heuristic is not None
+        
         heuristic = utils.create_task_planning_heuristic(
             task_planning_heuristic, init_atoms, goal, ground_nsrts, preds,
             objects)
@@ -1220,10 +1223,16 @@ def run_task_plan_once(
                       max_skeletons_optimized=1,
                       use_visited_state_set=True,
                       **kwargs))
+        
+        
+        
         if len(plan) > max_horizon:
             raise PlanningFailure(
                 "Skeleton produced by A-star exceeds horizon!")
     elif "fd" in CFG.sesame_task_planner:  # pragma: no cover
+        # Run Fast Downward. See the instructions in the docstring of `_sesame_plan_with_fast_downward`
+        assert "FD_EXEC_PATH" in os.environ, \
+            "Please follow the instructions in the docstring of this method!"
         fd_exec_path = os.environ["FD_EXEC_PATH"]
         exec_str = os.path.join(fd_exec_path, "fast-downward.py")
         timeout_cmd = "gtimeout" if sys.platform == "darwin" \

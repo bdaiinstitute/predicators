@@ -1,16 +1,22 @@
 """Interface for finding objects by moving around and running detection."""
-
 import time
-from typing import Any, Collection, Dict, List, Optional, Sequence, Tuple
+from collections import defaultdict
+from typing import Any, Collection, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.lease import LeaseClient
+from bosdyn.client.math_helpers import SE3Pose
 from bosdyn.client.sdk import Robot
+from rich import print
+from rich.table import Table
 from scipy.spatial import Delaunay
 
 from predicators import utils
+from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import detect_objects
+from predicators.spot_utils.perception.object_perception import \
+    get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.perception_structs import \
     ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
@@ -23,7 +29,7 @@ from predicators.spot_utils.utils import DEFAULT_HAND_LOOK_DOWN_POSE, \
     DEFAULT_HAND_LOOK_FLOOR_POSE, get_allowed_map_regions, \
     get_collision_geoms_for_nav, get_relative_se2_from_se3, \
     sample_random_nearby_point_to_move, spot_pose_to_geom2d
-from predicators.structs import State
+from predicators.structs import Object, State, VLMGroundAtom, VLMPredicate
 
 
 def _find_objects_with_choreographed_moves(
@@ -34,7 +40,10 @@ def _find_objects_with_choreographed_moves(
     relative_hand_moves: Optional[Sequence[math_helpers.SE3Pose]] = None,
     open_and_close_gripper: bool = True,
     allowed_regions: Optional[Collection[Delaunay]] = None,
-) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
+    vlm_predicates: Optional[Set[VLMPredicate]] = None,
+    id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
+) -> Tuple[Dict[ObjectDetectionID, SE3Pose], Dict[str, Any], Dict[
+        VLMGroundAtom, Optional[bool]]]:
     """Helper for object search with hard-coded relative moves."""
 
     if relative_hand_moves is not None:
@@ -45,6 +54,11 @@ def _find_objects_with_choreographed_moves(
     all_artifacts: Dict[str, Any] = {}
     # Save all RGBDs in case of failure so we can analyze them.
     all_rgbds: List[Dict[str, RGBDImageWithContext]] = []
+
+    # Save VLMGroundAtoms from all poses
+    # NOTE: overwrite if the same atom is found; to improve later
+    all_vlm_atom_dict: Dict[VLMGroundAtom,
+                            Optional[bool]] = defaultdict(lambda: None)
 
     # Open the hand to mitigate possible occlusions.
     if open_and_close_gripper:
@@ -61,11 +75,36 @@ def _find_objects_with_choreographed_moves(
                                            allowed_regions=allowed_regions)
     all_detections.update(detections)
     all_artifacts.update(artifacts)
+    
+    # NOTE: For hardcode robot object
+    from predicators.spot_utils.utils import _robot_type
 
     for i, relative_pose in enumerate(relative_base_moves):
         remaining_object_ids = set(object_ids) - set(all_detections)
         print(f"Found objects: {set(all_detections)}")
         print(f"Remaining objects: {remaining_object_ids}")
+
+        # Get VLM queries + Send request
+        # TODO: We may query objects only in current view's images.
+        # Now we query all detected objects in all past views.
+        if CFG.spot_vlm_eval_predicate and len(all_detections) > 0 and vlm_predicates and len(vlm_predicates) > 0:
+            assert id2object is not None
+            # NOTE: Get all objects; hardcode Spot robot object here
+            objects = [id2object[id_] for id_ in all_detections]
+            # Create constant robot object
+            _robot_object = Object("robot", _robot_type)
+            objects.append(_robot_object)
+            
+            vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
+            vlm_atom_dict = vlm_predicate_batch_classify(
+                vlm_atoms, rgbds, predicates=vlm_predicates, get_dict=True)
+            # Update value if original is None while new is not None
+            for atom, result in vlm_atom_dict.items():
+                if all_vlm_atom_dict[atom] is None and result is not None:
+                    all_vlm_atom_dict[atom] = result
+        else:
+            # No VLM predicates or no objects found yet
+            pass
 
         # Success, finish.
         if not remaining_object_ids:
@@ -87,6 +126,19 @@ def _find_objects_with_choreographed_moves(
         all_detections.update(detections)
         all_artifacts.update(artifacts)
 
+    # Logging
+    if CFG.vlm_eval_verbose:
+        print(f"Calculated VLM atoms (in all views): {dict(sorted(all_vlm_atom_dict.items()))}")
+        print(f"True VLM atoms (in all views; with values as True): "
+            f"{dict(sorted(filter(lambda it: it[1], all_vlm_atom_dict.items())))}")
+
+    table = Table(title="Evaluated VLM atoms (in all views)")
+    table.add_column("Atom", style="cyan")
+    table.add_column("Value", style="magenta")
+    for atom, result in sorted(all_vlm_atom_dict.items(), key=lambda item: str(item[0])):
+        table.add_row(str(atom), str(result))
+    print(table)
+
     # Close the gripper.
     if open_and_close_gripper:
         close_gripper(robot)
@@ -94,7 +146,7 @@ def _find_objects_with_choreographed_moves(
     # Success, finish.
     remaining_object_ids = set(object_ids) - set(all_detections)
     if not remaining_object_ids:
-        return all_detections, all_artifacts
+        return all_detections, all_artifacts, all_vlm_atom_dict
 
     # Fail. Analyze the RGBDs if you want (by uncommenting here).
     # import imageio.v2 as iio
@@ -115,7 +167,10 @@ def init_search_for_objects(
     num_spins: int = 8,
     relative_hand_moves: Optional[List[math_helpers.SE3Pose]] = None,
     allowed_regions: Optional[Collection[Delaunay]] = None,
-) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
+    vlm_predicates: Optional[Set[VLMPredicate]] = None,
+    id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
+) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any], Dict[
+        VLMGroundAtom, bool or None]]:
     """Spin around in place looking for objects.
 
     Raise a RuntimeError if an object can't be found after spinning.
@@ -129,7 +184,10 @@ def init_search_for_objects(
         object_ids,
         base_moves,
         relative_hand_moves=relative_hand_moves,
-        allowed_regions=allowed_regions)
+        allowed_regions=allowed_regions,
+        vlm_predicates=vlm_predicates,
+        id2object=id2object,
+    )
 
 
 def step_back_to_find_objects(
@@ -161,13 +219,18 @@ def step_back_to_find_objects(
     # Don't open and close the gripper because we need the object to be
     # in view when the action has finished, and we can't leave the gripper
     # open because then HandEmpty will misfire.
-    _find_objects_with_choreographed_moves(robot,
-                                           localizer,
-                                           object_ids,
-                                           base_moves,
-                                           hand_moves,
-                                           open_and_close_gripper=False,
-                                           allowed_regions=allowed_regions)
+    _find_objects_with_choreographed_moves(
+        robot,
+        localizer,
+        object_ids,
+        base_moves,
+        hand_moves,
+        open_and_close_gripper=False,
+        allowed_regions=allowed_regions,
+        # FIXME need to pass in VLM predicates and id2object
+        vlm_predicates=None,
+        id2object=None,
+    )
 
 
 def find_objects(
@@ -191,7 +254,7 @@ def find_objects(
         prompt = ("Hit 'c' to have the robot try to find the object "
                   "by moving to a random pose, or "
                   "take control of the robot and make the object "
-                  "become in its view. Hit the 'Enter' key when you're done!")
+                  "become in its view. Hit the 'Enter' key when you're done!\n")
         user_pref = input(prompt)
         lease_client.take()
         if user_pref == "c":

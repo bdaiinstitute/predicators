@@ -87,6 +87,8 @@ class CogMan:
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
             assert self._current_goal is not None
+            # Pass action history to task state for replanning
+            state.action_history = self._episode_action_history
             task = Task(state, self._current_goal)
             self._reset_policy(task)
             self._exec_monitor.reset(task)
@@ -97,6 +99,14 @@ class CogMan:
             # case.
             if self._override_policy is None:
                 assert not self._exec_monitor.step(state)
+            
+            # Log the planned actions after replanning
+            logging.info("\n=== Planned Actions (Replan) ===")
+            exec_info = self._approach.get_execution_monitoring_info()
+            if exec_info and isinstance(exec_info[0], dict) and "current_option_plan" in exec_info[0]:
+                for option in exec_info[0]["current_option_plan"]:
+                    logging.info(f"{option.name}({', '.join(obj.name for obj in option.objects)})")
+            
         assert self._current_policy is not None
         act = self._current_policy(state)
         self._perceiver.update_perceiver_with_action(act)
@@ -116,6 +126,17 @@ class CogMan:
             save_prefix = utils.get_config_path_str()
             outfile = f"{save_prefix}__cogman__episode{self._episode_num}.mp4"
             utils.save_video(outfile, self._episode_images)
+            
+        # Log the executed actions at the end of the episode
+        logging.info("\n=== Executed Actions ===")
+        for act in self._episode_action_history:
+            if(act is None):
+                logging.info("No actions available. Wait action taken.")
+            else:
+                if act.extra_info and "operator_name" in act.extra_info:
+                    op_name = act.extra_info["operator_name"]
+                    objects = [obj.name for obj in act.extra_info.get("objects", [])]
+                    logging.info(f"{op_name}({', '.join(objects)})")
 
     # The methods below provide an interface to the approach. In the future,
     # we may want to move some of these methods into cogman properly, e.g.,
@@ -181,6 +202,12 @@ class CogMan:
         else:
             self._current_policy = self._approach.solve(task,
                                                         timeout=CFG.timeout)
+            # Log the planned actions after planning
+            logging.info("\n=== Planned Actions ===")
+            exec_info = self._approach.get_execution_monitoring_info()
+            if exec_info and isinstance(exec_info[0], dict) and "current_option_plan" in exec_info[0]:
+                for option in exec_info[0]["current_option_plan"]:
+                    logging.info(f"{option.name}({', '.join(obj.name for obj in option.objects)})")
 
 
 def run_episode_and_get_observations(

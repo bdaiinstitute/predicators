@@ -38,11 +38,15 @@ import logging
 import os
 import sys
 import time
+import tkinter as tk
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 import dill as pkl
+import matplotlib
+# NOTE: using non-interactive backend for compatibility issue
+matplotlib.use('Agg')
 
 from predicators import utils
 from predicators.approaches import ApproachFailure, ApproachTimeout, \
@@ -58,6 +62,8 @@ from predicators.settings import CFG, get_allowed_query_type_names
 from predicators.structs import Dataset, InteractionRequest, \
     InteractionResult, Metrics, Response, Task, Video
 from predicators.teacher import Teacher, TeacherInteractionMonitorWithVideo
+from predicators.pretrained_model_interface import OpenAIModel
+import yaml
 
 assert os.environ.get("PYTHONHASHSEED") == "0", \
         "Please add `export PYTHONHASHSEED=0` to your bash profile!"
@@ -65,13 +71,23 @@ assert os.environ.get("PYTHONHASHSEED") == "0", \
 
 def main() -> None:
     """Main entry point for running approaches in environments."""
+    # Add Tkinter initialization at the start
+    # root = tk.Tk()
+    # root.withdraw()  # Hide the main window
+    
     script_start = time.perf_counter()
     # Parse & validate args
     args = utils.parse_args()
     utils.update_config(args)
     str_args = " ".join(sys.argv)
-    # Log to stderr.
-    handlers: List[logging.Handler] = [logging.StreamHandler()]
+    # Log to stderr or use `rich` package for more structured output.
+    handlers: List[logging.Handler] = []
+    if CFG.log_rich:
+        from rich.logging import RichHandler
+        handlers.append(RichHandler())
+    else:
+        handlers.append(logging.StreamHandler())
+
     if CFG.log_file:
         handlers.append(logging.FileHandler(CFG.log_file, mode='w'))
     logging.basicConfig(level=CFG.loglevel,
@@ -151,7 +167,8 @@ def main() -> None:
         approach_name = f"{CFG.approach_wrapper}[{approach_name}]"
     approach = create_approach(approach_name, preds, options, env.types,
                                env.action_space, approach_train_tasks)
-    if approach.is_learning_based:
+    # NOTE: only create dataset when is learning-based and load_data is True
+    if approach.is_learning_based and CFG.load_data:
         # Create the offline dataset. Note that this needs to be done using
         # the non-stripped train tasks because dataset generation may need
         # to use the oracle predicates (e.g. demo data generation).
@@ -164,7 +181,19 @@ def main() -> None:
     # Run the full pipeline.
     _run_pipeline(env, cogman, approach_train_tasks, offline_dataset)
     script_time = time.perf_counter() - script_start
+    
+    # NOTE: debugging pring
+    # Log OpenAI API costs if any were incurred
+    OpenAIModel.log_total_costs()
+    
     logging.info(f"\n\nMain script terminated in {script_time:.5f} seconds")
+
+    # # Clean up Tkinter
+    # try:
+    #     root.quit()
+    #     root.destroy()
+    # except Exception:
+    #     pass
 
 
 def _run_pipeline(env: BaseEnv,
@@ -174,7 +203,8 @@ def _run_pipeline(env: BaseEnv,
     # If agent is learning-based, allow the agent to learn from the generated
     # offline dataset, and then proceed with the online learning loop. Test
     # after each learning call. If agent is not learning-based, just test once.
-    if cogman.is_learning_based:
+    # NOTE: temp flag to disable offline learning
+    if cogman.is_learning_based and CFG.load_data:
         assert offline_dataset is not None, "Missing offline dataset"
         num_offline_transitions = sum(
             len(traj.actions) for traj in offline_dataset.trajectories)
@@ -357,6 +387,7 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
     total_num_solve_failures = 0
     total_num_execution_timeouts = 0
     total_num_execution_failures = 0
+    total_steps = 0  # Add this to track total steps
 
     save_prefix = utils.get_config_path_str()
     metrics: Metrics = defaultdict(float)
@@ -452,7 +483,9 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
             total_suc_time += (solve_time + exec_time)
             make_video = CFG.make_test_videos
             video_file = f"{save_prefix}__task{test_task_idx+1}.mp4"
-            metrics[f"PER_TASK_task{test_task_idx}_num_steps"] = len(traj[1])
+            steps_taken = len(traj[1])  # Number of steps in trajectory
+            total_steps += steps_taken
+            metrics[f"PER_TASK_task{test_task_idx}_num_steps"] = steps_taken
         else:
             if not caught_exception:
                 log_message = "Policy failed to reach goal"
@@ -498,6 +531,9 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
         total = cogman.metrics[f"total_{metric_name}"]
         metrics[f"avg_{metric_name}"] = (
             total / num_found_policy if num_found_policy > 0 else float("inf"))
+    # Add average and total steps to metrics
+    metrics["total_steps"] = total_steps
+    metrics["avg_steps_per_solved"] = (total_steps / num_solved if num_solved > 0 else float("inf"))
     return metrics
 
 
@@ -508,8 +544,10 @@ def _save_test_results(results: Metrics,
     avg_suc_time = results["avg_suc_time"]
     logging.info(f"Tasks solved: {num_solved} / {num_total}")
     logging.info(f"Average time for successes: {avg_suc_time:.5f} seconds")
-    outfile = (f"{CFG.results_dir}/{utils.get_config_path_str()}__"
-               f"{online_learning_cycle}.pkl")
+    base_outfile = f"{CFG.results_dir}/{utils.get_config_path_str()}__{online_learning_cycle}"
+    
+    # Save pickle file
+    pkl_outfile = base_outfile + ".pkl"
     # Save CFG alongside results.
     outdata = {
         "config": CFG,
@@ -517,15 +555,63 @@ def _save_test_results(results: Metrics,
         "git_commit_hash": utils.get_git_commit_hash()
     }
     # Dump the CFG, results, and git commit hash to a pickle file.
-    with open(outfile, "wb") as f:
+    with open(pkl_outfile, "wb") as f:
         pkl.dump(outdata, f)
+        
+    # Save YAML file
+    yaml_outfile = base_outfile + ".yaml"
+    
+    def _convert_to_yaml_friendly(obj):
+        """Helper to convert objects to YAML-friendly format."""
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        if isinstance(obj, (list, tuple)):
+            return [_convert_to_yaml_friendly(x) for x in obj]
+        if isinstance(obj, dict):
+            return {k: _convert_to_yaml_friendly(v) for k, v in obj.items()}
+        # Handle _Option objects specially
+        if hasattr(obj, 'name') and hasattr(obj, 'objects'):
+            return {
+                'name': obj.name,
+                'objects': [str(o) for o in obj.objects]
+            }
+        if hasattr(obj, '__dict__'):
+            clean_dict = {}
+            for k, v in vars(obj).items():
+                if not callable(v) and not k.startswith('_'):
+                    try:
+                        clean_dict[k] = _convert_to_yaml_friendly(v)
+                    except:  # Skip any values that can't be converted
+                        pass
+            return clean_dict
+        return str(obj)  # Fallback to string representation
+            
+    # Create a YAML-friendly version of the data
+    yaml_data = {
+        "config": _convert_to_yaml_friendly(CFG),
+        "results": _convert_to_yaml_friendly(dict(results)),  # Convert defaultdict to regular dict and make YAML friendly
+        "git_commit_hash": utils.get_git_commit_hash()
+    }
+    
+    # Dump to YAML file
+    with open(yaml_outfile, "w") as f:
+        yaml.dump(yaml_data, f, default_flow_style=False)
+        
     # Before printing the results, filter out keys that start with the
     # special prefix "PER_TASK_", to prevent an annoyingly long printout.
     del_keys = [k for k in results if k.startswith("PER_TASK_")]
     for k in del_keys:
         del results[k]
-    logging.info(f"Test results: {results}")
-    logging.info(f"Wrote out test results to {outfile}")
+    
+    # Print results in a clean format using rich
+    logging.info("\n=== Test Results ===")
+    for key, value in sorted(results.items()):
+        if isinstance(value, float):
+            logging.info(f"{key}: {value:.5f}")
+        else:
+            logging.info(f"{key}: {value}")
+            
+    logging.info(f"\nWrote out test results to {pkl_outfile} and {yaml_outfile}")
 
 
 if __name__ == "__main__":  # pragma: no cover
