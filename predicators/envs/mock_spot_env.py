@@ -1239,25 +1239,21 @@ class MockSpotSortWeight(MockSpotEnv):
         # self.goal_atoms_or = [{GroundAtom(_On, [self.white_box, self.scale])}]
         self.goal_atoms_or = [
             {
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
                 GroundAtom(_Inside, [self.green_box, self.container]),  
                 GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
+                GroundAtom(_Inside, [self.green_box, self.container]),  
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  
+            },
+            {
+                GroundAtom(_Inside, [self.white_box, self.container]),  
                 GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.white_box]), 
-                GroundAtom(_Inside, [self.white_box, self.container]), 
             },
             {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
-                GroundAtom(_BelieveTrue_ObjectHeavy, [self.green_box]),  
-                GroundAtom(_Inside, [self.green_box, self.container]), 
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  
+                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]),  
             },
-            {
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.green_box]), 
-                GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]), 
-            }
         ]
         
         self.real_goal_atoms_or = [{
@@ -1325,6 +1321,244 @@ class MockSpotSortWeight(MockSpotEnv):
     def _generate_goal_description(self) -> GoalDescription:
         """Generate a goal description for the current task."""
         # NOTE: to update this from language
+        return self.goal_atoms_or
+    
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms_or)
+        return [task]
+
+
+class MockSpotCupEmptiness(MockSpotEnv):
+    """A mock environment for checking cup contents and placing empty cups in a container.
+    
+    This environment involves:
+    - Two cups with unknown contents (water/empty)
+    - A container to place empty cups in
+    - A table where cups start
+    
+    The task is to:
+    1. Check the contents of both cups
+    2. Place empty cups in the container
+    """
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotCupEmptiness")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_cup_emptiness"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = MockSpotCupEmptiness.get_name()
+        
+        # Create objects
+        self.robot = Object("robot", _robot_type)
+        self.table = Object("table", _immovable_object_type)
+        self.container = Object("container", _container_type)
+        self.red_cup = Object("red_cup", _container_type)
+        self.green_cup = Object("green_cup", _container_type)
+        
+        self.oracle_env = True
+        
+        # Set up initial state
+        self._objects = {
+            "robot": self.robot,
+            "table": self.table,
+            "container": self.container,
+            "red_cup": self.red_cup,
+            "green_cup": self.green_cup
+        }
+        self._objects_oracle = self._objects
+        self._set_initial_state_and_goal()
+        # if self.oracle_env:
+        #     # Set up initial state
+        #     self._objects = {
+        #         "robot": self.robot,
+        #         "table": self.table,
+        #         "container": self.container,
+        #         "cup1": self.cup1,
+        #         "cup2": self.cup2
+        #     }
+        #     self._set_initial_state_and_goal()
+        # else:
+        #     self._objects = {
+        #         "robot": self.robot,
+        #         "table": self.table,
+        #         "container": self.container,
+        #     }
+        #     self._objects_oracle = self._objects | {
+        #         "cup1": self.cup1,
+        #         "cup2": self.cup2
+        #     }
+        #     self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Cup1 state
+            GroundAtom(_On, [self.red_cup, self.table]),
+            GroundAtom(_Unknown_ContainerEmpty, [self.red_cup]),
+            GroundAtom(_NotBlocked, [self.red_cup]),
+            GroundAtom(_IsPlaceable, [self.red_cup]),
+            GroundAtom(_NotInsideAnyContainer, [self.red_cup]),
+            GroundAtom(_FitsInXY, [self.red_cup, self.table]),
+            GroundAtom(_FitsInXY, [self.red_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.red_cup]),
+            GroundAtom(_NEq, [self.red_cup, self.table]),
+            GroundAtom(_NEq, [self.red_cup, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.red_cup]),
+            
+            # Cup2 state
+            GroundAtom(_On, [self.green_cup, self.table]),
+            GroundAtom(_Unknown_ContainerEmpty, [self.green_cup]),
+            GroundAtom(_NotBlocked, [self.green_cup]),
+            GroundAtom(_IsPlaceable, [self.green_cup]),
+            GroundAtom(_NotInsideAnyContainer, [self.green_cup]),
+            GroundAtom(_FitsInXY, [self.green_cup, self.table]),
+            GroundAtom(_FitsInXY, [self.green_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.green_cup]),
+            GroundAtom(_NEq, [self.green_cup, self.table]),
+            GroundAtom(_NEq, [self.green_cup, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.green_cup]),
+            
+            # Container state
+            GroundAtom(_NotBlocked, [self.container]),
+            GroundAtom(_IsPlaceable, [self.container]),
+            GroundAtom(_NotInsideAnyContainer, [self.container]),
+            GroundAtom(_HasFlatTopSurface, [self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.container]),
+            
+            # Environment state
+            GroundAtom(_HasFlatTopSurface, [self.table]),
+            GroundAtom(_NEq, [self.red_cup, self.green_cup]),
+            GroundAtom(_NEq, [self.container, self.table])
+        }
+        
+        # Define possible goal states
+        self.goal_atoms_or = [
+            # Both cups empty - put both in container
+            {
+                GroundAtom(_Known_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_Known_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_BelieveTrue_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_BelieveTrue_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_Inside, [self.red_cup, self.container]),
+                GroundAtom(_Inside, [self.green_cup, self.container])
+            },
+            # Cup1 empty, Cup2 has water - put Cup1 in container
+            {
+                GroundAtom(_Known_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_Known_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_BelieveTrue_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_BelieveFalse_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_Inside, [self.red_cup, self.container])
+            },
+            # Cup1 has water, Cup2 empty - put Cup2 in container
+            {
+                GroundAtom(_Known_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_Known_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_BelieveFalse_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_BelieveTrue_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_Inside, [self.green_cup, self.container])
+            },
+            # Both cups have water - don't put any in container
+            {
+                GroundAtom(_Known_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_Known_ContainerEmpty, [self.green_cup]),
+                GroundAtom(_BelieveFalse_ContainerEmpty, [self.red_cup]),
+                GroundAtom(_BelieveFalse_ContainerEmpty, [self.green_cup])
+            }
+        ]
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to cup emptiness tasks."""
+        # Get all operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "MoveToHandViewObjectFromTop",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside"
+        }
+        
+        # Filter operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+                
+        # ObserveCupContentFindEmpty: Look at cup and find it empty
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        parameters = [robot, container]
+        preconds = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
+            LiftedAtom(_Reachable, [robot, container]),
+            LiftedAtom(_InHandViewFromTop, [robot, container])
+        }
+        add_effs = {
+            LiftedAtom(_Known_ContainerEmpty, [container]),
+            LiftedAtom(_BelieveTrue_ContainerEmpty, [container])
+        }
+        del_effs = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container])
+        }
+        ignore_effs = set()
+        yield STRIPSOperator("ObserveCupContentFindEmpty",
+                            parameters,
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
+
+        # ObserveCupContentFindNotEmpty: Look at cup and find it contains water
+        robot = Variable("?robot", _robot_type)
+        container = Variable("?container", _container_type)
+        parameters = [robot, container]
+        preconds = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container]),
+            LiftedAtom(_Reachable, [robot, container]),
+            LiftedAtom(_InHandViewFromTop, [robot, container])
+        }
+        add_effs = {
+            LiftedAtom(_Known_ContainerEmpty, [container]),
+            LiftedAtom(_BelieveFalse_ContainerEmpty, [container])
+        }
+        del_effs = {
+            LiftedAtom(_Unknown_ContainerEmpty, [container])
+        }
+        ignore_effs = set()
+        yield STRIPSOperator("ObserveCupContentFindNotEmpty",
+                            parameters,
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
+
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
         return self.goal_atoms_or
     
     @property

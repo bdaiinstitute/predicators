@@ -105,15 +105,6 @@ def main(args: argparse.Namespace) -> None:
             ]
         },
         {
-            "name": "llm_open_loop",
-            "args": [
-                "--approach", "llm_open_loop",
-                "--perceiver", "mock_spot_perceiver",
-                "--llm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
-            ]
-        },
-        {
             "name": "llm_closed_loop",
             "args": [
                 "--approach", "llm_open_loop",
@@ -122,15 +113,6 @@ def main(args: argparse.Namespace) -> None:
                 "--llm_temperature", "0.2",
                 "--execution_monitor", "mpc"
                 # "--execution_monitor", "expected_atoms"
-            ]
-        },
-        {
-            "name": "vlm_open_loop",
-            "args": [
-                "--approach", "vlm_open_loop",
-                "--perceiver", "mock_spot_perceiver",
-                "--vlm_model_name", "gpt-4o",
-                "--llm_temperature", "0.2"
             ]
         },
         {
@@ -176,7 +158,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--planner", type=str,
                        help="Run only this planner (by name)")
     parser.add_argument('--env', type=str, default="mock_spot_drawer_cleaning", 
-                        choices=["mock_spot_drawer_cleaning", "mock_spot_pick_place_two_cup", "mock_spot_sort_weight"])
+                        choices=["mock_spot_drawer_cleaning", "mock_spot_pick_place_two_cup", "mock_spot_sort_weight", "mock_spot_cup_emptiness"])
     # parser.add_argument("--load_approach", action="store_true",
     #                    help="Load saved approach")
     return parser.parse_args()

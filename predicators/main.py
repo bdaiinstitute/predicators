@@ -72,8 +72,8 @@ assert os.environ.get("PYTHONHASHSEED") == "0", \
 def main() -> None:
     """Main entry point for running approaches in environments."""
     # Add Tkinter initialization at the start
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window
+    # root = tk.Tk()
+    # root.withdraw()  # Hide the main window
     
     script_start = time.perf_counter()
     # Parse & validate args
@@ -188,12 +188,12 @@ def main() -> None:
     
     logging.info(f"\n\nMain script terminated in {script_time:.5f} seconds")
 
-    # Clean up Tkinter
-    try:
-        root.quit()
-        root.destroy()
-    except Exception:
-        pass
+    # # Clean up Tkinter
+    # try:
+    #     root.quit()
+    #     root.destroy()
+    # except Exception:
+    #     pass
 
 
 def _run_pipeline(env: BaseEnv,
