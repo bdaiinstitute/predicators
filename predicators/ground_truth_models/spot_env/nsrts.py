@@ -368,6 +368,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "ObserveCupContentFindEmpty": utils.null_sampler,
             "ObserveCupContentFindNotEmpty": utils.null_sampler,
             "TeleopPick1": utils.null_sampler,
+            "TeleopPlace1": utils.null_sampler,
             "PlaceNextTo": utils.null_sampler,
             "TeleopPick2": utils.null_sampler,
             "Sweep": utils.null_sampler,
