@@ -29,7 +29,7 @@ from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
-    LanguageObjectDetectionID, ObjectDetectionID, _query_detic_sam, \
+    LanguageObjectDetectionID, ObjectDetectionID, detect_objects_from_language, \
     detect_objects, visualize_all_artifacts
 from predicators.spot_utils.perception.object_perception import \
     get_vlm_atom_combinations, vlm_predicate_batch_classify
@@ -3118,7 +3118,8 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
             assert isinstance(
                 obj_id, LanguageObjectDetectionID
             ), "Only LanguageObjectDetectionIDs are supported."
-        object_id_to_img_detections = _query_detic_sam(
+        # object_id_to_img_detections = _query_detic_sam(
+        object_id_to_img_detections = detect_objects_from_language(
             object_ids, rgbd_images)  # type: ignore
         # This ^ is currently a mapping of object_id -> camera_name ->
         # SegmentedBoundingBox.
