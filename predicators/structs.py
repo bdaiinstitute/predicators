@@ -124,33 +124,10 @@ class State:
     # this field is provided.
     simulator_state: Optional[Any] = None
 
-    # Store additional fields for VLM predicate classifiers
-    # NOTE: adding in Spot subclass doesn't work; may need fix
-    vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None
-    vlm_predicates: Optional[Collection[Predicate]] = None
-    visible_objects: Optional[Any] = None
-    # This is directly copied from the images in raw Observation
-    camera_images: Optional[Dict[str, Any]] = None
-    # Store history of camera images from previous steps
-    camera_images_history: Optional[List[Dict[str, Any]]] = None
-    # Store history of actions from previous steps
-    action_history: Optional[List[Action]] = None
-
-    # Add storage for ground truth predicate values
-    non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
-
-    # Store natural language description of the state from VLM
-    text_description: Optional[str] = None
-
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
             assert len(self[obj]) == obj.type.dim
-        # Initialize empty history if not provided
-        if self.camera_images_history is None:
-            self.camera_images_history = []
-        if self.action_history is None:
-            self.action_history = []
 
     def __iter__(self) -> Iterator[Object]:
         """An iterator over the state's objects, in sorted order."""
@@ -191,16 +168,7 @@ class State:
         new_data = {}
         for obj in self:
             new_data[obj] = self._copy_state_value(self.data[obj])
-        return State(new_data,
-                     simulator_state=copy.deepcopy(self.simulator_state),
-                     vlm_atom_dict=copy.deepcopy(self.vlm_atom_dict),
-                     vlm_predicates=copy.deepcopy(self.vlm_predicates),
-                     visible_objects=copy.deepcopy(self.visible_objects),
-                     camera_images=copy.deepcopy(self.camera_images),
-                     camera_images_history=copy.deepcopy(self.camera_images_history),
-                     action_history=copy.deepcopy(self.action_history),
-                     non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
-                     text_description=self.text_description)
+        return State(new_data, simulator_state=copy.deepcopy(self.simulator_state))
 
     def _copy_state_value(self, val: Any) -> Any:
         if val is None or isinstance(val, (float, bool, int, str)):
@@ -277,6 +245,53 @@ class State:
                 dict_str += spaces + f" '{key}': {{{value_str}}},\n"
         dict_str += "}"
         return dict_str
+
+
+@dataclass
+class AugmentedState(State):
+    """Augmented state with additional fields for VLM and robot perception."""
+    # Store additional fields for VLM predicate classifiers
+    vlm_atom_dict: Optional[Dict[VLMGroundAtom, Optional[bool]]] = None
+    vlm_predicates: Optional[Collection[Predicate]] = None
+    visible_objects: Optional[Any] = None
+    # This is directly copied from the images in raw Observation
+    camera_images: Optional[Dict[str, Any]] = None
+    # Store history of camera images from previous steps
+    camera_images_history: Optional[List[Dict[str, Any]]] = None
+    # Store history of actions from previous steps
+    action_history: Optional[List[Action]] = None
+    # Add storage for ground truth predicate values
+    non_vlm_atom_dict: Optional[Dict[GroundAtom, Optional[bool]]] = None
+    # Store natural language description of the state from VLM
+    text_description: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        # Call parent's post_init to check feature vector dimensions
+        super().__post_init__()
+        
+        # Initialize empty history if not provided
+        if self.camera_images_history is None:
+            self.camera_images_history = []
+        if self.action_history is None:
+            self.action_history = []
+
+    def copy(self) -> AugmentedState:
+        """Return a copy of this augmented state."""
+        new_data = {}
+        for obj in self:
+            new_data[obj] = self._copy_state_value(self.data[obj])
+        return AugmentedState(
+            new_data,
+            simulator_state=copy.deepcopy(self.simulator_state),
+            vlm_atom_dict=copy.deepcopy(self.vlm_atom_dict),
+            vlm_predicates=copy.deepcopy(self.vlm_predicates),
+            visible_objects=copy.deepcopy(self.visible_objects),
+            camera_images=copy.deepcopy(self.camera_images),
+            camera_images_history=copy.deepcopy(self.camera_images_history),
+            action_history=copy.deepcopy(self.action_history),
+            non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
+            text_description=self.text_description
+        )
 
 
 DefaultState = State({})

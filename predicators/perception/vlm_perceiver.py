@@ -10,7 +10,7 @@ from predicators.perception.base_perceiver import BasePerceiver
 from predicators.pretrained_model_interface import create_vlm_by_name
 from predicators.settings import CFG
 from predicators.structs import EnvironmentTask, \
-    Observation, State, Task, Video, Action
+    Observation, State, Task, Video, Action, AugmentedState
 import PIL
 from predicators.envs.mock_spot_env import _MockSpotObservation
 
@@ -88,9 +88,9 @@ class VLMPerceiver(BasePerceiver):
         
         text_description = self._get_text_description(vlm_images)
             
-        return State({o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()}, 
-                     text_description=text_description,
+        return AugmentedState({o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()}, 
                      simulator_state=None,
+                     text_description=text_description,
                      camera_images=obs.images,
                      camera_images_history=self._camera_images_history,
                      action_history=self._action_history)

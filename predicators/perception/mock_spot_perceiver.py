@@ -44,7 +44,8 @@ import numpy as np
 
 from predicators.spot_utils.perception.object_perception import get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.perception.base_perceiver import BasePerceiver
-from predicators.structs import Action, EnvironmentTask, GroundAtom, Observation, State, Task, VLMPredicate, VLMGroundAtom, Object, Video
+from predicators.structs import (State, Task, GroundAtom, Object, Video,
+                           EnvironmentTask, Type, Observation, AugmentedState, VLMPredicate, VLMGroundAtom, Action)
 from predicators.settings import CFG
 from predicators.envs.mock_spot_env import _MockSpotObservation
 from predicators.envs.spot_env import _robot_type
@@ -273,7 +274,7 @@ class MockSpotPerceiver(BasePerceiver):
 
         # Create state with all atoms
         # NOTE: We use the object_dict from the observation to populate objects in data for planner
-        state = State(
+        state = AugmentedState(
             data={o: np.zeros(o.type.dim) + 0.5 for o in obs.object_dict.values()},  # type: ignore
             simulator_state=None,
             camera_images=self._camera_images,
