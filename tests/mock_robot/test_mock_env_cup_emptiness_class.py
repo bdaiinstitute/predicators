@@ -66,7 +66,7 @@ if __name__ == '__main__':
     creator = MockEnvCreatorBase(test_dir, env=env)
     
     # Plan and visualize transitions
-    name = "cup_emptiness_transition_graph"
+    name = f'Transition Graph, {test_name.replace("_", " ").title()}'
     logging.info(f"Planning and visualizing transitions with name: {name}")
     
     creator.plan_and_visualize(env.initial_atoms, env.goal_atoms_or, env.objects, task_name=name)

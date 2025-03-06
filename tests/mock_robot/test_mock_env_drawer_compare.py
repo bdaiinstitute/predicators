@@ -129,20 +129,21 @@ def test_drawer_manipulation_no_uncertainty():
     # Create environment
     env = MockSpotEnv()
     
-    # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts
-    })
-    
     # Create test objects
     robot = Object("robot", _robot_type)
     drawer = Object("drawer", _container_type)
     table = Object("table", _immovable_object_type)
     apple = Object("apple", _movable_object_type)  # Changed to movable_object_type
     objects = {robot, drawer, table, apple}
+    
+    # Create environment creator
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts,
+        "objects": objects
+    })
     
     # Create initial state atoms
     initial_atoms = {
@@ -255,19 +256,20 @@ def test_drawer_observation_phase():
     # Create environment
     env = MockSpotEnv()
     
-    # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts
-    })
-    
     # Create test objects
     robot = Object("robot", _robot_type)
     drawer = Object("drawer", _container_type)
     table = Object("table", _immovable_object_type)
     objects = {robot, drawer, table}
+    
+    # Create environment creator
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts,
+        "objects": objects
+    })
     
     # Create initial state atoms
     initial_atoms = {
@@ -352,20 +354,21 @@ def test_drawer_manipulation_after_observation():
     # Create environment
     env = MockSpotEnv()
     
-    # Create environment creator
-    env_creator = ManualMockEnvCreator(test_dir, env_info={
-        "types": env.types,
-        "predicates": env.predicates,
-        "options": env.options,
-        "nsrts": env.nsrts
-    })
-    
     # Create test objects
     robot = Object("robot", _robot_type)
     drawer = Object("drawer", _container_type)
     table = Object("table", _immovable_object_type)
     apple = Object("apple", _movable_object_type)  # Changed to movable_object_type
     objects = {robot, drawer, table, apple}
+    
+    # Create environment creator
+    env_creator = ManualMockEnvCreator(test_dir, env_info={
+        "types": env.types,
+        "predicates": env.predicates,
+        "options": env.options,
+        "nsrts": env.nsrts,
+        "objects": objects
+    })
     
     # Create initial state atoms
     initial_atoms = {
