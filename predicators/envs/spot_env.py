@@ -84,6 +84,9 @@ class _SpotObservation:
     # A placeholder until all predicates have classifiers
     nonpercept_atoms: Set[GroundAtom]
     nonpercept_predicates: Set[Predicate]
+    # Object detections per camera in self.images.
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
+                                                       SegmentedBoundingBox]]]
 
 
 @dataclass(frozen=True)
@@ -2451,9 +2454,9 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
     invention and evaluation pipeline on the real Spot robot.
 
     Importantly note that every env that inherits from this doesn't
-    require a map. Rather, it just works directly without a map. This means
-    that we don't get to use all the nice navigation skills that we have
-    on the robot. To use those, we need to use a variant of the 
+    require a map. Rather, it just works directly without a map. This
+    means that we don't get to use all the nice navigation skills that
+    we have on the robot. To use those, we need to use a variant of the
     SpotRearrangementEnv from above.
     """
 
@@ -3602,10 +3605,10 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
 #                             LIS Spot Test VLM Env                           #
 ###############################################################################
 
+
 class VLMCupEnv(SpotRearrangementEnv):
-    """A version of the SimpleVLMCupEnv, but with actual skills that
-    the robot can execute instead of relying on teleop.
-    """
+    """A version of the SimpleVLMCupEnv, but with actual skills that the robot
+    can execute instead of relying on teleop."""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
@@ -3641,14 +3644,15 @@ class VLMCupEnv(SpotRearrangementEnv):
             LiftedAtom(_Holding, [robot, held]),
         }
         ignore_effs = set()
-        self._strips_operators.add(STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
-                            del_effs, ignore_effs))
+        self._strips_operators.add(
+            STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
 
     @property
     def predicates(self) -> Set[Predicate]:
         return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
                    ["Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn"])
-    
+
     @property
     def goal_predicates(self) -> Set[Predicate]:
         return self.predicates
@@ -3659,15 +3663,20 @@ class VLMCupEnv(SpotRearrangementEnv):
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
-
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         objects = {
             Object("yellow_toy_cup", _movable_object_type),
-            Object("cardboard_table", _immovable_object_type),
+            Object("small_cardboard_box_with_black_tape",
+                   _immovable_object_type),
         }
         for o in objects:
             detection_id = LanguageObjectDetectionID(o.name)
             detection_id_to_obj[detection_id] = o
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:

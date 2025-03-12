@@ -27,7 +27,54 @@ from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
 
+# Helper functions.
+CAMERA_NAME_TO_ANNOTATIONå = {
+    'hand_color_image': "Hand Camera Image",
+    'back_fisheye_image': "Back Camera Image",
+    'frontleft_fisheye_image': "Front Left Camera Image",
+    'frontright_fisheye_image': "Front Right Camera Image",
+    'left_fisheye_image': "Left Camera Image",
+    'right_fisheye_image': "Right Camera Image"
+}
 
+
+def annotate_imgs_with_detections(
+        img_objects, object_detections_per_camera) -> List[PIL.Image.Image]:
+    img_names = [v.camera_name for _, v in img_objects.items()]
+    imgs = [v.rotated_rgb for _, v in img_objects.items()]
+    pil_imgs = [PIL.Image.fromarray(img) for img in imgs]  # type: ignore
+    # Annotate images with detected objects (names + bounding box)
+    # and camera name.
+    for i, camera_name in enumerate(img_names):
+        draw = ImageDraw.Draw(pil_imgs[i])
+        # Annotate with camera name.
+        font = utils.get_scaled_default_font(draw, 4)
+        _ = utils.add_text_to_draw_img(draw, (0, 0),
+                                       CAMERA_NAME_TO_ANNOTATIONå[camera_name],
+                                       font)
+        # Annotate with object detections.
+        detections = object_detections_per_camera[camera_name]
+        for obj_id, seg_bb in detections:
+            x0, y0, x1, y1 = seg_bb.bounding_box
+            x0, x1 = sorted([x0, x1])
+            y0, y1 = sorted([y0, y1])
+            draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+            text = f"{obj_id.language_id}"
+            font = utils.get_scaled_default_font(draw, 3)
+            text_mask = font.getmask(text)  # type: ignore
+            text_width, text_height = text_mask.size
+            text_bbox = [(x0, y0 - 1.5 * text_height),
+                         (x0 + text_width + 1, y0)]
+            draw.rectangle(text_bbox, fill='green')
+            draw.text((x0 + 1, y0 - 1.5 * text_height),
+                      text,
+                      fill='white',
+                      font=font)
+    annotated_imgs = list(pil_imgs)
+    return annotated_imgs
+
+
+# Main perceiver classes.
 class SpotPerceiver(BasePerceiver):
     """A perceiver specific to spot envs."""
 
@@ -57,6 +104,12 @@ class SpotPerceiver(BasePerceiver):
         # Load static, hard-coded features of objects, like their shapes.
         meta = load_spot_metadata()
         self._static_object_features = meta.get("static-object-features", {})
+        # Histories and other artefacts (for VLM labelling).
+        self._curr_state: Optional[State] = None
+        self._curr_annotated_imgs: List[PIL.Image.Image] = []
+        self._state_history: List[State] = []
+        self._executed_skill_history: List[Optional[_Option]] = []
+        self._vlm_label_history: List[str] = []
 
     @classmethod
     def get_name(cls) -> str:
@@ -85,6 +138,14 @@ class SpotPerceiver(BasePerceiver):
         self._prev_action = None  # already processed at the end of the cycle
         init_state = self._create_state()
         goal = self._create_goal(init_state, env_task.goal_description)
+
+        # Reset run-specific things.
+        self._curr_state = None
+        self._state_history = []
+        self._executed_skill_history = []
+        self._vlm_label_history = []
+        self._prev_action = None
+
         return Task(init_state, goal)
 
     def update_perceiver_with_action(self, action: Action) -> None:
@@ -166,7 +227,6 @@ class SpotPerceiver(BasePerceiver):
                         logging.info("[Perceiver] An object was lost: "
                                      f"{prev_held_object} was lost!")
                         self._lost_objects.add(prev_held_object)
-
         return self._create_state()
 
     def _update_state_from_observation(self, observation: Observation) -> None:
@@ -202,10 +262,14 @@ class SpotPerceiver(BasePerceiver):
         self._robot_pos = observation.robot_pos
         for obj in observation.objects_in_view:
             self._lost_objects.discard(obj)
+        self._curr_annotated_imgs = annotate_imgs_with_detections(
+            observation.images, observation.object_detections_per_camera)
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
+            self._curr_state = DefaultState
             return DefaultState
+        assert self._curr_state is not DefaultState
         # Build the continuous part of the state.
         assert self._robot is not None
         state_dict = {
@@ -284,10 +348,68 @@ class SpotPerceiver(BasePerceiver):
         # logging.info("Simulator state:")
         # logging.info(simulator_state)
 
+        # Add the images and histories into the simulator_state.
+        self._curr_state.simulator_state["images"] = self._curr_annotated_imgs
+        # At the first timestep, these histories will be empty due to
+        # self.reset(). But at every timestep that isn't the first one,
+        # they will be non-empty.
+        self._curr_state.simulator_state["state_history"] = list(
+            self._state_history)
+        # We do this here so the call to `utils.abstract()` a few lines later
+        # has the skill that was just run.
+        executed_skill = None
+
+        if self._prev_action is not None:
+            if self._prev_action.extra_info.action_name == "done":
+                # Just return the default state
+                return DefaultState
+            executed_skill = self._prev_action.get_option()
+        self._executed_skill_history.append(
+            executed_skill)  # None in first timestep.
+        self._curr_state.simulator_state["skill_history"] = list(
+            self._executed_skill_history)
+        self._curr_state.simulator_state["vlm_label_history"] = list(
+            self._vlm_label_history)
+
+        # Add to histories.
+        # A bit of extra work is required to build the VLM label history.
+        # We want to keep `utils.abstract()` as straightforward as possible,
+        # so we'll "rebuild" the VLM labels from the abstract state
+        # returned by `utils.abstract()`. And since we call this function,
+        # we might as well store the abstract state as a part of the simulator
+        # state so that we don't need to recompute it later in the approach or
+        # in planning.
+        assert self._curr_env is not None
+        preds = self._curr_env.predicates
+        state_copy = self._curr_state.copy()
+        abstract_state = utils.abstract(state_copy, preds)
+        self._curr_state.simulator_state["abstract_state"] = abstract_state
+        # Compute all the VLM atoms. `utils.abstract()` only returns the ones
+        # that are True. The remaining ones are the ones that are False.
+        vlm_preds = set(pred for pred in preds
+                        if isinstance(pred, VLMPredicate))
+        vlm_atoms = set()
+        for pred in vlm_preds:
+            for choice in utils.get_object_combinations(
+                    list(state_copy), pred.types):
+                vlm_atoms.add(GroundAtom(pred, choice))
+        vlm_atoms_list = sorted(vlm_atoms)
+        reconstructed_all_vlm_responses = []
+        for atom in vlm_atoms_list:
+            if atom in abstract_state:
+                truth_value = 'True'
+            else:
+                truth_value = 'False'
+            atom_label = f"* {atom.get_vlm_query_str()}: {truth_value}"
+            reconstructed_all_vlm_responses.append(atom_label)
+        str_vlm_response = '\n'.join(reconstructed_all_vlm_responses)
+        self._vlm_label_history.append(str_vlm_response)
+        self._state_history.append(self._curr_state.copy())
+
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state)
-
+        self._curr_state = state
         return state
 
     def _create_goal(self, state: State,
@@ -503,6 +625,17 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainerReadyForSweeping, [bucket, black_table]),
                 GroundAtom(IsSweeper, [brush])
             }
+        if goal_description == "get the cup onto the table!":
+            robot = Object("robot", _robot_type)
+            cup = Object("yellow_toy_cup", _movable_object_type)
+            table = Object("cardboard_table", _immovable_object_type)
+            HandEmpty = pred_name_to_pred["HandEmpty"]
+            VLMOn = pred_name_to_pred["VLMOn"]
+            goal = {
+                GroundAtom(HandEmpty, [robot]),
+                GroundAtom(VLMOn, [cup, table])
+            }
+            return goal
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,
@@ -589,15 +722,6 @@ class SpotMinimalPerceiver(BasePerceiver):
     Some code duplication w.r.t the above class, but not too much to do
     anything about.
     """
-
-    camera_name_to_annotation = {
-        'hand_color_image': "Hand Camera Image",
-        'back_fisheye_image': "Back Camera Image",
-        'frontleft_fisheye_image': "Front Left Camera Image",
-        'frontright_fisheye_image': "Front Right Camera Image",
-        'left_fisheye_image': "Left Camera Image",
-        'right_fisheye_image': "Right Camera Image"
-    }
 
     def render_mental_images(self, observation: Observation,
                              env_task: EnvironmentTask) -> Video:
@@ -689,39 +813,8 @@ class SpotMinimalPerceiver(BasePerceiver):
         self._waiting_for_observation = False
         self._robot = observation.robot
 
-        img_objects = observation.rgbd_images  # RGBDImage objects
-        img_names = [v.camera_name for _, v in img_objects.items()]
-        imgs = [v.rotated_rgb for _, v in img_objects.items()]
-        pil_imgs = [PIL.Image.fromarray(img) for img in imgs]  # type: ignore
-        # Annotate images with detected objects (names + bounding box)
-        # and camera name.
-        object_detections_per_camera = observation.object_detections_per_camera
-        for i, camera_name in enumerate(img_names):
-            draw = ImageDraw.Draw(pil_imgs[i])
-            # Annotate with camera name.
-            font = utils.get_scaled_default_font(draw, 4)
-            _ = utils.add_text_to_draw_img(
-                draw, (0, 0), self.camera_name_to_annotation[camera_name],
-                font)
-            # Annotate with object detections.
-            detections = object_detections_per_camera[camera_name]
-            for obj_id, seg_bb in detections:
-                x0, y0, x1, y1 = seg_bb.bounding_box
-                x0, x1 = sorted([x0, x1])
-                y0, y1 = sorted([y0, y1])
-                draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
-                text = f"{obj_id.language_id}"
-                font = utils.get_scaled_default_font(draw, 3)
-                text_mask = font.getmask(text)  # type: ignore
-                text_width, text_height = text_mask.size
-                text_bbox = [(x0, y0 - 1.5 * text_height),
-                             (x0 + text_width + 1, y0)]
-                draw.rectangle(text_bbox, fill='green')
-                draw.text((x0 + 1, y0 - 1.5 * text_height),
-                          text,
-                          fill='white',
-                          font=font)
-        annotated_imgs = list(pil_imgs)
+        annotated_imgs = annotate_imgs_with_detections(
+            observation.rgbd_images, observation.object_detections_per_camera)
         self._gripper_open_percentage = observation.gripper_open_percentage
 
         self._curr_state = self._create_state()
