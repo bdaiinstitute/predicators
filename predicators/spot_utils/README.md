@@ -25,7 +25,7 @@ python predicators/main.py --env <env_name> --approach "spot_wrapper[oracle]" --
 python predicators/main.py --spot_robot_ip 192.168.80.3 --spot_graph_nav_map b45-621 --env lis_spot_block_floor_env --approach spot_wrapper[oracle] --bilevel_plan_without_sim True --seed 0
 
 # an example to run LIS spot without a map
-python predicators/main.py --env spot_vlm_cup_table_env --approach "spot_wrapper[oracle]" --seed 0 --num_train_tasks 0 --num_test_tasks 1 --spot_robot_ip 192.168.80.3 --perceiver spot_minimal_perceiver --bilevel_plan_without_sim True --vlm_test_time_atom_label_prompt_type img_option_diffs_label_history --vlm_model_name gpt-4o --execution_monitor expected_atoms
+python predicators/main.py --env spot_vlm_simple_cup_table_env --approach "spot_wrapper[oracle]" --seed 0 --num_train_tasks 0 --num_test_tasks 1 --spot_robot_ip 192.168.80.3 --perceiver spot_minimal_perceiver --bilevel_plan_without_sim True --vlm_test_time_atom_label_prompt_type img_option_diffs_label_history --vlm_model_name gpt-4o --execution_monitor expected_atoms
 ```
 
 ### Implement Your Task

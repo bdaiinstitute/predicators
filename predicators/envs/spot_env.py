@@ -2444,7 +2444,7 @@ def _dry_simulate_pick_and_dump_container(
 
 
 ###############################################################################
-#                         VLM Generic Test Env                                #
+#                         VLM No Teleop Test Env                              #
 ###############################################################################
 class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
     """An abstract env that makes it easy to test the VLM-based predicate
@@ -2708,7 +2708,7 @@ class SimpleVLMCupEnv(SpotMinimalVLMPredicateEnv):
 
     @classmethod
     def get_name(cls) -> str:
-        return "spot_vlm_cup_table_env"
+        return "spot_vlm_simple_cup_table_env"
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
@@ -3592,6 +3592,86 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "pick up the red block"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#                             LIS Spot Test VLM Env                           #
+###############################################################################
+
+class VLMCupEnv(SpotRearrangementEnv):
+    """A version of the SimpleVLMCupEnv, but with actual skills that
+    the robot can execute instead of relying on teleop.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+        # We add in a place operator that uses VLMOn instead
+        # of the typical 'OnTop' predicate.
+        # PlaceObjectOnTop
+        robot = Variable("?robot", _robot_type)
+        held = Variable("?held", _movable_object_type)
+        surface = Variable("?surface", _immovable_object_type)
+        parameters = [robot, held, surface]
+        preconds = {
+            LiftedAtom(_Holding, [robot, held]),
+            LiftedAtom(_Reachable, [robot, surface]),
+            LiftedAtom(_NEq, [held, surface]),
+            LiftedAtom(_IsPlaceable, [held]),
+            LiftedAtom(_HasFlatTopSurface, [surface]),
+            LiftedAtom(_FitsInXY, [held, surface]),
+        }
+        add_effs = {
+            LiftedAtom(_VLMOn, [held, surface]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, held]),
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [robot, held]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
+                            del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
+                   ["Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn"])
+    
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_cup_table_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("yellow_toy_cup", _movable_object_type),
+            Object("cardboard_table", _immovable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "get the cup onto the table!"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
