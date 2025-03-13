@@ -239,11 +239,14 @@ def detect_objects_from_language(
                     if region.find_simplex(pose_xy).item() >= 0:
                         in_allowed_region = True
                         break
-                if not in_allowed_region:
-                    logging.info("WARNING: throwing away detection for " +\
-                                 f"{obj_id} because it's out of bounds. " + \
-                                 f"(pose = {pose_xy})")
-                    continue
+                # TODO: temporary disabled for testing outside the
+                # allowed region.
+                # if not in_allowed_region:
+                #     logging.info("WARNING: throwing away detection for " +\
+                #                  f"{obj_id} because it's out of bounds. " + \
+                #                  f"(pose = {pose_xy})")
+                #     continue
+
             # Pose extraction succeeded.
             detections[obj_id] = pose
             break

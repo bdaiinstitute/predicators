@@ -105,7 +105,8 @@ class SpotPerceiver(BasePerceiver):
         meta = load_spot_metadata()
         self._static_object_features = meta.get("static-object-features", {})
         # Histories and other artefacts (for VLM labelling).
-        self._curr_state: Optional[State] = None
+        self._curr_state: Optional[State] = DefaultState
+        self._curr_state.simulator_state = {}
         self._curr_annotated_imgs: List[PIL.Image.Image] = []
         self._state_history: List[State] = []
         self._executed_skill_history: List[Optional[_Option]] = []
@@ -140,7 +141,8 @@ class SpotPerceiver(BasePerceiver):
         goal = self._create_goal(init_state, env_task.goal_description)
 
         # Reset run-specific things.
-        self._curr_state = None
+        self._curr_state = DefaultState
+        self._curr_state.simulator_state = {}
         self._state_history = []
         self._executed_skill_history = []
         self._vlm_label_history = []
@@ -267,9 +269,8 @@ class SpotPerceiver(BasePerceiver):
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
-            self._curr_state = DefaultState
             return DefaultState
-        assert self._curr_state is not DefaultState
+        assert self._curr_state is not None
         # Build the continuous part of the state.
         assert self._robot is not None
         state_dict = {
@@ -349,12 +350,11 @@ class SpotPerceiver(BasePerceiver):
         # logging.info(simulator_state)
 
         # Add the images and histories into the simulator_state.
-        self._curr_state.simulator_state["images"] = self._curr_annotated_imgs
+        simulator_state["images"] = self._curr_annotated_imgs
         # At the first timestep, these histories will be empty due to
         # self.reset(). But at every timestep that isn't the first one,
         # they will be non-empty.
-        self._curr_state.simulator_state["state_history"] = list(
-            self._state_history)
+        simulator_state["state_history"] = list(self._state_history)
         # We do this here so the call to `utils.abstract()` a few lines later
         # has the skill that was just run.
         executed_skill = None
@@ -363,13 +363,12 @@ class SpotPerceiver(BasePerceiver):
             if self._prev_action.extra_info.action_name == "done":
                 # Just return the default state
                 return DefaultState
-            executed_skill = self._prev_action.get_option()
+            if self._prev_action.has_option():
+                executed_skill = self._prev_action.get_option()
         self._executed_skill_history.append(
             executed_skill)  # None in first timestep.
-        self._curr_state.simulator_state["skill_history"] = list(
-            self._executed_skill_history)
-        self._curr_state.simulator_state["vlm_label_history"] = list(
-            self._vlm_label_history)
+        simulator_state["skill_history"] = list(self._executed_skill_history)
+        simulator_state["vlm_label_history"] = list(self._vlm_label_history)
 
         # Add to histories.
         # A bit of extra work is required to build the VLM label history.
@@ -381,9 +380,10 @@ class SpotPerceiver(BasePerceiver):
         # in planning.
         assert self._curr_env is not None
         preds = self._curr_env.predicates
-        state_copy = self._curr_state.copy()
+        state_copy = percept_state.copy()
+        state_copy.simulator_state = simulator_state
         abstract_state = utils.abstract(state_copy, preds)
-        self._curr_state.simulator_state["abstract_state"] = abstract_state
+        simulator_state["abstract_state"] = abstract_state
         # Compute all the VLM atoms. `utils.abstract()` only returns the ones
         # that are True. The remaining ones are the ones that are False.
         vlm_preds = set(pred for pred in preds
@@ -404,12 +404,12 @@ class SpotPerceiver(BasePerceiver):
             reconstructed_all_vlm_responses.append(atom_label)
         str_vlm_response = '\n'.join(reconstructed_all_vlm_responses)
         self._vlm_label_history.append(str_vlm_response)
-        self._state_history.append(self._curr_state.copy())
 
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state)
         self._curr_state = state
+        self._state_history.append(self._curr_state.copy())
         return state
 
     def _create_goal(self, state: State,
@@ -628,7 +628,8 @@ class SpotPerceiver(BasePerceiver):
         if goal_description == "get the cup onto the table!":
             robot = Object("robot", _robot_type)
             cup = Object("yellow_toy_cup", _movable_object_type)
-            table = Object("cardboard_table", _immovable_object_type)
+            table = Object("small_cardboard_box_with_black_tape",
+                           _immovable_object_type)
             HandEmpty = pred_name_to_pred["HandEmpty"]
             VLMOn = pred_name_to_pred["VLMOn"]
             goal = {

@@ -1197,7 +1197,6 @@ def run_task_plan_once(
     init_atoms = utils.abstract(task.init, preds)
     goal = task.goal
     objects = set(task.init)
-
     start_time = time.perf_counter()
 
     if CFG.sesame_task_planner == "astar":

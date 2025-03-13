@@ -6,7 +6,7 @@ import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
+from typing import Any, Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
 
 import matplotlib
@@ -143,10 +143,7 @@ class _PartialPerceptionState(State):
 
     def copy(self) -> State:
         state_copy = {o: self._copy_state_value(self.data[o]) for o in self}
-        sim_state_copy = {
-            "predicates": self._simulator_state_predicates.copy(),
-            "atoms": self._simulator_state_atoms.copy()
-        }
+        sim_state_copy = self.simulator_state.copy()
         return _PartialPerceptionState(state_copy,
                                        simulator_state=sim_state_copy)
 
@@ -761,7 +758,18 @@ class SpotRearrangementEnv(BaseEnv):
                                 break
                             if response == "n":
                                 break
-
+        # Construct the detections per camera.
+        obj_detections_per_camera: Dict[str,
+                                        List[Tuple[ObjectDetectionID,
+                                                   SegmentedBoundingBox]]] = {
+                                                       k: []
+                                                       for k in rgbds.keys()
+                                                   }
+        for object_id, d in all_artifacts['language'][
+                'object_id_to_img_detections'].items():
+            for camera_name, seg_bb in d.items():
+                obj_detections_per_camera[camera_name].append(
+                    (object_id, seg_bb))
         # Prepare the non-percepts.
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in ground_atoms)
@@ -769,7 +777,8 @@ class SpotRearrangementEnv(BaseEnv):
                                objects_in_hand_view,
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, ground_atoms, nonpercept_preds)
+                               robot_pos, ground_atoms, nonpercept_preds,
+                               obj_detections_per_camera)
 
         return obs
 
@@ -860,7 +869,8 @@ class SpotRearrangementEnv(BaseEnv):
         # an initial observation.
         assert self._robot is not None
         assert self._localizer is not None
-        objects_in_view = self._actively_construct_initial_object_views()
+        objects_in_view, artifacts = self._actively_construct_initial_object_views(
+        )
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -869,9 +879,20 @@ class SpotRearrangementEnv(BaseEnv):
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
+        # Construct the detections per camera.
+        obj_detections_per_camera: Dict[str, List[Tuple[
+            ObjectDetectionID,
+            SegmentedBoundingBox]]] = {k: []
+                                       for k in rgbd_images.keys()}
+        for object_id, d in artifacts['language'][
+                'object_id_to_img_detections'].items():
+            for camera_name, seg_bb in d.items():
+                obj_detections_per_camera[camera_name].append(
+                    (object_id, seg_bb))
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, nonpercept_atoms, nonpercept_preds)
+                               robot_pos, nonpercept_atoms, nonpercept_preds,
+                               obj_detections_per_camera)
         goal_description = self._generate_goal_description()
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
@@ -988,41 +1009,34 @@ class SpotRearrangementEnv(BaseEnv):
         # Prepare the non-percepts.
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
-        init_obs = _SpotObservation(
-            images,
-            objects_in_view,
-            set(),
-            set(),
-            robot,
-            gripper_open_percentage,
-            robot_pos,
-            nonpercept_atoms,
-            nonpercept_preds,
-        )
+        init_obs = _SpotObservation(images, objects_in_view, set(), set(),
+                                    robot, gripper_open_percentage, robot_pos,
+                                    nonpercept_atoms, nonpercept_preds, {})
         # The goal can remain the same.
         goal = base_env_task.goal_description
         return EnvironmentTask(init_obs, goal)
 
     def _actively_construct_initial_object_views(
-            self) -> Dict[Object, math_helpers.SE3Pose]:
+            self) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[str, Any]]:
         assert self._robot is not None
         assert self._localizer is not None
         stow_arm(self._robot)
-        go_home(self._robot, self._localizer)
+        # go_home(self._robot, self._localizer)
         self._localizer.localize()
         detection_ids = self._detection_id_to_obj.keys()
-        detections = self._run_init_search_for_objects(set(detection_ids))
+        detections, artifacts = self._run_init_search_for_objects(
+            set(detection_ids))
         stow_arm(self._robot)
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
         }
         self._last_known_object_poses.update(obj_to_se3_pose)
-        return obj_to_se3_pose
+        return obj_to_se3_pose, artifacts
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
-    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+    ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
         """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
@@ -1044,7 +1058,7 @@ class SpotRearrangementEnv(BaseEnv):
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             visualize_all_artifacts(artifacts, detections_outfile,
                                     no_detections_outfile)
-        return detections
+        return detections, artifacts
 
     @property
     @abc.abstractmethod
@@ -1999,7 +2013,7 @@ def _dry_simulate_move_to_view_hand(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2031,7 +2045,7 @@ def _dry_simulate_move_to_reach_obj(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2069,7 +2083,7 @@ def _dry_simulate_pick_from_top(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2141,7 +2155,7 @@ def _dry_simulate_place_on_top(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2185,7 +2199,7 @@ def _dry_simulate_drop_inside(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2232,7 +2246,7 @@ def _dry_simulate_drag(last_obs: _SpotObservation, held_obj: Object,
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2287,7 +2301,7 @@ def _dry_simulate_prepare_container_for_sweeping(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2365,7 +2379,7 @@ def _dry_simulate_sweep_into_container(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2391,7 +2405,7 @@ def _dry_simulate_drop_not_placeable_object(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
 
 
@@ -2413,7 +2427,7 @@ def _dry_simulate_noop(last_obs: _SpotObservation,
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
 
 
@@ -2442,7 +2456,7 @@ def _dry_simulate_pick_and_dump_container(
         robot_pos=obs.robot_pos,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
 
 
@@ -3001,7 +3015,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             robot_pos=robot_pose,
             nonpercept_atoms=self._get_initial_nonpercept_atoms(),
             nonpercept_predicates=(self.predicates - self.percept_predicates),
-        )
+            object_detections_per_camera={})
 
         # Finish the task.
         goal_description = self._generate_goal_description()
@@ -3425,7 +3439,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             robot_pos=robot_pose,
             nonpercept_atoms=self._get_initial_nonpercept_atoms(),
             nonpercept_predicates=(self.predicates - self.percept_predicates),
-        )
+            object_detections_per_camera={})
 
         # Finish the task.
         goal_description = self._generate_goal_description()
@@ -3650,8 +3664,10 @@ class VLMCupEnv(SpotRearrangementEnv):
 
     @property
     def predicates(self) -> Set[Predicate]:
-        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
-                   ["Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn"])
+        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn",
+            "Reachable", "InHandView", "InView"
+        ])
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
