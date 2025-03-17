@@ -214,8 +214,8 @@ class BaseEnv(abc.ABC):
         # make this assumption about goal descriptions in general.
         goal = self._current_task.goal_description
 
+        # TODO: make the check more robust; maybe create separate types
         if isinstance(goal, set):
-            # FIXME: a hack to fix to work
             return all(goal_atom.holds(self._current_state) for goal_atom in goal)
         elif isinstance(goal, list):
             # Each element in the list is a set of atoms
