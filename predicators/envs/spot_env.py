@@ -358,12 +358,11 @@ class SpotRearrangementEnv(BaseEnv):
 
     @property
     def vlm_predicates(self) -> Set[VLMPredicate]:
+        """Get VLM predicates based on config."""
         if CFG.spot_vlm_eval_predicate:
             # Only select active VLM predicates
-            vlm_predicates = _VLM_CLASSIFIER_PREDICATES & self.active_predicates
-        else:
-            vlm_predicates = set()
-        return vlm_predicates
+            return _VLM_CLASSIFIER_PREDICATES & self.active_predicates
+        return set()
 
     @property
     def percept_predicates(self) -> Set[Predicate]:
@@ -1700,6 +1699,34 @@ if tmp_vlm_flag:
         parent=_immovable_object_type
     )
 
+# FIXME: this is a hack to use VLM predicates; check and fix!
+# Updated code that properly uses CFG with fallback in case of initialization issues
+use_vlm = getattr(CFG, "spot_vlm_eval_predicate", True)
+
+# Only define these types if VLM predicates are enabled
+if use_vlm:
+    # Define door type
+    _door_type = Type(
+        "door",
+        list(_base_object_type.feature_names) +
+        ["is_open", "in_hand_view"],
+        parent=_immovable_object_type
+    )
+
+# Use a safer approach to access the configuration flag
+# This handles cases where CFG might not be fully initialized yet
+use_vlm = getattr(CFG, "spot_vlm_eval_predicate", True)
+
+# Only define these types if VLM predicates are enabled
+if use_vlm:
+    # Define door type
+    _door_type = Type(
+        "door",
+        list(_base_object_type.feature_names) +
+        ["is_open", "in_hand_view"],
+        parent=_immovable_object_type
+    )
+
     # Define VLM predicates
     _On = VLMPredicate(
         "On", [_movable_object_type, _base_object_type],
@@ -1863,6 +1890,27 @@ _VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = {
     p for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)
 }
 
+# Define a function to get VLM predicates similar to mock_env_utils.py
+def get_vlm_predicates() -> Set[VLMPredicate]:
+    """Get VLM predicates for spot environment."""
+    # Filter VLM predicates from all predicates
+    return {p for p in _ALL_PREDICATES if isinstance(p, VLMPredicate)}
+
+# Define VLM classifier predicates - use function instead of direct assignment
+_VLM_CLASSIFIER_PREDICATES: Set[VLMPredicate] = get_vlm_predicates()
+
+# Ensure VLM predicates are exported correctly
+def get_all_predicates() -> Set[Predicate]:
+    """Get all predicates based on config."""
+    if CFG.spot_vlm_eval_predicate:
+        # Filter out non-VLM counterparts of VLM predicates
+        vlm_names = {pred.name for pred in _VLM_CLASSIFIER_PREDICATES}
+        non_vlm_preds = {pred for pred in _ALL_PREDICATES if pred.name not in vlm_names}
+        return non_vlm_preds | _VLM_CLASSIFIER_PREDICATES
+    return _ALL_PREDICATES
+
+# Make predicates with VLM available for other modules
+PREDICATES_WITH_VLM = get_all_predicates() if CFG.spot_vlm_eval_predicate else None
 
 ## Operators (needed in the environment for non-percept atom hack)
 def _create_operators() -> Iterator[STRIPSOperator]:
@@ -1895,53 +1943,6 @@ def _create_operators() -> Iterator[STRIPSOperator]:
     ignore_effs = {_Reachable, _InHandView, _InView, _RobotReadyForSweeping}
     yield STRIPSOperator("MoveToHandViewObject", parameters, preconds,
                          add_effs, del_effs, ignore_effs)
-
-    # # MoveToHandObserveObjectFromTop
-    # robot = Variable("?robot", _robot_type)
-    # obj = Variable("?object", _movable_object_type)
-    # parameters = [robot, obj]
-    # preconds = {
-    #     LiftedAtom(_NotBlocked, [obj]),
-    #     LiftedAtom(_HandEmpty, [robot])
-    # }
-    # add_effs = {
-    #     LiftedAtom(_InHandViewFromTop, [robot, obj]),
-    #     # This is precondition for pick, so necessary
-    #     # This can be viewed as derived from InHandViewFromTop
-    #     LiftedAtom(_InHandView, [robot, obj]),
-    # }
-    # del_effs = set()
-    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    # yield STRIPSOperator("MoveToHandObserveObjectFromTop", parameters, preconds,
-    #                      add_effs, del_effs, ignore_effs)
-
-    # # ObserveFromTop
-    # robot = Variable("?robot", _robot_type)
-    # cup = Variable("?cup", _container_type)  # TODO update
-    # # cup = Variable("?cup", _movable_object_type)  # TODO update
-    # surface = Variable("?surface", _immovable_object_type)
-    # parameters = [robot, cup, surface]
-    # preconds = {
-    #     LiftedAtom(_On, [cup, surface]),
-    #     LiftedAtom(_InHandViewFromTop, [robot, cup]),  # TODO comment
-    #     LiftedAtom(_HandEmpty, [robot]),
-    #     LiftedAtom(_NotHolding, [robot, cup]),
-    #     LiftedAtom(_Unknown_ContainingWater, [cup]),
-    # }
-    # # NOTE: Determinized effect: both Containing and NotContaining
-    # # The belief state will be updated after execution
-    # add_effs = {
-    #     LiftedAtom(_Known_ContainingWater, [cup]),
-    #     LiftedAtom(_BelieveTrue_ContainingWater, [cup]),
-    #     LiftedAtom(_BelieveFalse_ContainingWater, [cup])
-    # }
-    # del_effs = {
-    #     LiftedAtom(_Unknown_ContainingWater, [cup])
-    # }
-    # # TODO check ignore effs
-    # ignore_effs = {_Reachable, _InHandViewFromTop, _InView, _RobotReadyForSweeping}
-    # ignore_effs = set()
-    # yield STRIPSOperator("ObserveFromTop", parameters, preconds, add_effs, del_effs, ignore_effs)
 
     # MoveToBodyViewObject
     robot = Variable("?robot", _robot_type)
