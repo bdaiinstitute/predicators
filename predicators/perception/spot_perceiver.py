@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import imageio.v2 as iio
 import numpy as np
@@ -15,8 +15,10 @@ from PIL import ImageDraw
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
-    SpotCubeEnv, SpotRearrangementEnv, _drafting_table_type, \
-    _PartialPerceptionState, _SpotObservation, in_general_view_classifier
+    LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext, \
+    SegmentedBoundingBox, SpotCubeEnv, SpotRearrangementEnv, \
+    _drafting_table_type, _PartialPerceptionState, _SpotObservation, \
+    in_general_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
@@ -39,7 +41,12 @@ CAMERA_NAME_TO_ANNOTATIONå = {
 
 
 def annotate_imgs_with_detections(
-        img_objects, object_detections_per_camera) -> List[PIL.Image.Image]:
+    img_objects: Dict[str, RGBDImageWithContext],
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
+                                                       SegmentedBoundingBox]]]
+) -> List[PIL.Image.Image]:
+    """Annotate images via editing the pixesl directly to include object
+    detection bounding boxes and camera names."""
     img_names = [v.camera_name for _, v in img_objects.items()]
     imgs = [v.rotated_rgb for _, v in img_objects.items()]
     pil_imgs = [PIL.Image.fromarray(img) for img in imgs]  # type: ignore
@@ -55,21 +62,22 @@ def annotate_imgs_with_detections(
         # Annotate with object detections.
         detections = object_detections_per_camera[camera_name]
         for obj_id, seg_bb in detections:
-            x0, y0, x1, y1 = seg_bb.bounding_box
-            x0, x1 = sorted([x0, x1])
-            y0, y1 = sorted([y0, y1])
-            draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
-            text = f"{obj_id.language_id}"
-            font = utils.get_scaled_default_font(draw, 3)
-            text_mask = font.getmask(text)  # type: ignore
-            text_width, text_height = text_mask.size
-            text_bbox = [(x0, y0 - 1.5 * text_height),
-                         (x0 + text_width + 1, y0)]
-            draw.rectangle(text_bbox, fill='green')
-            draw.text((x0 + 1, y0 - 1.5 * text_height),
-                      text,
-                      fill='white',
-                      font=font)
+            if isinstance(obj_id, LanguageObjectDetectionID):
+                x0, y0, x1, y1 = seg_bb.bounding_box
+                x0, x1 = sorted([x0, x1])
+                y0, y1 = sorted([y0, y1])
+                draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+                text = f"{obj_id.language_id}"
+                font = utils.get_scaled_default_font(draw, 3)
+                text_mask = font.getmask(text)  # type: ignore
+                text_width, text_height = text_mask.size
+                text_bbox = [(x0, y0 - 1.5 * text_height),
+                             (x0 + text_width + 1, y0)]
+                draw.rectangle(text_bbox, fill='green')
+                draw.text((x0 + 1, y0 - 1.5 * text_height),
+                          text,
+                          fill='white',
+                          font=font)
     annotated_imgs = list(pil_imgs)
     return annotated_imgs
 
@@ -360,6 +368,7 @@ class SpotPerceiver(BasePerceiver):
         executed_skill = None
 
         if self._prev_action is not None:
+            assert self._prev_action.extra_info is not None
             if self._prev_action.extra_info.action_name == "done":
                 # Just return the default state
                 return DefaultState

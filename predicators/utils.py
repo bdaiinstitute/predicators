@@ -2665,11 +2665,7 @@ def query_vlm_for_atom_vals(
         for i, (atom_query,
                 pred_label) in enumerate(zip(atom_queries_list, truth_values)):
             pred, label = pred_label
-            try:
-                assert pred in atom_query
-            except AssertionError:
-                import ipdb
-                ipdb.set_trace()
+            assert pred in atom_query
             label = label.lower()
             if label.lower() == "true":
                 true_atoms.add(vlm_atoms[i])

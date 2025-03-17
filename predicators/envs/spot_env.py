@@ -143,7 +143,8 @@ class _PartialPerceptionState(State):
 
     def copy(self) -> State:
         state_copy = {o: self._copy_state_value(self.data[o]) for o in self}
-        sim_state_copy = self.simulator_state.copy()
+        if self.simulator_state is not None:
+            sim_state_copy = self.simulator_state.copy()
         return _PartialPerceptionState(state_copy,
                                        simulator_state=sim_state_copy)
 
@@ -3657,7 +3658,7 @@ class VLMCupEnv(SpotRearrangementEnv):
         del_effs = {
             LiftedAtom(_Holding, [robot, held]),
         }
-        ignore_effs = set()
+        ignore_effs: Set[Predicate] = set()
         self._strips_operators.add(
             STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
@@ -3690,8 +3691,8 @@ class VLMCupEnv(SpotRearrangementEnv):
             detection_id_to_obj[detection_id] = o
 
         for obj, pose in get_known_immovable_objects().items():
-            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
-            detection_id_to_obj[detection_id] = obj
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[stat_detection_id] = obj
 
         return detection_id_to_obj
 
