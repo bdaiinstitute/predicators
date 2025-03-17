@@ -1501,6 +1501,18 @@ def _get_vlm_query_str(pred_name: str, objects: Sequence[Object]) -> str:
 _VLMOn = utils.create_vlm_predicate("VLMOn",
                                     [_movable_object_type, _base_object_type],
                                     lambda o: _get_vlm_query_str("OnTopOf", o))
+_TableClear = utils.create_vlm_predicate(
+    "TableClear", [_base_object_type],
+    lambda o: _get_vlm_query_str("ClearOfObjects", o))
+_CanBeUsedForErasing = utils.create_vlm_predicate(
+    "CanBeUsedForErasing", [_base_object_type],
+    lambda o: _get_vlm_query_str("CanBeUsedForErasing", o))
+_TableWiped = utils.create_vlm_predicate(
+    "TableWiped", [_base_object_type],
+    lambda o: _get_vlm_query_str("WipedOfMarkerScribbles", o))
+_TableClean = utils.create_vlm_predicate(
+    "TableClean", [_base_object_type],
+    lambda o: _get_vlm_query_str("CleanOfObjectsAndMarkings", o))
 _Upright = utils.create_vlm_predicate(
     "Upright", [_movable_object_type],
     lambda o: _get_vlm_query_str("Upright", o))
@@ -1509,7 +1521,7 @@ _Toasted = utils.create_vlm_predicate(
     lambda o: _get_vlm_query_str("Toasted", o))
 _VLMIn = utils.create_vlm_predicate(
     "VLMIn", [_movable_object_type, _immovable_object_type],
-    lambda o: _get_vlm_query_str("In", o))
+    lambda o: _get_vlm_query_str("Inside", o))
 _Open = utils.create_vlm_predicate("Open", [_movable_object_type],
                                    lambda o: _get_vlm_query_str("Open", o))
 _Stained = utils.create_vlm_predicate(
@@ -1531,8 +1543,12 @@ _ALL_PREDICATES = {
 }
 _VLM_PREDICATES = {
     _VLMOn,
+    _TableClear,
+    _TableWiped,
+    _TableClean,
     _Upright,
     _Toasted,
+    _CanBeUsedForErasing,
     _VLMIn,
     _Open,
     _Stained,
@@ -2488,7 +2504,10 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
         self._last_action: Optional[Action] = None
         # Create constant objects.
         self._spot_object = Object("robot", _robot_type)
-        op_to_name = {o.name: o for o in self._create_operators()}
+        op_to_name = {o.name: o
+                      for o in self._create_operators()
+                      } | {o.name: o
+                           for o in _create_operators()}
         self._strips_operators = {
             op_to_name[o]
             for o in self.op_names_to_keep()
@@ -2783,6 +2802,111 @@ class SimpleVLMCupEnv(SpotMinimalVLMPredicateEnv):
         return "get the cup onto the table!"
 
 
+class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
+    """An environment to test the task of actually clearing objects from a
+    table and then wiping the table."""
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn", "VLMIn",
+            "CanBeUsedForErasing", "TableClean", "TableWiped", "TableClear"
+        ])
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_simple_table_wiping_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("clear_plastic_trash_can", _immovable_object_type),
+            Object("neon_green_fluffy_eraser", _movable_object_type),
+            Object("apple", _movable_object_type),
+            Object("childrens_play_table", _immovable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        # Pick object to clear table.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?surface", _immovable_object_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, surface]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_TableClear, [surface])
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, surface]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Place object inside
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {LiftedAtom(_Holding, [robot, obj])}
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMIn, [obj, surf])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPlaceInside", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Wipe surface
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_CanBeUsedForErasing, [obj]),
+            LiftedAtom(_TableClear, [surf]),
+        }
+
+        add_effs = {
+            LiftedAtom(_TableWiped, [surf]),
+        }
+        del_effs = {}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopWipe", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+    def op_names_to_keep(self) -> Set[str]:
+        """Return the names of the operators we want to keep."""
+        return {
+            "TeleopPickToClearTable", "TeleopPlaceInside", "TeleopWipe",
+            "MoveToReachObject", "MoveToHandViewObject", "PickObjectFromTop",
+            "PlaceObjectOnTop"
+        }
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
+
+
 class DustpanSweepingTestEnv(SpotMinimalVLMPredicateEnv):
     """An environment to test a demo task of sweeping some wrappers into a
     dustpan."""
@@ -2845,8 +2969,8 @@ class DustpanSweepingTestEnv(SpotMinimalVLMPredicateEnv):
         }
         del_effs = {LiftedAtom(_Holding, [robot, dustpan])}
         ignore_effs = set()
-        yield STRIPSOperator("PlaceNextTo", parameters, preconds, add_effs,
-                             del_effs, ignore_effs)
+        yield STRIPSOperator("TeleopPlaceNextTo", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
 
         # Pick(robot, broom)
         robot = Variable("?robot", _robot_type)
@@ -2879,8 +3003,8 @@ class DustpanSweepingTestEnv(SpotMinimalVLMPredicateEnv):
         add_effs = {LiftedAtom(_Inside, [mess, dustpan])}
         del_effs = set()
         ignore_effs = set()
-        yield STRIPSOperator("Sweep", parameters, preconds, add_effs, del_effs,
-                             ignore_effs)
+        yield STRIPSOperator("TeleopSweep", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
 
         # Place(robot, broom)
         robot = Variable("?robot", _robot_type)
@@ -2893,14 +3017,14 @@ class DustpanSweepingTestEnv(SpotMinimalVLMPredicateEnv):
         }
         del_effs = {LiftedAtom(_Holding, [robot, broom])}
         ignore_effs = set()
-        yield STRIPSOperator("PlaceOnFloor", parameters, preconds, add_effs,
-                             del_effs, ignore_effs)
+        yield STRIPSOperator("TeleopPlaceOnFloor", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
 
     def op_names_to_keep(self) -> Set[str]:
         """Return the names of the operators we want to keep."""
         return {
-            "TeleopPick1", "PlaceNextTo", "TeleopPick2", "Sweep",
-            "PlaceOnFloor"
+            "TeleopPick1", "TeleopPlaceNextTo", "TeleopPick2", "TeleopSweep",
+            "TeleopPlaceOnFloor"
         }
 
     def _generate_goal_description(self) -> GoalDescription:

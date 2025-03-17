@@ -30,7 +30,7 @@ from predicators.structs import Action, DefaultState, EnvironmentTask, \
     SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
 
 # Helper functions.
-CAMERA_NAME_TO_ANNOTATIONå = {
+CAMERA_NAME_TO_ANNOTATION = {
     'hand_color_image': "Hand Camera Image",
     'back_fisheye_image': "Back Camera Image",
     'frontleft_fisheye_image': "Front Left Camera Image",
@@ -57,7 +57,7 @@ def annotate_imgs_with_detections(
         # Annotate with camera name.
         font = utils.get_scaled_default_font(draw, 4)
         _ = utils.add_text_to_draw_img(draw, (0, 0),
-                                       CAMERA_NAME_TO_ANNOTATIONå[camera_name],
+                                       CAMERA_NAME_TO_ANNOTATION[camera_name],
                                        font)
         # Annotate with object detections.
         detections = object_detections_per_camera[camera_name]
@@ -771,6 +771,8 @@ class SpotMinimalPerceiver(BasePerceiver):
         Holding = pred_name_to_pred["Holding"]
         HandEmpty = pred_name_to_pred["HandEmpty"]
         VLMOn = pred_name_to_pred["VLMOn"]
+        VLMIn = pred_name_to_pred["VLMIn"]
+        TableClean = pred_name_to_pred["TableClean"]
 
         if goal_description == "get the cup onto the table!":
             robot = Object("robot", _robot_type)
@@ -788,6 +790,16 @@ class SpotMinimalPerceiver(BasePerceiver):
             goal = {
                 GroundAtom(Inside, [wrappers, dustpan]),
                 GroundAtom(Holding, [robot, dustpan])
+            }
+            return goal
+        if goal_description == "clean up the table!":
+            trash_can = Object("clear_plastic_trash_can",
+                               _immovable_object_type)
+            apple = Object("apple", _movable_object_type)
+            table = Object("childrens_play_table", _immovable_object_type)
+            goal = {
+                GroundAtom(VLMIn, [apple, trash_can]),
+                GroundAtom(TableClean, [table])
             }
             return goal
 
