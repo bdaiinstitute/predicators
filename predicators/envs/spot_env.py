@@ -27,6 +27,10 @@ from scipy.spatial import Delaunay
 from predicators import utils
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
+from predicators.structs import AugmentedState, State, Object, GroundAtom, \
+    Predicate, Action, GoalDescription, EnvironmentTask, STRIPSOperator, \
+    VLMPredicate, VLMGroundAtom, Observation, Type, SpotActionExtraInfo, \
+    LiftedAtom, Variable
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects_from_language, \
@@ -54,10 +58,6 @@ from predicators.spot_utils.utils import _base_object_type, _broom_type, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
     update_pbrspot_robot_conf, verify_estop
-from predicators.structs import Action, EnvironmentTask, GoalDescription, \
-    GroundAtom, LiftedAtom, Object, Observation, Predicate, \
-    SpotActionExtraInfo, State, STRIPSOperator, Type, Variable, \
-    VLMGroundAtom, VLMPredicate
 from predicators.utils import get_active_predicates, get_fluent_predicates, log_rich_table
 
 ###############################################################################
@@ -120,7 +120,7 @@ class _TruncatedSpotObservation:
     executed_skill: Optional[Action] = None
 
 
-class _PartialPerceptionState(State):
+class _PartialPerceptionState(AugmentedState):
     """Some continuous object features, and ground atoms in simulator_state.
 
     The main idea here is that we have some predicates with actual
@@ -150,19 +150,28 @@ class _PartialPerceptionState(State):
             return False
         return self._allclose(other)
 
-    def copy(self) -> State:
-        state_copy = {o: self._copy_state_value(self.data[o]) for o in self}
+    def copy(self) -> "AugmentedState":
+        """Return a copy of this state with all VLM-related fields."""
+        new_data = {}
+        for obj in self:
+            new_data[obj] = self._copy_state_value(self.data[obj])
+        
         sim_state_copy = {
             "predicates": self._simulator_state_predicates.copy(),
             "atoms": self._simulator_state_atoms.copy()
         }
+        
         return _PartialPerceptionState(
-            state_copy,
+            new_data,
             simulator_state=sim_state_copy,
-            camera_images=self.camera_images,
-            visible_objects=self.visible_objects,
-            vlm_atom_dict=self.vlm_atom_dict,
-            vlm_predicates=self.vlm_predicates,
+            vlm_atom_dict=copy.deepcopy(self.vlm_atom_dict),
+            vlm_predicates=copy.deepcopy(self.vlm_predicates),
+            visible_objects=copy.deepcopy(self.visible_objects),
+            camera_images=copy.deepcopy(self.camera_images),
+            camera_images_history=copy.deepcopy(self.camera_images_history),
+            action_history=copy.deepcopy(self.action_history),
+            non_vlm_atom_dict=copy.deepcopy(self.non_vlm_atom_dict),
+            text_description=self.text_description
         )
 
 
