@@ -1501,6 +1501,9 @@ _VLMOn = utils.create_vlm_predicate("VLMOn",
 _VLMOnTable = utils.create_vlm_predicate(
     "VLMOnTable", [_movable_object_type, _table_type],
     lambda o: _get_vlm_query_str("OnTopTable", o))
+_VLMOnFloor = utils.create_vlm_predicate(
+    "VLMOnFloor", [_movable_object_type],
+    lambda o: _get_vlm_query_str("OnFloor", o))
 _TableClear = utils.create_vlm_predicate(
     "TableClear", [_table_type],
     lambda o: _get_vlm_query_str("ClearOfObjects", o))
@@ -1544,6 +1547,7 @@ _ALL_PREDICATES = {
 _VLM_PREDICATES = {
     _VLMOn,
     _VLMOnTable,
+    _VLMOnFloor,
     _TableClear,
     _TableWiped,
     _TableClean,
@@ -2809,11 +2813,12 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
 
     @property
     def predicates(self) -> Set[Predicate]:
-        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
             "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOnTable",
             "VLMIn", "CanBeUsedForErasing", "TableClean", "TableWiped",
-            "TableClear"
+            "TableClear", "VLMOnFloor"
         ])
+        return preds
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
@@ -2862,7 +2867,25 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
         yield STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
                              add_effs, del_effs, ignore_effs)
 
-        # TODO: a pick operator from the floor.
+        # Picking from the floor.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPickFromFloor", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
 
         # Place object inside
         robot = Variable("?robot", _robot_type)
@@ -2901,9 +2924,13 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
     def op_names_to_keep(self) -> Set[str]:
         """Return the names of the operators we want to keep."""
         return {
-            "TeleopPickToClearTable", "TeleopPlaceInside", "TeleopWipe",
-            "MoveToReachObject", "MoveToHandViewObject", "PickObjectFromTop",
-            "PlaceObjectOnTop"
+            "TeleopPickToClearTable",
+            "TeleopPlaceInside",
+            "TeleopWipe",
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "TeleopPickFromFloor",
+            "PlaceObjectOnTop",
         }
 
     def _generate_goal_description(self) -> GoalDescription:

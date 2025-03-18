@@ -40,11 +40,20 @@ class ExpectedAtomsExecutionMonitor(BaseExecutionMonitor):
             for a in (next_expected_atoms - next_expected_vlm_atoms)
             if not a.holds(state)
         }
+        # Query the VLM for the expected atom values by leveraging
+        # utils.abstract(). This is a bit ugly, but it's better than querying
+        # for the specific atoms we want to check - especially in the Spot env,
+        # we already have evaluated all the necessary VLM atoms and put them in
+        # the state.
         vlm_unsat_atoms = set()
         if len(next_expected_vlm_atoms) > 0:
-            vlm_unsat_atoms = next_expected_atoms - (
-                utils.query_vlm_for_atom_vals(next_expected_vlm_atoms,
-                                              state))  # pragma: no cover
+            next_expected_vlm_preds = {
+                atom.predicate
+                for atom in next_expected_vlm_atoms
+            }
+            vlm_atom_vals = utils.abstract(state, next_expected_vlm_preds)
+            vlm_atoms_that_hold_in_state = next_expected_atoms & vlm_atom_vals
+            vlm_unsat_atoms = next_expected_vlm_atoms - vlm_atoms_that_hold_in_state
         unsat_atoms = non_vlm_unsat_atoms | vlm_unsat_atoms
         if not unsat_atoms:
             return False

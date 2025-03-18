@@ -794,13 +794,17 @@ class SpotMinimalPerceiver(BasePerceiver):
             VLMIn = pred_name_to_pred["VLMIn"]
             TableClean = pred_name_to_pred["TableClean"]
             TableClear = pred_name_to_pred["TableClear"]
+            TableWiped = pred_name_to_pred["TableWiped"]
+            CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
             trash_can = Object("clear_plastic_trash_can",
                                _immovable_object_type)
             apple = Object("apple", _movable_object_type)
             table = Object("childrens_play_table", _table_type)
+            eraser = Object("neon_green_fluffy_eraser", _movable_object_type)
+            robot = Object("robot", _robot_type)
             goal = {
-                # GroundAtom(VLMIn, [apple, trash_can]),
-                GroundAtom(TableClear, [table])
+                GroundAtom(VLMIn, [apple, trash_can]),
+                GroundAtom(TableWiped, [table]),
             }
             return goal
 
@@ -845,7 +849,7 @@ class SpotMinimalPerceiver(BasePerceiver):
             if "Pick" in observation.executed_skill.extra_info.action_name:
                 for obj in observation.executed_skill.extra_info.\
                         operator_objects:
-                    if not obj.is_instance(_robot_type):
+                    if obj.is_instance(_movable_object_type):
                         # Turn the held feature on
                         self._curr_state.set(obj, "held", 1.0)
             if "Place" in observation.executed_skill.extra_info.action_name:
