@@ -3183,3 +3183,73 @@ class LISSpotBlockDrawerEnv(SpotRearrangementEnv):
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
+    
+class LISSpotCollectEnv(SpotRearrangementEnv):
+    """An extremely basic environment where a block needs to be picked up and
+    is specifically used for testing in the LIS Spot room.
+
+    Very simple and mostly just for testing.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectToDrag",
+            "DragToOpenObject",
+            "DragToCloseObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside"
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_spot_collect_misplaced_items_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        blue_block = Object("blue_block", _movable_object_type)
+        blue_block_detection = LanguageObjectDetectionID(
+            "blue block/blue-ish block/blue-green block")
+        detection_id_to_obj[blue_block_detection] = blue_block
+
+        green_cup = Object("yellow_cup", _movable_object_type)
+        green_cup_detection = LanguageObjectDetectionID(
+            "yellow cup/yellow cylinder")
+        detection_id_to_obj[green_cup_detection] = green_cup
+
+        toy_plane = Object("toy_plane", _movable_object_type)
+        toy_plane_detection = LanguageObjectDetectionID(
+            "toy plane")
+        detection_id_to_obj[toy_plane_detection] = toy_plane
+
+        cardboard_box = Object("cardboard_box", _container_type)
+        cardboard_box_detection = LanguageObjectDetectionID(
+            "cardboard box/brown box")
+        detection_id_to_obj[cardboard_box_detection] = cardboard_box
+
+        green_handle = Object("green_handle", _movable_object_type)
+        green_handle_detection = LanguageObjectDetectionID(
+            "green duct tape/green handle/green object")
+        detection_id_to_obj[green_handle_detection] = green_handle
+
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "collect misplaced items"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")

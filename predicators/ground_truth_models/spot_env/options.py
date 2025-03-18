@@ -1034,6 +1034,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_brush_shelf_env",
             "lis_spot_block_floor_env",
             "lis_spot_block_drawer_env",
+            "lis_spot_collect_misplaced_items_env"
         }
 
     @classmethod

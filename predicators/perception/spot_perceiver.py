@@ -479,6 +479,19 @@ class SpotPerceiver(BasePerceiver):
             handle = Object("green_handle", _movable_object_type)
             NotOpen = pred_name_to_pred["NotOpen"]
             return {GroundAtom(NotOpen, [handle])}
+        if goal_description == "collect misplaced items":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            blue_block = Object("blue_block", _movable_object_type)
+            yellow_cup = Object("yellow_cup", _movable_object_type)
+            toy_plane = Object("toy_plane", _movable_object_type)
+            cardboard_box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [blue_block, cardboard_box]),
+                GroundAtom(Inside, [yellow_cup, cardboard_box]),
+                GroundAtom(Inside, [toy_plane, cardboard_box]),
+            }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
