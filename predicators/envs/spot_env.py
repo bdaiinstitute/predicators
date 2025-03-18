@@ -42,7 +42,7 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _broom_type, \
     _container_type, _dustpan_type, _immovable_object_type, \
-    _movable_object_type, _robot_type, _wrappers_type, \
+    _movable_object_type, _robot_type, _table_type, _wrappers_type, \
     construct_state_given_pbrspot, get_allowed_map_regions, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
@@ -1093,11 +1093,8 @@ _ROBOT_SWEEP_READY_TOL = 0.25
 
 ## Types
 _ALL_TYPES = {
-    _robot_type,
-    _base_object_type,
-    _movable_object_type,
-    _immovable_object_type,
-    _container_type,
+    _robot_type, _base_object_type, _movable_object_type,
+    _immovable_object_type, _container_type, _table_type
 }
 
 
@@ -1501,17 +1498,20 @@ def _get_vlm_query_str(pred_name: str, objects: Sequence[Object]) -> str:
 _VLMOn = utils.create_vlm_predicate("VLMOn",
                                     [_movable_object_type, _base_object_type],
                                     lambda o: _get_vlm_query_str("OnTopOf", o))
+_VLMOnTable = utils.create_vlm_predicate(
+    "VLMOnTable", [_movable_object_type, _table_type],
+    lambda o: _get_vlm_query_str("OnTopTable", o))
 _TableClear = utils.create_vlm_predicate(
-    "TableClear", [_base_object_type],
+    "TableClear", [_table_type],
     lambda o: _get_vlm_query_str("ClearOfObjects", o))
 _CanBeUsedForErasing = utils.create_vlm_predicate(
     "CanBeUsedForErasing", [_base_object_type],
     lambda o: _get_vlm_query_str("CanBeUsedForErasing", o))
 _TableWiped = utils.create_vlm_predicate(
-    "TableWiped", [_base_object_type],
+    "TableWiped", [_table_type],
     lambda o: _get_vlm_query_str("WipedOfMarkerScribbles", o))
 _TableClean = utils.create_vlm_predicate(
-    "TableClean", [_base_object_type],
+    "TableClean", [_table_type],
     lambda o: _get_vlm_query_str("CleanOfObjectsAndMarkings", o))
 _Upright = utils.create_vlm_predicate(
     "Upright", [_movable_object_type],
@@ -1543,6 +1543,7 @@ _ALL_PREDICATES = {
 }
 _VLM_PREDICATES = {
     _VLMOn,
+    _VLMOnTable,
     _TableClear,
     _TableWiped,
     _TableClean,
@@ -2809,8 +2810,9 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
-            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn", "VLMIn",
-            "CanBeUsedForErasing", "TableClean", "TableWiped", "TableClear"
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOnTable",
+            "VLMIn", "CanBeUsedForErasing", "TableClean", "TableWiped",
+            "TableClear"
         ])
 
     @property
@@ -2829,7 +2831,7 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
             Object("clear_plastic_trash_can", _immovable_object_type),
             Object("neon_green_fluffy_eraser", _movable_object_type),
             Object("apple", _movable_object_type),
-            Object("childrens_play_table", _immovable_object_type),
+            Object("childrens_play_table", _table_type),
         }
         for o in objects:
             detection_id = LanguageObjectDetectionID(o.name)
@@ -2840,12 +2842,12 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
         # Pick object to clear table.
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
-        surface = Variable("?surface", _immovable_object_type)
-        parameters = [robot, obj]
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj, surface]
         preconds: Set[LiftedAtom] = {
             LiftedAtom(_HandEmpty, [robot]),
             LiftedAtom(_NotHolding, [robot, obj]),
-            LiftedAtom(_VLMOn, [obj, surface]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
         }
         add_effs: Set[LiftedAtom] = {
             LiftedAtom(_Holding, [robot, obj]),
@@ -2854,11 +2856,13 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
         del_effs: Set[LiftedAtom] = {
             LiftedAtom(_HandEmpty, [robot]),
             LiftedAtom(_NotHolding, [robot, obj]),
-            LiftedAtom(_VLMOn, [obj, surface]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
         }
         ignore_effs: Set[Predicate] = set()
         yield STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
                              add_effs, del_effs, ignore_effs)
+
+        # TODO: a pick operator from the floor.
 
         # Place object inside
         robot = Variable("?robot", _robot_type)
@@ -2879,14 +2883,13 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
         # Wipe surface
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
-        surf = Variable("?surf", _immovable_object_type)
+        surf = Variable("?surf", _table_type)
         parameters = [robot, obj, surf]
         preconds = {
             LiftedAtom(_Holding, [robot, obj]),
             LiftedAtom(_CanBeUsedForErasing, [obj]),
             LiftedAtom(_TableClear, [surf]),
         }
-
         add_effs = {
             LiftedAtom(_TableWiped, [surf]),
         }

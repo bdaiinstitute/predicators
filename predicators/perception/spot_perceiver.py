@@ -22,7 +22,7 @@ from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
-    _immovable_object_type, _movable_object_type, _robot_type, \
+    _immovable_object_type, _movable_object_type, _robot_type, _table_type, \
     _wrappers_type, get_allowed_map_regions, load_spot_metadata, \
     object_to_top_down_geom
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
@@ -770,11 +770,9 @@ class SpotMinimalPerceiver(BasePerceiver):
         Inside = pred_name_to_pred["Inside"]
         Holding = pred_name_to_pred["Holding"]
         HandEmpty = pred_name_to_pred["HandEmpty"]
-        VLMOn = pred_name_to_pred["VLMOn"]
-        VLMIn = pred_name_to_pred["VLMIn"]
-        TableClean = pred_name_to_pred["TableClean"]
 
         if goal_description == "get the cup onto the table!":
+            VLMOn = pred_name_to_pred["VLMOn"]
             robot = Object("robot", _robot_type)
             cup = Object("yellow_toy_cup", _movable_object_type)
             table = Object("cardboard_table", _immovable_object_type)
@@ -793,13 +791,16 @@ class SpotMinimalPerceiver(BasePerceiver):
             }
             return goal
         if goal_description == "clean up the table!":
+            VLMIn = pred_name_to_pred["VLMIn"]
+            TableClean = pred_name_to_pred["TableClean"]
+            TableClear = pred_name_to_pred["TableClear"]
             trash_can = Object("clear_plastic_trash_can",
                                _immovable_object_type)
             apple = Object("apple", _movable_object_type)
-            table = Object("childrens_play_table", _immovable_object_type)
+            table = Object("childrens_play_table", _table_type)
             goal = {
-                GroundAtom(VLMIn, [apple, trash_can]),
-                GroundAtom(TableClean, [table])
+                # GroundAtom(VLMIn, [apple, trash_can]),
+                GroundAtom(TableClear, [table])
             }
             return goal
 
@@ -957,7 +958,7 @@ class SpotMinimalPerceiver(BasePerceiver):
                     "in_view": 0,
                     "is_sweeper": 0,
                 })
-            elif obj.type.name == "immovable":
+            elif obj.type.name in ["immovable", "table"]:
                 state_dict[obj].update({"flat_top_surface": 1})
             else:
                 raise ValueError(
