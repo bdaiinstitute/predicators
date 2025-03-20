@@ -1033,6 +1033,12 @@ class SpotRearrangementEnv(BaseEnv):
             for (det_id, val) in detections.items()
         }
         self._last_known_object_poses.update(obj_to_se3_pose)
+        # Move the robot into a good place to construct the initial state
+        # by running VLM predicates.
+        prompt = "Finished initial search for objects. Take control of the robot and move it into a good initial location for constructing the initial state of the task. Press 'Enter' when done!"
+        _ = input(prompt)
+        assert self._lease_client is not None
+        self._lease_client.take()
         return obj_to_se3_pose, artifacts
 
     def _run_init_search_for_objects(
@@ -1059,6 +1065,7 @@ class SpotRearrangementEnv(BaseEnv):
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             visualize_all_artifacts(artifacts, detections_outfile,
                                     no_detections_outfile)
+        self._lease_client
         return detections, artifacts
 
     @property
@@ -2830,11 +2837,10 @@ class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
-
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         objects = {
             Object("clear_plastic_trash_can", _immovable_object_type),
-            Object("neon_green_fluffy_eraser", _movable_object_type),
+            Object("fluffy_toy_duster", _movable_object_type),
             Object("apple", _movable_object_type),
             Object("childrens_play_table", _table_type),
         }
@@ -3771,7 +3777,7 @@ class LISSpotBlockFloorEnv(SpotRearrangementEnv):
 
 
 ###############################################################################
-#                             LIS Spot Test VLM Env                           #
+#                             VLM Test Env with Map                           #
 ###############################################################################
 
 
@@ -3852,6 +3858,166 @@ class VLMCupEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "get the cup onto the table!"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#                       Table Wiping Env with Map                             #
+###############################################################################
+
+
+class VLMTableWipingEnv(SpotRearrangementEnv):
+    """A version of the SimpleTableWipingEnv, but with an actual map and some
+    skills that the robot can execute instead of relying on teleop.
+
+    NOTE: for now, we mostly have teleop actions, but we intend to
+    replace them with actual skills in the future.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+        # We now add in specific operators for the table wiping task that
+        # are tied to specific teleop actions.
+        # Pick object to clear table.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj, surface]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_InHandView, [robot, obj]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_TableClear, [surface])
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # Picking from the floor.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPickFromFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # Place object inside
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_Reachable, [robot, surf]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMIn, [obj, surf])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPlaceInside", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # Wipe surface
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _table_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Reachable, [robot, surf]),
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_CanBeUsedForErasing, [obj]),
+            LiftedAtom(_TableClear, [surf]),
+        }
+        add_effs = {
+            LiftedAtom(_TableWiped, [surf]),
+        }
+        del_effs = {}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopWipe", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOnTable",
+            "VLMIn", "CanBeUsedForErasing", "TableClean", "TableWiped",
+            "TableClear", "VLMOnFloor", "InHandView", "Reachable"
+        ])
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_table_wiping_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("clear_plastic_trash_can", _immovable_object_type),
+            Object("fluffy_toy_duster", _movable_object_type),
+            Object("apple", _movable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "childrens_play_table/surfboard")] = Object("table", _table_type)
+
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[stat_detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:

@@ -290,7 +290,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env", "lis_spot_block_floor_env",
-            "spot_vlm_simple_table_wiping_env"
+            "spot_vlm_simple_table_wiping_env", "spot_vlm_table_wiping_env"
         }
 
     @staticmethod

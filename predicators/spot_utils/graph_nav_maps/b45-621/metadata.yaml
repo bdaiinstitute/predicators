@@ -74,14 +74,15 @@ static-object-features:
     width: 0.2
     placeable: 1
     is_sweeper: 0
-  neon_green_fluffy_eraser:
+    flat_top_surface: 0
+  fluffy_toy_duster:
     shape: 1
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  childrens_play_table:
+  table:
     shape: 1
     height: 0.1
     length: 0.3
