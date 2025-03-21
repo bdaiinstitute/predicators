@@ -186,6 +186,7 @@ class GlobalSettings:
     spot_run_dry = False
     spot_use_perfect_samplers = False  # for debugging
     spot_sweep_env_goal_description = "get the objects into the bucket"
+    spot_vlm_teleop_demo_folderpath = ""
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3

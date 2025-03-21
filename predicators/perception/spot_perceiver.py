@@ -82,6 +82,34 @@ def annotate_imgs_with_detections(
     return annotated_imgs
 
 
+def save_annotated_imgs_for_vlm_demo(annotated_imgs: List[PIL.Image.Image],
+                                     save_dir: Path) -> None:
+    """Save annotated images useful images as part of creating demonstrations
+    for learning from teleop'ed Spot trajectories."""
+    # If `save_dir` doesn't exist, create it.
+    save_dir.mkdir(parents=True, exist_ok=True)
+    # Collect all the names of folders within `save_dir`.
+    subfolders = [f for f in save_dir.iterdir() if f.is_dir()]
+    # Find the highest int that's a subfolder of `save_dir`.
+    prev_timestep = 0
+    for folder in subfolders:
+        try:
+            folder_int = int(folder.name)
+            prev_timestep = max(prev_timestep, folder_int)
+        except ValueError:
+            # Skip folders that are not integers.
+            continue
+    # Add 1 to `prev_timestep` to get `curr_timestep`.
+    curr_timestep = prev_timestep + 1
+    curr_timestep_dir = save_dir / str(curr_timestep)
+    # Create the new folder for `curr_timestep`.
+    curr_timestep_dir.mkdir(parents=True, exist_ok=True)
+    # Save all the images as jpg files under the new folder.
+    for i, img in enumerate(annotated_imgs):
+        img_path = curr_timestep_dir / f"image_{i}.jpg"
+        img.save(img_path, format="JPEG")
+
+
 # Main perceiver classes.
 class SpotPerceiver(BasePerceiver):
     """A perceiver specific to spot envs."""
@@ -167,6 +195,11 @@ class SpotPerceiver(BasePerceiver):
 
     def step(self, observation: Observation) -> State:
         self._update_state_from_observation(observation)
+        # If we're trying to record VLM demos, then save the images.
+        if len(CFG.spot_vlm_teleop_demo_folderpath) > 0:
+            save_annotated_imgs_for_vlm_demo(
+                self._curr_annotated_imgs,
+                Path(CFG.spot_vlm_teleop_demo_folderpath))
         # Update the curr held item when applicable.
         assert self._curr_env is not None
         if self._prev_action is not None:
@@ -860,6 +893,10 @@ class SpotMinimalPerceiver(BasePerceiver):
         annotated_imgs = annotate_imgs_with_detections(
             observation.rgbd_images, observation.object_detections_per_camera)
         self._gripper_open_percentage = observation.gripper_open_percentage
+        # If we're trying to record VLM demos, then save the images.
+        if len(CFG.spot_vlm_teleop_demo_folderpath) > 0:
+            save_annotated_imgs_for_vlm_demo(
+                annotated_imgs, Path(CFG.spot_vlm_teleop_demo_folderpath))
 
         self._curr_state = self._create_state()
         if observation.executed_skill is not None:
