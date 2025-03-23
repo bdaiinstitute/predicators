@@ -16,7 +16,7 @@ from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     SpotCubeEnv, SpotRearrangementEnv, _drafting_table_type, \
-    _PartialPerceptionState, _SpotObservation, in_general_view_classifier
+    _PartialPerceptionState, _SpotObservation, in_general_view_classifier, AugmentedState
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
@@ -1033,8 +1033,10 @@ class SpotMinimalPerceiver(BasePerceiver):
                     f"Dummy state construction for type {obj.type}" + \
                         "not implemented yet."
                 )
+                
+        # TODO: fix this
         # Complete the dummy state; to be populated with additional info!
-        state = utils.create_state_from_dict(state_dict)
+        state = utils.create_state_from_dict(state_dict, state_cls=AugmentedState)
         state.simulator_state = {}
         state.simulator_state["images"] = []
         state.simulator_state["state_history"] = []
