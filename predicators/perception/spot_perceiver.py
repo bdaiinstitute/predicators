@@ -820,7 +820,7 @@ class SpotMinimalPerceiver(BasePerceiver):
         Inside = pred_name_to_pred["Inside"]
         Holding = pred_name_to_pred["Holding"]
         HandEmpty = pred_name_to_pred["HandEmpty"]
-        VLMOn = pred_name_to_pred["VLMOn"]
+        On = pred_name_to_pred["On"]  # This will be a VLM predicate when use_vlm is True
 
         if goal_description == "get the cup onto the table!":
             robot = Object("robot", _robot_type)
@@ -828,7 +828,7 @@ class SpotMinimalPerceiver(BasePerceiver):
             table = Object("cardboard_table", _immovable_object_type)
             goal = {
                 GroundAtom(HandEmpty, [robot]),
-                GroundAtom(VLMOn, [cup, table])
+                GroundAtom(On, [cup, table])
             }
             return goal
         if goal_description == "put the mess in the dustpan":
