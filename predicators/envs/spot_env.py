@@ -1700,8 +1700,10 @@ if tmp_vlm_flag:
     )
 
 # FIXME: this is a hack to use VLM predicates; check and fix!
-# Updated code that properly uses CFG with fallback in case of initialization issues
-use_vlm = getattr(CFG, "spot_vlm_eval_predicate", True)
+# Use a safer approach to access the configuration flag
+# This handles cases where CFG might not be fully initialized yet
+# use_vlm = getattr(CFG, "spot_vlm_eval_predicate", True)
+use_vlm = True
 
 # Only define these types if VLM predicates are enabled
 if use_vlm:
@@ -1712,10 +1714,6 @@ if use_vlm:
         ["is_open", "in_hand_view"],
         parent=_immovable_object_type
     )
-
-# Use a safer approach to access the configuration flag
-# This handles cases where CFG might not be fully initialized yet
-use_vlm = getattr(CFG, "spot_vlm_eval_predicate", True)
 
 # Only define these types if VLM predicates are enabled
 if use_vlm:
@@ -1841,6 +1839,36 @@ if use_vlm:
         "InHandViewFromTop", [_robot_type, _movable_object_type],
         prompt="This predicate is true if the camera is viewing the given object (e.g., a container) from the top (so you can basically see the entire container from top), so it could see e.g., if the container has anything in it."
     )
+    
+    _Upright = VLMPredicate(
+        "Upright", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object is standing upright/vertical. If you cannot tell, answer [no]."
+    )
+    
+    _Toasted = VLMPredicate(
+        "Toasted", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object appears toasted/burned. If you cannot tell, answer [no]."
+    )
+    
+    _Open = VLMPredicate(
+        "Open", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object is open (e.g., a container with its lid open). If you cannot tell, answer [no]."
+    )
+    
+    _Stained = VLMPredicate(
+        "Stained", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object appears stained or dirty. If you cannot tell, answer [no]."
+    )
+    
+    _Messy = VLMPredicate(
+        "Messy", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the object appears messy or disorganized. If you cannot tell, answer [no]."
+    )
+    
+    _Touching = VLMPredicate(
+        "Touching", [_dustpan_type, _wrappers_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the dustpan is touching or in contact with the wrappers/mess. If you cannot tell, answer [no]."
+    )
 
     # Group all VLM predicates
     _VLM_PREDICATES = {
@@ -1850,7 +1878,8 @@ if use_vlm:
         _Unknown_ContainingWater, _Known_ContainingWater, _BelieveTrue_ContainingWater, _BelieveFalse_ContainingWater,
         _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
         _InHandViewFromTop,
-        _DrawerClosed, _DrawerOpen
+        _DrawerClosed, _DrawerOpen,
+        _Upright, _Toasted, _Open, _Stained, _Messy, _Touching
     }
 
     # Group belief predicates
@@ -3129,7 +3158,7 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
                 obj_id, LanguageObjectDetectionID
             ), "Only LanguageObjectDetectionIDs are supported."
         # object_id_to_img_detections = _query_detic_sam(
-        object_id_to_img_detections = detect_objects_from_language(
+        _, artifacts = detect_objects_from_language(
             object_ids, rgbd_images)  # type: ignore
         # This ^ is currently a mapping of object_id -> camera_name ->
         # SegmentedBoundingBox.
@@ -3140,6 +3169,7 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
                                              k: []
                                              for k in rgbd_images.keys()
                                          }
+        object_id_to_img_detections = artifacts["object_id_to_img_detections"]
         for object_id, d in object_id_to_img_detections.items():
             for camera_name, seg_bb in d.items():
                 detections[camera_name].append((object_id, seg_bb))
@@ -3236,7 +3266,7 @@ class SimpleVLMCupEnv(SpotMinimalVLMPredicateEnv):
     @property
     def predicates(self) -> Set[Predicate]:
         return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
-                   ["Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn"])
+                   ["Holding", "HandEmpty", "NotHolding", "Inside", "On"])
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
@@ -3286,7 +3316,7 @@ class SimpleVLMCupEnv(SpotMinimalVLMPredicateEnv):
         add_effs = {
             LiftedAtom(_HandEmpty, [robot]),
             LiftedAtom(_NotHolding, [robot, obj]),
-            LiftedAtom(_VLMOn, [obj, surf])
+            LiftedAtom(_On, [obj, surf])
         }
         del_effs = {LiftedAtom(_Holding, [robot, obj])}
         ignore_effs = set()
