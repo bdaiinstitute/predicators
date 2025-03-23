@@ -227,7 +227,8 @@ def entropy(p: float) -> float:
 
 
 def create_state_from_dict(data: Dict[Object, Dict[str, float]],
-                           simulator_state: Optional[Any] = None) -> State:
+                           simulator_state: Optional[Any] = None,
+                           state_cls: Optional[TypingType[State]] = None) -> State:
     """Small utility to generate a state from a dictionary `data` of individual
     feature values for each object.
 
@@ -240,7 +241,10 @@ def create_state_from_dict(data: Dict[Object, Dict[str, float]],
         for feat in obj.type.feature_names:
             obj_vec.append(obj_data[feat])
         state_dict[obj] = np.array(obj_vec)
-    return State(state_dict, simulator_state)
+    if state_cls is None:
+        return State(state_dict, simulator_state)
+    else:
+        return state_cls(state_dict, simulator_state)  # type: ignore
 
 
 def create_json_dict_from_ground_atoms(
