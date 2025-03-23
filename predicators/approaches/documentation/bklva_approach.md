@@ -169,7 +169,7 @@ The `MockSpotEnv` has these key characteristics:
 - **Belief State Tracking**: Belief predicates track knowledge about uncertain object properties
 - **Canonical States**: States that differ in key predicates (defined in `mock_env_creator_base.py`)
 
-Key predicates that determine canonical states include:
+Key predicates that determine canonical states are manually defined in `mock_env_creator_base.py`:
 ```python
 KEY_PREDICATES = {
     "Inside",      # Object containment
@@ -240,14 +240,50 @@ python -m pytest tests/mock_robot/test_mock_env_transitions.py -v -s
 python -m pytest tests/mock_robot/test_mock_env_cup_emptiness.py -v -s
 ```
 
-### Running in Synthetic Environment
+## Available Synthetic Tasks
 
-Different approaches are available for running the perception and planning pipeline in synthetic environments:
+The framework includes several synthetic environments defined in `mock_spot_env.py`, each modeling different tasks of increasing complexity:
 
-#### 1. VLM + PDDL Task Planner (Basic BKLVA)
-The PDDL task planner (oracle planner) combined with VLM perception forms the basic BKLVA approach:
+### 1. Pick and Place Tasks (`MockSpotPickPlaceTwoCupEnv`)
+Basic manipulation of objects:
+- **Description**: Two cups on a table with a goal to move them to target locations
+- **Key Challenge**: Basic object manipulation
+- **Data Directory**: `mock_env_data/MockSpotPickPlaceTwoCupEnv`
+
+### 2. Cup Emptiness Tasks (`MockSpotCupEmptiness`)
+Belief-space planning for cup contents:
+- **Description**: Two cups with unknown contents (empty or containing objects)
+- **Key Challenge**: Visual observation to detect cup contents and update beliefs
+- **Goal**: Place empty cups in a container
+- **Data Directory**: `mock_env_data/MockSpotCupEmptiness`
+
+### 3. Drawer Cleaning Tasks (`MockSpotDrawerCleaningEnv`)
+Complex task with drawer and multiple objects:
+- **Description**: Objects inside a drawer that need to be removed and placed elsewhere
+- **Key Challenge**: Drawer manipulation and object detection inside containers
+- **Data Directory**: `mock_env_data/MockSpotDrawerCleaningEnv`
+
+### 4. Weight Sorting Tasks (`MockSpotSortWeight`)
+Reasoning about physical properties:
+- **Description**: Objects with different weights that need to be sorted
+- **Key Challenge**: "Measuring" object weights and making comparisons
+- **Goal**: Place heavy objects in one container and light objects in another
+- **Data Directory**: `mock_env_data/MockSpotSortWeight`
+
+## Planning Approaches and Running Experiments
+
+The system supports running different planning approaches on the synthetic environments. These can be systematically evaluated using the `scripts/mock_experiments.py` script, which provides a convenient way to run multiple planners on the same environment.
+
+### Available Planning Approaches
+
+#### 1. BKLVA: VLM Perception + PDDL Task Planner (`oracle`)
+Our BKLVA approach combines VLM perception with a classic PDDL task planner:
+- **Perception**: Uses VLM to evaluate predicates from images
+- **Planning**: Uses a PDDL task planner to generate plans in belief space
+- **Key Strength**: Combines perceptual capabilities of VLMs with the reliability of symbolic planning
 
 ```bash
+# Running BKLVA approach
 python predicators/main.py --env mock_spot_pick_place_two_cup \
   --approach oracle --seed 0 --perceiver mock_spot_perceiver \
   --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
@@ -255,34 +291,90 @@ python predicators/main.py --env mock_spot_pick_place_two_cup \
   --horizon 20
 ```
 
-#### 2. VLM Open-Loop Planner
-The VLM open-loop planner uses a vision-language model to generate plans without execution monitoring:
+#### 2. Random Options Baseline (`random_options`)
+A baseline approach that randomly selects options:
+- **Perception**: Uses regular perception without VLM
+- **Planning**: Randomly selects actions from available options
+- **Key Use**: Serves as a lower bound baseline for performance comparison
 
 ```bash
-python predicators/main.py --env mock_spot_pick_place_two_cup \
+# Running random options baseline
+python predicators/main.py --env mock_spot_drawer_cleaning \
+  --approach random_options --seed 0 --perceiver mock_spot_perceiver \
+  --random_options_max_tries 1000 --max_num_steps_option_rollout 100 \
+  --num_train_tasks 0 --num_test_tasks 1 --bilevel_plan_without_sim True \
+  --timeout 60 --horizon 20
+```
+
+#### 3. LLM Open-Loop Planner (`llm_open_loop`)
+Uses a large language model to generate plans:
+- **Perception**: Regular perception, with state descriptions provided to LLM
+- **Planning**: LLM generates entire plan before execution
+- **Key Feature**: Can leverage commonsense reasoning from LLMs, but lacks visual perception
+
+```bash
+# Running LLM open loop planner
+python predicators/main.py --env mock_spot_drawer_cleaning \
+  --approach llm_open_loop --seed 0 --perceiver mock_spot_perceiver \
+  --llm_model_name gpt-4o --llm_temperature 0.2 \
+  --num_train_tasks 0 --num_test_tasks 1 --bilevel_plan_without_sim True \
+  --horizon 20 --load_approach
+```
+
+#### 4. LLM Closed-Loop Planner (`llm_open_loop` with execution monitoring)
+LLM planner with execution monitoring to detect and recover from failures:
+- **Perception**: Regular perception plus execution monitoring
+- **Planning**: LLM generates plan, with replanning when execution outcomes don't match expectations
+- **Key Advantage**: More robust to execution failures and surprises than open-loop planning
+
+```bash
+# Running LLM closed loop planner (with MPC monitoring)
+python predicators/main.py --env mock_spot_cup_emptiness \
+  --approach llm_open_loop --seed 0 --perceiver mock_spot_perceiver \
+  --llm_model_name gpt-4o --llm_temperature 0.2 --execution_monitor mpc \
+  --num_train_tasks 0 --num_test_tasks 1 --bilevel_plan_without_sim True \
+  --horizon 20 --load_approach
+```
+
+#### 5. VLM Open-Loop Planner (`vlm_open_loop`)
+Uses a vision-language model for both perception and planning:
+- **Perception**: VLM evaluates visual predicates from images
+- **Planning**: VLM generates entire plan before execution
+- **Key Feature**: Integrates visual perception directly into planning
+
+```bash
+# Running VLM open loop planner
+python predicators/main.py --env mock_spot_sort_weight \
   --approach vlm_open_loop --seed 0 --perceiver mock_spot_perceiver \
-  --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
-  --num_test_tasks 1 --vlm_model_name o3-mini \
-  --vlm_temperature 0.2 --bilevel_plan_without_sim True \
+  --mock_env_vlm_eval_predicate True --vlm_model_name gpt-4o \
+  --vlm_temperature 0.2 --num_train_tasks 0 --num_test_tasks 1 \
+  --bilevel_plan_without_sim True --load_approach --horizon 20
+```
+
+#### 6. VLM Closed-Loop Planner (`vlm_open_loop` with execution monitoring)
+VLM planner with execution monitoring:
+- **Perception**: VLM perception with execution monitoring
+- **Planning**: VLM generates plan, with replanning when execution outcomes don't match expectations
+- **Key Advantage**: Combines visual perception with robust execution monitoring
+
+```bash
+# Running VLM closed loop planner (with MPC monitoring)
+python predicators/main.py --env mock_spot_drawer_cleaning \
+  --approach vlm_open_loop --seed 0 --perceiver mock_spot_perceiver \
+  --mock_env_vlm_eval_predicate True --vlm_model_name gpt-4o \
+  --vlm_temperature 0.2 --execution_monitor mpc \
+  --num_train_tasks 0 --num_test_tasks 1 --bilevel_plan_without_sim True \
   --load_approach --horizon 20
 ```
 
-#### 3. VLM Closed-Loop Planner with Execution Monitoring
-The closed-loop approach adds execution monitoring to detect when outcomes don't match expectations, triggering replanning:
+#### 7. VLM with Image History (`vlm_open_loop` with image history)
+VLM planner that maintains history of past observations:
+- **Perception**: VLM with access to previous image observations
+- **Planning**: VLM generates plans with context from image history
+- **Key Feature**: Can reason about changes over time and maintain state information
 
 ```bash
-python predicators/main.py --env mock_spot_pick_place_two_cup \
-  --approach vlm_open_loop --seed 0 --perceiver mock_spot_perceiver \
-  --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
-  --num_test_tasks 1 --vlm_model_name o3-mini \
-  --vlm_temperature 0.2 --bilevel_plan_without_sim True \
-  --execution_monitor expected_atoms --load_approach --horizon 20
-```
-
-#### 4. VLM Planner with Image History
-This approach maintains a history of previous observations for better context:
-
-```bash
+# Running VLM planner with image history
 python predicators/main.py --env mock_spot_pick_place_two_cup \
   --approach vlm_open_loop --execution_monitor expected_atoms \
   --bilevel_plan_without_sim True --seed 0 \
@@ -293,16 +385,35 @@ python predicators/main.py --env mock_spot_pick_place_two_cup \
   --vlm_temperature 0.7 --horizon 20 --load_approach
 ```
 
-## Available Synthetic Tasks
+#### 8. VLM Captioning Approach (`vlm_captioning`)
+Uses VLM to caption scenes and derive state information:
+- **Perception**: VLM generates detailed captions of the scene
+- **Planning**: Uses the captions to inform planning decisions
+- **Key Feature**: Extracts rich semantic information from images through captions
+
+```bash
+# Running VLM captioning approach
+python predicators/main.py --env mock_spot_drawer_cleaning \
+  --approach vlm_captioning --seed 0 --perceiver vlm_perceiver \
+  --vlm_model_name gpt-4o --vlm_temperature 0.2 --execution_monitor mpc \
+  --num_train_tasks 0 --num_test_tasks 1 --bilevel_plan_without_sim True \
+  --horizon 20 --load_approach
+```
+
+## Running Available Synthetic Tasks
 
 The framework includes several synthetic tasks of increasing complexity:
 
-### 1. Pick and Place Tasks
+### Commands
+
+#### 1. Pick and Place Tasks
+
 Basic manipulation of objects:
+
 - **mock_spot_pick_place**: Simple pick and place with one object
 - **mock_spot_pick_place_two_cup**: Pick and place with two cups
 
-### 2. Belief-Space Tasks
+#### 2. Belief-Space Tasks
 Tasks requiring observation and belief updates:
 
 - **Cup Emptiness**: Determine if cups contain objects
@@ -312,7 +423,6 @@ Tasks requiring observation and belief updates:
     --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
     --num_test_tasks 1 --log_rich True --bilevel_plan_without_sim True
   ```
-
 - **Drawer Cleaning**: Clean up objects from a drawer
   ```bash
   python predicators/main.py --env mock_spot_drawer_cleaning \
@@ -321,7 +431,6 @@ Tasks requiring observation and belief updates:
     --num_test_tasks 1 --vlm_model_name gpt-4o \
     --bilevel_plan_without_sim True --load_approach
   ```
-
 - **Weight Sorting**: Sort objects based on relative weight
   ```bash
   python predicators/main.py --env mock_spot_sort_weight \
@@ -329,6 +438,21 @@ Tasks requiring observation and belief updates:
     --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
     --num_test_tasks 1 --log_rich True --bilevel_plan_without_sim True
   ```
+
+### Running Systematic Experiments
+
+The `scripts/mock_experiments.py` script provides a convenient way to run multiple planners on the same environment for systematic comparison:
+
+```bash
+# Run all planners on drawer cleaning task
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning
+
+# Run specific planner on cup emptiness task
+python scripts/mock_experiments.py --env mock_spot_cup_emptiness --planner vlm_closed_loop
+
+# Run with different seed
+python scripts/mock_experiments.py --env mock_spot_sort_weight --seed 42
+```
 
 ## Testing and Development
 
