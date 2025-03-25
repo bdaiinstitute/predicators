@@ -69,10 +69,21 @@ class LLMTextPlanningApproach(LLMOpenLoopApproach):
         # Format objects and goals
         objects_list = sorted(set(task.init))
         objects_str = "\n".join(str(obj) for obj in objects_list)
-        goal_expr_list = sorted(set(task.goal))
-        type_hierarchy_str = utils.create_pddl_types_str(self._types)
-        goal_str = "\n".join(str(obj) for obj in goal_expr_list)
         
+        # Handle OR goals properly
+        if isinstance(task.goal, list):
+            # Format each goal set as a separate condition
+            goal_conditions = []
+            for goal_set in task.goal:
+                goal_expr_list = sorted(goal_set)
+                goal_conditions.append("\n".join(str(obj) for obj in goal_expr_list))
+            goal_str = "\nOR\n".join(goal_conditions)
+        else:
+            # Handle single goal set
+            goal_expr_list = sorted(task.goal)
+            goal_str = "\n".join(str(obj) for obj in goal_expr_list)
+            
+        type_hierarchy_str = utils.create_pddl_types_str(self._types)
         
         # Format action history if available
         action_history_str = ""
