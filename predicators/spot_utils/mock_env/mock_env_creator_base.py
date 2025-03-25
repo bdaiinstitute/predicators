@@ -135,11 +135,13 @@ KEY_PREDICATES = {
     "DrawerOpen",  # Drawer state
     "DrawerClosed",  # Drawer state
     
+    # Robot key state
+    # "Holding",     # Object being held
+    
     # View-related predicates
     # "InHandView",  # Object visible in hand camera
     # "InNavView",   # Object visible in navigation camera
     # "HandEmpty",   # Gripper state
-    # "Holding",     # Object being held
 }
 
 class MockEnvCreatorBase(ABC):
@@ -215,7 +217,12 @@ class MockEnvCreatorBase(ABC):
             self.objects = {o.name: o for o in env.objects}
             # Store initial and goal atoms from environment
             self.env_initial_atoms = env.initial_atoms
-            self.env_goal_atoms_or = env.goal_atoms_or
+            
+            # FIXME: handle env goals init
+            if env.goal_atoms_or is not None:
+                self.env_goal_atoms_or = env.goal_atoms_or
+            if env.goal_atoms is not None:
+                self.env_goal_atoms = env.goal_atoms
         elif env_info is not None:
             self.types = {t.name: t for t in env_info["types"]}
             self.predicates = {p.name: p for p in env_info["predicates"]}
@@ -225,6 +232,7 @@ class MockEnvCreatorBase(ABC):
             # Store initial and goal atoms from env_info if available
             self.env_initial_atoms = env_info.get("initial_atoms", None)
             self.env_goal_atoms = env_info.get("goal_atoms", None)
+            self.env_goal_atoms_or = env_info.get("goal_atoms_or", None)
         else:
             raise ValueError("Either env or env_info must be provided")
 
