@@ -1562,5 +1562,5 @@ class MockSpotCupEmptiness(MockSpotEnv):
         # Reset environment to get initial observation
         obs = self.reset("test", 0)
         # Create task with initial observation and goal
-        task = EnvironmentTask(obs, self.goal_atoms)
+        task = EnvironmentTask(obs, self.goal_atoms_or)
         return [task]
