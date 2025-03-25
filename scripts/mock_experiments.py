@@ -40,6 +40,8 @@ AVAILABLE_ENVS = [
 # Available planners
 AVAILABLE_PLANNERS = [
     "oracle",
+    "oracle_closed_loop",
+    "oracle_open_loop",
     "random",
     "llm_closed_loop",
     "vlm_closed_loop",
@@ -129,7 +131,26 @@ def main(args: argparse.Namespace) -> None:
             "args": ["--approach", 
                      "oracle",
                      "--perceiver", "mock_spot_perceiver",
-                     "--method_name", "oracle"]
+                     "--method_name", "oracle",
+                    #  # NOTE: just added execution_monitor; why didn't put it before?
+                    #  "--execution_monitor", "expected_atoms"
+                     ]
+        },
+        {
+            "name": "oracle_closed_loop",
+            "args": ["--approach", 
+                     "oracle",
+                     "--perceiver", "mock_spot_perceiver",
+                     "--method_name", "oracle_closed_loop",
+                     # NOTE: just added execution_monitor; why didn't put it before?
+                     "--execution_monitor", "expected_atoms"]
+        },
+        {
+            "name": "oracle_open_loop",
+            "args": ["--approach", 
+                     "oracle",
+                     "--perceiver", "mock_spot_perceiver",
+                     "--method_name", "oracle_open_loop"]
         },
         # {
         #     "name": "random",
@@ -141,28 +162,28 @@ def main(args: argparse.Namespace) -> None:
         #         "--timeout", "60",
         #     ]
         # },
-        # {
-        #     "name": "llm_closed_loop",
-        #     "args": [
-        #         "--approach", "llm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--llm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #         # "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
-        # {
-        #     "name": "vlm_closed_loop",
-        #     "args": [
-        #         "--approach", "vlm_open_loop",
-        #         "--perceiver", "mock_spot_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--llm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #         # "--execution_monitor", "expected_atoms"
-        #     ]
-        # },
+        {
+            "name": "llm_closed_loop",
+            "args": [
+                "--approach", "llm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--llm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
+        {
+            "name": "vlm_closed_loop",
+            "args": [
+                "--approach", "vlm_open_loop",
+                "--perceiver", "mock_spot_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--llm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+                # "--execution_monitor", "expected_atoms"
+            ]
+        },
         {
             "name": "vlm_captioning",
             "args": [
