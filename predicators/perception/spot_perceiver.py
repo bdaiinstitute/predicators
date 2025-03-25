@@ -59,25 +59,26 @@ def annotate_imgs_with_detections(
         _ = utils.add_text_to_draw_img(draw, (0, 0),
                                        CAMERA_NAME_TO_ANNOTATION[camera_name],
                                        font)
-        # Annotate with object detections.
-        detections = object_detections_per_camera[camera_name]
-        for obj_id, seg_bb in detections:
-            if isinstance(obj_id, LanguageObjectDetectionID):
-                x0, y0, x1, y1 = seg_bb.bounding_box
-                x0, x1 = sorted([x0, x1])
-                y0, y1 = sorted([y0, y1])
-                draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
-                text = f"{obj_id.language_id}"
-                font = utils.get_scaled_default_font(draw, 3)
-                text_mask = font.getmask(text)  # type: ignore
-                text_width, text_height = text_mask.size
-                text_bbox = [(x0, y0 - 1.5 * text_height),
-                             (x0 + text_width + 1, y0)]
-                draw.rectangle(text_bbox, fill='green')
-                draw.text((x0 + 1, y0 - 1.5 * text_height),
-                          text,
-                          fill='white',
-                          font=font)
+    # TODO: just commenting out for now to see if this helps labelling.
+    #     # Annotate with object detections.
+    #     detections = object_detections_per_camera[camera_name]
+    #     for obj_id, seg_bb in detections:
+    #         if isinstance(obj_id, LanguageObjectDetectionID):
+    #             x0, y0, x1, y1 = seg_bb.bounding_box
+    #             x0, x1 = sorted([x0, x1])
+    #             y0, y1 = sorted([y0, y1])
+    #             draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+    #             text = f"{obj_id.language_id}"
+    #             font = utils.get_scaled_default_font(draw, 3)
+    #             text_mask = font.getmask(text)  # type: ignore
+    #             text_width, text_height = text_mask.size
+    #             text_bbox = [(x0, y0 - 1.5 * text_height),
+    #                          (x0 + text_width + 1, y0)]
+    #             draw.rectangle(text_bbox, fill='green')
+    #             draw.text((x0 + 1, y0 - 1.5 * text_height),
+    #                       text,
+    #                       fill='white',
+    #                       font=font)
     annotated_imgs = list(pil_imgs)
     return annotated_imgs
 
@@ -91,7 +92,7 @@ def save_annotated_imgs_for_vlm_demo(annotated_imgs: List[PIL.Image.Image],
     # Collect all the names of folders within `save_dir`.
     subfolders = [f for f in save_dir.iterdir() if f.is_dir()]
     # Find the highest int that's a subfolder of `save_dir`.
-    prev_timestep = 0
+    prev_timestep = -1
     for folder in subfolders:
         try:
             folder_int = int(folder.name)
@@ -689,7 +690,7 @@ class SpotPerceiver(BasePerceiver):
                                _immovable_object_type)
             apple = Object("apple", _movable_object_type)
             table = Object("table", _table_type)
-            eraser = Object("neon_green_fluffy_eraser", _movable_object_type)
+            eraser = Object("fluffy_toy_duster", _movable_object_type)
             robot = Object("robot", _robot_type)
             goal = {
                 GroundAtom(VLMIn, [apple, trash_can]),

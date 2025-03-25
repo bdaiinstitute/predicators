@@ -3880,12 +3880,51 @@ class VLMTableWipingEnv(SpotRearrangementEnv):
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
 
-        op_to_name = {o.name: o for o in _create_operators()}
-        op_names_to_keep = {
-            "MoveToReachObject",
-            "MoveToHandViewObject",
+        # NOTE: temporary just to make data collection easier.
+        # Comment out this block below when actually running!
+        # op_to_name = {o.name: o for o in _create_operators()}
+        # op_names_to_keep = {
+        #     "MoveToReachObject",
+        #     "MoveToHandViewObject",
+        # }
+        # self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+        # NOTE: temporary just to make data collection easier.
+        # Add teleop versions of MoveToReach and MoveToHandView!
+        # MoveToReachObject
+        self._strips_operators = set()
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _base_object_type)
+        parameters = [robot, obj]
+        preconds = {
+            LiftedAtom(_NotBlocked, [obj]),
+            LiftedAtom(_NotHolding, [robot, obj]),
         }
-        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+        add_effs = {LiftedAtom(_Reachable, [robot, obj])}
+        del_effs: Set[LiftedAtom] = set()
+        ignore_effs = {
+            _Reachable, _InHandView, _InView, _RobotReadyForSweeping
+        }
+        self._strips_operators.add(
+            STRIPSOperator("TeleopMoveToReachObject", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # MoveToHandViewObject
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        parameters = [robot, obj]
+        preconds = {
+            LiftedAtom(_NotBlocked, [obj]),
+            LiftedAtom(_HandEmpty, [robot])
+        }
+        add_effs = {LiftedAtom(_InHandView, [robot, obj])}
+        del_effs = set()
+        ignore_effs = {
+            _Reachable, _InHandView, _InView, _RobotReadyForSweeping
+        }
+        self._strips_operators.add(
+            STRIPSOperator("TeleopMoveToHandViewObject", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
 
         # We now add in specific operators for the table wiping task that
         # are tied to specific teleop actions.
@@ -4001,14 +4040,15 @@ class VLMTableWipingEnv(SpotRearrangementEnv):
         objects = {
             Object("clear_plastic_trash_can", _immovable_object_type),
             Object("fluffy_toy_duster", _movable_object_type),
-            Object("apple", _movable_object_type),
         }
         for o in objects:
             detection_id = LanguageObjectDetectionID(o.name)
             detection_id_to_obj[detection_id] = o
 
         detection_id_to_obj[LanguageObjectDetectionID(
-            "childrens_play_table/surfboard")] = Object("table", _table_type)
+            "coffee_table/surfboard")] = Object("table", _table_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "apple/red_ball")] = Object("apple", _movable_object_type)
 
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
