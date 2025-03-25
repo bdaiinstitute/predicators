@@ -128,7 +128,8 @@ def main(args: argparse.Namespace) -> None:
             "name": "oracle",
             "args": ["--approach", 
                      "oracle",
-                     "--perceiver", "mock_spot_perceiver"]
+                     "--perceiver", "mock_spot_perceiver",
+                     "--method_name", "oracle"]
         },
         # {
         #     "name": "random",
@@ -169,7 +170,8 @@ def main(args: argparse.Namespace) -> None:
                 "--perceiver", "vlm_perceiver",
                 "--vlm_model_name", "gpt-4o",
                 "--vlm_temperature", "0.2",
-                "--execution_monitor", "mpc"
+                "--execution_monitor", "mpc",
+                "--method_name", "vlm_captioning"
             ]
         },
         {
@@ -180,6 +182,7 @@ def main(args: argparse.Namespace) -> None:
                 "--perceiver", "vlm_perceiver",
                 "--vlm_model_name", "gpt-4o",
                 "--vlm_temperature", "0.2",
+                "--method_name", "vlm_captioning_open_loop"
             ]
         }
     ]

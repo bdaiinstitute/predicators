@@ -14,6 +14,8 @@ def create_arg_parser(env_required: bool = True,
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", required=env_required, type=str)
     parser.add_argument("--approach", required=approach_required, type=str)
+    parser.add_argument("--method_name", type=str, default="",
+                       help="A unique name for this method variant, used for results collection.")
     parser.add_argument("--excluded_predicates", default="", type=str)
     parser.add_argument("--included_options", default="", type=str)
     parser.add_argument("--seed", required=seed_required, type=int)

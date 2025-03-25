@@ -106,8 +106,8 @@ def aggregate_metrics_by_planner_and_task(yaml_files: List[str]) -> Dict[str, Di
         with open(f, 'r') as yf:
             data = yaml.safe_load(yf)
             if 'config' in data and 'results' in data:
-                # Extract planner name from config
-                planner = data['config'].get('approach', 'unknown')
+                # Extract planner name from config, preferring method_name over approach
+                planner = data['config'].get('method_name', data['config'].get('approach', 'unknown'))
                 # Extract task/env name from config
                 task = data['config'].get('env', 'unknown')
                 
@@ -219,7 +219,7 @@ def collect_results(output_dir: str = "results_collected") -> None:
                     with open(yaml_files[0], 'r') as yf:
                         data = yaml.safe_load(yf)
                         if 'config' in data:
-                            planner_name = data['config'].get('approach', 'unknown')
+                            planner_name = data['config'].get('method_name', data['config'].get('approach', 'unknown'))
                 
                 # Create new log filename with timestamp and planner
                 new_log_filename = f"run_{env_part}_planner_{planner_name}_seed_{seed}_{dir_timestamp}.txt"
