@@ -244,6 +244,7 @@ def detect_objects_from_language(
                                  f"{obj_id} because it's out of bounds. " + \
                                  f"(pose = {pose_xy})")
                     continue
+
             # Pose extraction succeeded.
             detections[obj_id] = pose
             break

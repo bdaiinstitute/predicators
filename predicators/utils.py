@@ -2660,13 +2660,18 @@ def query_vlm_for_atom_vals(
     logging.info(f"VLM output: \n{vlm_output_str}")
     # Parse out stuff.
     if len(label_history) > 0:  # pragma: no cover
-        truth_values = re.findall(r'\* (.*): (True|False)', vlm_output_str)
+        truth_values = re.findall(r'\* (.*): (True|False|Unknown)',
+                                  vlm_output_str)
         for i, (atom_query,
                 pred_label) in enumerate(zip(atom_queries_list, truth_values)):
             pred, label = pred_label
-            assert pred in atom_query
+            try:
+                assert pred in atom_query
+            except AssertionError:
+                import ipdb
+                ipdb.set_trace()
             label = label.lower()
-            if label == "true":
+            if "true" in label.lower():
                 true_atoms.add(vlm_atoms[i])
     else:
         all_vlm_responses = vlm_output_str.strip().split("\n")
@@ -2683,7 +2688,7 @@ def query_vlm_for_atom_vals(
             # value = curr_vlm_output_line[len(atom_query + ":"):
             # period_idx].lower().strip()
             value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
-            if value == "true":
+            if "true" in value:
                 true_atoms.add(vlm_atoms[i])
     return true_atoms
 
@@ -2699,7 +2704,11 @@ def abstract(state: State,
     try:
         if state.simulator_state is not None and "abstract_state" in \
             state.simulator_state: # pragma: no cover
-            return state.simulator_state["abstract_state"]
+            return {
+                atom
+                for atom in state.simulator_state["abstract_state"]
+                if atom.predicate in preds
+            }
     except (AttributeError, TypeError):
         pass
     # Start by pulling out all VLM predicates.

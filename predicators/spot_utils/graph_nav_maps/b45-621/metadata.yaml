@@ -47,3 +47,44 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
+  yellow_toy_cup:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  small_cardboard_box_with_black_tape:
+    shape: 1  # cuboid
+    height: 0.55
+    length: 0.28
+    width: 0.6
+    flat_top_surface: 1
+  apple:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  clear_plastic_trash_can:
+    shape: 2
+    height: 0.1
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  fluffy_toy_duster:
+    shape: 1
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  table:
+    shape: 1
+    height: 0.1
+    length: 0.3
+    width: 0.5
+    flat_top_surface: 1

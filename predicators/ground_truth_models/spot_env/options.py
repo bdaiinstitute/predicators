@@ -963,12 +963,6 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
-    "TeleopPick1": Box(0, 1, (0, )),  # empty
-    "PlaceNextTo": Box(0, 1, (0, )),  # empty
-    "TeleopPick2": Box(0, 1, (0, )),  # empty
-    "TeleopPlace1": Box(0, 1, (0, )),  # empty
-    "Sweep": Box(0, 1, (0, )),  # empty
-    "PlaceOnFloor": Box(0, 1, (0, ))  # empty
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -992,13 +986,6 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
-    "TeleopPick1": _create_teleop_policy_with_name("TeleopPick1"),
-    "PlaceNextTo": _create_teleop_policy_with_name("PlaceNextTo"),
-    "TeleopPlace": _create_teleop_policy_with_name("TeleopPlace"),
-    "TeleopPick2": _create_teleop_policy_with_name("TeleopPick2"),
-    "TeleopPlace1": _create_teleop_policy_with_name("TeleopPlace1"),
-    "Sweep": _create_teleop_policy_with_name("Sweep"),
-    "PlaceOnFloor": _create_teleop_policy_with_name("PlaceOnFloor")
 }
 
 
@@ -1021,8 +1008,12 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
                 0, 1, (0, ))
             _OPERATOR_NAME_TO_POLICY[
                 "PickObjectFromTop"] = _sim_safe_pick_object_from_top_policy
-        params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
-        policy = _OPERATOR_NAME_TO_POLICY[operator_name]
+        if "teleop" in operator_name.lower():
+            policy = _create_teleop_policy_with_name(operator_name)
+            params_space = Box(0, 1, (0, ))  # null
+        else:
+            params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
+            policy = _OPERATOR_NAME_TO_POLICY[operator_name]
         super().__init__(operator_name, policy, types, params_space)
 
     def __reduce__(self) -> Tuple:
@@ -1035,17 +1026,12 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
-            "spot_vlm_dustpan_test_env",
-            "spot_vlm_cup_table_env",
-            "spot_cube_env",
-            "spot_soda_floor_env",
-            "spot_soda_table_env",
-            "spot_soda_bucket_env",
-            "spot_soda_chair_env",
-            "spot_main_sweep_env",
-            "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env",
-            "lis_spot_block_floor_env",
+            "spot_vlm_dustpan_test_env", "spot_vlm_cup_table_env",
+            "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
+            "spot_soda_bucket_env", "spot_soda_chair_env",
+            "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
+            "spot_brush_shelf_env", "lis_spot_block_floor_env",
+            "spot_vlm_simple_table_wiping_env", "spot_vlm_table_wiping_env"
         }
 
     @classmethod

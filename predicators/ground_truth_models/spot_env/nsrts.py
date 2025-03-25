@@ -289,7 +289,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env", "lis_spot_block_floor_env"
+            "spot_brush_shelf_env", "lis_spot_block_floor_env",
+            "spot_vlm_simple_table_wiping_env", "spot_vlm_table_wiping_env"
         }
 
     @staticmethod
@@ -321,10 +322,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
-            "TeleopPick1": utils.null_sampler,
-            "TeleopPlace1": utils.null_sampler,
             "PlaceNextTo": utils.null_sampler,
-            "TeleopPick2": utils.null_sampler,
             "Sweep": utils.null_sampler,
             "PlaceOnFloor": utils.null_sampler
         }
@@ -337,7 +335,10 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             # similarly in the future.
 
         for strips_op in env.strips_operators:
-            sampler = operator_name_to_sampler[strips_op.name]
+            if "teleop" in strips_op.name.lower():
+                sampler = utils.null_sampler
+            else:
+                sampler = operator_name_to_sampler[strips_op.name]
             option = options[strips_op.name]
             nsrt = strips_op.make_nsrt(
                 option=option,
