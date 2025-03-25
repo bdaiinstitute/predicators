@@ -1562,5 +1562,157 @@ class MockSpotCupEmptiness(MockSpotEnv):
         # Reset environment to get initial observation
         obs = self.reset("test", 0)
         # Create task with initial observation and goal
+        # NOTE: the goal is using the OR goal
         task = EnvironmentTask(obs, self.goal_atoms_or)
+        return [task]
+
+
+class MockSpotDrawerCleaningSameColorEnv(MockSpotEnv):
+    """A mock environment for testing drawer cleaning with two cups."""
+    
+    # Set the preset data directory
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotDrawerCleaningSameColorEnv")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_drawer_cleaning_same_color"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = "mock_spot_drawer_cleaning_same_color"
+        
+        # Create objects
+        self.robot = Object("robot", _robot_type)
+        self.drawer = Object("drawer", _container_type)
+        self.container = Object("container_box", _container_type)  # Changed to container_type
+        self.small_green_cup = Object("small_green_cup", _movable_object_type)
+        self.large_green_cup = Object("large_green_cup", _movable_object_type)
+        
+        self.oracle_env = True
+        
+        if self.oracle_env:
+            # Set up initial state
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+                "small_green_cup": self.small_green_cup,
+                "large_green_cup": self.large_green_cup
+            }
+            self._set_initial_state_and_goal()
+        else:
+            self._objects = {
+                "robot": self.robot,
+                "drawer": self.drawer,
+                "container": self.container,
+            }
+            self._objects_oracle = self._objects | {
+                "small_green_cup": self.small_green_cup,
+                "large_green_cup": self.large_green_cup
+            }
+            # NOTE: for agent with partial observability, we need to set up initial state and goal
+            self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial and goal atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Container box state
+            GroundAtom(_NotBlocked, [self.container]),
+            GroundAtom(_IsPlaceable, [self.container]),
+            GroundAtom(_NotInsideAnyContainer, [self.container]),
+            GroundAtom(_HasFlatTopSurface, [self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.container]),
+            GroundAtom(_Reachable, [self.robot, self.container]),
+            
+            # Drawer state
+            GroundAtom(_NotBlocked, [self.drawer]),
+            GroundAtom(_IsPlaceable, [self.drawer]),
+            GroundAtom(_NotInsideAnyContainer, [self.drawer]),
+            GroundAtom(_HasFlatTopSurface, [self.drawer]),
+            GroundAtom(_NotHolding, [self.robot, self.drawer]),
+            GroundAtom(_DrawerClosed, [self.drawer]),  # Drawer is closed
+            GroundAtom(_Reachable, [self.robot, self.drawer]),  # Robot can reach drawer
+            
+            # Red cup state
+            GroundAtom(_Inside, [self.small_green_cup, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.small_green_cup]),
+            GroundAtom(_FitsInXY, [self.small_green_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.small_green_cup]),
+            GroundAtom(_NEq, [self.small_green_cup, self.container]),
+            GroundAtom(_NEq, [self.small_green_cup, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.small_green_cup]),
+            GroundAtom(_NotBlocked, [self.small_green_cup]),
+            
+            # Blue cup state
+            GroundAtom(_Inside, [self.large_green_cup, self.drawer]),
+            GroundAtom(_IsPlaceable, [self.large_green_cup]),
+            GroundAtom(_FitsInXY, [self.large_green_cup, self.container]),
+            GroundAtom(_NotHolding, [self.robot, self.large_green_cup]),
+            GroundAtom(_NEq, [self.large_green_cup, self.container]),
+            GroundAtom(_NEq, [self.large_green_cup, self.drawer]),
+            GroundAtom(_Reachable, [self.robot, self.large_green_cup]),
+            GroundAtom(_NotBlocked, [self.large_green_cup]),
+            
+            # Object relationships
+            GroundAtom(_NEq, [self.container, self.drawer]),  # Container and drawer are different objects
+        }
+        
+        self.goal_atoms = {
+            GroundAtom(_Inside, [self.small_green_cup, self.container]),  # Red cup should be inside container
+            GroundAtom(_Inside, [self.large_green_cup, self.container]),  # Blue cup should be inside container
+            GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
+        }
+
+        # Add goal_atoms_or for compatibility with creator
+        self.goal_atoms_or = [self.goal_atoms]
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to drawer cleaning tasks."""
+        # Get all operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "MoveToHandViewObjectInContainer",
+            "PickObjectFromTop",
+            "PickObjectFromContainer",
+            "PlaceObjectOnTop",
+            "DropObjectInside",  # Added this for placing in container
+            "OpenDrawer",
+            "CloseDrawer"
+        }
+            
+        # Filter operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
+        # NOTE: to update this from language
+        return self.goal_atoms
+    
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
         return [task]
