@@ -9,13 +9,7 @@ export PYTHONPATH="${PYTHONPATH:-$PWD}"  # Default to current directory if not s
 export PYTHONUNBUFFERED=1
 export PYTHONHASHSEED=0
 
-# Check FD_EXEC_PATH exists
-if [ ! -d "$FD_EXEC_PATH" ]; then
-    echo "Warning: FD_EXEC_PATH ($FD_EXEC_PATH) does not exist"
-    echo "Please set FD_EXEC_PATH to the correct Fast Downward directory"
-    exit 1
-fi
-
+# Check if number of seeds is provided
 if [ -z "$1" ]; then
     echo "Error: Number of seeds must be provided"
     echo "Usage: ./run_local_experiments.sh <num_seeds> [env1 env2 ...]"
@@ -72,7 +66,6 @@ tmux kill-session -t local_monitor 2>/dev/null
 # Show environment variables being used
 echo "=== Environment Variables ==="
 echo "PYTHONPATH: $PYTHONPATH"
-echo "FD_EXEC_PATH: $FD_EXEC_PATH"
 echo "PYTHONHASHSEED: $PYTHONHASHSEED"
 echo "PYTHONUNBUFFERED: $PYTHONUNBUFFERED"
 echo ""
@@ -144,7 +137,6 @@ STATUS_CMD="while true; do
     echo ''
     echo '=== Environment Variables ==='
     echo "PYTHONPATH: $PYTHONPATH"
-    echo "FD_EXEC_PATH: $FD_EXEC_PATH"
     echo "PYTHONHASHSEED: $PYTHONHASHSEED"
     echo ''
     echo '=== Experiment Configuration ==='
