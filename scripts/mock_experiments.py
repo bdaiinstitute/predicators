@@ -43,10 +43,11 @@ AVAILABLE_PLANNERS = [
     "random",
     "llm_closed_loop",
     "vlm_closed_loop",
-    "vlm_captioning"
+    "vlm_captioning",
+    "vlm_captioning_open_loop"
 ]
 
-def create_base_command(env:str, seed: int = 0) -> List[str]:
+def create_base_command(env: str, seed: int = 0, results_dir: str = "results") -> List[str]:
     """Create the base command with common arguments."""
     return [
         "python", "predicators/main.py",
@@ -55,8 +56,9 @@ def create_base_command(env:str, seed: int = 0) -> List[str]:
         "--num_train_tasks", "0",
         "--num_test_tasks", "1",
         "--bilevel_plan_without_sim", "True",
-        "--horizon", "20",
+        "--horizon", "20",  # NOTE: this is the max horizon for the mock env; may need to adjust for different environments
         "--load_approach",
+        "--results_dir", results_dir,  # Add results_dir argument
     ]
 
 def run_command(cmd: List[str], name: str) -> None:
@@ -117,14 +119,17 @@ def main(args: argparse.Namespace) -> None:
         if env not in AVAILABLE_ENVS:
             raise ValueError(f"Unknown environment: {env}. Available environments: {AVAILABLE_ENVS}")
     
+    # Create results directory if it doesn't exist
+    os.makedirs(args.results_dir, exist_ok=True)
+    
     # Define all planner configurations
     planners = [
-        # {
-        #     "name": "oracle",
-        #     "args": ["--approach", 
-        #              "oracle",
-        #              "--perceiver", "mock_spot_perceiver"]
-        # },
+        {
+            "name": "oracle",
+            "args": ["--approach", 
+                     "oracle",
+                     "--perceiver", "mock_spot_perceiver"]
+        },
         # {
         #     "name": "random",
         #     "args": [
@@ -157,16 +162,16 @@ def main(args: argparse.Namespace) -> None:
         #         # "--execution_monitor", "expected_atoms"
         #     ]
         # },
-        # {
-        #     "name": "vlm_captioning",
-        #     "args": [
-        #         "--approach", "vlm_captioning",
-        #         "--perceiver", "vlm_perceiver",
-        #         "--vlm_model_name", "gpt-4o",
-        #         "--vlm_temperature", "0.2",
-        #         "--execution_monitor", "mpc"
-        #     ]
-        # },
+        {
+            "name": "vlm_captioning",
+            "args": [
+                "--approach", "vlm_captioning",
+                "--perceiver", "vlm_perceiver",
+                "--vlm_model_name", "gpt-4o",
+                "--vlm_temperature", "0.2",
+                "--execution_monitor", "mpc"
+            ]
+        },
         {
             # NOTE: no execution monitor, for replicating Sun et al. 2024
             "name": "vlm_captioning_open_loop",
@@ -201,7 +206,7 @@ def main(args: argparse.Namespace) -> None:
             if args.planner and planner["name"].lower() != args.planner.lower():
                 continue
                 
-            base_cmd = create_base_command(env, args.seed)
+            base_cmd = create_base_command(env, args.seed, args.results_dir)
             cmd = base_cmd + planner["args"]
             run_command(cmd, f"{env}_{planner['name']}")
 
@@ -217,6 +222,8 @@ def parse_args() -> argparse.Namespace:
                        help="Single environment to run")
     parser.add_argument("--envs", type=str,
                        help="Space-separated list of environments to run")
+    parser.add_argument("--results_dir", type=str, default="results",
+                       help="Directory to save results")
     return parser.parse_args()
 
 if __name__ == "__main__":
