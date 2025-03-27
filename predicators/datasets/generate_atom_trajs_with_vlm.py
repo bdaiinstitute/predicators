@@ -29,7 +29,7 @@ from predicators.pretrained_model_interface import VisionLanguageModel
 from predicators.settings import CFG
 from predicators.structs import Action, Dataset, GroundAtom, \
     ImageOptionTrajectory, LowLevelTrajectory, Object, ParameterizedOption, \
-    Predicate, State, Task, _Option
+    Predicate, State, Task, _Option, VLMPredicate
 
 
 def _generate_prompt_for_atom_proposals(
@@ -467,13 +467,22 @@ def _parse_structured_state_into_ground_atoms(
         curr_obj_name_to_obj = {obj.name: obj for obj in objs_for_task}
         # If we have states, then we can just evaluate the goal predicates on
         # them. But if we don't, then there's nothing we can do except assume
-        # that there is only one goal atom that gets satisfied at the end.
+        # (1) that there is only one goal atom that gets satisfied at the end
+        # or (2) that we are using VLM-based goal predicates
         assume_goal_holds_at_end = use_dummy_goal
         if state_trajs is None:
-            assert len(train_tasks[i].goal) == 1
-            assert known_predicates is None or \
-                known_predicates.issubset(env.goal_predicates)
-            assume_goal_holds_at_end = True
+            for goal_atom in train_tasks[i].goal:
+                if not isinstance(goal_atom.predicate, VLMPredicate):
+                    break
+            else:
+                assume_goal_holds_at_end = True
+            if not assume_goal_holds_at_end:
+                assert len(train_tasks[i].goal) == 1
+                goal_atom = list(train_tasks[i].goal)[0]
+                assert goal_atom.predicate.name == "DummyGoal"
+                assert known_predicates is None or \
+                    known_predicates.issubset(env.goal_predicates)
+                assume_goal_holds_at_end = True
 
         if use_dummy_goal:
             # NOTE: In this case, we assume that there is precisely one dummy
@@ -1302,13 +1311,22 @@ def create_ground_atom_data_from_saved_img_trajs(
         low_level_trajs = _convert_ground_option_trajs_into_lowleveltrajs(
             [traj.actions for traj in image_option_trajs],
             goal_states_for_every_traj, train_tasks)
-    else:
+    elif image_option_trajs[0].states is not None:
         low_level_trajs = []
         for io_traj in image_option_trajs:
             assert io_traj.states is not None
             low_level_trajs.append(
                 LowLevelTrajectory(io_traj.states, [
                     Action(np.zeros(env.action_space.shape, dtype=np.float32),
-                           act) for act in io_traj.actions
+                        act) for act in io_traj.actions
                 ], True, io_traj.train_task_idx))
+    else:
+        # Here, the goal consists of VLM predicates: just make the goal
+        # state the same as the initial state!
+        goal_states_for_every_traj = [
+            train_tasks[i].init for i in range(len(train_tasks))
+        ]
+        low_level_trajs = _convert_ground_option_trajs_into_lowleveltrajs(
+            [traj.actions for traj in image_option_trajs],
+            goal_states_for_every_traj, train_tasks)
     return Dataset(low_level_trajs, ground_atoms_trajs)

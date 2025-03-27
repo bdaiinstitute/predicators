@@ -1,11 +1,15 @@
 """Script to make it easy to record demonstrations from the Spot."""
 
-from predicators.perception.spot_perceiver import save_annotated_imgs_for_vlm_demo, annotate_imgs_with_detections
-from predicators import utils
-from predicators.settings import CFG
-from predicators.spot_utils.utils import verify_estop
-from predicators.spot_utils.perception.spot_cameras import capture_images_without_context
 from pathlib import Path
+
+from predicators import utils
+from predicators.perception.spot_perceiver import \
+    annotate_imgs_with_detections, save_annotated_imgs_for_vlm_demo
+from predicators.settings import CFG
+from predicators.spot_utils.perception.spot_cameras import \
+    capture_images_without_context
+from predicators.spot_utils.utils import verify_estop
+
 
 def main():
     # Run this file alone to test manually.
@@ -34,7 +38,8 @@ def main():
     lease_client = robot.ensure_client(LeaseClient.default_service_name)
     lease_client.take()
 
-    assert len(CFG.spot_vlm_teleop_demo_folderpath) > 0, "Please set the spot_vlm_teleop_demo_folderpath!"
+    assert len(CFG.spot_vlm_teleop_demo_folderpath
+               ) > 0, "Please set the spot_vlm_teleop_demo_folderpath!"
 
     # Pull all the images from the spot cameras and annotate them
     # with the camera names.
@@ -42,7 +47,8 @@ def main():
     rgbd_images = capture_images_without_context(robot)
     annotated_imgs = annotate_imgs_with_detections(rgbd_images, {})
     # Save the images properly.
-    save_annotated_imgs_for_vlm_demo(annotated_imgs, Path(CFG.spot_vlm_teleop_demo_folderpath))
+    save_annotated_imgs_for_vlm_demo(annotated_imgs,
+                                     Path(CFG.spot_vlm_teleop_demo_folderpath))
 
 
 if __name__ == '__main__':
