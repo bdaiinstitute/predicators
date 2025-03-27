@@ -29,7 +29,7 @@ from predicators.pretrained_model_interface import VisionLanguageModel
 from predicators.settings import CFG
 from predicators.structs import Action, Dataset, GroundAtom, \
     ImageOptionTrajectory, LowLevelTrajectory, Object, ParameterizedOption, \
-    Predicate, State, Task, _Option, VLMPredicate
+    Predicate, State, Task, VLMPredicate, _Option
 
 
 def _generate_prompt_for_atom_proposals(
@@ -1318,7 +1318,7 @@ def create_ground_atom_data_from_saved_img_trajs(
             low_level_trajs.append(
                 LowLevelTrajectory(io_traj.states, [
                     Action(np.zeros(env.action_space.shape, dtype=np.float32),
-                        act) for act in io_traj.actions
+                           act) for act in io_traj.actions
                 ], True, io_traj.train_task_idx))
     else:
         # Here, the goal consists of VLM predicates: just make the goal
