@@ -212,6 +212,14 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
 
             ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
         return ret_tasks
+    
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {self._VLMIn, self._TableWiped}
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return {self._VLMIn, self._TableWiped}
 
     def get_vlm_debug_atom_strs(self,
                                 train_tasks: List[Task]) -> List[List[str]]:
