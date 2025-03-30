@@ -420,7 +420,7 @@ Tasks requiring observation and belief updates:
   ```bash
   python predicators/main.py --env mock_spot_cup_emptiness \
     --approach oracle --seed 0 --perceiver mock_spot_perceiver \
-    --mock_env_vlm_eval_predicate True --num_train_tasks 0 \
+    --**mock_env_vlm_eval_predicate** True --num_train_tasks 0 \
     --num_test_tasks 1 --log_rich True --bilevel_plan_without_sim True
   ```
 - **Drawer Cleaning**: Clean up objects from a drawer
@@ -439,20 +439,93 @@ Tasks requiring observation and belief updates:
     --num_test_tasks 1 --log_rich True --bilevel_plan_without_sim True
   ```
 
+## Running Experiments
+
 ### Running Systematic Experiments
 
-The `scripts/mock_experiments.py` script provides a convenient way to run multiple planners on the same environment for systematic comparison:
+The framework provides two main ways to run experiments:
 
+1. **Using mock_experiments.py**:
 ```bash
-# Run all planners on drawer cleaning task
+# Run all planners on a single environment
 python scripts/mock_experiments.py --env mock_spot_drawer_cleaning
 
-# Run specific planner on cup emptiness task
-python scripts/mock_experiments.py --env mock_spot_cup_emptiness --planner vlm_closed_loop
+# Run specific planner on an environment
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner vlm_closed_loop
 
 # Run with different seed
-python scripts/mock_experiments.py --env mock_spot_sort_weight --seed 42
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --seed 42
 ```
+
+2. **Using run_local_experiments.sh** (recommended for systematic evaluation):
+```bash
+# Run experiments with multiple seeds
+./predicators_deploy/run_local_experiments.sh 5 mock_spot_drawer_cleaning mock_spot_sort_weight
+
+# Run on all default environments
+./predicators_deploy/run_local_experiments.sh 5
+```
+
+The script provides:
+- Parallel execution of experiments
+- Real-time monitoring via tmux
+- Organized results in results_deploy/
+- Logs in runlogs/
+- Status window with process monitoring
+
+### Available Planners
+
+The current set of available planners includes:
+
+1. **BKLVA (Oracle)**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner oracle
+```
+
+2. **BKLVA with Execution Monitoring**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner oracle_closed_loop
+```
+
+3. **BKLVA Open Loop**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner oracle_open_loop
+```
+
+4. **LLM Closed Loop**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner llm_closed_loop
+```
+
+5. **VLM Closed Loop**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner vlm_closed_loop
+```
+
+6. **VLM Captioning**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner vlm_captioning
+```
+
+7. **VLM Captioning Open Loop**:
+```bash
+python scripts/mock_experiments.py --env mock_spot_drawer_cleaning --planner vlm_captioning_open_loop
+```
+
+### Environment Variables
+
+When running experiments, these environment variables are important:
+```bash
+export PYTHONPATH="${PYTHONPATH:-$PWD}"  # Add current directory to Python path
+export PYTHONUNBUFFERED=1                # Ensure Python output is not buffered
+export PYTHONHASHSEED=0                  # For reproducibility
+```
+
+### Results Organization
+
+Results are organized as follows:
+- `results_deploy/<timestamp>_<env>_<planner>/`: Contains experiment results
+- `runlogs/run_<env>_planner_<planner>_seed_<N>.txt`: Contains detailed logs for each run
 
 ## Testing and Development
 
