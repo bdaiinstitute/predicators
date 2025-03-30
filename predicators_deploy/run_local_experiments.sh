@@ -28,7 +28,9 @@ else
 fi
 
 # Default planners to run
-PLANNERS=("vlm_captioning" "vlm_captioning_open_loop")
+# PLANNERS=("vlm_captioning" "vlm_captioning_open_loop" "oracle_closed_loop" "oracle_open_loop")
+# PLANNERS=("oracle_closed_loop" "oracle_open_loop")
+PLANNERS=("oracle" "oracle_closed_loop" "oracle_open_loop" "llm_closed_loop" "vlm_closed_loop" "vlm_captioning" "vlm_captioning_open_loop")
 
 # Create runlogs directory if it doesn't exist
 mkdir -p runlogs
