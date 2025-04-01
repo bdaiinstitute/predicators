@@ -148,7 +148,7 @@ def _label_single_trajectory_with_vlm_atom_values(indexed_traj: Tuple[
         atom_objs = atom_args.split(',')
         keep = True
         for ao in atom_objs:
-            if ao not in obj_names:
+            if ao.replace(" ", "") not in obj_names:
                 keep = False
                 continue
         if keep:
@@ -459,6 +459,18 @@ def _parse_structured_state_into_ground_atoms(
 
     pred_name_and_obj_types_to_pred = {}
     atoms_trajs = []
+
+    # Start by adding any VLM predicates in the goal to
+    # pred_name_and_obj_types_to_pred.
+    for pred in known_predicates:
+        if isinstance(pred, VLMPredicate):
+            # NOTE: IMPORTANT: we assume that the predicate name and
+            # its VLM query string are identical.
+            pred_name_and_obj_types_str = pred.name + "(" + ",".join(
+                str(obj_type.name) for obj_type in pred.types) + ")"
+            pred_name_and_obj_types_to_pred[
+                pred_name_and_obj_types_str] = pred
+
     # Loop through all trajectories in the structured_state_trajs and convert
     # each one to a sequence of sets of GroundAtoms.
     for i, traj in enumerate(structured_state_trajs):
@@ -762,6 +774,20 @@ def _generate_ground_atoms_with_vlm_pure_visual_preds(
     atom_proposals_set = _parse_unique_atom_proposals_from_list(
         atom_strs_proposals_list, all_task_objs)
     assert len(atom_proposals_set) > 0, "Atom proposals set is empty!"
+    # If any of the known predicates are VLM predicates, we want to add
+    # these to the set of atom proposals.
+    for pred in known_predicates:
+        if isinstance(pred, VLMPredicate):
+            all_ground_atoms_for_pred = utils.get_all_ground_atoms_for_predicate(
+                pred, all_task_objs)
+            ground_atoms_vlm_query_strs = set(
+                atom.get_vlm_query_str() for atom in all_ground_atoms_for_pred)
+            # NOTE: technically we only need to add an arbitrary grounding, but this
+            # grounding might be too specific (e.g. if all objects of type `table` are
+            # also of type `immovable` due to hierarchy, and if we arbitrarily ground
+            # with a table, then we'll propose the wrong predicate...)
+            atom_proposals_set |= ground_atoms_vlm_query_strs
+
     # Given this set of unique atom proposals, we now ask the VLM
     # to label these in every scene from the demonstrations.
     # NOTE: we convert to a sorted list here to get rid of randomness from set
@@ -1125,7 +1151,8 @@ def create_ground_atom_data_from_generated_demos(
 
 def create_ground_atom_data_from_labelled_txt(
         env: BaseEnv, train_tasks: List[Task],
-        known_options: Set[ParameterizedOption]) -> Dataset:
+        known_options: Set[ParameterizedOption],
+        known_predicates: Set[Predicate]) -> Dataset:
     """Given a txt file containing trajectories labelled with VLM predicate
     values, construct a dataset that can be passed to the rest of our learning
     pipeline."""
@@ -1137,7 +1164,7 @@ def create_ground_atom_data_from_labelled_txt(
     # Next, take this intermediate structured form and further
     # parse it into ground atoms and ground options respectively.
     ground_atoms_trajs = _parse_structured_state_into_ground_atoms(
-        env, train_tasks, structured_states)
+        env, train_tasks, structured_states, known_predicates=known_predicates)
     _debug_log_atoms_trajs(ground_atoms_trajs)
     option_trajs = _parse_structured_actions_into_ground_options(
         structured_actions, known_options, train_tasks)

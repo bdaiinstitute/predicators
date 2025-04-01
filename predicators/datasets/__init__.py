@@ -77,7 +77,7 @@ def create_dataset(env: BaseEnv, train_tasks: List[Task],
             "demo+labelled_atoms", "geo_and_demo+labelled_atoms"
     ]:
         return create_ground_atom_data_from_labelled_txt(
-            env, train_tasks, known_options)
+            env, train_tasks, known_options, known_predicates=known_predicates)
     if CFG.offline_data_method in [
             "saved_vlm_img_demos_folder", "geo_and_saved_vlm_img_demos_folder"
     ]:  # pragma: no cover.

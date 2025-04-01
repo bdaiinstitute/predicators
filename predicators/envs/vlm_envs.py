@@ -160,11 +160,12 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
         self._immovable_object_type = Type("immovable_object", [],
                                            self._object_type)
         self._table_type = Type("table", [], self._immovable_object_type)
+        self._trash_can_type = Type("trash_can", [], self._immovable_object_type)
         self._VLMIn = utils.create_vlm_predicate(
-            "VLMIn", [self._movable_object_type, self._immovable_object_type],
-            lambda o: _get_vlm_query_str("Inside", o))
+            "InsideContainer", [self._movable_object_type, self._trash_can_type],
+            lambda o: _get_vlm_query_str("InsideContainer", o))
         self._TableWiped = utils.create_vlm_predicate(
-            "TableWiped", [self._table_type],
+            "WipedOfMarkerScribbles", [self._table_type],
             lambda o: _get_vlm_query_str("WipedOfMarkerScribbles", o))
 
     @classmethod
@@ -175,38 +176,38 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
     def types(self) -> Set[Type]:
         return super().types | {
             self._robot_type, self._table_type, self._object_type,
-            self._movable_object_type, self._immovable_object_type
+            self._movable_object_type, self._immovable_object_type, self._trash_can_type
         }
 
     def _get_tasks(self, num: int,
                    rng: np.random.Generator) -> List[EnvironmentTask]:
         del rng  # unused.
         spot_obj = Object("spot", self._robot_type)
-        table_obj = Object("table", self._table_type)
+        table_obj = Object("child_play_table", self._table_type)
         apple_obj = Object("apple", self._movable_object_type)
         green_block_obj = Object("green_block", self._movable_object_type)
-        trash_can_obj = Object("trash_can", self._immovable_object_type)
-        duster_obj = Object("fluffy_toy_duster", self._movable_object_type)
-
-        init_state_dict = {
-            spot_obj: np.array([]),
-            table_obj: np.array([]),
-            trash_can_obj: np.array([]),
-            duster_obj: np.array([]),
-        }
+        trash_can_obj = Object("trash_can", self._trash_can_type)
+        duster_obj = Object("furry_green_eraser", self._movable_object_type)
+        cup_obj = Object("red_drink_cup", self._movable_object_type)
 
         ret_tasks = []
         for i in range(num):
-            if i != 1:
+            init_state_dict = {
+                spot_obj: np.array([]),
+                table_obj: np.array([]),
+                trash_can_obj: np.array([]),
+                duster_obj: np.array([]),
+                cup_obj: np.array([]),
+            }
+            if i != 0:
                 init_state_dict[apple_obj] = np.array([])
                 goal = {
                     GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             else:
-                init_state_dict[green_block_obj] = np.array([])
+                init_state_dict[apple_obj] = np.array([])
                 goal = {
-                    GroundAtom(self._VLMIn, [green_block_obj, trash_can_obj]),
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
 
@@ -224,11 +225,10 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
     def get_vlm_debug_atom_strs(self,
                                 train_tasks: List[Task]) -> List[List[str]]:
         del train_tasks
-        # atom_strs = set([
-        #     "hand_grasping_spoon(hand, spoon)",
-        #     "hand_grasping_teabag(hand, teabag)", "spoon_in_cup(spoon, cup)",
-        #     "spoon_on_plate(spoon, plate)", "teabag_in_cup(teabag, cup)",
-        #     "teabag_on_plate(teabag, plate)"
-        # ])
-        # TODO: remember what this is/does, then fill in!
-        return []
+        atom_strs = set([
+            "inAir(apple)", "onTable(apple)",
+            "onFloor(furry_green_eraser)",
+            "canBeUsedForErasing(furry_green_eraser)",
+            "noObjectsOntopTable(child_play_table)"
+        ])
+        return [[a] for a in atom_strs]
