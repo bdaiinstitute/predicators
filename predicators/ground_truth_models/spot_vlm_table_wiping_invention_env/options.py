@@ -53,13 +53,13 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
             "PickFromFloor",
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type])
-        WipeSurface = utils.SingletonParameterizedOption(
-            "WipeSurface",
+        WipeAndViewTable = utils.SingletonParameterizedOption(
+            "WipeAndViewTable",
             cls._create_dummy_policy(action_space),
             types=[robot_type, table_type])
         return {
             MoveToHandViewObject, PickFromTop, MoveToReachObject, PlaceInside,
-            PickFromFloor, WipeSurface
+            PickFromFloor, WipeAndViewTable
         }
 
     @classmethod

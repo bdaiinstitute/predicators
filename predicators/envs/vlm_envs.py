@@ -197,19 +197,35 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                 table_obj: np.array([]),
                 trash_can_obj: np.array([]),
                 duster_obj: np.array([]),
-                cup_obj: np.array([]),
             }
-            if i != 0:
-                init_state_dict[apple_obj] = np.array([])
+            init_state_dict[apple_obj] = np.array([])
+
+            if i in [0, 3]:
+                init_state_dict[cup_obj] = np.array([])
+                goal = {
+                    GroundAtom(self._TableWiped, [table_obj]),
+                }
+            elif i == 1:
+                init_state_dict[cup_obj] = np.array([])
+                goal = {
+                    GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
+                    GroundAtom(self._TableWiped, [table_obj]),
+                }
+            elif i == 2:
+                init_state_dict[green_block_obj] = np.array([])
+                goal = {
+                    GroundAtom(self._TableWiped, [table_obj]),
+                }
+            elif i == 4:
+                init_state_dict[green_block_obj] = np.array([])
                 goal = {
                     GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             else:
-                init_state_dict[apple_obj] = np.array([])
-                goal = {
-                    GroundAtom(self._TableWiped, [table_obj]),
-                }
+                raise NotImplementedError(
+                    "Shouldn't be getting here! i = {}".format(i))
+
 
             ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
         return ret_tasks
