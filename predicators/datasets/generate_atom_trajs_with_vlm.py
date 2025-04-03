@@ -13,8 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from inspect import getsource
 from pathlib import Path
-from typing import Dict, Iterator, List, Match, Optional, Sequence, Set, \
-    Tuple, cast
+from typing import Collection, Dict, Iterator, List, Match, Optional, \
+    Sequence, Set, Tuple, cast
 
 import dill as pkl
 import numpy as np
@@ -29,7 +29,7 @@ from predicators.pretrained_model_interface import VisionLanguageModel
 from predicators.settings import CFG
 from predicators.structs import Action, Dataset, GroundAtom, \
     ImageOptionTrajectory, LowLevelTrajectory, Object, ParameterizedOption, \
-    Predicate, State, Task, VLMPredicate, _Option
+    Predicate, State, Task, Type, VLMPredicate, _Option
 
 
 def _generate_prompt_for_atom_proposals(
@@ -84,6 +84,78 @@ def _generate_prompt_for_atom_proposals(
         raise ValueError("Unknown VLM prompting option " +
                          f"{CFG.grammar_search_vlm_atom_proposal_prompt_type}")
     return ret_list
+
+
+def _parse_known_vlm_atoms_from_saved_traj(
+        types: Collection[Type],
+        train_tasks: Sequence[Task]) -> List[List[Set[GroundAtom]]]:
+    """Checks if the folder where the ground atoms trajectories are saved has a
+    file with known predicates, and subfiles with atom values for each state in
+    each trajctory.
+
+    If it does, we add these to the other ground atoms in the
+    trajectories.
+    """
+    ground_atoms_trajs = [[] for _ in range(len(train_tasks))]
+    trajectories_folder_path = os.path.join(
+        utils.get_path_to_predicators_root(), CFG.data_dir,
+        CFG.vlm_trajs_folder_name)
+    known_preds_file_path = os.path.join(trajectories_folder_path,
+                                         "known_predicates.txt")
+    env_type_name_to_type = {t.name: t for t in types}
+    if not os.path.exists(known_preds_file_path):
+        return ground_atoms_trajs
+    # Parse predicates from the known_predicates.txt file
+    known_pred_name_to_pred: Dict[str, Predicate] = {}
+    with open(known_preds_file_path, "r", encoding="utf-8") as f:
+        line = f.readline().strip()
+        assert line.startswith("Predicates:")
+        predicates_str = line[len("Predicates:"):].strip()
+        predicates = predicates_str.split("; ")
+        for predicate in predicates:
+            name_and_args = predicate.split("(")
+            pred_name = name_and_args[0].strip()
+            args = name_and_args[1].strip(")").split(", ")
+            arg_types = [arg.split(": ")[1] for arg in args]
+            curr_types = [
+                env_type_name_to_type[arg_type] for arg_type in arg_types
+            ]
+            pred = Predicate(pred_name, curr_types, lambda s, o: False)
+            known_pred_name_to_pred[pred_name] = pred
+    # Now, for each trajectory, parse out atom values from the
+    # known_predicate_vals.txt file.
+    unfiltered_paths = sorted(Path(trajectories_folder_path).iterdir())
+    filtered_paths = [f for f in unfiltered_paths if "traj_" in f.parts[-1]]
+    for train_task_idx, path in enumerate(filtered_paths):
+        assert path.is_dir()
+        known_pred_vals_filepath = os.path.join(path,
+                                                "known_predicate_vals.txt")
+        assert os.path.exists(known_pred_vals_filepath)
+        with open(known_pred_vals_filepath, "r", encoding="utf-8") as f:
+            curr_task = train_tasks[train_task_idx]
+            obj_name_to_obj = {obj.name: obj for obj in set(curr_task.init)}
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                timestep, atom_strs = line.split(": ", 1)
+                timestep = int(timestep)
+                # Split multiple atoms by commas
+                atom_list = [atom.strip() for atom in atom_strs.split(";")]
+                for atom_str in atom_list:
+                    predicate_name = atom_str.split("(")[0].strip()
+                    args_str = atom_str.split("(")[1].strip(")")
+                    args = [arg.strip() for arg in args_str.split(",")]
+                    pred = known_pred_name_to_pred[predicate_name]
+                    ground_objects = [obj_name_to_obj[arg] for arg in args]
+                    ground_atom = GroundAtom(pred, ground_objects)
+                    # Ensure the ground_atoms_trajs list is large enough
+                    while len(ground_atoms_trajs[train_task_idx]) <= timestep:
+                        ground_atoms_trajs[train_task_idx].append(set())
+                    # Add the ground atom to the appropriate timestep
+                    ground_atoms_trajs[train_task_idx][timestep].add(
+                        ground_atom)
+    return ground_atoms_trajs
 
 
 def _generate_prompt_for_scene_labelling(
@@ -184,7 +256,10 @@ def _label_single_trajectory_with_vlm_atom_values(indexed_traj: Tuple[
                 "/predicators/datasets/vlm_input_data_prompts/atom_labelling/" + \
                 "double_check_prompt_prev_labels.txt"
             # pylint: enable=line-too-long
-            double_check_prompt += previous_timestep_check_prompt
+            with open(previous_timestep_check_prompt, "r",
+                        encoding="utf-8") as f:
+                previous_timestep_check_prompt_str = f.read()
+            double_check_prompt += previous_timestep_check_prompt_str
             double_check_prompt += "\n\nTruth values of predicates at " + \
                 "the previous timestep:\n\n"
 
@@ -470,8 +545,7 @@ def _parse_structured_state_into_ground_atoms(
             # its VLM query string are identical.
             pred_name_and_obj_types_str = pred.name + "(" + ",".join(
                 str(obj_type.name) for obj_type in pred.types) + ")"
-            pred_name_and_obj_types_to_pred[
-                pred_name_and_obj_types_str] = pred
+            pred_name_and_obj_types_to_pred[pred_name_and_obj_types_str] = pred
 
     # Loop through all trajectories in the structured_state_trajs and convert
     # each one to a sequence of sets of GroundAtoms.
@@ -801,6 +875,24 @@ def _generate_ground_atoms_with_vlm_pure_visual_preds(
     atom_labels = _label_trajectories_with_vlm_atom_values(
         image_option_trajs, vlm, unique_atoms_list)
     logging.info("Done querying VLM for scene labelling!")
+    # Now parse out any known predicates that might exist.
+    parsed_known_ground_atoms_trajs = _parse_known_vlm_atoms_from_saved_traj(
+        env.types, train_tasks)
+    # Combine these known ground atoms into the VLM labelled atoms.
+    # NOTE: this is slightly inefficient - because the known ground atoms are
+    # already parsed into GroundAtoms, but we're turning them back into
+    # strings here. However, that doesn't matter: saving them as strings is
+    # quite important.
+    for i, ground_atoms_traj in enumerate(parsed_known_ground_atoms_trajs):
+        for j, ground_atoms in enumerate(ground_atoms_traj):
+            known_ground_atoms_str = ""
+            for ground_atom in ground_atoms:
+                known_ground_atoms_str += "\n* " + str(
+                    ground_atom.predicate) + "(" + ", ".join(
+                        obj.name
+                        for obj in ground_atom.objects) + ")" + ": True."
+            atom_labels[i][j] += known_ground_atoms_str
+
     # Save the output as a human-readable txt file.
     _save_labelled_trajs_as_txt(
         env, atom_labels, [io_traj.actions for io_traj in image_option_trajs])
@@ -1267,7 +1359,7 @@ def create_ground_atom_data_from_saved_img_trajs(
         all_task_objs |= curr_task_objs
         curr_task_obj_name_to_obj = {obj.name: obj for obj in curr_task_objs}
         # Parse out actions for the trajectory.
-        options_traj_file_list = glob.glob(str(path) + "/*.txt")
+        options_traj_file_list = glob.glob(str(path) + "/*options_traj.txt")
         assert len(options_traj_file_list) == 1
         options_traj_file = options_traj_file_list[0]
         with open(options_traj_file, "r", encoding="utf-8") as f:

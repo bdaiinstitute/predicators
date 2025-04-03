@@ -160,9 +160,11 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
         self._immovable_object_type = Type("immovable_object", [],
                                            self._object_type)
         self._table_type = Type("table", [], self._immovable_object_type)
-        self._trash_can_type = Type("trash_can", [], self._immovable_object_type)
+        self._trash_can_type = Type("trash_can", [],
+                                    self._immovable_object_type)
         self._VLMIn = utils.create_vlm_predicate(
-            "InsideContainer", [self._movable_object_type, self._trash_can_type],
+            "InsideContainer",
+            [self._movable_object_type, self._trash_can_type],
             lambda o: _get_vlm_query_str("InsideContainer", o))
         self._TableWiped = utils.create_vlm_predicate(
             "WipedOfMarkerScribbles", [self._table_type],
@@ -176,7 +178,8 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
     def types(self) -> Set[Type]:
         return super().types | {
             self._robot_type, self._table_type, self._object_type,
-            self._movable_object_type, self._immovable_object_type, self._trash_can_type
+            self._movable_object_type, self._immovable_object_type,
+            self._trash_can_type
         }
 
     def _get_tasks(self, num: int,
@@ -226,7 +229,6 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
 
-
             ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
         return ret_tasks
 
@@ -242,8 +244,7 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                                 train_tasks: List[Task]) -> List[List[str]]:
         del train_tasks
         atom_strs = set([
-            "inAir(apple)", "onTable(apple)",
-            "onFloor(furry_green_eraser)",
+            "inAir(apple)", "onTable(apple)", "onFloor(furry_green_eraser)",
             "canBeUsedForErasing(furry_green_eraser)",
             "noObjectsOntopTable(child_play_table)"
         ])

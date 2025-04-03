@@ -53,13 +53,13 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
             "PickFromFloor",
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type])
-        WipeAndViewTable = utils.SingletonParameterizedOption(
-            "WipeAndViewTable",
+        WipeAndContinueHoldingEraser = utils.SingletonParameterizedOption(
+            "WipeAndContinueHoldingEraser",
             cls._create_dummy_policy(action_space),
-            types=[robot_type, table_type])
+            types=[robot_type, movable_type, table_type])
         return {
             MoveToHandViewObject, PickFromTop, MoveToReachObject, PlaceInside,
-            PickFromFloor, WipeAndViewTable
+            PickFromFloor, WipeAndContinueHoldingEraser
         }
 
     @classmethod
