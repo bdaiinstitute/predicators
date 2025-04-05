@@ -148,7 +148,10 @@ def _parse_known_vlm_atoms_from_saved_traj(
                     args = [arg.strip() for arg in args_str.split(",")]
                     pred = known_pred_name_to_pred[predicate_name]
                     ground_objects = [obj_name_to_obj[arg] for arg in args]
-                    ground_atom = GroundAtom(pred, ground_objects)
+                    try:
+                        ground_atom = GroundAtom(pred, ground_objects)
+                    except AssertionError:
+                        import ipdb; ipdb.set_trace()
                     # Ensure the ground_atoms_trajs list is large enough
                     while len(ground_atoms_trajs[train_task_idx]) <= timestep:
                         ground_atoms_trajs[train_task_idx].append(set())

@@ -17,7 +17,7 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
-        return {"spot_vlm_table_wiping_invention_env"}
+        return {"spot_vlm_table_wiping_invention_env", "spot_vlm_table_wiping_human_invention_env"}
 
     @classmethod
     def get_options(
@@ -32,6 +32,7 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
         movable_type = types["movable_object"]
         immovable_type = types["immovable_object"]
         table_type = types["table"]
+        trash_can_type = types["trash_can"]
 
         MoveToHandViewObject = utils.SingletonParameterizedOption(
             "MoveToHandViewObject",
@@ -57,9 +58,13 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
             "WipeAndContinueHoldingEraser",
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type, table_type])
+        DumpContentsOntoFloor = utils.SingletonParameterizedOption(
+            "DumpContentsOntoFloor",
+            cls._create_dummy_policy(action_space),
+            types=[robot_type, trash_can_type])
         return {
             MoveToHandViewObject, PickFromTop, MoveToReachObject, PlaceInside,
-            PickFromFloor, WipeAndContinueHoldingEraser
+            PickFromFloor, WipeAndContinueHoldingEraser, DumpContentsOntoFloor
         }
 
     @classmethod
