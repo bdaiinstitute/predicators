@@ -3869,7 +3869,7 @@ class VLMCupEnv(SpotRearrangementEnv):
 ###############################################################################
 
 
-class VLMTableWipingEnv(SpotRearrangementEnv):
+class VLMTableWipingOracleEnv(SpotRearrangementEnv):
     """A version of the SimpleTableWipingEnv, but with an actual map and some
     skills that the robot can execute instead of relying on teleop.
 
@@ -4032,7 +4032,7 @@ class VLMTableWipingEnv(SpotRearrangementEnv):
 
     @classmethod
     def get_name(cls) -> str:
-        return "spot_vlm_table_wiping_env"
+        return "spot_vlm_table_wiping_oracle_env"
 
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
