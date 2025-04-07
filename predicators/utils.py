@@ -2551,8 +2551,7 @@ def get_prompt_for_vlm_state_labelling(
     if "img_option_diffs" in prompt_type:
         # In this case, we need to load the 'per_scene_naive' prompt as well
         # for the first timestep.
-        with open(filepath_prefix + "per_scene_naive.txt",
-                  "r",
+        with open(filepath_prefix + "per_scene_cot.txt", "r",
                   encoding="utf-8") as f:
             init_prompt = f.read()
         for atom_str in atoms_list:

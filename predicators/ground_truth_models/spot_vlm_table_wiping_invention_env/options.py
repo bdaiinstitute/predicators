@@ -17,7 +17,10 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
-        return {"spot_vlm_table_wiping_invention_env", "spot_vlm_table_wiping_human_invention_env"}
+        return {
+            "spot_vlm_table_wiping_invention_env",
+            "spot_vlm_table_wiping_human_invention_env"
+        }
 
     @classmethod
     def get_options(

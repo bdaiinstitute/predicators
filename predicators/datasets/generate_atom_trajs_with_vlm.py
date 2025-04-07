@@ -5,6 +5,7 @@ import glob
 import itertools
 import logging
 import os
+import random
 import re
 import textwrap
 import traceback
@@ -151,7 +152,8 @@ def _parse_known_vlm_atoms_from_saved_traj(
                     try:
                         ground_atom = GroundAtom(pred, ground_objects)
                     except AssertionError:
-                        import ipdb; ipdb.set_trace()
+                        import ipdb
+                        ipdb.set_trace()
                     # Ensure the ground_atoms_trajs list is large enough
                     while len(ground_atoms_trajs[train_task_idx]) <= timestep:
                         ground_atoms_trajs[train_task_idx].append(set())
@@ -260,7 +262,7 @@ def _label_single_trajectory_with_vlm_atom_values(indexed_traj: Tuple[
                 "double_check_prompt_prev_labels.txt"
             # pylint: enable=line-too-long
             with open(previous_timestep_check_prompt, "r",
-                        encoding="utf-8") as f:
+                      encoding="utf-8") as f:
                 previous_timestep_check_prompt_str = f.read()
             double_check_prompt += previous_timestep_check_prompt_str
             double_check_prompt += "\n\nTruth values of predicates at " + \
@@ -372,7 +374,6 @@ def _parse_unique_atom_proposals_from_list(
     type_to_obj_names = defaultdict(list)
     for obj_name, _type in obj_name_to_type.items():
         type_to_obj_names[_type].append(obj_name)
-
     num_atoms_considered = 0
     for atoms_proposal_for_traj in atom_strs_proposals_list:
         assert len(atoms_proposal_for_traj) == 1
@@ -872,6 +873,13 @@ def _generate_ground_atoms_with_vlm_pure_visual_preds(
     # NOTE: we convert to a sorted list here to get rid of randomness from set
     # ordering.
     unique_atoms_list = sorted(atom_proposals_set)
+
+    # # We now randomly take a subset for CFG.grammar_search_max_predicates.
+    # if len(unique_atoms_list) > CFG.grammar_search_max_predicates:
+    #     rng = np.random.default_rng(CFG.seed)
+    #     unique_atoms_list = rng.choice(unique_atoms_list, CFG.grammar_search_max_predicates)
+    #     logging.info("VLM atom proposals set is too large, subsampling down to "
+    #                  f"{CFG.grammar_search_max_predicates} predicates.")
 
     # Now, query the VLM!
     logging.info("Querying VLM to label every scene...")

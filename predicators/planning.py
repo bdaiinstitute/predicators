@@ -326,8 +326,6 @@ def task_plan(
         logging.info(f"Initial atoms: {init_atoms}")
         logging.info(
             f"Reachable atoms not in init: {reachable_atoms - init_atoms}")
-        # import ipdb
-        # ipdb.set_trace()
         raise PlanningFailure(f"Goal {goal} not dr-reachable")
     dummy_task = Task(DefaultState, goal)
     metrics: Metrics = defaultdict(float)

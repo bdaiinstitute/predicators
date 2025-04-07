@@ -191,11 +191,11 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
         green_block_obj = Object("green_block", self._movable_object_type)
         orange_block_obj = Object("orange_block", self._movable_object_type)
         spam_tin_obj = Object("spam_tin", self._movable_object_type)
-        trash_can_obj = Object("clear_plastic_dustbin", self._trash_can_type)
+        trash_can_obj = Object("seethru_plastic_dustbin", self._trash_can_type)
         duster_obj = Object("furry_green_eraser", self._movable_object_type)
         cup_obj = Object("red_drink_cup", self._movable_object_type)
-        carboard_recycling_bin = Object(
-            "cardboard_recycling_bin", self._trash_can_type)
+        carboard_recycling_bin = Object("cardboard_recycling_bin",
+                                        self._trash_can_type)
 
         ret_tasks = []
         for i in range(num):
@@ -205,45 +205,41 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
             }
             if i in [0, 3]:
                 init_state_dict.update({
-                table_obj: np.array([]),
-                duster_obj: np.array([]),
-                apple_obj: np.array([]),
-                cup_obj: np.array([]),
-                    }
-                )
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                    cup_obj: np.array([]),
+                })
                 goal = {
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             elif i == 1:
                 init_state_dict.update({
-                table_obj: np.array([]),
-                duster_obj: np.array([]),
-                apple_obj: np.array([]),
-                cup_obj: np.array([]),
-                    }
-                )
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                    cup_obj: np.array([]),
+                })
                 goal = {
                     GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             elif i == 2:
                 init_state_dict.update({
-                table_obj: np.array([]),
-                duster_obj: np.array([]),
-                apple_obj: np.array([]),
-                    }
-                )
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
                 init_state_dict[green_block_obj] = np.array([])
                 goal = {
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             elif i == 4:
                 init_state_dict.update({
-                table_obj: np.array([]),
-                duster_obj: np.array([]),
-                apple_obj: np.array([]),
-                    }
-                )
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
                 init_state_dict[green_block_obj] = np.array([])
                 goal = {
                     GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
@@ -255,8 +251,8 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                     carboard_recycling_bin: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._VLMIn, [green_block_obj,
-                                         carboard_recycling_bin])
+                    GroundAtom(self._VLMIn,
+                               [green_block_obj, carboard_recycling_bin])
                 }
             elif i == 6:
                 init_state_dict.update({
@@ -264,8 +260,8 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                     carboard_recycling_bin: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._VLMIn, [orange_block_obj,
-                                         carboard_recycling_bin])
+                    GroundAtom(self._VLMIn,
+                               [orange_block_obj, carboard_recycling_bin])
                 }
             elif i == 7:
                 init_state_dict.update({
@@ -273,8 +269,8 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
                     carboard_recycling_bin: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._VLMIn, [spam_tin_obj,
-                                         carboard_recycling_bin])
+                    GroundAtom(self._VLMIn,
+                               [spam_tin_obj, carboard_recycling_bin])
                 }
             else:
                 raise NotImplementedError(
@@ -303,7 +299,8 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
 
 
 class SpotVLMTableWipingHumanInventionEnv(VLMPredicateEnv):
-    """An env that is the same as the above, except intended for invention from human demos!"""
+    """An env that is the same as the above, except intended for invention from
+    human demos!"""
 
     def __init__(self, use_gui: bool = True) -> None:
         super().__init__(use_gui)
