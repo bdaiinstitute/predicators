@@ -77,7 +77,7 @@ if __name__ == "__main__":
         hostname = CFG.spot_robot_ip
         path = get_graph_nav_dir()
 
-        sdk = create_standard_sdk('GraspSkillTestClient')
+        sdk = create_standard_sdk('DumpSkillTestClient')
         robot = sdk.create_robot(hostname)
         authenticate(robot)
         verify_estop(robot)
