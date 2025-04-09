@@ -42,8 +42,8 @@ from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _broom_type, \
     _container_type, _dustpan_type, _immovable_object_type, \
-    _movable_object_type, _robot_type, _table_type, _wrappers_type, \
-    construct_state_given_pbrspot, get_allowed_map_regions, \
+    _movable_object_type, _robot_type, _table_type, _trash_can_type, \
+    _wrappers_type, construct_state_given_pbrspot, get_allowed_map_regions, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
     update_pbrspot_robot_conf, verify_estop
@@ -1101,7 +1101,7 @@ _ROBOT_SWEEP_READY_TOL = 0.25
 ## Types
 _ALL_TYPES = {
     _robot_type, _base_object_type, _movable_object_type,
-    _immovable_object_type, _container_type, _table_type
+    _immovable_object_type, _container_type, _table_type, _trash_can_type
 }
 
 
@@ -4053,6 +4053,202 @@ class VLMTableWipingOracleEnv(SpotRearrangementEnv):
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             detection_id_to_obj[stat_detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#            Table Wiping Env with Invented Predicates and Map                #
+###############################################################################
+
+
+class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
+    """A version of the SimpleTableWipingEnv, but with an actual map and full
+    skill implementations.
+
+    Also, this environment uses invented predicates for the table wiping
+    task (these are manually copied over from invention done on the env
+    in vlm_envs.py).
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        self._IsOpen = utils.create_vlm_predicate(
+            "IsOpen", [_trash_can_type],
+            lambda o: _get_vlm_query_str("IsOpen", o))
+        self._OnFloor = utils.create_vlm_predicate(
+            "OnFloor", [_movable_object_type],
+            lambda o: _get_vlm_query_str("OnFloor", o))
+        self._ColorIsGreen = utils.create_vlm_predicate(
+            "ColorIsGreen", [_movable_object_type],
+            lambda o: _get_vlm_query_str("ColorIsGreen", o))
+        self._IsEraser = utils.create_vlm_predicate(
+            "IsEraser", [_movable_object_type],
+            lambda o: _get_vlm_query_str("IsEraser", o))
+        self._OnTop = utils.create_vlm_predicate(
+            "OnTop", [_movable_object_type, _table_type],
+            lambda o: _get_vlm_query_str("OnTop", o))
+        self._NoObjectsOnTop = utils.create_vlm_predicate(
+            "NoObjectsOnTop", [_table_type],
+            lambda s: _get_vlm_query_str("NoObjectsOnTop", s))
+
+        # Add in Operators.
+        self._strips_operators = set()
+        # NSRT-Op0: PickFromTop
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _table_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x0, x1, x2]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(self._OnTop, [x0, x1]),
+        }
+        add_effs = {
+            LiftedAtom(_Holding, [x2, x0]),
+            LiftedAtom(self._NoObjectsOnTop, [x1]),
+        }
+        del_effs = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(self._OnTop, [x0, x1]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndPickFromTop", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op1: PlaceInside
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _trash_can_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x0, x1, x2]
+        preconds = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(_VLMIn, [x0, x1]),
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # NSRT-Op2: PickFromFloor
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _robot_type)
+        parameters = [x0, x1]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x1]),
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        add_effs = {
+            LiftedAtom(_Holding, [x1, x0]),
+        }
+        del_effs = {
+            LiftedAtom(_HandEmpty, [x1]),
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op3: WipeAndContinueHoldingEraser
+        x0 = Variable("?x0", _table_type)
+        x1 = Variable("?x1", _movable_object_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x0, x1, x2]
+        preconds = {
+            LiftedAtom(self._ColorIsGreen, [x1]),
+            LiftedAtom(_Holding, [x2, x1]),
+            LiftedAtom(self._IsEraser, [x1]),
+            LiftedAtom(self._NoObjectsOnTop, [x0]),
+        }
+        add_effs = {
+            LiftedAtom(_TableWiped, [x0]),
+        }
+        del_effs = set()
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("WipeAndContinueHoldingEraser", parameters,
+                           preconds, add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op4: DumpContentsOntoFloor
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _trash_can_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x0, x1, x2]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(_VLMIn, [x0, x1]),
+            LiftedAtom(self._IsOpen, [x1]),
+        }
+        add_effs = {
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        del_effs = {
+            LiftedAtom(_VLMIn, [x0, x1]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("DumpContentsOntoFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding",
+            "HandEmpty",
+            "VLMIn",
+            "TableWiped",
+        ])
+        preds |= {
+            self._IsOpen, self._OnFloor, self._ColorIsGreen, self._IsEraser,
+            self._OnTop, self._NoObjectsOnTop
+        }
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_table_wiping_invented_predicates_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        # objects = {
+        #     Object("clear_plastic_trash_can", _trash_can_type),
+        # }
+        # for o in objects:
+        #     detection_id = LanguageObjectDetectionID(o.name)
+        #     detection_id_to_obj[detection_id] = o
+
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "apple/red_ball")] = Object("apple", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "fluffy_toy")] = Object("fluffy_green_toy_duster", _movable_object_type)
+
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            if obj.name == "table":
+                table_obj = Object("table", _table_type)
+                detection_id_to_obj[stat_detection_id] = table_obj
+            else:
+                detection_id_to_obj[stat_detection_id] = obj
 
         return detection_id_to_obj
 

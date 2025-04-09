@@ -72,10 +72,10 @@ class BilevelPlanningApproach(BaseApproach):
             for act in nsrt_plan:
                 logging.debug(act)
 
-            for act in nsrt_plan:
-                print(act)
-            import ipdb
-            ipdb.set_trace()
+            # for act in nsrt_plan:
+            #     print(act)
+            # import ipdb
+            # ipdb.set_trace()
 
         # Run full bilevel planning.
         else:

@@ -7,12 +7,13 @@ import numpy as np
 from predicators import utils
 from predicators.envs import get_or_create_env
 from predicators.envs.spot_env import SpotRearrangementEnv, \
-    _get_sweeping_surface_for_container, get_detection_id_for_object
+    _get_sweeping_surface_for_container, get_detection_id_for_object, \
+    get_robot
 from predicators.ground_truth_models import GroundTruthNSRTFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    get_grasp_pixel, get_last_detected_objects
-from predicators.spot_utils.perception.spot_cameras import \
+    detect_objects, get_grasp_pixel, get_last_detected_objects
+from predicators.spot_utils.perception.spot_cameras import capture_images, \
     get_last_captured_images
 from predicators.spot_utils.utils import get_allowed_map_regions, \
     get_collision_geoms_for_nav, load_spot_metadata, object_to_top_down_geom, \
@@ -290,7 +291,9 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env", "lis_spot_block_floor_env",
-            "spot_vlm_simple_table_wiping_env", "spot_vlm_table_wiping_env"
+            "spot_vlm_simple_table_wiping_env",
+            "spot_vlm_table_wiping_oracle_env",
+            "spot_vlm_table_wiping_invented_predicates_env"
         }
 
     @staticmethod
@@ -324,7 +327,12 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToReadySweep": utils.null_sampler,
             "PlaceNextTo": utils.null_sampler,
             "Sweep": utils.null_sampler,
-            "PlaceOnFloor": utils.null_sampler
+            "PlaceOnFloor": utils.null_sampler,
+            "DumpContentsOntoFloor": _pick_object_from_top_sampler,
+            "MoveAndPickFromFloor": _move_to_hand_view_object_sampler,
+            "MoveAndPickFromTop": _move_to_hand_view_object_sampler,
+            # TODO: actually make real samplers here!
+            "WipeAndContinueHoldingEraser": utils.null_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then

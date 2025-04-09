@@ -21,10 +21,10 @@ from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
 from predicators.ground_truth_models import GroundTruthOptionFactory
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
-    get_grasp_pixel, get_last_detected_objects
+    detect_objects, get_grasp_pixel, get_last_detected_objects
 from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
-from predicators.spot_utils.perception.spot_cameras import \
+from predicators.spot_utils.perception.spot_cameras import capture_images, \
     get_last_captured_images
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, \
     simulated_grasp_at_pixel
@@ -36,6 +36,7 @@ from predicators.spot_utils.skills.spot_navigation import \
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
+from predicators.spot_utils.skills.spot_wipe_table import wipe_multiple_strokes
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_POSE, \
@@ -900,6 +901,48 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
                                   state, memory, objects, params)
 
 
+def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
+                                   target_obj_idx: int, state: State,
+                                   memory: Dict, objects: Sequence[Object],
+                                   params: Array) -> Action:
+    del memory  # not used
+    move_action = _move_to_hand_view_object_policy(state, memory, objects,
+                                                   params[:2])
+
+    def _fn() -> None:
+        assert isinstance(move_action.extra_info, (list, tuple))
+        _, _, move_action_fn, move_action_fn_args, _, _ = move_action.extra_info
+        move_action_fn(*move_action_fn_args)
+        robot, localizer, _ = get_robot()
+        rgbds = capture_images(robot, localizer, relocalize=True)
+        pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
+        _, artifacts = detect_objects([pick_obj_id], rgbds)
+        grasp_sample = get_grasp_pixel(rgbds, artifacts, pick_obj_id,
+                                       "hand_color_image", _options_rng)
+        grasp_action = _pick_object_from_top_policy(state, memory, objects,
+                                                    grasp_sample)
+        assert isinstance(grasp_action.extra_info, (list, tuple))
+        _, _, grasp_action_fn, grasp_action_fn_args, _, _ = \
+            grasp_action.extra_info
+        grasp_action_fn(*grasp_action_fn_args)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
+def _wipe_surface_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
+                         state: State, memory: Dict, objects: Sequence[Object],
+                         params: Array) -> Action:
+    # TODO: setup the things to get passed into wipe_multiple_strokes()
+    wipe_multiple_strokes()
+    action_extra_info = SpotActionExtraInfo(name, objects, _wipe_surface,
+                                            (robot_obj_idx, target_obj_idx),
+                                            None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 def _create_teleop_policy_with_name(
         name: str) -> Callable[[State, Dict, Sequence[Object], Array], Action]:
 
@@ -962,7 +1005,12 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "SweepTwoObjectsIntoContainer": Box(-np.inf, np.inf, (1, )),  # same
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
-    "MoveToReadySweep": Box(0, 1, (0, )),  # empty
+    "MoveToReadySweep": Box(0, 1, (0, )),  # empty,
+    "MoveAndPickFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
+    "MoveAndPickFromFloor": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
+    "DumpContentsOntoFloor": Box(-np.inf, np.inf, (6, )),
+    "WipeAndContinueHoldingEraser":
+    Box(-np.inf, np.inf, (5, )),  # init x, init y, rel dx, dy, number of wipes
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -986,6 +1034,10 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
+    "MoveAndPickFromTop": _move_to_view_and_grasp_policy,
+    "MoveAndPickFromFloor": _move_to_view_and_grasp_policy,
+    "DumpContentsOntoFloor": _pick_and_dump_container_policy,
+    "WipeAndContinueHoldingEraser": _wipe_surface_policy,
 }
 
 
@@ -1031,7 +1083,9 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env", "lis_spot_block_floor_env",
-            "spot_vlm_simple_table_wiping_env", "spot_vlm_table_wiping_env"
+            "spot_vlm_simple_table_wiping_env",
+            "spot_vlm_table_wiping_oracle_env",
+            "spot_vlm_table_wiping_invented_predicates_env"
         }
 
     @classmethod

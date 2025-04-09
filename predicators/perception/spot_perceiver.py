@@ -681,20 +681,22 @@ class SpotPerceiver(BasePerceiver):
             }
             return goal
         if goal_description == "clean up the table!":
-            VLMIn = pred_name_to_pred["VLMIn"]
-            TableClean = pred_name_to_pred["TableClean"]
-            TableClear = pred_name_to_pred["TableClear"]
-            TableWiped = pred_name_to_pred["TableWiped"]
-            CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
-            trash_can = Object("clear_plastic_trash_can",
-                               _immovable_object_type)
+            # Inside = pred_name_to_pred["VLMIn"]
+            # TableClean = pred_name_to_pred["TableClean"]
+            # TableClear = pred_name_to_pred["TableClear"]
+            # TableWiped = pred_name_to_pred["TableWiped"]
+            # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
+            Holding = pred_name_to_pred["Holding"]
+            # trash_can = Object("clear_plastic_trash_can",
+            #                    _immovable_object_type)
             apple = Object("apple", _movable_object_type)
-            table = Object("table", _table_type)
-            eraser = Object("fluffy_toy_duster", _movable_object_type)
+            # table = Object("childrens_play_table", _table_type)
+            # eraser = Object("neon_green_fluffy_eraser", _movable_object_type)
             robot = Object("robot", _robot_type)
             goal = {
-                GroundAtom(VLMIn, [apple, trash_can]),
-                GroundAtom(TableWiped, [table]),
+                # GroundAtom(VLMIn, [apple, trash_can]),
+                # GroundAtom(TableWiped, [table]),
+                GroundAtom(Holding, [robot, apple]),
             }
             return goal
         raise NotImplementedError("Unrecognized goal description")
