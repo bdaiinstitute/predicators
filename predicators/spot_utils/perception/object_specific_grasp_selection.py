@@ -20,6 +20,7 @@ ball_prompt = "/".join([
     "white button"
 ])
 ball_obj = LanguageObjectDetectionID(ball_prompt)
+apple_obj = LanguageObjectDetectionID("apple/red_ball")
 cup_obj = LanguageObjectDetectionID("yellow hoop toy/yellow donut")
 brush_prompt = "/".join(
     ["scrubbing brush", "hammer", "mop", "giant white toothbrush"])
@@ -91,6 +92,32 @@ def _get_ball_grasp_pixel(
     # Force a forward top-down grasp.
     roll = math_helpers.Quat.from_roll(np.pi / 2)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    return pixel, pitch * roll  # NOTE: order is super important here!
+
+
+def _get_apple_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    # del rgbds, rng
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[apple_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{apple_obj} not detected in {camera_name}")
+    mask = seg_bb.mask
+    pixels_in_mask = np.where(mask)
+    # Select a pixel near the bottom, but not exactly the bottom-most.
+    pixel = (pixels_in_mask[1][-1], pixels_in_mask[0][-400])
+    # Force a forward top-down grasp.
+    roll = math_helpers.Quat.from_roll(np.pi / 2)
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    # # # Uncomment for debugging.
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     return pixel, pitch * roll  # NOTE: order is super important here!
 
 
@@ -453,6 +480,8 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     AprilTagObjectDetectionID(411): _get_platform_grasp_pixel,
     # Ball-specific grasp selection.
     ball_obj: _get_ball_grasp_pixel,
+    # Apple-specific grasp selection.
+    apple_obj: _get_apple_grasp_pixel,
     # Cup-specific grasp selection.
     cup_obj: _get_cup_grasp_pixel,
     # Brush-specific grasp selection.

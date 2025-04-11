@@ -507,6 +507,82 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
     return utils.create_spot_env_action(action_extra_info)
 
 
+def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
+                                   target_obj_idx: int, state: State,
+                                   memory: Dict, objects: Sequence[Object],
+                                   params: Array) -> Action:
+    move_action = _move_to_hand_view_object_policy(state, memory, objects,
+                                                   params[:2])
+
+    def _fn() -> None:
+        assert isinstance(move_action.extra_info, SpotActionExtraInfo)
+        move_action.extra_info.real_world_fn(
+            *move_action.extra_info.real_world_fn_args)
+        time.sleep(0.5)  # Wait for the hand image to settle
+        robot, localizer, _ = get_robot()
+        rgbds = capture_images(robot, localizer, relocalize=True)
+        pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
+        _, artifacts = detect_objects([pick_obj_id], rgbds)
+        grasp_pixel_sample, rot_constraint = get_grasp_pixel(
+            rgbds, artifacts, pick_obj_id, "hand_color_image", _options_rng)
+        if rot_constraint is None:
+            rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
+        else:
+            rot_quat_tuple = (rot_constraint.w, rot_constraint.x,
+                              rot_constraint.y, rot_constraint.z)
+        params_tuple = grasp_pixel_sample + rot_quat_tuple
+        grasp_action = _pick_object_from_top_policy(state, memory, objects,
+                                                    np.array(params_tuple))
+        assert isinstance(grasp_action.extra_info, SpotActionExtraInfo)
+        grasp_action.extra_info.real_world_fn(
+            *grasp_action.extra_info.real_world_fn_args)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
+def _move_to_reach_and_drop_inside_policy(name: str, state: State,
+                                          memory: Dict,
+                                          objects: Sequence[Object],
+                                          params: Array) -> Action:
+    move_action = _move_to_reach_object_policy(state, memory, objects,
+                                               params[:2])
+
+    def _fn() -> None:
+        assert isinstance(move_action.extra_info, SpotActionExtraInfo)
+        move_action.extra_info.real_world_fn(
+            *move_action.extra_info.real_world_fn_args)
+        # The input objects are [robot, container, object], but
+        # drop_object_inside_policy expects [robot, object, container].
+        objs_for_drop = [objects[0], objects[2], objects[1]]
+        place_inside_action = _drop_object_inside_policy(state,
+                                                         memory,
+                                                         objs_for_drop,
+                                                         params=np.array(
+                                                             [0.0, 0.0, 0.12]))
+        assert isinstance(place_inside_action.extra_info, SpotActionExtraInfo)
+        place_inside_action.extra_info.real_world_fn(
+            *place_inside_action.extra_info.real_world_fn_args)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
+def _wipe_surface_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
+                         state: State, memory: Dict, objects: Sequence[Object],
+                         params: Array) -> Action:
+    # TODO: setup the things to get passed into wipe_multiple_strokes()
+    wipe_multiple_strokes()
+    action_extra_info = SpotActionExtraInfo(name, objects, _wipe_surface,
+                                            (robot_obj_idx, target_obj_idx),
+                                            None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 ###############################################################################
 #                   Concrete parameterized option policies                    #
 ###############################################################################
@@ -692,21 +768,15 @@ def _drop_object_inside_policy(state: State, memory: Dict,
     del memory  # not used
 
     name = "DropObjectInside"
-    robot_obj_idx = 0
     container_obj_idx = 2
-
-    robot, _, _ = get_robot()
-
+    robot, localizer, _ = get_robot()
+    localizer.localize()
     dx, dy, dz = params
-
-    robot_obj = objects[robot_obj_idx]
-    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
-
+    robot_pose = localizer.get_last_robot_pose()
     container_obj = objects[container_obj_idx]
     container_pose = utils.get_se3_pose_from_state(state, container_obj)
     # The dz parameter is with respect to the top of the container.
     container_half_height = state.get(container_obj, "height") / 2
-
     container_rel_pose = robot_pose.inverse() * container_pose
     place_z = container_rel_pose.z + container_half_height + dz
     place_rel_pos = math_helpers.Vec3(x=container_rel_pose.x + dx,
@@ -740,30 +810,30 @@ def _move_and_drop_object_inside_policy(state: State, memory: Dict,
     del memory  # not used
 
     name = "MoveAndDropObjectInside"
-    robot_obj_idx = 0
+    # robot_obj_idx = 0
     container_obj_idx = 2
-    ontop_surface_obj_idx = 3
+    # ontop_surface_obj_idx = 3
 
     robot, localizer, _ = get_robot()
 
     dx, dy, dz = params
 
-    robot_obj = objects[robot_obj_idx]
-    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+    # robot_obj = objects[robot_obj_idx]
+    # robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
 
     container_obj = objects[container_obj_idx]
     container_pose = utils.get_se3_pose_from_state(state, container_obj)
 
-    surface_obj = objects[ontop_surface_obj_idx]
+    # surface_obj = objects[ontop_surface_obj_idx]
 
-    # Special case: the robot is already on top of the surface (because it is
-    # probably the floor). When this happens, just drop the object.
-    surface_geom = object_to_top_down_geom(surface_obj, state)
-    if surface_geom.contains_point(robot_pose.x, robot_pose.y):
-        # Note simulation fn and args not yet implemented.
-        action_extra_info = SpotActionExtraInfo(name, objects, _drop_and_stow,
-                                                (robot, ), None, tuple())
-        return utils.create_spot_env_action(action_extra_info)
+    # # Special case: the robot is already on top of the surface (because it is
+    # # probably the floor). When this happens, just drop the object.
+    # surface_geom = object_to_top_down_geom(surface_obj, state)
+    # if surface_geom.contains_point(robot_pose.x, robot_pose.y):
+    #     # Note simulation fn and args not yet implemented.
+    #     action_extra_info = SpotActionExtraInfo(name, objects, _drop_and_stow,
+    #                                             (robot, ), None, tuple())
+    #     return utils.create_spot_env_action(action_extra_info)
 
     # The dz parameter is with respect to the top of the container.
     container_half_height = state.get(container_obj, "height") / 2
@@ -901,46 +971,32 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
                                   state, memory, objects, params)
 
 
-def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
-                                   target_obj_idx: int, state: State,
-                                   memory: Dict, objects: Sequence[Object],
-                                   params: Array) -> Action:
-    del memory  # not used
-    move_action = _move_to_hand_view_object_policy(state, memory, objects,
-                                                   params[:2])
-
-    def _fn() -> None:
-        assert isinstance(move_action.extra_info, (list, tuple))
-        _, _, move_action_fn, move_action_fn_args, _, _ = move_action.extra_info
-        move_action_fn(*move_action_fn_args)
-        robot, localizer, _ = get_robot()
-        rgbds = capture_images(robot, localizer, relocalize=True)
-        pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
-        _, artifacts = detect_objects([pick_obj_id], rgbds)
-        grasp_sample = get_grasp_pixel(rgbds, artifacts, pick_obj_id,
-                                       "hand_color_image", _options_rng)
-        grasp_action = _pick_object_from_top_policy(state, memory, objects,
-                                                    grasp_sample)
-        assert isinstance(grasp_action.extra_info, (list, tuple))
-        _, _, grasp_action_fn, grasp_action_fn_args, _, _ = \
-            grasp_action.extra_info
-        grasp_action_fn(*grasp_action_fn_args)
-
-    # Note simulation fn and args not implemented yet.
-    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
-                                            tuple())
-    return utils.create_spot_env_action(action_extra_info)
+def _move_and_pick_fatop_policy(state: State, memory: Dict,
+                                objects: Sequence[Object],
+                                params: Array) -> Action:
+    name = "MoveAndPickFromTop"
+    robot_obj_idx = 0
+    target_obj_idx = 1
+    return _move_to_view_and_grasp_policy(name, robot_obj_idx, target_obj_idx,
+                                          state, memory, objects, params)
 
 
-def _wipe_surface_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
-                         state: State, memory: Dict, objects: Sequence[Object],
-                         params: Array) -> Action:
-    # TODO: setup the things to get passed into wipe_multiple_strokes()
-    wipe_multiple_strokes()
-    action_extra_info = SpotActionExtraInfo(name, objects, _wipe_surface,
-                                            (robot_obj_idx, target_obj_idx),
-                                            None, tuple())
-    return utils.create_spot_env_action(action_extra_info)
+def _move_and_pick_ffloor_policy(state: State, memory: Dict,
+                                 objects: Sequence[Object],
+                                 params: Array) -> Action:
+    name = "MoveAndPickFromFloor"
+    robot_obj_idx = 0
+    target_obj_idx = 1
+    return _move_to_view_and_grasp_policy(name, robot_obj_idx, target_obj_idx,
+                                          state, memory, objects, params)
+
+
+def _move_and_drop_inside_policy(state: State, memory: Dict,
+                                 objects: Sequence[Object],
+                                 params: Array) -> Action:
+    name = "MoveToReachAndDropInside"
+    return _move_to_reach_and_drop_inside_policy(name, state, memory, objects,
+                                                 params)
 
 
 def _create_teleop_policy_with_name(
@@ -997,6 +1053,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PickObjectToDrag": Box(-np.inf, np.inf, (6, )),
     "PlaceObjectOnTop": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
+    "MoveAndDropObjectInside": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": Box(-np.inf, np.inf,
                                           (3, )),  # rel dx, dy, dz
     "DragToUnblockObject": Box(-np.inf, np.inf, (3, )),  # rel dx, dy, dyaw
@@ -1011,6 +1068,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DumpContentsOntoFloor": Box(-np.inf, np.inf, (6, )),
     "WipeAndContinueHoldingEraser":
     Box(-np.inf, np.inf, (5, )),  # init x, init y, rel dx, dy, number of wipes
+    "MoveToReachAndDropInside": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -1026,6 +1084,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "PickAndDumpTwoFromContainer": _pick_and_dump_two_container_policy,
     "PlaceObjectOnTop": _place_object_on_top_policy,
     "DropObjectInside": _drop_object_inside_policy,
+    "MoveAndDropObjectInside":
+    _move_and_drop_object_inside_policy,  # rel dx, dy, dz
     "DropObjectInsideContainerOnTop": _move_and_drop_object_inside_policy,
     "DragToUnblockObject": _drag_to_unblock_object_policy,
     "DragToBlockObject": _drag_to_block_object_policy,
@@ -1034,10 +1094,11 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
-    "MoveAndPickFromTop": _move_to_view_and_grasp_policy,
-    "MoveAndPickFromFloor": _move_to_view_and_grasp_policy,
+    "MoveAndPickFromTop": _move_and_pick_fatop_policy,
+    "MoveAndPickFromFloor": _move_and_pick_ffloor_policy,
     "DumpContentsOntoFloor": _pick_and_dump_container_policy,
     "WipeAndContinueHoldingEraser": _wipe_surface_policy,
+    "MoveToReachAndDropInside": _move_and_drop_inside_policy,
 }
 
 

@@ -331,6 +331,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "DumpContentsOntoFloor": _pick_object_from_top_sampler,
             "MoveAndPickFromFloor": _move_to_hand_view_object_sampler,
             "MoveAndPickFromTop": _move_to_hand_view_object_sampler,
+            "MoveToReachAndDropInside": _move_to_reach_object_sampler,
             # TODO: actually make real samplers here!
             "WipeAndContinueHoldingEraser": utils.null_sampler,
         }

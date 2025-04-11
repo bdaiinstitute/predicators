@@ -23,8 +23,8 @@ from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
     _immovable_object_type, _movable_object_type, _robot_type, _table_type, \
-    _wrappers_type, get_allowed_map_regions, load_spot_metadata, \
-    object_to_top_down_geom
+    _trash_can_type, _wrappers_type, get_allowed_map_regions, \
+    load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
@@ -238,6 +238,9 @@ class SpotPerceiver(BasePerceiver):
                 # Check if the item we just placed is in view. It needs to
                 # be in view to assess whether it was placed correctly.
                 robot, obj = objects[:2]
+                if controller_name == "MoveToReachAndDropInside":
+                    # The object is the 3rd argument in this case.
+                    obj = objects[2]
                 state = self._create_state()
                 is_in_view = in_general_view_classifier(state, [robot, obj])
                 if not is_in_view:
@@ -248,7 +251,7 @@ class SpotPerceiver(BasePerceiver):
                      for n in ["sweepintocontainer", "sweeptwoobjects"]):
                 robot = objects[0]
                 state = self._create_state()
-                if controller_name.lower() == "sweepintocontainer":
+                if controller_name.lower() == "sweepintocontsainer":
                     objs = {objects[2]}
                 else:
                     assert controller_name.lower().startswith("sweeptwoobject")
@@ -681,22 +684,21 @@ class SpotPerceiver(BasePerceiver):
             }
             return goal
         if goal_description == "clean up the table!":
-            # Inside = pred_name_to_pred["VLMIn"]
+            Inside = pred_name_to_pred["VLMIn"]
             # TableClean = pred_name_to_pred["TableClean"]
             # TableClear = pred_name_to_pred["TableClear"]
             # TableWiped = pred_name_to_pred["TableWiped"]
             # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
-            Holding = pred_name_to_pred["Holding"]
-            # trash_can = Object("clear_plastic_trash_can",
-            #                    _immovable_object_type)
+            # Holding = pred_name_to_pred["Holding"]
+            trash_can = Object("clear_plastic_dustbin", _trash_can_type)
             apple = Object("apple", _movable_object_type)
             # table = Object("childrens_play_table", _table_type)
             # eraser = Object("neon_green_fluffy_eraser", _movable_object_type)
             robot = Object("robot", _robot_type)
             goal = {
-                # GroundAtom(VLMIn, [apple, trash_can]),
+                GroundAtom(Inside, [apple, trash_can]),
                 # GroundAtom(TableWiped, [table]),
-                GroundAtom(Holding, [robot, apple]),
+                # GroundAtom(Holding, [robot, apple]),
             }
             return goal
         raise NotImplementedError("Unrecognized goal description")

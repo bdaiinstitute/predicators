@@ -4106,7 +4106,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _table_type)
         x2 = Variable("?x2", _robot_type)
-        parameters = [x0, x1, x2]
+        parameters = [x2, x0, x1]
         preconds = {
             LiftedAtom(_HandEmpty, [x2]),
             LiftedAtom(self._OnTop, [x0, x1]),
@@ -4128,7 +4128,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _trash_can_type)
         x2 = Variable("?x2", _robot_type)
-        parameters = [x0, x1, x2]
+        parameters = [x2, x1, x0]
         preconds = {
             LiftedAtom(_Holding, [x2, x0]),
         }
@@ -4141,13 +4141,13 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         }
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("DropObjectInside", parameters, preconds, add_effs,
-                           del_effs, ignore_effs))
+            STRIPSOperator("MoveToReachAndDropInside", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
 
         # NSRT-Op2: PickFromFloor
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _robot_type)
-        parameters = [x0, x1]
+        parameters = [x1, x0]
         preconds = {
             LiftedAtom(_HandEmpty, [x1]),
             LiftedAtom(self._OnFloor, [x0]),
@@ -4230,13 +4230,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        # objects = {
-        #     Object("clear_plastic_trash_can", _trash_can_type),
-        # }
-        # for o in objects:
-        #     detection_id = LanguageObjectDetectionID(o.name)
-        #     detection_id_to_obj[detection_id] = o
-
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "clear_basket/clear_cup/clear_dustbin")] = Object(
+                "clear_plastic_dustbin", _trash_can_type)
         detection_id_to_obj[LanguageObjectDetectionID(
             "apple/red_ball")] = Object("apple", _movable_object_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
