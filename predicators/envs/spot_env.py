@@ -4099,6 +4099,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         self._NoObjectsOnTop = utils.create_vlm_predicate(
             "NoObjectsOnTop", [_table_type],
             lambda s: _get_vlm_query_str("NoObjectsOnTop", s))
+        self._IsGrumpy = utils.create_vlm_predicate(
+            "IsGrumpy", [_trash_can_type],
+            lambda o: _get_vlm_query_str("IsGrumpy", o))
 
         # Add in Operators.
         self._strips_operators = set()
@@ -4168,7 +4171,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x0 = Variable("?x0", _table_type)
         x1 = Variable("?x1", _movable_object_type)
         x2 = Variable("?x2", _robot_type)
-        parameters = [x0, x1, x2]
+        parameters = [x2, x0, x1]
         preconds = {
             LiftedAtom(self._ColorIsGreen, [x1]),
             LiftedAtom(_Holding, [x2, x1]),
@@ -4181,25 +4184,30 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = set()
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("WipeAndContinueHoldingEraser", parameters,
-                           preconds, add_effs, del_effs, ignore_effs))
+            STRIPSOperator("MoveAndWipeSurfaceAndContinueHoldingEraser",
+                           parameters, preconds, add_effs, del_effs,
+                           ignore_effs))
 
         # NSRT-Op4: DumpContentsOntoFloor
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _trash_can_type)
         x2 = Variable("?x2", _robot_type)
-        parameters = [x0, x1, x2]
+        # parameters = [x2, x1, x0]
+        # HACK: just for testing, change the params
+        parameters = [x2, x1]
         preconds = {
             LiftedAtom(_HandEmpty, [x2]),
-            LiftedAtom(_VLMIn, [x0, x1]),
-            LiftedAtom(self._IsOpen, [x1]),
+            # LiftedAtom(_VLMIn, [x0, x1]),
+            # LiftedAtom(self._IsOpen, [x1]),
         }
         add_effs = {
-            LiftedAtom(self._OnFloor, [x0]),
+            # LiftedAtom(self._OnFloor, [x0]),
+            LiftedAtom(self._IsGrumpy, [x1])
         }
-        del_effs = {
-            LiftedAtom(_VLMIn, [x0, x1]),
-        }
+        # del_effs = {
+        #     # LiftedAtom(_VLMIn, [x0, x1]),
+        # }
+        del_effs = set()
         ignore_effs = set()
         self._strips_operators.add(
             STRIPSOperator("DumpContentsOntoFloor", parameters, preconds,
@@ -4215,7 +4223,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         ])
         preds |= {
             self._IsOpen, self._OnFloor, self._ColorIsGreen, self._IsEraser,
-            self._OnTop, self._NoObjectsOnTop
+            self._OnTop, self._NoObjectsOnTop, self._IsGrumpy
         }
         return preds
 
@@ -4231,10 +4239,10 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         detection_id_to_obj[LanguageObjectDetectionID(
-            "clear_basket/clear_cup/clear_dustbin")] = Object(
+            "bottle/clear_cup/clear_trashcan")] = Object(
                 "clear_plastic_dustbin", _trash_can_type)
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "apple/red_ball")] = Object("apple", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "apple/red_ball")] = Object("apple", _movable_object_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "fluffy_toy")] = Object("fluffy_green_toy_duster", _movable_object_type)
 

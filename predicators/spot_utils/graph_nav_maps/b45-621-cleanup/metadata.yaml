@@ -101,3 +101,7 @@ approach_angle_bounds:
   table: [-0.1, 0.1]
   # approach trash can from the side
   clear_plastic_dustbin: [1.47, 1.67]
+
+# Wiping skill params.
+wipe_location:
+  table: [2.48, 0.205, -2.96856]

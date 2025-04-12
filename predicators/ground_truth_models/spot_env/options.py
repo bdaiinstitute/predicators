@@ -26,6 +26,7 @@ from predicators.spot_utils.perception.perception_structs import \
     RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images, \
     get_last_captured_images
+from predicators.spot_utils.skills.spot_dump import dump_container
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, \
     simulated_grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
@@ -572,14 +573,102 @@ def _move_to_reach_and_drop_inside_policy(name: str, state: State,
     return utils.create_spot_env_action(action_extra_info)
 
 
-def _wipe_surface_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
-                         state: State, memory: Dict, objects: Sequence[Object],
-                         params: Array) -> Action:
-    # TODO: setup the things to get passed into wipe_multiple_strokes()
-    wipe_multiple_strokes()
-    action_extra_info = SpotActionExtraInfo(name, objects, _wipe_surface,
-                                            (robot_obj_idx, target_obj_idx),
-                                            None, tuple())
+def _move_to_reach_and_wipe_surface_policy(name: str, state: State,
+                                           memory: Dict,
+                                           objects: Sequence[Object],
+                                           params: Array) -> Action:
+
+    def _fn() -> None:
+        robot, localizer, _ = get_robot()
+        target_pose = math_helpers.SE2Pose(params[0], params[1], params[2])
+        navigate_to_absolute_pose(robot, localizer, target_pose)
+        #######################
+        # NOTE: just for testing -> ask for the eraser!
+        # Move the hand to the side.
+        hand_side_pose = math_helpers.SE3Pose(x=0.80,
+                                              y=0.0,
+                                              z=0.25,
+                                              rot=math_helpers.Quat.from_yaw(
+                                                  -np.pi / 2))
+        move_hand_to_relative_pose(robot, hand_side_pose)
+        # Ask for the eraser.
+        open_gripper(robot)
+        # Press any key, instead of just enter. Useful for remote control.
+        msg = "Put the brush in the robot's gripper, then press any key"
+        utils.wait_for_any_button_press(msg)
+        close_gripper(robot)
+        ###################
+        # NOTE: these parameters hardcoded for a particular child_play_table
+        # object njk is experimenting with. Please swap out depending on the
+        # actual object you have
+        start_pose = math_helpers.SE3Pose(x=0.8,
+                                          y=-0.35,
+                                          z=-0.08,
+                                          rot=math_helpers.Quat.from_pitch(
+                                              np.pi / 2))
+        end_pose = math_helpers.SE3Pose(x=0.65,
+                                        y=0.0,
+                                        z=0.55,
+                                        rot=math_helpers.Quat.from_pitch(
+                                            np.pi / 2))
+        rel_dx, rel_dy, delta_dx, delta_dy, num_wipes, duration_per_stroke = params[
+            3:9]
+        wipe_multiple_strokes(robot, start_pose, end_pose,
+                              rel_dx, rel_dy, (delta_dx, delta_dy),
+                              int(num_wipes), duration_per_stroke)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
+def _move_to_view_and_grasp_and_dump_policy(name: str, robot_obj_idx: int,
+                                            target_obj_idx: int, state: State,
+                                            memory: Dict,
+                                            objects: Sequence[Object],
+                                            params: Array) -> Action:
+    move_action = _move_to_hand_view_object_policy(state, memory, objects,
+                                                   params[:2])
+
+    def _fn() -> None:
+        assert isinstance(move_action.extra_info, SpotActionExtraInfo)
+        move_action.extra_info.real_world_fn(
+            *move_action.extra_info.real_world_fn_args)
+        time.sleep(0.5)  # Wait for the hand image to settle
+        # Initiate grasping.
+        robot, localizer, _ = get_robot()
+        rgbds = capture_images(robot, localizer, relocalize=True)
+        pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
+        _, artifacts = detect_objects([pick_obj_id], rgbds)
+        grasp_pixel_sample, rot_constraint = get_grasp_pixel(
+            rgbds, artifacts, pick_obj_id, "hand_color_image", _options_rng)
+        # We definitely don't stow, and we don't dump because we do that
+        # separately later.
+        _grasp_at_pixel_and_maybe_stow_or_dump(robot,
+                                               rgbds["hand_color_image"],
+                                               grasp_pixel_sample,
+                                               rot_constraint,
+                                               np.pi / 4,
+                                               timeout=20.0,
+                                               retry_grasp_after_fail=True,
+                                               do_stow=False,
+                                               do_dump=False)
+        # Initiate dumping.
+        dump_container(robot,
+                       dump_y=-0.3,
+                       place_z=-0.3,
+                       place_angle=np.pi / 2.2)
+        # Move the hand away, close the gripper.
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
+        close_gripper(robot)
+        # Move back a step or two to see.
+        move_back_pose = math_helpers.SE2Pose(-0.4, 0.0, 0.0)
+        navigate_to_relative_pose(robot, move_back_pose)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
     return utils.create_spot_env_action(action_extra_info)
 
 
@@ -999,6 +1088,22 @@ def _move_and_drop_inside_policy(state: State, memory: Dict,
                                                  params)
 
 
+def _move_and_wipe_surface_policy(state: State, memory: Dict,
+                                  objects: Sequence[Object],
+                                  params: Array) -> Action:
+    name = "MoveAndWipeSurfaceAndContinueHoldingEraser"
+    return _move_to_reach_and_wipe_surface_policy(name, state, memory, objects,
+                                                  params)
+
+
+def _move_and_grasp_and_dump_policy(state: State, memory: Dict,
+                                    objects: Sequence[Object],
+                                    params: Array) -> Action:
+    name = "DumpContentsOntoFloor"
+    return _move_to_view_and_grasp_and_dump_policy(name, 0, 1, state, memory,
+                                                   objects, params)
+
+
 def _create_teleop_policy_with_name(
         name: str) -> Callable[[State, Dict, Sequence[Object], Array], Action]:
 
@@ -1066,8 +1171,10 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveAndPickFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
     "MoveAndPickFromFloor": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
     "DumpContentsOntoFloor": Box(-np.inf, np.inf, (6, )),
-    "WipeAndContinueHoldingEraser":
-    Box(-np.inf, np.inf, (5, )),  # init x, init y, rel dx, dy, number of wipes
+    "MoveAndWipeSurfaceAndContinueHoldingEraser":
+    Box(-np.inf, np.inf, (9, )
+        ),  # move_abs_x, move_abs_y, move_abs_yaw, rel dx, dy, number of wipes
+    "DumpContentsOntoFloor": Box(-np.inf, np.inf, (2, )),  # params for moving.
     "MoveToReachAndDropInside": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
 }
 
@@ -1096,8 +1203,9 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveToReadySweep": _move_to_ready_sweep_policy,
     "MoveAndPickFromTop": _move_and_pick_fatop_policy,
     "MoveAndPickFromFloor": _move_and_pick_ffloor_policy,
-    "DumpContentsOntoFloor": _pick_and_dump_container_policy,
-    "WipeAndContinueHoldingEraser": _wipe_surface_policy,
+    "DumpContentsOntoFloor": _move_and_grasp_and_dump_policy,
+    "MoveAndWipeSurfaceAndContinueHoldingEraser":
+    _move_and_wipe_surface_policy,
     "MoveToReachAndDropInside": _move_and_drop_inside_policy,
 }
 

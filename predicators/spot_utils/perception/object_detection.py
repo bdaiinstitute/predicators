@@ -481,7 +481,6 @@ def get_random_mask_pixel_from_artifacts(
     #     plt.Rectangle((pixel_tuple[0], pixel_tuple[1]), 5, 5, color='red'))
     # plt.tight_layout()
     # outdir = Path(CFG.spot_perception_outdir)
-    # import ipdb; ipdb.set_trace()
     # plt.savefig(outdir / "grasp_pixel.png", dpi=300)
     # plt.close()
     return pixel_tuple

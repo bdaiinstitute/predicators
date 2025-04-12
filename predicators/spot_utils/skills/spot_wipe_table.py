@@ -38,7 +38,7 @@ def wipe_one_stroke(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
 def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
                           end_look_pose: math_helpers.SE3Pose,
                           stroke_dx: float, stroke_dy: float,
-                          delta_x_y_beetween_strokes: Tuple[float, float],
+                          delta_x_y_between_strokes: Tuple[float, float],
                           num_strokes: int,
                           duration_per_stroke: float) -> None:
     """Wipe a table surface in the xy plane.
@@ -65,8 +65,8 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
                                                  duration_per_stroke)
         # Move to the next stroke position.
         curr_stroke_start_pose = math_helpers.SE3Pose(
-            x=curr_stroke_start_pose.x + delta_x_y_beetween_strokes[0],
-            y=curr_stroke_start_pose.y + delta_x_y_beetween_strokes[1],
+            x=curr_stroke_start_pose.x + delta_x_y_between_strokes[0],
+            y=curr_stroke_start_pose.y + delta_x_y_between_strokes[1],
             z=curr_stroke_start_pose.z,
             rot=curr_stroke_start_pose.rot,
         )

@@ -42,6 +42,7 @@ train_toy_prompt = "/".join([
 train_toy_obj = LanguageObjectDetectionID(train_toy_prompt)
 chair_prompt = "chair"
 chair_obj = LanguageObjectDetectionID(chair_prompt)
+trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
 
 
 def _get_platform_grasp_pixel(
@@ -438,6 +439,73 @@ def _get_bucket_grasp_pixel(
     return selected_pixel, pitch
 
 
+def _get_trash_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    """Select a blue pixel on the rim of the bucket to grasp."""
+    del rng  # not used
+
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[trash_can_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{trash_can_obj} not detected in {camera_name}")
+
+    mask = seg_bb.mask
+    rgbd = rgbds[camera_name]
+
+    # Helpful to dump these things and analyze separately.
+    # import dill as pkl
+    # with open("debug.pkl", "wb") as f:
+    #     pkl.dump(
+    #         {
+    #             "rgbd": rgbd,
+    #             "mask": mask,
+    #         }, f)
+
+    # Look for blue pixels in the isolated rgb.
+    # Start by denoising the mask, "filling in" small gaps in it.
+    convolved_mask = convolve(mask.astype(np.uint8),
+                              np.ones((3, 3)),
+                              mode="constant")
+    smoothed_mask = (convolved_mask > 0)
+    # Get copy of image with just the mask pixels in it.
+    isolated_rgb = rgbd.rgb.copy()
+    isolated_rgb[~smoothed_mask] = 0
+    lo, hi = ((0, 0, 130), (130, 255, 255))
+    centroid = find_color_based_centroid(isolated_rgb,
+                                         lo,
+                                         hi,
+                                         min_component_size=10)
+    # This can happen sometimes if the rim of the bucket is separated from the
+    # body of the bucket. If that happens, just pick the center bottom pixel in
+    # the mask, which should be the rim.
+    if centroid is None:
+        mask_args = np.argwhere(mask)
+        mask_min_c = min(mask_args[:, 1])
+        mask_max_c = max(mask_args[:, 1])
+        c_len = mask_max_c - mask_min_c
+        middle_c = mask_min_c + c_len // 2
+        max_r = max(r for r, c in mask_args if c == middle_c)
+        selected_pixel = (middle_c, max_r)
+    else:
+        # NOTE! Testing
+        selected_pixel = (centroid[0], centroid[1])
+
+    # # Uncomment for debugging.
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    # Specify a top-down grasp constraint.
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+
+    return selected_pixel, pitch
+
+
 def _get_mask_center_grasp_pixel(
     detect_id: LanguageObjectDetectionID, rgbds: Dict[str,
                                                       RGBDImageWithContext],
@@ -493,5 +561,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # train_toy-specific grasp selection.
     train_toy_obj: partial(_get_mask_center_grasp_pixel, train_toy_obj),
     # Chair-specific grasp selection.
-    chair_obj: _get_chair_grasp_pixel
+    chair_obj: _get_chair_grasp_pixel,
+    # Trash can specific grasp selection.
+    trash_can_obj: _get_trash_grasp_pixel,
 }

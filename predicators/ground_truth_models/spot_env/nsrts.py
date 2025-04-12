@@ -280,6 +280,25 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     return np.array([param_dict["dx"], param_dict["dy"], param_dict["angle"]])
 
 
+def _move_and_wipe_table_sampler(state: State, goal: Set[GroundAtom],
+                                 rng: np.random.Generator,
+                                 objs: Sequence[Object]) -> Array:
+    target_obj = objs[1]
+    move_sample_params = load_spot_metadata()["wipe_location"][target_obj.name]
+    # Hardcoded params; probably need to change in the future.
+    rel_dx = 0.0
+    rel_dy = 0.55
+    delta_dx = 0.05
+    delta_dy = 0.0
+    num_wipes = 5
+    duration_per_stroke = 1.0
+    output_params = np.array([
+        move_sample_params[0], move_sample_params[1], move_sample_params[2],
+        rel_dx, rel_dy, delta_dx, delta_dy, num_wipes, duration_per_stroke
+    ])
+    return output_params
+
+
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     """Ground-truth NSRTs for the Spot Env."""
 
@@ -332,8 +351,9 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveAndPickFromFloor": _move_to_hand_view_object_sampler,
             "MoveAndPickFromTop": _move_to_hand_view_object_sampler,
             "MoveToReachAndDropInside": _move_to_reach_object_sampler,
-            # TODO: actually make real samplers here!
-            "WipeAndContinueHoldingEraser": utils.null_sampler,
+            "MoveAndWipeSurfaceAndContinueHoldingEraser":
+            _move_and_wipe_table_sampler,
+            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler
         }
 
         # If we're doing proper bilevel planning with a simulator, then
