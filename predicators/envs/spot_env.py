@@ -4238,9 +4238,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "bottle/clear_cup/clear_trashcan")] = Object(
-                "clear_plastic_dustbin", _trash_can_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "bottle/clear_cup/clear_trashcan")] = Object(
+        #         "clear_plastic_dustbin", _trash_can_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "apple/red_ball")] = Object("apple", _movable_object_type)
         # detection_id_to_obj[LanguageObjectDetectionID(

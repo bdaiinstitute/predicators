@@ -45,7 +45,7 @@ def annotate_imgs_with_detections(
     object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
                                                        SegmentedBoundingBox]]]
 ) -> List[PIL.Image.Image]:
-    """Annotate images via editing the pixesl directly to include object
+    """Annotate images via editing the pixels directly to include object
     detection bounding boxes and camera names."""
     img_names = [v.camera_name for _, v in img_objects.items()]
     imgs = [v.rotated_rgb for _, v in img_objects.items()]
@@ -687,20 +687,20 @@ class SpotPerceiver(BasePerceiver):
             # Inside = pred_name_to_pred["VLMIn"]
             # TableClean = pred_name_to_pred["TableClean"]
             # TableClear = pred_name_to_pred["TableClear"]
-            # TableWiped = pred_name_to_pred["TableWiped"]
+            TableWiped = pred_name_to_pred["TableWiped"]
             # OnFloor = pred_name_to_pred["OnFloor"]
-            IsGrumpy = pred_name_to_pred["IsGrumpy"]
+            # IsGrumpy = pred_name_to_pred["IsGrumpy"]
             # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
             # Holding = pred_name_to_pred["Holding"]
-            trash_can = Object("clear_plastic_dustbin", _trash_can_type)
+            # trash_can = Object("clear_plastic_dustbin", _trash_can_type)
             # apple = Object("apple", _movable_object_type)
-            # table = Object("table", _table_type)
+            table = Object("table", _table_type)
             # eraser = Object("fluffy_toy", _movable_object_type)
             # robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Inside, [apple, trash_can]),
-                # GroundAtom(TableWiped, [table]),
-                GroundAtom(IsGrumpy, [trash_can]),
+                GroundAtom(TableWiped, [table]),
+                # GroundAtom(IsGrumpy, [trash_can]),
                 # GroundAtom(Holding, [robot, apple]),
             }
             return goal

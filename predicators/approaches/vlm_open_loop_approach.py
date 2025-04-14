@@ -77,7 +77,7 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             for img_num, img in enumerate(state.simulator_state["images"]):
                 pil_img = PIL.Image.fromarray(img)  # type: ignore
                 width, height = pil_img.size
-                font_size = 15
+                font_size = 6
                 text = f"Demonstration {traj_num}, " + \
                     f"State {state_num}, Image {img_num}"
                 draw = ImageDraw.Draw(pil_img)
@@ -162,10 +162,16 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         assert isinstance(init_state.simulator_state["images"], List)
         curr_options = sorted(self._initial_options)
         imgs = init_state.simulator_state["images"]
-        pil_imgs = [
-            PIL.Image.fromarray(img_arr)  # type: ignore
-            for img_arr in imgs
-        ]
+        if isinstance(imgs[0], np.ndarray):
+            pil_imgs = [
+                PIL.Image.fromarray(img_arr)  # type: ignore
+                for img_arr in imgs
+            ]
+        elif isinstance(imgs[0], PIL.Image.Image):
+            pil_imgs = imgs
+        else:
+            raise ValueError(
+                "Simulator state images are not in a recognized format!")
         imgs_for_vlm = []
         for img_num, pil_img in enumerate(pil_imgs):
             draw = ImageDraw.Draw(pil_img)

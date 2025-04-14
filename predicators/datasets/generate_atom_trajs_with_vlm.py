@@ -1402,16 +1402,13 @@ def create_ground_atom_data_from_saved_img_trajs(
         # Now actually create ground options.
         for option_name, option_objs_strs_list, option_params in zip(
                 option_names_list, object_args_list, parameters):
+            option = option_name_to_option[option_name]
             objects = [
                 curr_task_obj_name_to_obj[opt_arg]
                 for opt_arg in option_objs_strs_list
             ]
-            option = option_name_to_option[option_name]
-            if isinstance(option_params, float):
-                params_tuple = (option_params, )
-            else:
-                params_tuple = option_params
-            ground_option = option.ground(objects, np.array(params_tuple))
+            params = np.zeros(option.params_space.shape)
+            ground_option = option.ground(objects, params)
             assert ground_option.initiable(curr_train_task.init)
             ground_option_traj.append(ground_option)
         # Given ground options, we can finally make ImageOptionTrajectories.
@@ -1463,3 +1460,168 @@ def create_ground_atom_data_from_saved_img_trajs(
             [traj.actions for traj in image_option_trajs],
             goal_states_for_every_traj, train_tasks)
     return Dataset(low_level_trajs, ground_atoms_trajs)
+
+
+def create_low_level_trajs_from_saved_img_trajs(
+        env: BaseEnv, train_tasks: List[Task],
+        known_predicates: Set[Predicate],
+        known_options: Set[ParameterizedOption]) -> Dataset:
+    """Given a folder containing trajectories that have images of scenes for
+    each state, as well as options that transition between these states, output
+    a dataset.
+
+    Importantly - unlike the above method - this does not actually label
+    atom values. It just creates a dataset of low-level trajectories
+    (i.e. trajectories of actions and states).
+    """
+    trajectories_folder_path = os.path.join(
+        utils.get_path_to_predicators_root(), CFG.data_dir,
+        CFG.vlm_trajs_folder_name)
+    # # First, run some checks on the folder name to make sure
+    # # we're not accidentally loading the wrong one.
+    # folder_name_components = CFG.vlm_trajs_folder_name.split('__')
+    # assert folder_name_components[0] == CFG.env
+    # assert folder_name_components[1] == "vlm_demos"
+    # assert int(folder_name_components[2]) == CFG.seed
+    # assert int(folder_name_components[3]) == CFG.num_train_tasks
+    unfiltered_files = os.listdir(trajectories_folder_path)
+    # Each demonstration trajectory is in subfolder traj_<demo_number>.
+    traj_folders = [f for f in unfiltered_files if f[0:5] == "traj_"]
+    num_trajs = len(traj_folders)
+    assert num_trajs == CFG.num_train_tasks
+    option_name_to_option = {opt.name: opt for opt in known_options}
+    image_option_trajs = []
+    all_task_objs = set()
+    unfiltered_paths = sorted(Path(trajectories_folder_path).iterdir())
+    # Each demonstration trajectory is in subfolder traj_<demo_number>.
+    filtered_paths = [f for f in unfiltered_paths if "traj_" in f.parts[-1]]
+    for train_task_idx, path in enumerate(filtered_paths):
+        assert path.is_dir()
+        state_folders = [f.path for f in os.scandir(path) if f.is_dir()]
+        num_states_in_traj = len(state_folders)
+        img_traj = []
+        state_traj: Optional[List[State]] = []
+        for state_num in range(num_states_in_traj):
+            curr_imgs: List[PIL.Image.Image] = []
+            curr_state_path = path.joinpath(str(state_num))
+            # NOTE: we assume all images are saved as jpg files.
+            img_files = sorted(glob.glob(str(curr_state_path) + "/*.jpg"))
+            for img_file in img_files:
+                # PIL.Image.open returns an ImageFile, which is a subclass of
+                # an Image.
+                img = cast(PIL.Image.Image, PIL.Image.open(img_file))
+                curr_imgs.append(img)
+            img_traj.append(curr_imgs)
+            state_file = curr_state_path / "state.p"
+            if state_file.exists():  # pragma: no cover
+                with open(state_file, "rb") as fp:
+                    state = pkl.load(fp)
+                assert state_traj is not None
+                state_traj.append(state)
+            else:
+                state_traj = None
+        # Get objects from train tasks to be used for future parsing.
+        curr_train_task = train_tasks[train_task_idx]
+        curr_task_objs = set(curr_train_task.init)
+        all_task_objs |= curr_task_objs
+        curr_task_obj_name_to_obj = {obj.name: obj for obj in curr_task_objs}
+        # Parse out actions for the trajectory.
+        options_traj_file_list = glob.glob(str(path) + "/*options_traj.txt")
+        assert len(options_traj_file_list) == 1
+        options_traj_file = options_traj_file_list[0]
+        with open(options_traj_file, "r", encoding="utf-8") as f:
+            options_file_str = f.read()
+        option_names_list = re.findall(r'(\w+)\(', options_file_str)
+        option_args_strs = re.findall(r'\((.*?)\)', options_file_str)
+        parsed_str_objects = [
+            re.sub(r'\[[^\]]*\]', '', option_args_str).strip()
+            for option_args_str in option_args_strs
+        ]
+        objects_exist = len(''.join(obj_str
+                                    for obj_str in parsed_str_objects)) > 0
+        object_args_list: List[List[str]] = [
+            [] for _ in range(len(parsed_str_objects))
+        ]
+        if objects_exist:
+            cleaned_parsed_str_objects = [
+                obj_str[:-1] if obj_str[-1] == "," else obj_str
+                for obj_str in parsed_str_objects
+            ]
+            object_args_list = [
+                obj.split(', ') for obj in cleaned_parsed_str_objects
+            ]
+        parameters = [
+            ast.literal_eval(obj) if obj else []
+            for obj in re.findall(r'\[(.*?)\]', options_file_str)
+        ]
+        ground_option_traj: List[_Option] = []
+        # Now actually create ground options.
+        for option_name, option_objs_strs_list, option_params in zip(
+                option_names_list, object_args_list, parameters):
+            option = option_name_to_option[option_name]
+            if "spot" not in CFG.env:
+                objects = [
+                    curr_task_obj_name_to_obj[opt_arg]
+                    for opt_arg in option_objs_strs_list
+                ]
+            else:
+                # In the case of spot environments, teh state doesn't
+                # have the objects directly. We have to make them
+                # up as we go.
+                objects = []
+                for i, obj_name in enumerate(option_objs_strs_list):
+                    objects.append(Object(obj_name, option.types[i]))
+
+            if "spot" not in CFG.env:
+                if isinstance(option_params, float):
+                    params_tuple = (option_params, )
+                else:
+                    params_tuple = option_params
+                ground_option = option.ground(objects, np.array(params_tuple))
+            else:
+                params = np.zeros(option.params_space.shape)
+                ground_option = option.ground(objects, params)
+            assert ground_option.initiable(curr_train_task.init)
+            ground_option_traj.append(ground_option)
+        # Given ground options, we can finally make ImageOptionTrajectories.
+        image_option_trajs.append(
+            ImageOptionTrajectory(list(curr_task_objs),
+                                  img_traj, [],
+                                  ground_option_traj,
+                                  state_traj,
+                                  _is_demo=True,
+                                  _train_task_idx=train_task_idx))
+    # Finally, we just need to construct LowLevelTrajectories that we can
+    # output as part of our Dataset.
+    assert "DummyGoal" not in str(train_tasks[0].goal)
+    # Finally, we need to construct actual LowLevelTrajectories.
+    # NOTE: In this LowLevelTrajectory, we assume the low level states
+    # are the same as the init state until the final state.
+    trajs = []
+    for traj_num in range(len(image_option_trajs)):
+        traj_init_state = train_tasks[traj_num].init
+        curr_traj_states = []
+        curr_traj_actions = []
+        curr_img_traj = image_option_trajs[traj_num].imgs
+        for idx_within_traj in range(len(
+                image_option_trajs[traj_num].actions)):
+            curr_state = traj_init_state.copy()
+            curr_state.simulator_state["images"] = [
+                np.array(img) for img in curr_img_traj[idx_within_traj]
+            ]
+            curr_traj_states.append(curr_state)
+            curr_traj_actions.append(
+                Action(np.zeros(0, dtype=float),
+                       image_option_trajs[traj_num].actions[idx_within_traj]))
+        # Now, we need to append the final state because there are 1 more
+        # states than actions.
+        curr_state = traj_init_state.copy()
+        curr_state.simulator_state["images"] = [
+            np.array(img) for img in curr_img_traj[-1]
+        ]
+        curr_traj_states.append(curr_state)
+        curr_traj = LowLevelTrajectory(curr_traj_states, curr_traj_actions,
+                                       True, traj_num)
+        trajs.append(curr_traj)
+
+    return Dataset(trajs)
