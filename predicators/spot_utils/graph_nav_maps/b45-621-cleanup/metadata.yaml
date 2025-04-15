@@ -25,13 +25,13 @@ allowed-regions:
     - [5.0, 2.7]
 
 # Known immovable objects. Assuming default rotations.
-# TODO note: later we can add static objects like tables, chairs, etc. here
+# TODO note: later we can add static objects like short_round_coffee_tables, chairs, etc. here
 known-immovable-objects:
   floor:
     x: 1.4
     y: 0.5
     z: -0.5
-  table:
+  short_round_coffee_table:
     x: 1.65
     y: -0.24
     z: 0.14
@@ -71,6 +71,13 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
+  blue_coffee_cup:
+    shape: 1
+    height: 0.2
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
   clear_plastic_dustbin:
     shape: 2
     height: 0.1
@@ -79,14 +86,14 @@ static-object-features:
     placeable: 1
     is_sweeper: 0
     flat_top_surface: 0
-  fluffy_toy_duster:
+  fluffy_green_toy_eraser:
     shape: 1
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  table:
+  short_round_coffee_table:
     shape: 1
     height: 0.1
     length: 0.79
@@ -97,11 +104,15 @@ static-object-features:
 approach_angle_bounds:
   # only approach the apple from in front of it!
   apple: [-0.1, 0.1]
-  # also only approach the table from in front of it!
-  table: [-0.1, 0.1]
+  # only approach the coffee cup from in front of it!
+  blue_coffee_cup: [-0.1, 0.1]
+  # also only approach the short_round_coffee_table from in front of it!
+  short_round_coffee_table: [-0.1, 0.1]
   # approach trash can from the side
   clear_plastic_dustbin: [1.47, 1.67]
+  # approach the duster from the other side.
+  fluffy_green_toy_eraser: [-1.67, -1.47]
 
 # Wiping skill params.
 wipe_location:
-  table: [2.48, 0.205, -2.96856]
+  short_round_coffee_table: [2.48, 0.205, -2.96856]

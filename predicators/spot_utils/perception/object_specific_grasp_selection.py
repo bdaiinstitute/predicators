@@ -43,6 +43,7 @@ train_toy_obj = LanguageObjectDetectionID(train_toy_prompt)
 chair_prompt = "chair"
 chair_obj = LanguageObjectDetectionID(chair_prompt)
 trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
+blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 
 
 def _get_platform_grasp_pixel(
@@ -564,4 +565,6 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     chair_obj: _get_chair_grasp_pixel,
     # Trash can specific grasp selection.
     trash_can_obj: _get_trash_grasp_pixel,
+    # Blue cup specific grasp selection.
+    blue_cup_obj: partial(_get_mask_center_grasp_pixel, blue_cup_obj),
 }

@@ -520,12 +520,27 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
         move_action.extra_info.real_world_fn(
             *move_action.extra_info.real_world_fn_args)
         time.sleep(0.5)  # Wait for the hand image to settle
-        robot, localizer, _ = get_robot()
-        rgbds = capture_images(robot, localizer, relocalize=True)
-        pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
-        _, artifacts = detect_objects([pick_obj_id], rgbds)
-        grasp_pixel_sample, rot_constraint = get_grasp_pixel(
-            rgbds, artifacts, pick_obj_id, "hand_color_image", _options_rng)
+        while True:
+            robot, localizer, lease_client = get_robot()
+            rgbds = capture_images(robot, localizer, relocalize=True)
+            pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
+            _, artifacts = detect_objects([pick_obj_id], rgbds)
+            try:
+                grasp_pixel_sample, rot_constraint = get_grasp_pixel(
+                    rgbds, artifacts, pick_obj_id, "hand_color_image", _options_rng)
+                
+                break
+            except ValueError:
+                logging.info("Object not seen in hand camera! Moving slightly...")
+                prompt = (
+                        "Hit 'c' to have the robot do a random movement "
+                        "or take control and move the robot accordingly. "
+                        "Hit the 'Enter' key when you're done!")
+                user_pref = input(prompt)
+                import PIL
+                PIL.Image.fromarray(rgbds["hand_color_image"].rotated_rgb).save("hand_image_failed_detection.png")
+                assert lease_client is not None
+                lease_client.take()
         if rot_constraint is None:
             rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
         else:
@@ -562,7 +577,7 @@ def _move_to_reach_and_drop_inside_policy(name: str, state: State,
                                                          memory,
                                                          objs_for_drop,
                                                          params=np.array(
-                                                             [0.0, 0.0, 0.12]))
+                                                             [0.0, 0.0, 0.2]))
         assert isinstance(place_inside_action.extra_info, SpotActionExtraInfo)
         place_inside_action.extra_info.real_world_fn(
             *place_inside_action.extra_info.real_world_fn_args)
@@ -582,28 +597,33 @@ def _move_to_reach_and_wipe_surface_policy(name: str, state: State,
         robot, localizer, _ = get_robot()
         target_pose = math_helpers.SE2Pose(params[0], params[1], params[2])
         navigate_to_absolute_pose(robot, localizer, target_pose)
-        #######################
-        # NOTE: just for testing -> ask for the eraser!
-        # Move the hand to the side.
-        hand_side_pose = math_helpers.SE3Pose(x=0.80,
-                                              y=0.0,
-                                              z=0.25,
-                                              rot=math_helpers.Quat.from_yaw(
-                                                  -np.pi / 2))
-        move_hand_to_relative_pose(robot, hand_side_pose)
-        # Ask for the eraser.
-        open_gripper(robot)
-        # Press any key, instead of just enter. Useful for remote control.
-        msg = "Put the brush in the robot's gripper, then press any key"
-        utils.wait_for_any_button_press(msg)
-        close_gripper(robot)
-        ###################
+        # #######################
+        # # NOTE: just for testing -> ask for the eraser!
+        # # Move the hand to the side.
+        # hand_side_pose = math_helpers.SE3Pose(x=0.80,
+        #                                       y=0.0,
+        #                                       z=0.25,
+        #                                       rot=math_helpers.Quat.from_yaw(
+        #                                           -np.pi / 2))
+        # move_hand_to_relative_pose(robot, hand_side_pose)
+        # # Ask for the eraser.
+        # open_gripper(robot)
+        # # Press any key, instead of just enter. Useful for remote control.
+        # msg = "Put the brush in the robot's gripper, then press any key"
+        # utils.wait_for_any_button_press(msg)
+        # close_gripper(robot)
+        # ###################
         # NOTE: these parameters hardcoded for a particular child_play_table
         # object njk is experimenting with. Please swap out depending on the
         # actual object you have
+        # start_pose = math_helpers.SE3Pose(x=0.8,
+        #                                   y=-0.35,
+        #                                   z=-0.08,
+        #                                   rot=math_helpers.Quat.from_pitch(
+        #                                       np.pi / 2))
         start_pose = math_helpers.SE3Pose(x=0.8,
-                                          y=-0.35,
-                                          z=-0.08,
+                                          y=-0.1,
+                                          z=-0.04,
                                           rot=math_helpers.Quat.from_pitch(
                                               np.pi / 2))
         end_pose = math_helpers.SE3Pose(x=0.65,

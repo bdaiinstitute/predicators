@@ -33,6 +33,7 @@ def _move_offset_sampler(state: State, robot_obj: Object,
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
     collision_geoms = get_collision_geoms_for_nav(state)
+    
     try:
         distance, angle, _ = sample_move_offset_from_target(
             obj_to_nav_to_pos,
@@ -287,10 +288,16 @@ def _move_and_wipe_table_sampler(state: State, goal: Set[GroundAtom],
     move_sample_params = load_spot_metadata()["wipe_location"][target_obj.name]
     # Hardcoded params; probably need to change in the future.
     rel_dx = 0.0
-    rel_dy = 0.55
+    # # Params for child play table:
+    # rel_dy = 0.55
+    # delta_dx = 0.05
+    # delta_dy = 0.0
+    # num_wipes = 5
+    # Params for round coffee table
+    rel_dy = 0.25
     delta_dx = 0.05
     delta_dy = 0.0
-    num_wipes = 5
+    num_wipes = 4
     duration_per_stroke = 1.0
     output_params = np.array([
         move_sample_params[0], move_sample_params[1], move_sample_params[2],

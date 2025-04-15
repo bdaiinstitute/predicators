@@ -430,6 +430,7 @@ class SpotPerceiver(BasePerceiver):
         state_copy.simulator_state = simulator_state
         abstract_state = utils.abstract(state_copy, preds)
         simulator_state["abstract_state"] = abstract_state
+        print(f"abstract_state: {abstract_state}")
         # Compute all the VLM atoms. `utils.abstract()` only returns the ones
         # that are True. The remaining ones are the ones that are False.
         vlm_preds = set(pred for pred in preds
@@ -694,10 +695,11 @@ class SpotPerceiver(BasePerceiver):
             # Holding = pred_name_to_pred["Holding"]
             # trash_can = Object("clear_plastic_dustbin", _trash_can_type)
             # apple = Object("apple", _movable_object_type)
-            table = Object("table", _table_type)
-            # eraser = Object("fluffy_toy", _movable_object_type)
+            table = Object("short_round_coffee_table", _table_type)
+            # eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
             # robot = Object("robot", _robot_type)
             goal = {
+                # GroundAtom(Holding, [robot, eraser]),
                 # GroundAtom(Inside, [apple, trash_can]),
                 GroundAtom(TableWiped, [table]),
                 # GroundAtom(IsGrumpy, [trash_can]),

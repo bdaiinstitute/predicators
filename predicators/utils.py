@@ -2556,7 +2556,7 @@ def get_prompt_for_vlm_state_labelling(
             init_prompt = f.read()
         for atom_str in atoms_list:
             init_prompt += f"\n{atom_str}"
-        if len(label_history) == 0:
+        if len(label_history) == 0 or (skill_history[-1] is None):
             return (init_prompt, imgs_history[0])
         # Now, we use actual difference-based prompting for the second timestep
         # and beyond.
@@ -2657,38 +2657,69 @@ def query_vlm_for_atom_vals(
     assert len(vlm_output) == 1
     vlm_output_str = vlm_output[0]
     logging.info(f"VLM output: \n{vlm_output_str}")
-    # Parse out stuff.
-    if len(label_history) > 0:  # pragma: no cover
-        truth_values = re.findall(r'\* (.*): (True|False|Unknown)',
-                                  vlm_output_str)
-        for i, (atom_query,
-                pred_label) in enumerate(zip(atom_queries_list, truth_values)):
-            pred, label = pred_label
-            try:
-                assert pred in atom_query
-            except AssertionError:
-                import ipdb
-                ipdb.set_trace()
-            label = label.lower()
-            if "true" in label.lower():
-                true_atoms.add(vlm_atoms[i])
-    else:
-        all_vlm_responses = vlm_output_str.strip().split("\n")
-        # NOTE: this assumption is likely too brittle; if this is breaking,
-        # feel free to remove/adjust this and change the below parsing
-        # loop accordingly!
-        if len(atom_queries_list) != len(all_vlm_responses):
-            return true_atoms
-        for i, (atom_query, curr_vlm_output_line) in enumerate(
-                zip(atom_queries_list, all_vlm_responses)):
-            assert atom_query + ":" in curr_vlm_output_line
-            assert "." in curr_vlm_output_line
-            # period_idx = curr_vlm_output_line.find(".")
-            # value = curr_vlm_output_line[len(atom_query + ":"):
-            # period_idx].lower().strip()
-            value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
-            if "true" in value:
-                true_atoms.add(vlm_atoms[i])
+    # Parse the VLM output to find true atoms.
+    true_atoms = set()
+    # Create a mapping from the query string back to the GroundAtom object.
+    query_str_to_atom = {atom.get_vlm_query_str(): atom
+                         for atom in vlm_atoms}
+    for atom_query_str in atom_queries_list:
+        # Escape special characters in the atom query string for regex.
+        escaped_query = re.escape(atom_query_str)
+        # Regex to find the atom query string followed by a colon (optional)
+        # and a truth value (True, False, Unknown), case-insensitive.
+        # We look for the value potentially surrounded by whitespace.
+        pattern = re.compile(rf"{escaped_query}\s*:?\s*(True|False|Unknown)", re.IGNORECASE)
+        matches = list(pattern.finditer(vlm_output_str))
+        if matches:
+            # Find the last match.
+            last_match = matches[-1]
+            # Extract the truth value from the last match.
+            truth_value_str = last_match.group(1)
+            # Check if the truth value is 'True' (case-insensitive).
+            if truth_value_str.lower() == 'true':
+                # Find the corresponding GroundAtom object.
+                if atom_query_str in query_str_to_atom:
+                    true_atoms.add(query_str_to_atom[atom_query_str])
+                else:
+                    # This case should ideally not happen if atom_queries_list
+                    # is derived correctly from vlm_atoms.
+                    logging.warning(f"Could not find GroundAtom for query: {atom_query_str}")
+    logging.info(f"Parsed true atoms: {true_atoms}")
+    # # Parse out stuff.
+    # if len(label_history) > 0:  # pragma: no cover
+    #     truth_values = re.findall(r'\* (.*): (True|False|Unknown)',
+    #                               vlm_output_str)
+    #     for i, (atom_query,
+    #             pred_label) in enumerate(zip(atom_queries_list, truth_values)):
+    #         pred, label = pred_label
+    #         pred = pred.strip()
+    #         try:
+    #             assert pred in atom_query
+    #         except AssertionError:
+    #             import ipdb
+    #             ipdb.set_trace()
+    #         label = label.lower()
+    #         if "true" in label.lower():
+    #             true_atoms.add(vlm_atoms[i])
+    # else:
+    #     if "Predicate Values:" in vlm_output_str:
+    #     all_vlm_responses = vlm_output_str.strip().split("\n")
+    #     # NOTE: this assumption is likely too brittle; if this is breaking,
+    #     # feel free to remove/adjust this and change the below parsing
+    #     # loop accordingly!
+    #     if len(atom_queries_list) != len(all_vlm_responses):
+    #         import ipdb; ipdb.set_trace()
+    #         return true_atoms
+    #     for i, (atom_query, curr_vlm_output_line) in enumerate(
+    #             zip(atom_queries_list, all_vlm_responses)):
+    #         assert atom_query + ":" in curr_vlm_output_line
+    #         assert "." in curr_vlm_output_line
+    #         # period_idx = curr_vlm_output_line.find(".")
+    #         # value = curr_vlm_output_line[len(atom_query + ":"):
+    #         # period_idx].lower().strip()
+    #         value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
+    #         if "true" in value:
+    #             true_atoms.add(vlm_atoms[i])
     return true_atoms
 
 
