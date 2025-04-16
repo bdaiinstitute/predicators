@@ -527,18 +527,21 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
             _, artifacts = detect_objects([pick_obj_id], rgbds)
             try:
                 grasp_pixel_sample, rot_constraint = get_grasp_pixel(
-                    rgbds, artifacts, pick_obj_id, "hand_color_image", _options_rng)
-                
+                    rgbds, artifacts, pick_obj_id, "hand_color_image",
+                    _options_rng)
+
                 break
             except ValueError:
-                logging.info("Object not seen in hand camera! Moving slightly...")
-                prompt = (
-                        "Hit 'c' to have the robot do a random movement "
-                        "or take control and move the robot accordingly. "
-                        "Hit the 'Enter' key when you're done!")
+                logging.info(
+                    "Object not seen in hand camera! Moving slightly...")
+                prompt = ("Hit 'c' to have the robot do a random movement "
+                          "or take control and move the robot accordingly. "
+                          "Hit the 'Enter' key when you're done!")
                 user_pref = input(prompt)
                 import PIL
-                PIL.Image.fromarray(rgbds["hand_color_image"].rotated_rgb).save("hand_image_failed_detection.png")
+                PIL.Image.fromarray(
+                    rgbds["hand_color_image"].rotated_rgb).save(
+                        "hand_image_failed_detection.png")
                 assert lease_client is not None
                 lease_client.take()
         if rot_constraint is None:

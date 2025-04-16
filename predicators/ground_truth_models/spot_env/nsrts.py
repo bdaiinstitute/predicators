@@ -33,7 +33,7 @@ def _move_offset_sampler(state: State, robot_obj: Object,
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
     collision_geoms = get_collision_geoms_for_nav(state)
-    
+
     try:
         distance, angle, _ = sample_move_offset_from_target(
             obj_to_nav_to_pos,

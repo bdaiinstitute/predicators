@@ -2660,15 +2660,15 @@ def query_vlm_for_atom_vals(
     # Parse the VLM output to find true atoms.
     true_atoms = set()
     # Create a mapping from the query string back to the GroundAtom object.
-    query_str_to_atom = {atom.get_vlm_query_str(): atom
-                         for atom in vlm_atoms}
+    query_str_to_atom = {atom.get_vlm_query_str(): atom for atom in vlm_atoms}
     for atom_query_str in atom_queries_list:
         # Escape special characters in the atom query string for regex.
         escaped_query = re.escape(atom_query_str)
         # Regex to find the atom query string followed by a colon (optional)
         # and a truth value (True, False, Unknown), case-insensitive.
         # We look for the value potentially surrounded by whitespace.
-        pattern = re.compile(rf"{escaped_query}\s*:?\s*(True|False|Unknown)", re.IGNORECASE)
+        pattern = re.compile(rf"{escaped_query}\s*:?\s*(True|False|Unknown)",
+                             re.IGNORECASE)
         matches = list(pattern.finditer(vlm_output_str))
         if matches:
             # Find the last match.
@@ -2683,7 +2683,9 @@ def query_vlm_for_atom_vals(
                 else:
                     # This case should ideally not happen if atom_queries_list
                     # is derived correctly from vlm_atoms.
-                    logging.warning(f"Could not find GroundAtom for query: {atom_query_str}")
+                    logging.warning(
+                        f"Could not find GroundAtom for query: {atom_query_str}"
+                    )
     logging.info(f"Parsed true atoms: {true_atoms}")
     # # Parse out stuff.
     # if len(label_history) > 0:  # pragma: no cover

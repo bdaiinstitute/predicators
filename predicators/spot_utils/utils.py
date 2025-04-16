@@ -375,7 +375,8 @@ def sample_move_offset_from_target(
         try:
             angle = rng.uniform(min_angle, max_angle)
         except ValueError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         dx = np.cos(angle) * distance
         dy = np.sin(angle) * distance
         x = target_origin[0] + dx

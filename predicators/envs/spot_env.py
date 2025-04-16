@@ -872,6 +872,13 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._localizer is not None
         objects_in_view, artifacts = self._actively_construct_initial_object_views(
         )
+        # ###############
+        # # HACK: just for ViLA running!
+        # objects_in_view = {}
+        # artifacts = {}
+        # artifacts['language'] = {}
+        # artifacts['language']['object_id_to_img_detections'] = {}
+        # ###############
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -4239,17 +4246,20 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "bottle/clear_cup/clear_trashcan")] = Object(
         #         "clear_plastic_dustbin", _trash_can_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "apple/red_ball")] = Object("apple", _movable_object_type)
         detection_id_to_obj[LanguageObjectDetectionID(
-            "fluffy_toy/flower_arrangement")] = Object("fluffy_green_toy_eraser", _movable_object_type)
+            "apple/red_ball")] = Object("apple", _movable_object_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "fluffy_toy/flower_arrangement")] = Object(
+                "fluffy_green_toy_eraser", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "blue_block")] = Object("blue_block", _movable_object_type)
 
         detection_id_to_obj[LanguageObjectDetectionID(
-            "cardboard_box")] = Object(
-                "clear_plastic_dustbin", _trash_can_type)
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "blue_coffee_cup")] = Object("blue_coffee_cup",
-                                          _movable_object_type)
+            "cardboard_box")] = Object("cardboard_box_bin",
+                                       _trash_can_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+            # "blue_coffee_cup")] = Object("blue_coffee_cup",
+            #                              _movable_object_type)
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             if obj.name == "short_round_coffee_table":
