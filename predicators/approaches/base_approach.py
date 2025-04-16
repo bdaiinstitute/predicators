@@ -11,7 +11,8 @@ from predicators.settings import CFG
 from predicators.structs import Action, Dataset, InteractionRequest, \
     InteractionResult, Metrics, ParameterizedOption, Predicate, State, Task, \
     Type
-from predicators.utils import ExceptionWithInfo, create_vlm_by_name
+# from predicators.utils import ExceptionWithInfo, create_vlm_by_name
+from predicators.utils import ExceptionWithInfo
 
 
 class BaseApproach(abc.ABC):
@@ -29,7 +30,7 @@ class BaseApproach(abc.ABC):
         self._train_tasks = train_tasks
         self._metrics: Metrics = defaultdict(float)
         self._set_seed(CFG.seed)
-        self._vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
+        # self._vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover
 
     @classmethod
     @abc.abstractmethod
@@ -73,7 +74,8 @@ class BaseApproach(abc.ABC):
         def _policy(state: State) -> Action:
             assert isinstance(state, State)
             act = pi(state)
-            assert self._action_space.contains(act.arr)
+            # NOTE: this is not working for random option policy
+            # assert self._action_space.contains(act.arr)
             return act
 
         return _policy

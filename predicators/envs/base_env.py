@@ -202,6 +202,10 @@ class BaseEnv(abc.ABC):
         """Default implementation assumes environment tasks are tasks.
 
         Subclasses may override.
+        
+        Goals can be specified in two formats:
+        1. A set of ground atoms - all must be satisfied
+        2. A list of sets of ground atoms - any one set must be completely satisfied
         """
         # NOTE: this is a convenience hack because most environments that are
         # currently implemented have goal descriptions that are simply sets of
@@ -209,9 +213,20 @@ class BaseEnv(abc.ABC):
         # per-environment basis anyway, to make clear that we do not need to
         # make this assumption about goal descriptions in general.
         goal = self._current_task.goal_description
-        assert isinstance(goal, set)
-        assert not goal or isinstance(next(iter(goal)), GroundAtom)
-        return all(goal_atom.holds(self._current_state) for goal_atom in goal)
+
+        # TODO: make the check more robust; maybe create separate types
+        if isinstance(goal, set):
+            return all(goal_atom.holds(self._current_state) for goal_atom in goal)
+        elif isinstance(goal, list):
+            # Each element in the list is a set of atoms
+            # Any one complete set needs to be satisfied
+            # This is also called Disjunctive Normal Form (DNF)
+            return any(all(goal_atom.holds(self._current_state) 
+                          for goal_atom in goal_atoms) 
+                      for goal_atoms in goal)
+        
+        # If goal is neither a set nor a list, we don't know how to check it
+        raise ValueError(f"Unsupported goal type: {type(goal)}. Expected set or list.")
 
     def _parse_object_name_to_object_from_json(
             self, json_dict: Dict) -> Dict[str, Object]:

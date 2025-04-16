@@ -1,0 +1,116 @@
+atom_dict: {}
+gripper_open: true
+non_vlm_atom_dict:
+  BelieveFalse_ObjectHeavy(container_box): false
+  BelieveFalse_ObjectHeavy(green_box): false
+  BelieveFalse_ObjectHeavy(white_box): false
+  BelieveTrue_ObjectHeavy(container_box): false
+  BelieveTrue_ObjectHeavy(green_box): false
+  BelieveTrue_ObjectHeavy(white_box): false
+  DrawerOpen(container_box): false
+  FitsInXY(container_box,container_box): false
+  FitsInXY(container_box,green_box): false
+  FitsInXY(container_box,scale): false
+  FitsInXY(container_box,table): false
+  FitsInXY(container_box,white_box): false
+  FitsInXY(green_box,container_box): true
+  FitsInXY(green_box,green_box): false
+  FitsInXY(green_box,scale): true
+  FitsInXY(green_box,table): false
+  FitsInXY(green_box,white_box): false
+  FitsInXY(white_box,container_box): true
+  FitsInXY(white_box,green_box): false
+  FitsInXY(white_box,scale): true
+  FitsInXY(white_box,table): false
+  FitsInXY(white_box,white_box): false
+  HandEmpty(robot): false
+  HasFlatTopSurface(container_box): true
+  HasFlatTopSurface(green_box): false
+  HasFlatTopSurface(scale): true
+  HasFlatTopSurface(table): true
+  HasFlatTopSurface(white_box): false
+  Holding(robot,container_box): false
+  Holding(robot,green_box): false
+  Holding(robot,white_box): true
+  InHandView(robot,container_box): false
+  InHandView(robot,green_box): false
+  InHandView(robot,scale): false
+  InHandView(robot,table): false
+  InHandView(robot,white_box): false
+  Inside(container_box,container_box): false
+  Inside(green_box,container_box): false
+  Inside(white_box,container_box): false
+  IsPlaceable(container_box): true
+  IsPlaceable(green_box): true
+  IsPlaceable(white_box): true
+  IsScale(scale): true
+  IsScale(table): false
+  Known_ObjectHeavy(container_box): false
+  Known_ObjectHeavy(green_box): false
+  Known_ObjectHeavy(white_box): false
+  NEq(container_box,container_box): false
+  NEq(container_box,green_box): false
+  NEq(container_box,scale): false
+  NEq(container_box,table): true
+  NEq(container_box,white_box): false
+  NEq(green_box,container_box): true
+  NEq(green_box,green_box): false
+  NEq(green_box,scale): true
+  NEq(green_box,table): false
+  NEq(green_box,white_box): false
+  NEq(scale,container_box): false
+  NEq(scale,green_box): false
+  NEq(scale,scale): false
+  NEq(scale,table): false
+  NEq(scale,white_box): false
+  NEq(table,container_box): false
+  NEq(table,green_box): false
+  NEq(table,scale): false
+  NEq(table,table): false
+  NEq(table,white_box): false
+  NEq(white_box,container_box): true
+  NEq(white_box,green_box): false
+  NEq(white_box,scale): true
+  NEq(white_box,table): false
+  NEq(white_box,white_box): false
+  NotBlocked(container_box): true
+  NotBlocked(green_box): true
+  NotBlocked(scale): false
+  NotBlocked(table): false
+  NotBlocked(white_box): true
+  NotHolding(robot,container_box): true
+  NotHolding(robot,green_box): true
+  NotHolding(robot,white_box): false
+  NotInsideAnyContainer(container_box): true
+  NotInsideAnyContainer(green_box): true
+  NotInsideAnyContainer(white_box): true
+  On(container_box,container_box): false
+  On(container_box,green_box): false
+  On(container_box,scale): false
+  On(container_box,table): false
+  On(container_box,white_box): false
+  On(green_box,container_box): false
+  On(green_box,green_box): false
+  On(green_box,scale): true
+  On(green_box,table): false
+  On(green_box,white_box): false
+  On(white_box,container_box): false
+  On(white_box,green_box): false
+  On(white_box,scale): false
+  On(white_box,table): false
+  On(white_box,white_box): false
+  Reachable(robot,container_box): true
+  Reachable(robot,green_box): true
+  Reachable(robot,scale): true
+  Reachable(robot,table): false
+  Reachable(robot,white_box): true
+  Unknown_ObjectHeavy(container_box): false
+  Unknown_ObjectHeavy(green_box): true
+  Unknown_ObjectHeavy(white_box): true
+objects_in_hand: []
+objects_in_view:
+- green_box
+- robot
+- container_box
+- table
+- scale

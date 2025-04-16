@@ -1,6 +1,6 @@
-"""Open-loop large language model (LLM) meta-controller approach.
+"""Open-loop large language model (LLM) planner approach.
 
-Example command line:
+Example command:
     export OPENAI_API_KEY=<your API key>
     python predicators/main.py --approach llm_open_loop --seed 0 \
         --strips_learner oracle \
@@ -17,44 +17,25 @@ Example using Gemini:
         --num_train_tasks 3 \
         --num_test_tasks 1 \
         --debug --llm_model_name gemini-1.5-flash
-
-Easier setting:
-    python predicators/main.py --approach llm_open_loop --seed 0 \
-        --strips_learner oracle \
-        --env pddl_easy_delivery_procedural_tasks \
-        --pddl_easy_delivery_procedural_train_min_num_locs 2 \
-        --pddl_easy_delivery_procedural_train_max_num_locs 2 \
-        --pddl_easy_delivery_procedural_train_min_want_locs 1 \
-        --pddl_easy_delivery_procedural_train_max_want_locs 1 \
-        --pddl_easy_delivery_procedural_train_min_extra_newspapers 0 \
-        --pddl_easy_delivery_procedural_train_max_extra_newspapers 0 \
-        --pddl_easy_delivery_procedural_test_min_num_locs 2 \
-        --pddl_easy_delivery_procedural_test_max_num_locs 2 \
-        --pddl_easy_delivery_procedural_test_min_want_locs 1 \
-        --pddl_easy_delivery_procedural_test_max_want_locs 1 \
-        --pddl_easy_delivery_procedural_test_min_extra_newspapers 0 \
-        --pddl_easy_delivery_procedural_test_max_extra_newspapers 0 \
-        --num_train_tasks 5 \
-        --num_test_tasks 10 \
-        --debug
 """
+
 from __future__ import annotations
 
-from typing import Collection, Dict, Iterator, List, Optional, Sequence, Set, \
-    Tuple
+from typing import Callable, List, Optional, Set
+import logging
+import numpy as np
 
 from predicators import utils
 from predicators.approaches import ApproachFailure
-from predicators.approaches.nsrt_metacontroller_approach import \
-    NSRTMetacontrollerApproach
-from predicators.planning import task_plan_with_option_plan_constraint
+from predicators.approaches.bilevel_planning_approach import BilevelPlanningApproach
+from predicators.ground_truth_models import get_gt_nsrts
 from predicators.settings import CFG
-from predicators.structs import Box, Dataset, GroundAtom, Object, \
-    ParameterizedOption, Predicate, State, Task, Type, _GroundNSRT, _Option
-from predicators.utils import create_llm_by_name
+from predicators.structs import Action, Box, Dataset, GroundAtom, Object, \
+    ParameterizedOption, Predicate, State, Task, Type, _Option
+from predicators.pretrained_model_interface import create_llm_by_name
 
 
-class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
+class LLMOpenLoopApproach(BilevelPlanningApproach):
     """LLMOpenLoopApproach definition."""
 
     def __init__(self, initial_predicates: Set[Predicate],
@@ -62,128 +43,151 @@ class LLMOpenLoopApproach(NSRTMetacontrollerApproach):
                  action_space: Box, train_tasks: List[Task]) -> None:
         super().__init__(initial_predicates, initial_options, types,
                          action_space, train_tasks)
-        # Set up the LLM.
+        # Set up the LLM and base prompt
         self._llm = create_llm_by_name(CFG.llm_model_name)
-        # Set after learning.
-        self._prompt_prefix = ""
+        # Load the base prompt from file
+        filepath_to_llm_prompt = utils.get_path_to_predicators_root() + \
+            "/predicators/approaches/llm_planning_prompts/zero_shot.txt"
+        with open(filepath_to_llm_prompt, "r", encoding="utf-8") as f:
+            self.base_prompt = f.read()
+        # Track action history
+        self._action_history: List[Action] = []
 
     @classmethod
     def get_name(cls) -> str:
         return "llm_open_loop"
 
-    def _predict(self, state: State, atoms: Set[GroundAtom],
-                 goal: Set[GroundAtom], memory: Dict) -> _GroundNSRT:
-        # If we already have an abstract plan, execute the next step.
-        if "abstract_plan" in memory and memory["abstract_plan"]:
-            return memory["abstract_plan"].pop(0)
-        # Otherwise, we need to make a new abstract plan.
-        action_seq = self._get_llm_based_plan(state, atoms, goal)
-        if action_seq is not None:
-            # If valid plan, add plan to memory so it can be refined!
-            memory["abstract_plan"] = action_seq
-            return memory["abstract_plan"].pop(0)
-        raise ApproachFailure("No LLM predicted plan achieves the goal.")
+    @property
+    def is_learning_based(self) -> bool:
+        return True
 
-    def _get_llm_based_plan(
-            self, state: State, atoms: Set[GroundAtom],
-            goal: Set[GroundAtom]) -> Optional[List[_GroundNSRT]]:
-        # Try to convert each output into an abstract plan.
-        # Return the first abstract plan that is found this way.
-        objects = set(state)
-        for option_plan in self._get_llm_based_option_plans(
-                atoms, objects, goal):
-            ground_nsrt_plan = self._option_plan_to_nsrt_plan(
-                option_plan, atoms, objects, goal)
-            if ground_nsrt_plan is not None:
-                return ground_nsrt_plan
-        return None
+    def learn_from_offline_dataset(self, dataset: Dataset) -> None:
+        """Learn NSRTs for planning."""
+        super().learn_from_offline_dataset(dataset)
 
-    def _get_llm_based_option_plans(
-        self, atoms: Set[GroundAtom], objects: Set[Object],
-        goal: Set[GroundAtom]
-    ) -> Iterator[List[Tuple[ParameterizedOption, Sequence[Object]]]]:
-        new_prompt = self._create_prompt(atoms, goal, [])
-        prompt = self._prompt_prefix + new_prompt
-        # Query the LLM.
-        llm_predictions = self._llm.sample_completions(
+    def _get_current_nsrts(self) -> Set[utils.NSRT]:
+        """Get NSRTs for planning. If CFG.fm_planning_with_oracle_nsrts is True,
+        use oracle NSRTs from the factory. Otherwise, return an empty set."""
+        if not CFG.fm_planning_with_oracle_nsrts:
+            return set()
+        # Get oracle NSRTs from the factory
+        return get_gt_nsrts(CFG.env, set(self._initial_predicates), 
+                          set(self._initial_options))
+
+    def solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
+        """Get the action history from the task state if available."""
+        # Get action history from cogman if available
+        if hasattr(task.init, "action_history") and task.init.action_history is not None:
+            self._action_history = task.init.action_history
+        return super().solve(task, timeout)
+
+    def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
+        try:
+            option_plan = self._query_llm_for_option_plan(task)
+        except Exception as e:
+            logging.exception("LLM failed to produce coherent option plan:")  # This will log the full traceback
+            raise ApproachFailure(f"LLM failed to produce coherent option plan. Reason: {e}")
+
+        policy = utils.option_plan_to_policy(option_plan)
+
+        def _policy(s: State) -> Action:
+            try:
+                return policy(s)
+            except utils.OptionExecutionFailure as e:
+                raise ApproachFailure(e.args[0], e.info)
+
+        return _policy
+
+    def _query_llm_for_option_plan(self, task: Task) -> List[_Option]:
+        """Query the LLM to get a plan of options."""
+        # Get NSRTs to access preconditions and effects
+        nsrts = self._get_current_nsrts()
+        nsrt_by_option = {nsrt.option.name: nsrt for nsrt in nsrts}
+        curr_options = sorted(self._initial_options)
+        
+        # Format options with their parameter types, preconditions, and effects
+        options_str = []
+        for opt in curr_options:
+            params_str = f"params_types={[(f'?x{i}', t.name) for i, t in enumerate(opt.types)]}"
+            if opt.name in nsrt_by_option:
+                nsrt = nsrt_by_option[opt.name]
+                precond_str = f"preconditions={[str(p) for p in nsrt.op.preconditions]}"
+                add_effects_str = f"add_effects={[str(e) for e in nsrt.op.add_effects]}"
+                delete_effects_str = f"delete_effects={[str(e) for e in nsrt.op.delete_effects]}"
+                options_str.append(f"{opt.name}, {params_str}, {precond_str}, {add_effects_str}, {delete_effects_str}")
+            else:
+                # If no NSRT available, just show parameter types
+                options_str.append(f"{opt.name}, {params_str}")
+        options_str = "\n  ".join(options_str)
+        
+        # Format objects and goals
+        objects_list = sorted(set(task.init))
+        objects_str = "\n".join(str(obj) for obj in objects_list)
+        goal_expr_list = sorted(set(task.goal))
+        type_hierarchy_str = utils.create_pddl_types_str(self._types)
+        goal_str = "\n".join(str(obj) for obj in goal_expr_list)
+        
+        # TODO: add including state history
+        # Format current state (from task)
+        assert task.init.vlm_atom_dict is not None
+        assert task.init.non_vlm_atom_dict is not None
+        state_atoms_vlm = {atom for atom, value in task.init.vlm_atom_dict.items() if value}
+        state_atoms_non_vlm = {atom for atom, value in task.init.non_vlm_atom_dict.items() if value}
+        state_atoms = state_atoms_vlm | state_atoms_non_vlm
+        state_str = "\n".join(str(atom) for atom in state_atoms)
+        
+        # Format action history if available
+        action_history_str = ""
+        if self._action_history:
+            action_history_str = "\n".join(f"Action {i}: {action}" for i, action in enumerate(self._action_history))
+        
+        # Create the prompt using the template
+        prompt = self.base_prompt.format(
+            options=options_str,
+            typed_objects=objects_str,
+            type_hierarchy=type_hierarchy_str,
+            goal_str=goal_str,
+            state_str=state_str,
+            action_history=action_history_str)
+            
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Query ===")
+            logging.info(f"Prompt:\n{prompt}")
+            
+        # Query the LLM
+        llm_output = self._llm.sample_completions(
             prompt=prompt,
             imgs=None,
             temperature=CFG.llm_temperature,
             seed=CFG.seed,
-            num_completions=CFG.llm_num_completions)
-        for pred in llm_predictions:
-            option_plan = self._llm_prediction_to_option_plan(pred, objects)
-            yield option_plan
-
-    def _option_plan_to_nsrt_plan(
-            self, option_plan: List[Tuple[ParameterizedOption,
-                                          Sequence[Object]]],
-            atoms: Set[GroundAtom], objects: Set[Object],
-            goal: Set[GroundAtom]) -> Optional[List[_GroundNSRT]]:
-        nsrts = self._get_current_nsrts()
-        predicates = self._initial_predicates
-        strips_ops = [n.op for n in nsrts]
-        option_specs = [(n.option, list(n.option_vars)) for n in nsrts]
-        return task_plan_with_option_plan_constraint(objects, predicates,
-                                                     strips_ops, option_specs,
-                                                     atoms, goal, option_plan)
-
-    def _llm_prediction_to_option_plan(
-        self, llm_prediction: str, objects: Collection[Object]
-    ) -> List[Tuple[ParameterizedOption, Sequence[Object]]]:
-        """Convert the output of the LLM into a sequence of
-        ParameterizedOptions coupled with a list of objects that will be used
-        to ground the ParameterizedOption."""
-        option_plan: List[Tuple[ParameterizedOption, Sequence[Object]]] = []
-        option_plan_with_cont_params = utils.\
-            parse_model_output_into_option_plan(
-            llm_prediction, objects, self._types, self._initial_options, False)
-        option_plan = [(option, objs)
-                       for option, objs, _ in option_plan_with_cont_params]
+            num_completions=1)
+            
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== LLM Response ===")
+            logging.info(llm_output[0])
+            
+        # Parse the output into a plan
+        plan_prediction_txt = llm_output[0]
+        option_plan: List[_Option] = []
+        try:
+            start_index = plan_prediction_txt.index("Plan:\n") + len("Plan:\n")
+            parsable_plan_prediction = plan_prediction_txt[start_index:]
+        except ValueError:
+            raise ValueError("LLM output is badly formatted; cannot parse plan!")
+            
+        # Parse the plan using the same method as VLM approach
+        parsed_option_plan = utils.parse_model_output_into_option_plan(
+            parsable_plan_prediction, objects_list, self._types,
+            self._initial_options, parse_continuous_params=False)
+            
+        # Create grounded options
+        for option_tuple in parsed_option_plan:
+            option_plan.append(option_tuple[0].ground(
+                option_tuple[1], np.array(option_tuple[2])))
+                
+        if CFG.fm_planning_verbose:
+            logging.info("\n=== Parsed Plan ===")
+            for opt in option_plan:
+                logging.info(f"{opt.name}({', '.join(obj.name for obj in opt.objects)})")
+                
         return option_plan
-
-    def learn_from_offline_dataset(self, dataset: Dataset) -> None:
-        # First, learn NSRTs.
-        super().learn_from_offline_dataset(dataset)
-        # Then, parse the data into the prompting format expected by the LLM.
-        self._prompt_prefix = self._data_to_prompt_prefix(dataset)
-
-    def _data_to_prompt_prefix(self, dataset: Dataset) -> str:
-        # In this approach, we learned NSRTs, so we just use the segmented
-        # trajectories that NSRT learning returned to us.
-        prompts = []
-        assert len(self._segmented_trajs) == len(dataset.trajectories)
-        for segment_traj, ll_traj in zip(self._segmented_trajs,
-                                         dataset.trajectories):
-            if not ll_traj.is_demo:
-                continue
-            init = segment_traj[0].init_atoms
-            goal = self._train_tasks[ll_traj.train_task_idx].goal
-            seg_options = []
-            for segment in segment_traj:
-                assert segment.has_option()
-                seg_options.append(segment.get_option())
-            prompt = self._create_prompt(init, goal, seg_options)
-            prompts.append(prompt)
-        return "\n\n".join(prompts) + "\n\n"
-
-    def _create_prompt(self, init: Set[GroundAtom], goal: Set[GroundAtom],
-                       options: Sequence[_Option]) -> str:
-        init_str = "\n  ".join(map(str, sorted(init)))
-        goal_str = "\n  ".join(map(str, sorted(goal)))
-        options_str = "\n  ".join(map(self._option_to_str, options))
-        prompt = f"""
-(:init
-  {init_str}
-)
-(:goal
-  {goal_str}
-)
-Solution:
-  {options_str}"""
-        return prompt
-
-    @staticmethod
-    def _option_to_str(option: _Option) -> str:
-        objects_str = ", ".join(map(str, option.objects))
-        return f"{option.name}({objects_str})"

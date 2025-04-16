@@ -3,6 +3,7 @@
 These might be joint Vision-Language Models (VLM's) or Large Language
 Models (LLM's)
 """
+from __future__ import annotations
 
 import abc
 import base64
@@ -10,6 +11,7 @@ import logging
 import os
 from io import BytesIO
 from typing import Collection, Dict, List, Optional, Union
+from collections import defaultdict
 
 import google.generativeai as genai
 import imagehash
@@ -18,6 +20,7 @@ import PIL.Image
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
+from predicators.utils import timing
 
 # This is a special string that we assume will never appear in a prompt, and
 # which we use to separate prompt and completion in the cache. The reason to
@@ -104,9 +107,10 @@ class PretrainedLargeModel(abc.ABC):
                 raise ValueError("No cached response found for prompt.")
             logging.debug(f"Querying model {model_id} with new prompt.")
             # Query the model.
-            completions = self._sample_completions(prompt, imgs, temperature,
-                                                   seed, stop_token,
-                                                   num_completions)
+            with timing("[Model API Query]"):
+                completions = self._sample_completions(prompt, imgs, temperature,
+                                                       seed, stop_token,
+                                                       num_completions)
             # Cache the completion.
             cache_str = prompt + _CACHE_SEP + _CACHE_SEP.join(completions)
             with open(cache_filepath, 'w', encoding='utf-8') as f:
@@ -117,8 +121,10 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
-                    img.save(os.path.join(imgs_folderpath, filename_suffix))
-            logging.debug(f"Saved model response to {cache_filepath}.")
+                    # Convert to RGB mode before saving to avoid potential mode issues
+                    img_rgb = img.convert('RGB')
+                    img_rgb.save(os.path.join(imgs_folderpath, filename_suffix), 'JPEG')
+                logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
@@ -165,11 +171,48 @@ class LargeLanguageModel(PretrainedLargeModel):
 class OpenAIModel():
     """Common interface with methods for all OpenAI-based models."""
 
+    # Class variables to track costs and usage across all instances
+    _total_costs = defaultdict(float)
+    _total_tokens = defaultdict(lambda: {"prompt": 0, "completion": 0, "total": 0})
+    
+    # [2025/01] Latest pricing per 1M tokens from https://platform.openai.com/docs/pricing
+    _COSTS = {
+        # GPT-4 Optimized (gpt-4o)
+        "gpt-4o": (2.50/1000000, 1.25/1000000),  # $2.50/1M input, $1.25/1M output
+        "gpt-4o-2024-08-06": (2.50/1000000, 1.25/1000000),
+        
+        # GPT-4 Optimized Mini
+        "gpt-4o-mini": (0.15/1000000, 0.075/1000000),  # $0.15/1M input, $0.075/1M output
+        "gpt-4o-mini-2024-07-18": (0.15/1000000, 0.075/1000000),
+        
+        # O1 Models
+        "o1": (15.00/1000000, 7.50/1000000),  # $15.00/1M input, $7.50/1M output
+        "o1-2024-12-17": (15.00/1000000, 7.50/1000000),
+        
+        # O1 Mini
+        "o1-mini": (3.00/1000000, 1.50/1000000),  # $3.00/1M input, $1.50/1M output
+        "o1-mini-2024-09-12": (3.00/1000000, 1.50/1000000),
+    }
+
     def set_openai_key(self, key: Optional[str] = None) -> None:
         """Set the OpenAI API key."""
         if key is None:
             assert "OPENAI_API_KEY" in os.environ
             key = os.environ["OPENAI_API_KEY"]
+
+    @classmethod
+    def log_total_costs(cls) -> None:
+        """Log the total costs and token usage for all OpenAI API calls."""
+        if cls._total_costs:
+            logging.info("\n=== OpenAI API Usage (2025/01 Pricing) ===")
+            total = 0.0
+            for model, cost in sorted(cls._total_costs.items()):
+                tokens = cls._total_tokens[model]
+                logging.info(f"{model}:")
+                logging.info(f"  Cost: ${cost:.4f}")
+                logging.info(f"  Tokens - Input: {tokens['prompt']}, Output: {tokens['completion']}, Total: {tokens['total']}")
+                total += cost
+            logging.info(f"Total Cost: ${total:.4f}")
 
     @retry(wait=wait_random_exponential(min=1, max=60),
            stop=stop_after_attempt(10))
@@ -189,8 +232,30 @@ class OpenAIModel():
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        
         if verbose:
             logging.debug(f"OpenAI API response: {completion}")
+
+
+        # Track costs and tokens
+        if model in self._COSTS and hasattr(completion, 'usage') and completion.usage is not None:
+            input_cost, output_cost = self._COSTS[model]
+            prompt_tokens = getattr(completion.usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(completion.usage, 'completion_tokens', 0)
+            total_tokens = getattr(completion.usage, 'total_tokens', 0)
+            
+            total_cost = (prompt_tokens * input_cost) + (completion_tokens * output_cost)
+            self._total_costs[model] += total_cost
+            
+            # Update token counts
+            self._total_tokens[model]["prompt"] += prompt_tokens
+            self._total_tokens[model]["completion"] += completion_tokens
+            self._total_tokens[model]["total"] += total_tokens
+            
+            # Simple running cost display
+            total_cost = sum(self._total_costs.values())
+            logging.info(f"[OpenAI Models Running Cost in Entire Run: ${total_cost:.4f}]")
+
         assert len(completion.choices) == 1
         assert completion.choices[0].message.content is not None
         return completion.choices[0].message.content
@@ -357,7 +422,7 @@ class OpenAIVLM(VisionLanguageModel, OpenAIModel):
             content_str = {
                 "image_url": {
                     "url": f"data:image/png;base64,{frame}",
-                    "detail": "auto"
+                    "detail": detail
                 },
                 "type": "image_url"
             }
@@ -394,3 +459,19 @@ class OpenAIVLM(VisionLanguageModel, OpenAIModel):
             for _ in range(num_completions)
         ]
         return responses
+
+
+def create_llm_by_name(
+        model_name: str) -> LargeLanguageModel:  # pragma: no cover
+    """Create particular llm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiLLM(model_name)
+    return OpenAILLM(model_name)
+
+
+def create_vlm_by_name(
+        model_name: str) -> VisionLanguageModel:  # pragma: no cover
+    """Create particular vlm using a provided name."""
+    if "gemini" in model_name:
+        return GoogleGeminiVLM(model_name)
+    return OpenAIVLM(model_name)

@@ -1,14 +1,17 @@
 """PyBullet helper class for geometry utilities."""
 from __future__ import annotations
 
-from typing import NamedTuple, Tuple
+from typing import NamedTuple, Tuple, Optional, TYPE_CHECKING
+from dataclasses import dataclass
 
 import numpy as np
 import pybullet as p
 from pybullet_utils.transformations import euler_from_quaternion, \
     quaternion_from_euler
 
-from predicators.structs import Array
+if TYPE_CHECKING:
+    # NOTE: Temp fix for circular import issue
+    from predicators.structs import Array
 
 Pose3D = Tuple[float, float, float]
 Quaternion = Tuple[float, float, float, float]
