@@ -4236,9 +4236,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "bottle/clear_cup/clear_trashcan")] = Object(
-        #         "clear_plastic_dustbin", _trash_can_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "bottle/clear_cup/clear_trashcan")] = Object(
+                "clear_plastic_dustbin", _trash_can_type)
         detection_id_to_obj[LanguageObjectDetectionID(
             "apple/red_ball")] = Object("apple", _movable_object_type)
         detection_id_to_obj[LanguageObjectDetectionID(
@@ -4254,8 +4254,8 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         #                              _movable_object_type)
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
-            # if obj.name == "child_play_table":
-            #     table_obj = Object("child_play_table", _table_type)
+            # if obj.name == "short_round_coffee_table":
+            #     table_obj = Object("short_round_coffee_table", _table_type)
             #     detection_id_to_obj[stat_detection_id] = table_obj
             if obj.name == "child_play_table":
                 table_obj = Object("child_play_table", _table_type)

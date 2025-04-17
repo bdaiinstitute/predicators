@@ -693,17 +693,17 @@ class SpotPerceiver(BasePerceiver):
             # IsGrumpy = pred_name_to_pred["IsGrumpy"]
             # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
             # Holding = pred_name_to_pred["Holding"]
-            # trash_can = Object("clear_plastic_dustbin", _trash_can_type)
-            trash_can = Object("cardboard_box_bin", _trash_can_type)
+            clear_trash_can = Object("clear_plastic_dustbin", _trash_can_type)
+            cardboard_trash_can = Object("cardboard_box_bin", _trash_can_type)
             apple = Object("apple", _movable_object_type)
             table = Object("child_play_table", _table_type)
             eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
             # robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Holding, [robot, eraser]),
-                GroundAtom(Inside, [eraser, trash_can]),
-                GroundAtom(Inside, [apple, trash_can])
-                # GroundAtom(TableWiped, [table]),
+                GroundAtom(Inside, [eraser, clear_trash_can]),
+                GroundAtom(Inside, [apple, cardboard_trash_can]),
+                GroundAtom(TableWiped, [table]),
                 # GroundAtom(IsGrumpy, [trash_can]),
                 # GroundAtom(Holding, [robot, apple]),
             }
