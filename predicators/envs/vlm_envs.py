@@ -340,47 +340,95 @@ class SpotVLMTableWipingHumanInventionEnv(VLMPredicateEnv):
         table_obj = Object("child_play_table", self._table_type)
         apple_obj = Object("apple", self._movable_object_type)
         green_block_obj = Object("green_block", self._movable_object_type)
-        trash_can_obj = Object("trash_can", self._trash_can_type)
+        orange_block_obj = Object("orange_block", self._movable_object_type)
+        spam_tin_obj = Object("spam_tin", self._movable_object_type)
+        trash_can_obj = Object("seethru_plastic_dustbin", self._trash_can_type)
         duster_obj = Object("furry_green_eraser", self._movable_object_type)
         cup_obj = Object("red_drink_cup", self._movable_object_type)
+        carboard_recycling_bin = Object("cardboard_recycling_bin",
+                                        self._trash_can_type)
 
         ret_tasks = []
         for i in range(num):
             init_state_dict = {
                 hand_obj: np.array([]),
-                table_obj: np.array([]),
                 trash_can_obj: np.array([]),
-                duster_obj: np.array([]),
             }
-            init_state_dict[apple_obj] = np.array([])
-
-            if i in [0, 3]:
-                init_state_dict[cup_obj] = np.array([])
+            if i in [0, 2]:
+                init_state_dict.update({
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                    cup_obj: np.array([]),
+                })
                 goal = {
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
+            # elif i == 1:
+            #     init_state_dict.update({
+            #         table_obj: np.array([]),
+            #         duster_obj: np.array([]),
+            #         apple_obj: np.array([]),
+            #         cup_obj: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
+            #         GroundAtom(self._TableWiped, [table_obj]),
+            #     }
             elif i == 1:
-                init_state_dict[cup_obj] = np.array([])
-                goal = {
-                    GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
-                    GroundAtom(self._TableWiped, [table_obj]),
-                }
-            elif i == 2:
+                init_state_dict.update({
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
                 init_state_dict[green_block_obj] = np.array([])
                 goal = {
+                    GroundAtom(self._TableWiped, [table_obj]),
+                }
+            elif i == 3:
+                init_state_dict.update({
+                    table_obj: np.array([]),
+                    duster_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
+                init_state_dict[green_block_obj] = np.array([])
+                goal = {
+                    GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
                     GroundAtom(self._TableWiped, [table_obj]),
                 }
             elif i == 4:
-                init_state_dict[green_block_obj] = np.array([])
+                init_state_dict.update({
+                    green_block_obj: np.array([]),
+                    carboard_recycling_bin: np.array([]),
+                })
                 goal = {
-                    GroundAtom(self._VLMIn, [apple_obj, trash_can_obj]),
-                    GroundAtom(self._TableWiped, [table_obj]),
+                    GroundAtom(self._VLMIn,
+                               [green_block_obj, carboard_recycling_bin])
+                }
+            # elif i == 5:
+            #     init_state_dict.update({
+            #         orange_block_obj: np.array([]),
+            #         carboard_recycling_bin: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._VLMIn,
+            #                    [orange_block_obj, carboard_recycling_bin])
+            #     }
+            elif i == 5:
+                init_state_dict.update({
+                    spam_tin_obj: np.array([]),
+                    carboard_recycling_bin: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._VLMIn,
+                               [spam_tin_obj, carboard_recycling_bin])
                 }
             else:
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
 
             ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
+
         return ret_tasks
 
     @property

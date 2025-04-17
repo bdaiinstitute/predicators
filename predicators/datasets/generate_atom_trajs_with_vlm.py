@@ -79,8 +79,11 @@ def _generate_prompt_for_atom_proposals(
                             for act in traj.actions)
         # NOTE: exact same issue as described in the above note for
         # naive_whole_traj.
-        ret_list.append(
-            (prompt, [traj.imgs[i][0] for i in range(len(traj.imgs))]))
+        try:
+            ret_list.append(
+                (prompt, [traj.imgs[i][0] for i in range(len(traj.imgs))]))
+        except IndexError:
+            import ipdb; ipdb.set_trace()
     else:  # pragma: no cover.
         raise ValueError("Unknown VLM prompting option " +
                          f"{CFG.grammar_search_vlm_atom_proposal_prompt_type}")
@@ -364,6 +367,9 @@ def _parse_unique_atom_proposals_from_list(
     all_atom_groundings = set()
     unique_predicates = set()
     obj_names_set = set(obj.name for obj in relevant_objects_across_demos)
+    # NOTE: just for human invention env!
+    if "human_invention" in CFG.env:
+        obj_names_set = set(obj.name for obj in relevant_objects_across_demos if "robot" not in str(obj.type))
 
     # We'll use these mappings to generate VLM atoms for every possible
     # grounding of each proposed predicate.

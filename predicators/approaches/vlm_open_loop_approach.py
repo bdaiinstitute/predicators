@@ -87,6 +87,18 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             else:
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
+        elif CFG.vlm_trajs_folder_name == "spot_vlm_table_wiping_human_execution_env__vlm_demos__3__6":
+            if train_task_idx in [0, 1, 2]:
+                return "TableWiped(child_play_table:table)"
+            elif train_task_idx in [3]:
+                return "VLMIn(apple:movable, seethru_plastic_dustbin:movable), TableWiped(child_play_table:table)"
+            elif train_task_idx == 4:
+                return "VLMIn(green_block: movable, cardboard_recycling_bin:movable)"
+            elif train_task_idx == 5:
+                return "VLMIn(spam_tin:movable, cardboard_recycling_bin:movable)"
+            else:
+                raise NotImplementedError(
+                    "Shouldn't be getting here! i = {}".format(i))
 
     def learn_from_offline_dataset(self, dataset: Dataset) -> None:
         """Adds the images and plans from the training dataset to the base
