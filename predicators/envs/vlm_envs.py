@@ -448,3 +448,76 @@ class SpotVLMTableWipingHumanInventionEnv(VLMPredicateEnv):
             "noObjectsOntopTable(child_play_table)"
         ])
         return [[a] for a in atom_strs]
+
+
+class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
+    """An env that involves making juice using juicer and cup."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+        # Env-specific types.
+        self._robot_type = Type("robot", [], self._object_type)
+        self._movable_object_type = Type("movable_object", [],
+                                         self._object_type)
+        self._immovable_object_type = Type("immovable_object", [],
+                                           self._object_type)
+        self._juicer_type = Type("juicer", [], self._immovable_object_type)
+        self._JuiceIn = utils.create_vlm_predicate(
+            "JuiceInCup", [self._movable_object_type, self._movable_object_type],
+            lambda o: _get_vlm_query_str("JuiceInsideCup", o))
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_juice_making_human_invention_env"
+
+    @property
+    def types(self) -> Set[Type]:
+        return super().types | {
+            self._robot_type, self._object_type,
+            self._movable_object_type, self._immovable_object_type, self._juicer_type
+            }
+
+    def _get_tasks(self, num: int,
+                   rng: np.random.Generator) -> List[EnvironmentTask]:
+        del rng  # unused.
+        hand_obj = Object("hand", self._robot_type)
+        apple_obj = Object("apple", self._movable_object_type)
+        juicer_obj = Object("juice_machine", self._juicer_type)
+        orange_obj = Object("orange", self._movable_object_type)
+        juice_cup_obj = Object("juice_cup", self._movable_object_type)
+        waste_cup_obj = Object("waste_cup", self._movable_object_type)
+
+        ret_tasks = []
+        for i in range(num):
+            init_state_dict = {
+                hand_obj: np.array([]),
+                apple_obj: np.array([]),
+                orange_obj: np.array([]),
+                juicer_obj: np.array([]),
+                waste_cup_obj: np.array([]),
+                juice_cup_obj: np.array([]),
+            }
+            if i == 0:
+                goal = {
+                    GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
+                }
+            else:
+                raise NotImplementedError(
+                    "Shouldn't be getting here! i = {}".format(i))
+
+            ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
+
+        return ret_tasks
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {self._JuiceIn}
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return {self._JuiceIn}
+
+    def get_vlm_debug_atom_strs(self,
+                                train_tasks: List[Task]) -> List[List[str]]:
+        raise NotImplementedError(
+            "Shouldn't be getting here! train_tasks = {}".format(train_tasks))

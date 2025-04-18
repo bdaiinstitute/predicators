@@ -639,7 +639,10 @@ class ParameterizedOption:
 
     def ground(self, objects: Sequence[Object], params: Array) -> _Option:
         """Ground into an Option, given objects and parameter values."""
-        assert len(objects) == len(self.types)
+        try:
+            assert len(objects) == len(self.types)
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
         for obj, t in zip(objects, self.types):
             assert obj.is_instance(t)
         params = np.array(params, dtype=self.params_space.dtype)
