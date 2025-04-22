@@ -660,7 +660,7 @@ class GlobalSettings:
     glib_num_babbles = 10
 
     # greedy lookahead explorer parameters
-    greedy_lookahead_max_num_trajectories = 100
+    greedy_lookahead_trajectories = 100
     greedy_lookahead_max_traj_length = 2
     greedy_lookahead_max_num_resamples = 10
 

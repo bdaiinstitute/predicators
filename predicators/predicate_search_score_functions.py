@@ -394,6 +394,7 @@ class _ExpectedNodesScoreFunction(_OperatorLearningBasedScoreFunction):
             expected_planning_time += refinable_skeleton_not_found_prob * ub
             # The score is simply the total expected planning time.
             score += expected_planning_time
+            # import ipdb; ipdb.set_trace()
         return score
 
     @staticmethod

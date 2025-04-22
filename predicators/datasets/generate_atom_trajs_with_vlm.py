@@ -151,10 +151,10 @@ def _parse_known_vlm_atoms_from_saved_traj(
                     args_str = atom_str.split("(")[1].strip(")")
                     args = [arg.strip() for arg in args_str.split(",")]
                     pred = known_pred_name_to_pred[predicate_name]
-                    ground_objects = [obj_name_to_obj[arg] for arg in args]
                     try:
+                        ground_objects = [obj_name_to_obj[arg] for arg in args]
                         ground_atom = GroundAtom(pred, ground_objects)
-                    except AssertionError:
+                    except (AssertionError, KeyError):
                         import ipdb
                         ipdb.set_trace()
                     # Ensure the ground_atoms_trajs list is large enough
@@ -601,10 +601,13 @@ def _parse_structured_state_into_ground_atoms(
             for pred_name, objs_and_val_dict in structured_state.items():
                 for pred_i, (objs_strs, truth_val) in enumerate(
                         sorted(objs_and_val_dict.items())):
-                    objs_types = [
-                        curr_obj_name_to_obj[obj_name].type
-                        for obj_name in objs_strs
-                    ]
+                    try:
+                        objs_types = [
+                            curr_obj_name_to_obj[obj_name].type
+                            for obj_name in objs_strs
+                        ]
+                    except KeyError:
+                        import ipdb; ipdb.set_trace()
                     pred_name_and_obj_types_str = pred_name + "(" + ",".join(
                         str(obj_type.name) for obj_type in objs_types) + ")"
                     if pred_name_and_obj_types_str not in \
@@ -737,6 +740,7 @@ def _debug_log_atoms_trajs(
             logging.debug(f"Step {i} add effs: {sorted(traj[i] - traj[i-1])}")
             logging.debug(f"Step {i} del effs: {sorted(traj[i-1] - traj[i])}")
         logging.debug("\n")
+    import ipdb; ipdb.set_trace()
 
 
 def _parse_options_txt_into_structured_actions(

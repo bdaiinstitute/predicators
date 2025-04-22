@@ -31,6 +31,7 @@ class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory
 
         robot_type = types["robot"]
         movable_type = types["movable_object"]
+        container_type = types["container"]
         immovable_type = types["immovable_object"]
         juicer_type = types["juicer"]
 
@@ -39,36 +40,36 @@ class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type])
         PlaceOnLeft = utils.SingletonParameterizedOption(
-            "PlaceOnLeft",
+            "PlaceUnderWasteValve",
             cls._create_dummy_policy(action_space),
-            types=[robot_type, movable_type, juicer_type])
+            types=[robot_type, container_type, juicer_type])
         PlaceOnRight = utils.SingletonParameterizedOption(
-            "PlaceOnRight",
+            "PlaceUnderJuiceValve",
             cls._create_dummy_policy(action_space),
-            types=[robot_type, movable_type, juicer_type])
+            types=[robot_type, container_type, juicer_type])
         PlaceInside = utils.SingletonParameterizedOption(
             "PlaceInside",
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type, immovable_type])
+        DumpFromOneIntoOther = utils.SingletonParameterizedOption(
+            "DumpFromOneIntoOther",
+            cls._create_dummy_policy(action_space),
+            types=[robot_type, container_type, container_type])
         CloseLid = utils.SingletonParameterizedOption(
             "CloseLid",
             cls._create_dummy_policy(action_space),
             types=[robot_type, juicer_type])
-        TurnOn = utils.SingletonParameterizedOption(
-            "TurnOn",
-            cls._create_dummy_policy(action_space),
-            types=[robot_type, juicer_type])
         RunMachine = utils.SingletonParameterizedOption(
-            "RunMachine",
+            "TurnOnAndRunMachine",
             cls._create_dummy_policy(action_space),
-            types=[robot_type, juicer_type])
+            types=[robot_type, juicer_type, container_type, container_type])
         return {
             Pick,
             PlaceOnLeft,
             PlaceOnRight,
+            DumpFromOneIntoOther,
             PlaceInside,
             CloseLid,
-            TurnOn,
             RunMachine,
         }
 
