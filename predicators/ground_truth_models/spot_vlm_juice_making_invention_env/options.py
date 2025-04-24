@@ -35,16 +35,20 @@ class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory
         immovable_type = types["immovable_object"]
         juicer_type = types["juicer"]
 
-        Pick = utils.SingletonParameterizedOption(
-            "Pick",
+        PickContainer = utils.SingletonParameterizedOption(
+            "PickContainer",
+            cls._create_dummy_policy(action_space),
+            types=[robot_type, container_type])
+        PickMovable = utils.SingletonParameterizedOption(
+            "PickMovable",
             cls._create_dummy_policy(action_space),
             types=[robot_type, movable_type])
         PlaceOnLeft = utils.SingletonParameterizedOption(
-            "PlaceUnderWasteValve",
+            "PlaceInsideWasteValveRegion",
             cls._create_dummy_policy(action_space),
             types=[robot_type, container_type, juicer_type])
         PlaceOnRight = utils.SingletonParameterizedOption(
-            "PlaceUnderJuiceValve",
+            "PlaceInsideJuiceValveRegion",
             cls._create_dummy_policy(action_space),
             types=[robot_type, container_type, juicer_type])
         PlaceInside = utils.SingletonParameterizedOption(
@@ -64,7 +68,8 @@ class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory
             cls._create_dummy_policy(action_space),
             types=[robot_type, juicer_type, container_type, container_type])
         return {
-            Pick,
+            PickContainer,
+            PickMovable,
             PlaceOnLeft,
             PlaceOnRight,
             DumpFromOneIntoOther,

@@ -459,12 +459,12 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         self._robot_type = Type("robot", [], self._object_type)
         self._movable_object_type = Type("movable_object", [],
                                          self._object_type)
-        self._container_type = Type("container", [], self._movable_object_type)
+        self._container_type = Type("container", [], self._object_type)
         self._immovable_object_type = Type("immovable_object", [],
                                            self._object_type)
         self._juicer_type = Type("juicer", [], self._immovable_object_type)
         self._JuiceIn = utils.create_vlm_predicate(
-            "JuiceInCup", [self._container_type],
+            "JuiceInCup", [self._movable_object_type, self._container_type],
             lambda o: _get_vlm_query_str("JuiceInside", o))
         self._Empty = utils.create_vlm_predicate(
             "Empty", [self._container_type],
@@ -491,60 +491,145 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         orange_obj = Object("orange", self._movable_object_type)
         juice_cup_obj = Object("juice_cup", self._container_type)
         waste_cup_obj = Object("waste_cup", self._container_type)
+        black_mug_obj = Object("black_mug", self._container_type)
         bowl_obj = Object("bowl", self._container_type)
         paper_cup_obj = Object("paper_cup", self._container_type)
         green_block_obj = Object("green_block", self._movable_object_type)
         glass_cup_obj = Object("glass_cup", self._container_type)
+        plastic_cup_obj = Object("plastic_cup", self._container_type)
         spam_object = Object("spam_tin", self._movable_object_type)
+        rectangular_table = Object("rectangular_table",
+                                  self._immovable_object_type)
+        round_coffee_table = Object("round_coffee_table",
+                                      self._immovable_object_type)
 
         ret_tasks = []
         for i in range(num):
             init_state_dict = {
                 hand_obj: np.array([]),
             }
-            if i in [0, 1]:
+            # if i in [0, 1]:
+            #     init_state_dict.update({
+            #         orange_obj: np.array([]),
+            #         juicer_obj: np.array([]),
+            #         waste_cup_obj: np.array([]),
+            #         juice_cup_obj: np.array([]),
+            #         green_block_obj: np.array([]),
+            #         bowl_obj: np.array([]),
+            #         spam_object: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
+            #     }
+            # elif i == 2:
+            #     init_state_dict.update({
+            #         orange_obj: np.array([]),
+            #         juicer_obj: np.array([]),
+            #         waste_cup_obj: np.array([]),
+            #         juice_cup_obj: np.array([]),
+            #         spam_object: np.array([]),
+            #         bowl_obj: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
+            #     }
+            # elif i == 3:
+            #     init_state_dict.update({
+            #         glass_cup_obj: np.array([]),
+            #         bowl_obj: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._Empty, [glass_cup_obj])
+            #     }
+            # elif i == 4:
+            #     init_state_dict.update({
+            #         glass_cup_obj: np.array([]),
+            #         bowl_obj: np.array([]),
+            #         paper_cup_obj: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._Empty, [paper_cup_obj])
+            #     }
+            # elif i in [5, 6]:
+            #     init_state_dict.update({
+            #         orange_obj: np.array([]),
+            #         juicer_obj: np.array([]),
+            #         waste_cup_obj: np.array([]),
+            #         juice_cup_obj: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
+            #     }
+            # if i in [0]:
+            #     init_state_dict.update({
+            #         orange_obj: np.array([]),
+            #         juicer_obj: np.array([]),
+            #         waste_cup_obj: np.array([]),
+            #         juice_cup_obj: np.array([]),
+            #         green_block_obj: np.array([]),
+            #         bowl_obj: np.array([]),
+            #         spam_object: np.array([]),
+            #     })
+            #     goal = {
+            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
+            #     }
+            if i == 0:
                 init_state_dict.update({
-                    apple_obj: np.array([]),
                     orange_obj: np.array([]),
                     juicer_obj: np.array([]),
-                    waste_cup_obj: np.array([]),
-                    juice_cup_obj: np.array([]),
+                    plastic_cup_obj: np.array([]),
+                    paper_cup_obj: np.array([]),
                     green_block_obj: np.array([]),
-                    bowl_obj: np.array([]),
                     spam_object: np.array([]),
+                    rectangular_table: np.array([]),
+                    round_coffee_table: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._JuiceIn, [juice_cup_obj]),
+                    GroundAtom(self._JuiceIn, [orange_obj, plastic_cup_obj]),
+                }
+            elif i == 1:
+                init_state_dict.update({
+                    apple_obj: np.array([]),
+                    juicer_obj: np.array([]),
+                    plastic_cup_obj: np.array([]),
+                    paper_cup_obj: np.array([]),
+                    green_block_obj: np.array([]),
+                    spam_object: np.array([]),
+                    rectangular_table: np.array([]),
+                    round_coffee_table: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._JuiceIn, [apple_obj, paper_cup_obj]),
                 }
             elif i == 2:
                 init_state_dict.update({
-                    orange_obj: np.array([]),
-                    juicer_obj: np.array([]),
-                    waste_cup_obj: np.array([]),
-                    juice_cup_obj: np.array([]),
-                    spam_object: np.array([]),
+                    glass_cup_obj: np.array([]),
                     bowl_obj: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._JuiceIn, [juice_cup_obj]),
+                    GroundAtom(self._Empty, [glass_cup_obj])
                 }
             elif i == 3:
-                init_state_dict.update({
-                    paper_cup_obj: np.array([]),
-                    bowl_obj: np.array([]),
-                })
-                goal = {
-                    GroundAtom(self._Empty, [paper_cup_obj])
-                }
-            elif i == 4:
                 init_state_dict.update({
                     glass_cup_obj: np.array([]),
                     bowl_obj: np.array([]),
                     paper_cup_obj: np.array([]),
                 })
                 goal = {
-                    GroundAtom(self._Empty, [paper_cup_obj])
+                    GroundAtom(self._Empty, [glass_cup_obj])
                 }
+            elif i == 4:
+                init_state_dict.update({
+                    glass_cup_obj: np.array([]),
+                    black_mug_obj: np.array([]),
+                    orange_obj: np.array([]),
+                    juicer_obj: np.array([]),
+                    rectangular_table: np.array([]),
+                    round_coffee_table: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._JuiceIn, [orange_obj, black_mug_obj]),
+                }            
             else:
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
@@ -566,7 +651,7 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         del train_tasks
         atom_strs = set([
             "LidClosed(juice_machine)",
-            "MachineTurnedOn(juice_machine)",
+            "IsFruit(orange)",
             "FruitInsideJuicer(juice_machine, orange)",
             "NotEmpty(waste_cup)",
             "UnderJuiceValve(juice_machine, juice_cup)",

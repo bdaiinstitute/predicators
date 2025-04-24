@@ -608,6 +608,7 @@ def _parse_structured_state_into_ground_atoms(
                         ]
                     except KeyError:
                         import ipdb; ipdb.set_trace()
+                        continue
                     pred_name_and_obj_types_str = pred_name + "(" + ",".join(
                         str(obj_type.name) for obj_type in objs_types) + ")"
                     if pred_name_and_obj_types_str not in \

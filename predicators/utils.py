@@ -2551,7 +2551,10 @@ def get_prompt_for_vlm_state_labelling(
     if "img_option_diffs" in prompt_type:
         # In this case, we need to load the 'per_scene_naive' prompt as well
         # for the first timestep.
-        with open(filepath_prefix + "per_scene_cot.txt", "r",
+        filepath_suffix = "per_scene_cot.txt"
+        if "juice" in CFG.env:  # pragma: no cover
+            filepath_suffix = "per_scene_cot_juice.txt"
+        with open(filepath_prefix + filepath_suffix, "r",
                   encoding="utf-8") as f:
             init_prompt = f.read()
         for atom_str in atoms_list:
@@ -2565,25 +2568,52 @@ def get_prompt_for_vlm_state_labelling(
         # Note that each element of imgs_history might have multiple
         # images embedded inside; thus we need to get all of these.
         curr_prompt_imgs = []
-        assert len(imgs_history[-2]) == len(imgs_history[-1])
-        for prev_img, curr_img in zip(imgs_history[-2], imgs_history[-1]):
-            if "spot" in CFG.env:  # pragma: no cover
-                # For spot envs, we need to label each of the images with
-                # "before" and "after".
+        # assert len(imgs_history[-2]) == len(imgs_history[-1])
+
+        font_size = 4
+        if "juice" in CFG.env:  # pragma: no cover
+            font_size = 16
+
+        for prev_img in imgs_history[-2]:
+            if "spot" in CFG.env or "juice" in CFG.env:  # pragma: no cover
                 draw_prev = ImageDraw.Draw(prev_img)
                 prev_img_shape = prev_img.size[:2]
-                draw_curr = ImageDraw.Draw(curr_img)
-                curr_img_shape = curr_img.size[:2]
-                font = get_scaled_default_font(draw_prev, 4)
+                font = get_scaled_default_font(draw_prev, font_size)
                 prev_img_font_loc = (int(prev_img_shape[0] * 0.9),
                                      int(prev_img_shape[1] * 0.9))
-                curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
-                                     int(curr_img_shape[1] * 0.9))
                 _ = add_text_to_draw_img(draw_prev, prev_img_font_loc,
                                          "Before", font)
-                _ = add_text_to_draw_img(draw_curr, curr_img_font_loc, "After",
-                                         font)
-            curr_prompt_imgs.extend([prev_img, curr_img])
+            curr_prompt_imgs.append(prev_img)
+
+        for curr_img in imgs_history[-1]:
+            if "spot" in CFG.env or "juice" in CFG.env:  # pragma: no cover
+                draw_curr = ImageDraw.Draw(curr_img)
+                curr_img_shape = curr_img.size[:2]
+                font = get_scaled_default_font(draw_curr, font_size)
+                curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
+                                     int(curr_img_shape[1] * 0.9))
+                _ = add_text_to_draw_img(draw_curr, curr_img_font_loc,
+                                         "After", font)
+            curr_prompt_imgs.append(curr_img)
+
+        # for prev_img, curr_img in zip(imgs_history[-2], imgs_history[-1]):
+        #     if "spot" in CFG.env:  # pragma: no cover
+        #         # For spot envs, we need to label each of the images with
+        #         # "before" and "after".
+        #         draw_prev = ImageDraw.Draw(prev_img)
+        #         prev_img_shape = prev_img.size[:2]
+        #         draw_curr = ImageDraw.Draw(curr_img)
+        #         curr_img_shape = curr_img.size[:2]
+        #         font = get_scaled_default_font(draw_prev, 4)
+        #         prev_img_font_loc = (int(prev_img_shape[0] * 0.9),
+        #                              int(prev_img_shape[1] * 0.9))
+        #         curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
+        #                              int(curr_img_shape[1] * 0.9))
+        #         _ = add_text_to_draw_img(draw_prev, prev_img_font_loc,
+        #                                  "Before", font)
+        #         _ = add_text_to_draw_img(draw_curr, curr_img_font_loc, "After",
+        #                                  font)
+        #     curr_prompt_imgs.extend([prev_img, curr_img])
 
         if CFG.vlm_include_cropped_images:
             if CFG.env in ["burger", "burger_no_move"]:  # pragma: no cover
