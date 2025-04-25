@@ -741,7 +741,7 @@ def _debug_log_atoms_trajs(
             logging.debug(f"Step {i} add effs: {sorted(traj[i] - traj[i-1])}")
             logging.debug(f"Step {i} del effs: {sorted(traj[i-1] - traj[i])}")
         logging.debug("\n")
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
 
 def _parse_options_txt_into_structured_actions(

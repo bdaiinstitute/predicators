@@ -462,13 +462,16 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         self._container_type = Type("container", [], self._object_type)
         self._immovable_object_type = Type("immovable_object", [],
                                            self._object_type)
-        self._juicer_type = Type("juicer", [], self._immovable_object_type)
+        self._juicer_type = Type("juicer", [], self._object_type)
         self._JuiceIn = utils.create_vlm_predicate(
             "JuiceInCup", [self._movable_object_type, self._container_type],
             lambda o: _get_vlm_query_str("JuiceInside", o))
         self._Empty = utils.create_vlm_predicate(
             "Empty", [self._container_type],
             lambda o: _get_vlm_query_str("Empty", o))
+        self._Inside = utils.create_vlm_predicate(
+            "Inside", [self._movable_object_type, self._juicer_type],
+            lambda o: _get_vlm_query_str("Inside", o))
 
     @classmethod
     def get_name(cls) -> str:
@@ -478,7 +481,7 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
     def types(self) -> Set[Type]:
         return super().types | {
             self._robot_type, self._object_type,
-            self._movable_object_type, self._immovable_object_type, self._juicer_type,
+            self._movable_object_type, self._juicer_type,
             self._container_type
             }
 
@@ -489,8 +492,8 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         apple_obj = Object("apple", self._movable_object_type)
         juicer_obj = Object("juice_machine", self._juicer_type)
         orange_obj = Object("orange", self._movable_object_type)
-        juice_cup_obj = Object("juice_cup", self._container_type)
-        waste_cup_obj = Object("waste_cup", self._container_type)
+        lemon_obj = Object("lemon", self._movable_object_type)
+        red_cup_obj = Object("red_cup", self._container_type)
         black_mug_obj = Object("black_mug", self._container_type)
         bowl_obj = Object("bowl", self._container_type)
         paper_cup_obj = Object("paper_cup", self._container_type)
@@ -508,71 +511,6 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
             init_state_dict = {
                 hand_obj: np.array([]),
             }
-            # if i in [0, 1]:
-            #     init_state_dict.update({
-            #         orange_obj: np.array([]),
-            #         juicer_obj: np.array([]),
-            #         waste_cup_obj: np.array([]),
-            #         juice_cup_obj: np.array([]),
-            #         green_block_obj: np.array([]),
-            #         bowl_obj: np.array([]),
-            #         spam_object: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
-            #     }
-            # elif i == 2:
-            #     init_state_dict.update({
-            #         orange_obj: np.array([]),
-            #         juicer_obj: np.array([]),
-            #         waste_cup_obj: np.array([]),
-            #         juice_cup_obj: np.array([]),
-            #         spam_object: np.array([]),
-            #         bowl_obj: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
-            #     }
-            # elif i == 3:
-            #     init_state_dict.update({
-            #         glass_cup_obj: np.array([]),
-            #         bowl_obj: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._Empty, [glass_cup_obj])
-            #     }
-            # elif i == 4:
-            #     init_state_dict.update({
-            #         glass_cup_obj: np.array([]),
-            #         bowl_obj: np.array([]),
-            #         paper_cup_obj: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._Empty, [paper_cup_obj])
-            #     }
-            # elif i in [5, 6]:
-            #     init_state_dict.update({
-            #         orange_obj: np.array([]),
-            #         juicer_obj: np.array([]),
-            #         waste_cup_obj: np.array([]),
-            #         juice_cup_obj: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
-            #     }
-            # if i in [0]:
-            #     init_state_dict.update({
-            #         orange_obj: np.array([]),
-            #         juicer_obj: np.array([]),
-            #         waste_cup_obj: np.array([]),
-            #         juice_cup_obj: np.array([]),
-            #         green_block_obj: np.array([]),
-            #         bowl_obj: np.array([]),
-            #         spam_object: np.array([]),
-            #     })
-            #     goal = {
-            #         GroundAtom(self._JuiceIn, [orange_obj, juice_cup_obj]),
-            #     }
             if i == 0:
                 init_state_dict.update({
                     orange_obj: np.array([]),
@@ -629,7 +567,35 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
                 })
                 goal = {
                     GroundAtom(self._JuiceIn, [orange_obj, black_mug_obj]),
-                }            
+                }
+            elif i == 5:
+                init_state_dict.update({
+                    lemon_obj: np.array([]),
+                    juicer_obj: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._Inside, [lemon_obj, juicer_obj]),
+                }
+            elif i == 6:
+                init_state_dict.update({
+                    juicer_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._Inside, [apple_obj, juicer_obj]),
+                }
+            elif i == 7:
+                init_state_dict.update({
+                    juicer_obj: np.array([]),
+                    orange_obj: np.array([]),
+                    red_cup_obj: np.array([]),
+                    glass_cup_obj: np.array([]),
+                    rectangular_table: np.array([]),
+                    round_coffee_table: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._JuiceIn, [orange_obj, glass_cup_obj]),
+                }
             else:
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
@@ -640,11 +606,11 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
 
     @property
     def predicates(self) -> Set[Predicate]:
-        return {self._JuiceIn, self._Empty}
+        return {self._JuiceIn, self._Empty, self._Inside}
 
     @property
     def goal_predicates(self) -> Set[Predicate]:
-        return {self._JuiceIn, self._Empty}
+        return {self._JuiceIn, self._Empty, self._Inside}
 
     def get_vlm_debug_atom_strs(self,
                                 train_tasks: List[Task]) -> List[List[str]]:
