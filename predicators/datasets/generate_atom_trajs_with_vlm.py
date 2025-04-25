@@ -431,6 +431,7 @@ def _parse_unique_atom_proposals_from_list(
         f"{len(all_atom_groundings)} unique groundings."
     )
     logging.info("END VISUAL PREDICATES PROPOSALS")
+    import ipdb; ipdb.set_trace()
     return all_atom_groundings
 
 
@@ -741,7 +742,7 @@ def _debug_log_atoms_trajs(
             logging.debug(f"Step {i} add effs: {sorted(traj[i] - traj[i-1])}")
             logging.debug(f"Step {i} del effs: {sorted(traj[i-1] - traj[i])}")
         logging.debug("\n")
-    # import ipdb; ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
 
 
 def _parse_options_txt_into_structured_actions(

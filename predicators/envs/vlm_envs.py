@@ -596,6 +596,23 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
                 goal = {
                     GroundAtom(self._JuiceIn, [orange_obj, glass_cup_obj]),
                 }
+            elif i == 8:
+                init_state_dict.update({
+                    glass_cup_obj: np.array([]),
+                    bowl_obj: np.array([]),
+                    paper_cup_obj: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._Empty, [glass_cup_obj])
+                }
+            elif i == 9:
+                init_state_dict.update({
+                    juicer_obj: np.array([]),
+                    apple_obj: np.array([]),
+                })
+                goal = {
+                    GroundAtom(self._Inside, [apple_obj, juicer_obj]),
+                }
             else:
                 raise NotImplementedError(
                     "Shouldn't be getting here! i = {}".format(i))
