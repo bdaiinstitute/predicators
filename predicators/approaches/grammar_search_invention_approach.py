@@ -486,6 +486,20 @@ _DEBUG_VLM_PREDICATES = {
         "Whole0",
         "Cut0",
     ],
+    "spot_vlm_juice_making_human_invention_env": [
+        "IsCup0",
+        "NearJuiceValve0",
+        "InsideWasteValveRegion0",
+        "HoldingContainer0",
+        "OutsideJuiceMachine0",
+        "LidClosed0",
+        "HoldingObj0",
+        "Functional0",
+        "JuiceMachineOpen0",
+        "IsPlastic0",
+        "HandEmpty0",
+        "HasContents0",
+    ]
 }
 _DEBUG_VLM_PREDICATES = defaultdict(list, _DEBUG_VLM_PREDICATES)
 
@@ -1022,7 +1036,7 @@ class GrammarSearchInventionApproach(NSRTLearningApproach):
                     assert isinstance(ground_atom, GroundAtom)
                     if ground_atom.predicate not in candidates:
                             # # HACK FOR NOW; just use generic predicates
-                            if "InAir" in ground_atom.predicate.name:
+                            if "InAir" in ground_atom.predicate.name: #or "Plastic" in ground_atom.predicate.name:
                                 continue
                             candidates[ground_atom.predicate] = float(
                                 len(ground_atom.objects))
@@ -1101,6 +1115,13 @@ class GrammarSearchInventionApproach(NSRTLearningApproach):
                 self._learned_predicates = set(
                     p for p in candidates.keys()
                     if p.name in debug_predicate_names)
+                score_function = create_score_function(
+                    CFG.grammar_search_score_function,
+                    self._initial_predicates, atom_dataset, candidates,
+                    self._train_tasks)
+                # NOTE: just for debugging purposes; we evaluate the score function!
+                score_function.evaluate(self._learned_predicates)
+
             else:
                 # Create the score function that will be used to guide search.
                 score_function = create_score_function(

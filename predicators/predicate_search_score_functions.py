@@ -382,13 +382,13 @@ class _ExpectedNodesScoreFunction(_OperatorLearningBasedScoreFunction):
                         expected_planning_time += p * w
                     # Update the probability that no skeleton yet is refinable.
                     refinable_skeleton_not_found_prob *= (1 - refinement_prob)
-                    # if str(candidate_predicates) == "frozenset({Near0, HandEmpty0, HoldingContainer0, IsPlasticCup0, IsPaperCup0, InsideJuiceValveRegion0, LidOpen0, LidClosed0, HasContents0})":
-                    #     print(f"Goal: {goal}")
-                    #     for act in plan:
-                    #         print(f"Action: {act}")
-                    #         print()
+                    # # if str(candidate_predicates) == "frozenset({Near0, HandEmpty0, HoldingContainer0, IsPlasticCup0, IsPaperCup0, InsideJuiceValveRegion0, LidOpen0, LidClosed0, HasContents0})":
+                    # print(f"Goal: {goal}")
+                    # for act in plan:
+                    #     print(f"Action: {act}")
                     #     print()
-                        # import ipdb; ipdb.set_trace()
+                    # print()
+                    # import ipdb; ipdb.set_trace()
             except (PlanningTimeout, PlanningFailure):
                 # Note if we failed to find any skeleton, the next lines add
                 # the upper bound with refinable_skeleton_not_found_prob = 1.0,
