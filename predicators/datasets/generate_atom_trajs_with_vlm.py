@@ -83,7 +83,8 @@ def _generate_prompt_for_atom_proposals(
             ret_list.append(
                 (prompt, [traj.imgs[i][0] for i in range(len(traj.imgs))]))
         except IndexError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
     else:  # pragma: no cover.
         raise ValueError("Unknown VLM prompting option " +
                          f"{CFG.grammar_search_vlm_atom_proposal_prompt_type}")
@@ -369,7 +370,8 @@ def _parse_unique_atom_proposals_from_list(
     obj_names_set = set(obj.name for obj in relevant_objects_across_demos)
     # NOTE: just for human invention env!
     if "human_invention" in CFG.env:
-        obj_names_set = set(obj.name for obj in relevant_objects_across_demos if "robot" not in str(obj.type))
+        obj_names_set = set(obj.name for obj in relevant_objects_across_demos
+                            if "robot" not in str(obj.type))
 
     # We'll use these mappings to generate VLM atoms for every possible
     # grounding of each proposed predicate.
@@ -431,7 +433,8 @@ def _parse_unique_atom_proposals_from_list(
         f"{len(all_atom_groundings)} unique groundings."
     )
     logging.info("END VISUAL PREDICATES PROPOSALS")
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
     return all_atom_groundings
 
 
@@ -608,7 +611,8 @@ def _parse_structured_state_into_ground_atoms(
                             for obj_name in objs_strs
                         ]
                     except KeyError:
-                        import ipdb; ipdb.set_trace()
+                        import ipdb
+                        ipdb.set_trace()
                         continue
                     pred_name_and_obj_types_str = pred_name + "(" + ",".join(
                         str(obj_type.name) for obj_type in objs_types) + ")"
@@ -742,7 +746,8 @@ def _debug_log_atoms_trajs(
             logging.debug(f"Step {i} add effs: {sorted(traj[i] - traj[i-1])}")
             logging.debug(f"Step {i} del effs: {sorted(traj[i-1] - traj[i])}")
         logging.debug("\n")
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
 
 
 def _parse_options_txt_into_structured_actions(

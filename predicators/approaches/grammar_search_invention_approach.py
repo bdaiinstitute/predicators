@@ -1035,11 +1035,11 @@ class GrammarSearchInventionApproach(NSRTLearningApproach):
                 for ground_atom in ground_atom_state:
                     assert isinstance(ground_atom, GroundAtom)
                     if ground_atom.predicate not in candidates:
-                            # # HACK FOR NOW; just use generic predicates
-                            if "InAir" in ground_atom.predicate.name: #or "Plastic" in ground_atom.predicate.name:
-                                continue
-                            candidates[ground_atom.predicate] = float(
-                                len(ground_atom.objects))
+                        # # HACK FOR NOW; just use generic predicates
+                        if "InAir" in ground_atom.predicate.name:  #or "Plastic" in ground_atom.predicate.name:
+                            continue
+                        candidates[ground_atom.predicate] = float(
+                            len(ground_atom.objects))
         logging.debug(f"All candidate predicates: {candidates.keys()}")
         return (atom_dataset, candidates)
 

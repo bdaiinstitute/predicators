@@ -480,10 +480,9 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
     @property
     def types(self) -> Set[Type]:
         return super().types | {
-            self._robot_type, self._object_type,
-            self._movable_object_type, self._juicer_type,
-            self._container_type
-            }
+            self._robot_type, self._object_type, self._movable_object_type,
+            self._juicer_type, self._container_type
+        }
 
     def _get_tasks(self, num: int,
                    rng: np.random.Generator) -> List[EnvironmentTask]:
@@ -502,9 +501,9 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
         plastic_cup_obj = Object("plastic_cup", self._container_type)
         spam_object = Object("spam_tin", self._movable_object_type)
         rectangular_table = Object("rectangular_table",
-                                  self._immovable_object_type)
+                                   self._immovable_object_type)
         round_coffee_table = Object("round_coffee_table",
-                                      self._immovable_object_type)
+                                    self._immovable_object_type)
 
         ret_tasks = []
         for i in range(num):
@@ -544,18 +543,14 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
                     glass_cup_obj: np.array([]),
                     bowl_obj: np.array([]),
                 })
-                goal = {
-                    GroundAtom(self._Empty, [glass_cup_obj])
-                }
+                goal = {GroundAtom(self._Empty, [glass_cup_obj])}
             elif i == 3:
                 init_state_dict.update({
                     glass_cup_obj: np.array([]),
                     bowl_obj: np.array([]),
                     paper_cup_obj: np.array([]),
                 })
-                goal = {
-                    GroundAtom(self._Empty, [glass_cup_obj])
-                }
+                goal = {GroundAtom(self._Empty, [glass_cup_obj])}
             elif i == 4:
                 init_state_dict.update({
                     glass_cup_obj: np.array([]),
@@ -602,9 +597,7 @@ class SpotVLMJuiceMakingHumanInventionEnv(VLMPredicateEnv):
                     bowl_obj: np.array([]),
                     paper_cup_obj: np.array([]),
                 })
-                goal = {
-                    GroundAtom(self._Empty, [glass_cup_obj])
-                }
+                goal = {GroundAtom(self._Empty, [glass_cup_obj])}
             elif i == 9:
                 init_state_dict.update({
                     juicer_obj: np.array([]),

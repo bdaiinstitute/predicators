@@ -7,11 +7,10 @@ import numpy as np
 from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 
-from predicators.spot_utils.skills.spot_hand_move import \
-    move_hand_to_relative_pose, move_hand_to_relative_pose_with_velocity
-from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
-    open_gripper
 from predicators import utils
+from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
+    move_hand_to_relative_pose, move_hand_to_relative_pose_with_velocity, \
+    open_gripper
 
 
 def wipe_one_stroke(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
@@ -42,8 +41,7 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
                           end_look_pose: math_helpers.SE3Pose,
                           stroke_dx: float, stroke_dy: float,
                           delta_x_y_between_strokes: Tuple[float, float],
-                          num_strokes: int,
-                          duration_per_stroke: float,
+                          num_strokes: int, duration_per_stroke: float,
                           num_attempts_per_stroke: int) -> None:
     """Wipe a table surface in the xy plane.
 
@@ -67,14 +65,15 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
                 z=curr_stroke_start_pose.z,
                 rot=curr_stroke_start_pose.rot,
             )
-            move_hand_to_relative_pose_with_velocity(robot, curr_stroke_start_pose,
-                                                    first_move_pose,
-                                                    duration_per_stroke)
+            move_hand_to_relative_pose_with_velocity(robot,
+                                                     curr_stroke_start_pose,
+                                                     first_move_pose,
+                                                     duration_per_stroke)
             time.sleep(0.1)
             # Move back to the start pose.
             move_hand_to_relative_pose_with_velocity(robot, first_move_pose,
-                                                    curr_stroke_start_pose,
-                                                    duration_per_stroke)
+                                                     curr_stroke_start_pose,
+                                                     duration_per_stroke)
         # Move to the next stroke position.
         curr_stroke_start_pose = math_helpers.SE3Pose(
             x=curr_stroke_start_pose.x + delta_x_y_between_strokes[0],

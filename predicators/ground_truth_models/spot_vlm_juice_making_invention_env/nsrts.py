@@ -11,9 +11,7 @@ class SpotJuiceMakingGroundTruthNSRTFactory(GroundTruthNSRTFactory):
 
     @classmethod
     def get_env_names(cls) -> Set[str]:  # pragma: no cover
-        return {
-            "spot_vlm_juice_making_human_invention_env"
-        }
+        return {"spot_vlm_juice_making_human_invention_env"}
 
     @staticmethod
     def get_nsrts(

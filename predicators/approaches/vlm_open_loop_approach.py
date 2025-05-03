@@ -269,5 +269,6 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         for option_tuple in parsed_option_plan:
             option_plan.append(option_tuple[0].ground(
                 option_tuple[1], np.array(option_tuple[2])))
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
         return option_plan

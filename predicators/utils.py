@@ -239,7 +239,9 @@ def create_state_from_dict(data: Dict[Object, Dict[str, float]],
             try:
                 obj_vec.append(obj_data[feat])
             except KeyError:
-                print(f"Warning: feature not found in {obj.name} data dict: {feat}")
+                print(
+                    f"Warning: feature not found in {obj.name} data dict: {feat}"
+                )
         state_dict[obj] = np.array(obj_vec)
     return State(state_dict, simulator_state)
 
@@ -2595,8 +2597,8 @@ def get_prompt_for_vlm_state_labelling(
                 font = get_scaled_default_font(draw_curr, font_size)
                 curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
                                      int(curr_img_shape[1] * 0.9))
-                _ = add_text_to_draw_img(draw_curr, curr_img_font_loc,
-                                         "After", font)
+                _ = add_text_to_draw_img(draw_curr, curr_img_font_loc, "After",
+                                         font)
             curr_prompt_imgs.append(curr_img)
 
         # for prev_img, curr_img in zip(imgs_history[-2], imgs_history[-1]):

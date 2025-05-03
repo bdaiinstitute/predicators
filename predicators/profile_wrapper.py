@@ -1,7 +1,8 @@
-import sys
-import cProfile
 import atexit
+import cProfile
 import runpy
+import sys
+
 
 def main():
     if len(sys.argv) < 2:
@@ -26,6 +27,7 @@ def main():
 
     # Run the target script as __main__
     runpy.run_path(target_script, run_name="__main__")
+
 
 if __name__ == "__main__":
     main()

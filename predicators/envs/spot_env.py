@@ -41,12 +41,13 @@ from predicators.spot_utils.skills.spot_navigation import go_home, \
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _broom_type, \
-    _container_type, _dustpan_type, _immovable_object_type, \
-    _movable_object_type, _robot_type, _table_type, _trash_can_type, \
-    _wrappers_type, construct_state_given_pbrspot, get_allowed_map_regions, \
-    get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
+    _container_type, _cup_type, _dustpan_type, _immovable_object_type, \
+    _juicer_type, _movable_object_type, _robot_type, _table_type, \
+    _trash_can_type, _wrappers_type, construct_state_given_pbrspot, \
+    get_allowed_map_regions, get_graph_nav_dir, \
+    get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
-    update_pbrspot_robot_conf, verify_estop, _juicer_type, _cup_type
+    update_pbrspot_robot_conf, verify_estop
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable
@@ -898,9 +899,10 @@ class SpotRearrangementEnv(BaseEnv):
         return [EnvironmentTask(None, goal) for _ in range(CFG.num_test_tasks)]
 
     def _manually_construct_env_task(self) -> EnvironmentTask:
-        """A version of actively constructing the environment task that
-        doesn't require the robot to walk around and run object detection.
-        Useful for debugging/quick testing (or just trying to see if 
+        """A version of actively constructing the environment task that doesn't
+        require the robot to walk around and run object detection.
+
+        Useful for debugging/quick testing (or just trying to see if
         planning works without actually executing anything).
         """
         assert self._robot is not None
@@ -963,30 +965,25 @@ class SpotRearrangementEnv(BaseEnv):
             #     0.0, 0.0, 0.0,
             #     math_helpers.Quat.from_yaw(0.0)),
             Object("fluffy_green_toy_eraser", _movable_object_type):
-                math_helpers.SE3Pose(
-                    0.0, 0.0, 0.0,
-                    math_helpers.Quat.from_yaw(0.0)),
+            math_helpers.SE3Pose(0.0, 0.0, 0.0,
+                                 math_helpers.Quat.from_yaw(0.0)),
             # Object("blue_coffee_cup", _movable_object_type):
             #     math_helpers.SE3Pose(
             #         0.0, 0.0, 0.0,
             #         math_helpers.Quat.from_yaw(0.0)),
             Object("child_play_table", _table_type):
-                math_helpers.SE3Pose(
-                    0.0, 0.0, 0.0,
-                    math_helpers.Quat.from_yaw(0.0)),
+            math_helpers.SE3Pose(0.0, 0.0, 0.0,
+                                 math_helpers.Quat.from_yaw(0.0)),
             Object("apple", _movable_object_type):
-                math_helpers.SE3Pose(
-                    0.0, 0.0, 0.0,
-                    math_helpers.Quat.from_yaw(0.0)),
+            math_helpers.SE3Pose(0.0, 0.0, 0.0,
+                                 math_helpers.Quat.from_yaw(0.0)),
             # Object("cardboard_box_bin", _trash_can_type):
             #     math_helpers.SE3Pose(
             #         0.0, 0.0, 0.0,
             #         math_helpers.Quat.from_yaw(0.0)),
             Object("clear_plastic_dustbin", _trash_can_type):
-                math_helpers.SE3Pose(
-                    0.0, 0.0, 0.0,
-                    math_helpers.Quat.from_yaw(0.0)),
-                
+            math_helpers.SE3Pose(0.0, 0.0, 0.0,
+                                 math_helpers.Quat.from_yaw(0.0)),
         }
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
@@ -995,7 +992,6 @@ class SpotRearrangementEnv(BaseEnv):
         goal_description = self._generate_goal_description()
         task = EnvironmentTask(obs, goal_description)
         return task
-
 
     def _actively_construct_env_task(self) -> EnvironmentTask:
         # Have the spot walk around the environment once to construct
@@ -1172,7 +1168,7 @@ class SpotRearrangementEnv(BaseEnv):
         #     self._detection_id_to_obj[det_id]: val
         #     for (det_id, val) in detections.items()
         # }
-        
+
         obj_to_se3_pose = get_known_movable_objects()
         obj_to_se3_pose.update(get_known_immovable_objects())
         self._last_known_object_poses.update(obj_to_se3_pose)
@@ -1244,7 +1240,7 @@ _ROBOT_SWEEP_READY_TOL = 0.25
 ## Types
 _ALL_TYPES = {
     _robot_type, _base_object_type, _movable_object_type,
-    _immovable_object_type, _container_type, _table_type, _trash_can_type, 
+    _immovable_object_type, _container_type, _table_type, _trash_can_type,
     _juicer_type, _cup_type
 }
 
@@ -4359,8 +4355,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
             "TableWiped",
         ])
         preds |= {
-            self._OnFloor, self._IsEraser,
-            self._OnTop, self._NoObjectsOnTop
+            self._OnFloor, self._IsEraser, self._OnTop, self._NoObjectsOnTop
         }
         return preds
 
@@ -4416,7 +4411,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
-    
+
 
 ###############################################################################
 #            Juice Making Env with Invented Predicates and Map                #
@@ -4424,12 +4419,12 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
 
 
 class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
-    """A version of the SpotVLMJuiceMakingHumanInventionEnv, but with an actual 
+    """A version of the SpotVLMJuiceMakingHumanInventionEnv, but with an actual
     map and full skill implementations.
 
-    Also, this environment uses invented predicates for the juicing
-    task (these are manually copied over from invention done on the env
-    in vlm_envs.py).
+    Also, this environment uses invented predicates for the juicing task
+    (these are manually copied over from invention done on the env in
+    vlm_envs.py).
     """
 
     def __init__(self, use_gui: bool = True) -> None:
@@ -4444,11 +4439,13 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             lambda o: _get_vlm_query_str("NearJuiceValve", o))
 
         self._InsideWasteValveRegion = utils.create_vlm_predicate(
-            "InsideWasteValveRegion", [_container_type, _juicer_type], # Assuming cup type
+            "InsideWasteValveRegion",
+            [_container_type, _juicer_type],  # Assuming cup type
             lambda o: _get_vlm_query_str("InsideWasteValveRegion", o))
 
         self._OutsideJuiceMachine = utils.create_vlm_predicate(
-            "OutsideJuiceMachine", [_movable_object_type], # Assuming cup type
+            "OutsideJuiceMachine",
+            [_movable_object_type],  # Assuming cup type
             lambda o: _get_vlm_query_str("OutsideJuiceMachine", o))
 
         self._LidClosed = utils.create_vlm_predicate(
@@ -4470,29 +4467,25 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         self._HasContents = utils.create_vlm_predicate(
             "HasContents", [_container_type],
             lambda o: _get_vlm_query_str("HasContents", o))
-        
+
         self._Empty = utils.create_vlm_predicate(
             "Empty", [_container_type],
             lambda o: _get_vlm_query_str("Empty", o))
-        
+
         self._JuiceInCup = utils.create_vlm_predicate(
             "JuiceInCup", [_movable_object_type, _container_type],
             lambda o: _get_vlm_query_str("JuiceInCup", o))
-        
+
         self._InsideJuicer = utils.create_vlm_predicate(
             "Inside", [_movable_object_type, _juicer_type],
-            lambda o: _get_vlm_query_str("Inside", o)
-        )
+            lambda o: _get_vlm_query_str("Inside", o))
 
         # Store all newly defined VLM predicates
         self._vlm_predicates = {
-            self._IsCup, 
-            self._NearJuiceValve, self._InsideWasteValveRegion,
-            self._OutsideJuiceMachine, self._LidClosed,
-            self._Functional, 
-            self._JuiceMachineOpen,
-            self._IsPlastic, self._HasContents, self._InsideJuicer, self._JuiceInCup,
-            self._Empty
+            self._IsCup, self._NearJuiceValve, self._InsideWasteValveRegion,
+            self._OutsideJuiceMachine, self._LidClosed, self._Functional,
+            self._JuiceMachineOpen, self._IsPlastic, self._HasContents,
+            self._InsideJuicer, self._JuiceInCup, self._Empty
         }
 
         # Add in Operators.
@@ -4504,7 +4497,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         parameters = [x0, x1]
         preconds = {
             LiftedAtom(self._Functional, [x1]),
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._JuiceMachineOpen, [x1]),
         }
         add_effs = {LiftedAtom(self._LidClosed, [x1])}
@@ -4516,14 +4509,15 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
 
         # STRIPS-Op1: PickContainer
         x0 = Variable("?x0", _robot_type)
-        x1 = Variable("?x1", _container_type) # Use container type
+        x1 = Variable("?x1", _container_type)  # Use container type
         parameters = [x0, x1]
         preconds = {
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
-            LiftedAtom(self._IsCup, [x1]), # Check if it's a cup
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
+            LiftedAtom(self._IsCup, [x1]),  # Check if it's a cup
         }
         add_effs = {LiftedAtom(_Holding, [x0, x1])}
-        del_effs = {LiftedAtom(_HandEmpty, [x0])} # Assuming standard _HandEmpty
+        del_effs = {LiftedAtom(_HandEmpty,
+                               [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
             STRIPSOperator("PickContainer", parameters, preconds, add_effs,
@@ -4532,8 +4526,8 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         # STRIPS-Op2: PlaceInsideJuiceValveRegion
         x0 = Variable("?x0", _robot_type)
         x1 = Variable("?x1", _juicer_type)
-        x2 = Variable("?x2", _container_type) # Use container type
-        parameters = [x0, x2, x1] # Order matches Option Spec
+        x2 = Variable("?x2", _container_type)  # Use container type
+        parameters = [x0, x2, x1]  # Order matches Option Spec
         preconds = {
             LiftedAtom(self._Empty, [x2]),
             LiftedAtom(self._Functional, [x1]),
@@ -4542,7 +4536,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             LiftedAtom(self._LidClosed, [x1]),
         }
         add_effs = {
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._NearJuiceValve, [x2, x1]),
         }
         del_effs = {LiftedAtom(_Holding, [x0, x2])}
@@ -4554,17 +4548,17 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         # STRIPS-Op5: PlaceInsideWasteValveRegion
         x0 = Variable("?x0", _robot_type)
         x1 = Variable("?x1", _juicer_type)
-        x2 = Variable("?x2", _container_type) # Use container type
-        parameters = [x0, x2, x1] # Order matches Option Spec
+        x2 = Variable("?x2", _container_type)  # Use container type
+        parameters = [x0, x2, x1]  # Order matches Option Spec
         preconds = {
-            LiftedAtom(self._Empty, [x2]), 
+            LiftedAtom(self._Empty, [x2]),
             LiftedAtom(self._Functional, [x1]),
             LiftedAtom(_Holding, [x0, x2]),
             LiftedAtom(self._IsCup, [x2]),
             LiftedAtom(self._IsPlastic, [x2]),
         }
         add_effs = {
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._InsideWasteValveRegion, [x2, x1]),
         }
         del_effs = {LiftedAtom(_Holding, [x0, x2])}
@@ -4574,24 +4568,25 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op7: DumpFromOneIntoOther
-        x0 = Variable("?x0", _container_type) # Target container
-        x1 = Variable("?x1", _container_type) # Source container
+        x0 = Variable("?x0", _container_type)  # Target container
+        x1 = Variable("?x1", _container_type)  # Source container
         x2 = Variable("?x2", _robot_type)
-        parameters = [x2, x1, x0] # Order matches Option Spec
+        parameters = [x2, x1, x0]  # Order matches Option Spec
         preconds = {
-            LiftedAtom(self._Empty, [x0]), # Target is Empty
-            LiftedAtom(self._HasContents, [x1]),      # Source HasContents
+            LiftedAtom(self._Empty, [x0]),  # Target is Empty
+            LiftedAtom(self._HasContents, [x1]),  # Source HasContents
             LiftedAtom(_Holding, [x2, x1]),
             LiftedAtom(self._IsCup, [x1]),
             LiftedAtom(self._IsPlastic, [x1]),
         }
         add_effs = {
-            LiftedAtom(self._Empty, [x1]), # Source becomes Empty
-            LiftedAtom(self._HasContents, [x0]),      # Target HasContents
+            LiftedAtom(self._Empty, [x1]),  # Source becomes Empty
+            LiftedAtom(self._HasContents, [x0]),  # Target HasContents
         }
         del_effs = {
-            LiftedAtom(self._Empty, [x0]), # Target not Empty anymore
-            LiftedAtom(self._HasContents, [x1]),      # Source not HasContents anymore
+            LiftedAtom(self._Empty, [x0]),  # Target not Empty anymore
+            LiftedAtom(self._HasContents,
+                       [x1]),  # Source not HasContents anymore
         }
         ignore_effs = set()
         self._strips_operators.add(
@@ -4599,19 +4594,20 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op10: TurnOnAndRunMachine
-        x0 = Variable("?x0", _container_type) # Juice cup
-        x1 = Variable("?x1", _container_type) # Waste cup
+        x0 = Variable("?x0", _container_type)  # Juice cup
+        x1 = Variable("?x1", _container_type)  # Waste cup
         x2 = Variable("?x2", _robot_type)
         x3 = Variable("?x3", _juicer_type)
-        x4 = Variable("?x4", _movable_object_type) # Fruit/veg
+        x4 = Variable("?x4", _movable_object_type)  # Fruit/veg
         # parameters = [x2, x3, x0, x1, x4] # Order for operator!
-        parameters = [x2, x3, x0, x1] # Order for option spec
+        parameters = [x2, x3, x0, x1]  # Order for option spec
         preconds = {
             LiftedAtom(self._Empty, [x0]),
             LiftedAtom(self._Empty, [x1]),
             LiftedAtom(self._Functional, [x3]),
-            LiftedAtom(_HandEmpty, [x2]), # Assuming standard _HandEmpty
-            LiftedAtom(self._InsideJuicer, [x4, x3]), # Assuming standard _Inside
+            LiftedAtom(_HandEmpty, [x2]),  # Assuming standard _HandEmpty
+            LiftedAtom(self._InsideJuicer,
+                       [x4, x3]),  # Assuming standard _Inside
             LiftedAtom(self._InsideWasteValveRegion, [x1, x3]),
             LiftedAtom(self._IsCup, [x0]),
             LiftedAtom(self._IsCup, [x1]),
@@ -4620,15 +4616,16 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             LiftedAtom(self._NearJuiceValve, [x0, x3]),
         }
         add_effs = {
-            LiftedAtom(self._HasContents, [x0]), # Juice cup HasContents
-            LiftedAtom(self._HasContents, [x1]), # Waste cup HasContents
-            LiftedAtom(self._JuiceInCup, [x4, x0]), # Custom predicate
+            LiftedAtom(self._HasContents, [x0]),  # Juice cup HasContents
+            LiftedAtom(self._HasContents, [x1]),  # Waste cup HasContents
+            LiftedAtom(self._JuiceInCup, [x4, x0]),  # Custom predicate
             LiftedAtom(self._OutsideJuiceMachine, [x4]),
         }
         del_effs = {
-            LiftedAtom(self._Empty, [x0]), # Juice cup not Empty
-            LiftedAtom(self._Empty, [x0]), # Waste cup not Empty
-            LiftedAtom(self._InsideJuicer, [x4, x3]), # Assuming standard _Inside
+            LiftedAtom(self._Empty, [x0]),  # Juice cup not Empty
+            LiftedAtom(self._Empty, [x0]),  # Waste cup not Empty
+            LiftedAtom(self._InsideJuicer,
+                       [x4, x3]),  # Assuming standard _Inside
         }
         ignore_effs = set()
         self._strips_operators.add(
@@ -4640,11 +4637,12 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         x1 = Variable("?x1", _movable_object_type)
         parameters = [x0, x1]
         preconds = {
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._OutsideJuiceMachine, [x1]),
         }
         add_effs = {LiftedAtom(_Holding, [x0, x1])}
-        del_effs = {LiftedAtom(_HandEmpty, [x0])} # Assuming standard _HandEmpty
+        del_effs = {LiftedAtom(_HandEmpty,
+                               [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
             STRIPSOperator("PickMovable", parameters, preconds, add_effs,
@@ -4654,15 +4652,16 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         x0 = Variable("?x0", _robot_type)
         x1 = Variable("?x1", _juicer_type)
         x2 = Variable("?x2", _movable_object_type)
-        parameters = [x0, x2, x1] # Order matches Option Spec
+        parameters = [x0, x2, x1]  # Order matches Option Spec
         preconds = {
             LiftedAtom(_Holding, [x0, x2]),
             LiftedAtom(self._JuiceMachineOpen, [x1]),
             LiftedAtom(self._OutsideJuiceMachine, [x2]),
         }
         add_effs = {
-            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
-            LiftedAtom(self._InsideJuicer, [x2, x1]), # Assuming standard _Inside
+            LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
+            LiftedAtom(self._InsideJuicer,
+                       [x2, x1]),  # Assuming standard _Inside
         }
         del_effs = {
             LiftedAtom(_Holding, [x0, x2]),
@@ -4672,12 +4671,14 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         self._strips_operators.add(
             STRIPSOperator("PlaceInside", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
-        
 
     @property
     def predicates(self) -> Set[Predicate]:
         preds = self._vlm_predicates
-        preds |= set(p for p in _ALL_PREDICATES if p.name in ["Holding", "HandEmpty",])
+        preds |= set(p for p in _ALL_PREDICATES if p.name in [
+            "Holding",
+            "HandEmpty",
+        ])
         return preds
 
     @property

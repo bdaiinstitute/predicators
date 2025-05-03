@@ -130,7 +130,7 @@ class State:
             except AssertionError:
                 print(f"Object: {obj} has a feature vector of length "
                       f"{len(self[obj])}, but type {obj.type.name} has "
-                        f"dimensionality {obj.type.dim}.")
+                      f"dimensionality {obj.type.dim}.")
 
     def __iter__(self) -> Iterator[Object]:
         """An iterator over the state's objects, in sorted order."""
@@ -647,7 +647,8 @@ class ParameterizedOption:
         try:
             assert len(objects) == len(self.types)
         except AssertionError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         for obj, t in zip(objects, self.types):
             assert obj.is_instance(t)
         params = np.array(params, dtype=self.params_space.dtype)
@@ -1037,7 +1038,8 @@ class NSRT:
             add_effects = {atom.ground(sub) for atom in self.add_effects}
             delete_effects = {atom.ground(sub) for atom in self.delete_effects}
         except AssertionError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         option_objs = [sub[v] for v in self.option_vars]
         return _GroundNSRT(self, objects, preconditions, add_effects,
                            delete_effects, self.option, option_objs,
@@ -1290,7 +1292,8 @@ class ImageOptionTrajectory:
         try:
             assert len(self._state_imgs) == len(self._actions) + 1
         except AssertionError:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+            ipdb.set_trace()
         if self._is_demo:
             assert self._train_task_idx is not None
         if self._states is not None:

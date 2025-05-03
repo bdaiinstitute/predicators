@@ -371,7 +371,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             # similarly in the future.
 
         for strips_op in env.strips_operators:
-            if "teleop" in strips_op.name.lower() or CFG.env == "spot_vlm_juice_making_invented_predicates_env":
+            if "teleop" in strips_op.name.lower(
+            ) or CFG.env == "spot_vlm_juice_making_invented_predicates_env":
                 sampler = utils.null_sampler
             else:
                 sampler = operator_name_to_sampler[strips_op.name]

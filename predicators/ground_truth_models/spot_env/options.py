@@ -1260,8 +1260,8 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
                 params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
                 policy = _OPERATOR_NAME_TO_POLICY[operator_name]
             else:
-                params_space = Box(0, 1, (0, )) # empty
-                policy = _create_teleop_policy_with_name(operator_name)        
+                params_space = Box(0, 1, (0, ))  # empty
+                policy = _create_teleop_policy_with_name(operator_name)
         super().__init__(operator_name, policy, types, params_space)
 
     def __reduce__(self) -> Tuple:

@@ -10,15 +10,12 @@ from predicators.structs import Action, Array, Object, ParameterizedOption, \
     ParameterizedPolicy, Predicate, State, Type
 
 
-class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory
-                                                       ):
+class SpotJuiceMakingGroundTruthOptionsFactory(GroundTruthOptionFactory):
     """Ground-truth options for the tea making environment."""
 
     @classmethod
     def get_env_names(cls) -> Set[str]:
-        return {
-            "spot_vlm_juice_making_human_invention_env"
-        }
+        return {"spot_vlm_juice_making_human_invention_env"}
 
     @classmethod
     def get_options(

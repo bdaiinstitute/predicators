@@ -47,6 +47,7 @@ blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 eraser_obj = LanguageObjectDetectionID("fluffy_toy/flower_arrangement")
 soda_can_obj = LanguageObjectDetectionID("soda_can")
 
+
 def _get_platform_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
