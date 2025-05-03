@@ -236,6 +236,35 @@ def get_known_immovable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     return obj_to_pose
 
 
+def get_known_movable_objects() -> Dict[Object, math_helpers.SE3Pose]:
+    """Load known movable object poses from metadata."""
+    known_immovables = load_spot_metadata()["known-movable-objects"]
+    obj_to_pose: Dict[Object, math_helpers.SE3Pose] = {}
+    type_name_to_type = {
+        "movable": _movable_object_type,
+        "cup": _cup_type,
+        "broom": _broom_type,
+        "dustpan": _dustpan_type,
+        "container": _container_type,
+        "wrappers": _wrappers_type,
+        "trashcan": _trash_can_type,
+        "juicer": _juicer_type,
+        "immovable": _immovable_object_type,
+        "table": _table_type
+    }
+
+    for obj_name, obj_pos in known_immovables.items():
+        obj = Object(obj_name, type_name_to_type[obj_pos["object_type"]])
+        yaw = obj_pos.get("yaw", 0.0)
+        rot = math_helpers.Quat.from_yaw(yaw)
+        pose = math_helpers.SE3Pose(obj_pos["x"],
+                                    obj_pos["y"],
+                                    obj_pos["z"],
+                                    rot=rot)
+        obj_to_pose[obj] = pose
+    return obj_to_pose
+
+
 class SpotRearrangementEnv(BaseEnv):
     """An environment containing tasks for a real Spot robot to execute.
 
@@ -461,10 +490,10 @@ class SpotRearrangementEnv(BaseEnv):
             while True:
                 try:
                     self._lease_client.take()
-                    # self._current_task = self._actively_construct_env_task()
-                    # TODO: hack for now; just to make planning + VLM running
-                    # much simpler.
-                    self._current_task = self._manually_construct_env_task()
+                    self._current_task = self._actively_construct_env_task()
+                    # # TODO: hack for now; just to make planning + VLM running
+                    # # much simpler.
+                    # self._current_task = self._manually_construct_env_task()
                     break
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
@@ -501,7 +530,6 @@ class SpotRearrangementEnv(BaseEnv):
                                                     assert_exists=True)
                 sim_obj = pbrspot.body.createBody(obj_urdf)
                 _obj_name_to_sim_obj[obj.name] = sim_obj
-
         return self._current_task.init_obs
 
     def step(self, action: Action) -> Observation:
@@ -702,6 +730,7 @@ class SpotRearrangementEnv(BaseEnv):
         all_objects_in_view = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in all_detections.items()
+            if self._detection_id_to_obj[det_id].type.name == "movable"
         }
         self._last_known_object_poses.update(all_objects_in_view)
         objects_in_hand_view = set(self._detection_id_to_obj[det_id]
@@ -995,11 +1024,11 @@ class SpotRearrangementEnv(BaseEnv):
             ObjectDetectionID,
             SegmentedBoundingBox]]] = {k: []
                                        for k in rgbd_images.keys()}
-        for object_id, d in artifacts['language'][
-                'object_id_to_img_detections'].items():
-            for camera_name, seg_bb in d.items():
-                obj_detections_per_camera[camera_name].append(
-                    (object_id, seg_bb))
+        # for object_id, d in artifacts['language'][
+        #         'object_id_to_img_detections'].items():
+        #     for camera_name, seg_bb in d.items():
+        #         obj_detections_per_camera[camera_name].append(
+        #             (object_id, seg_bb))
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
                                robot_pos, nonpercept_atoms, nonpercept_preds,
@@ -1131,17 +1160,21 @@ class SpotRearrangementEnv(BaseEnv):
             self) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[str, Any]]:
         assert self._robot is not None
         assert self._localizer is not None
-        stow_arm(self._robot)
+        # stow_arm(self._robot)
         # go_home(self._robot, self._localizer)
         self._localizer.localize()
-        detection_ids = self._detection_id_to_obj.keys()
-        detections, artifacts = self._run_init_search_for_objects(
-            set(detection_ids))
-        stow_arm(self._robot)
-        obj_to_se3_pose = {
-            self._detection_id_to_obj[det_id]: val
-            for (det_id, val) in detections.items()
-        }
+        # detection_ids = self._detection_id_to_obj.keys()
+        # import ipdb; ipdb.set_trace()
+        # detections, artifacts = self._run_init_search_for_objects(
+        #     set(detection_ids))
+        # stow_arm(self._robot)
+        # obj_to_se3_pose = {
+        #     self._detection_id_to_obj[det_id]: val
+        #     for (det_id, val) in detections.items()
+        # }
+        
+        obj_to_se3_pose = get_known_movable_objects()
+        obj_to_se3_pose.update(get_known_immovable_objects())
         self._last_known_object_poses.update(obj_to_se3_pose)
         # Move the robot into a good place to construct the initial state
         # by running VLM predicates.
@@ -1149,7 +1182,7 @@ class SpotRearrangementEnv(BaseEnv):
         _ = input(prompt)
         assert self._lease_client is not None
         self._lease_client.take()
-        return obj_to_se3_pose, artifacts
+        return obj_to_se3_pose, {}
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
@@ -4278,12 +4311,13 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x1 = Variable("?x1", _movable_object_type)
         x2 = Variable("?x2", _robot_type)
         parameters = [x2, x0, x1]
-        preconds = {
-            # LiftedAtom(self._ColorIsGreen, [x1]),
-            LiftedAtom(_Holding, [x2, x1]),
-            LiftedAtom(self._IsEraser, [x1]),
-            LiftedAtom(self._NoObjectsOnTop, [x0]),
-        }
+        preconds = set()
+        # {
+        #     # LiftedAtom(self._ColorIsGreen, [x1]),
+        #     # LiftedAtom(_Holding, [x2, x1]),
+        #     # LiftedAtom(self._IsEraser, [x1]),
+        #     # LiftedAtom(self._NoObjectsOnTop, [x0]),
+        # }
         add_effs = {
             LiftedAtom(_TableWiped, [x0]),
         }
@@ -4341,30 +4375,36 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "bottle/clear_cup/clear_trashcan")] = Object(
-                "clear_plastic_dustbin", _trash_can_type)
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "apple/red_ball")] = Object("apple", _movable_object_type)
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "fluffy_toy/flower_arrangement")] = Object(
-                "fluffy_green_toy_eraser", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "bottle/clear_cup/clear_trashcan")] = Object(
+        #         "clear_plastic_dustbin", _trash_can_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "apple/red_ball")] = Object("apple", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "soda_can")] = Object(
+        #         "soda_can", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "fluffy_toy/flower_arrangement")] = Object(
+        #         "fluffy_green_toy_eraser", _movable_object_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "blue_block")] = Object("blue_block", _movable_object_type)
 
-        detection_id_to_obj[LanguageObjectDetectionID(
-            "cardboard_box")] = Object("cardboard_box_bin", _trash_can_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "cardboard_box")] = Object("cardboard_box_bin", _trash_can_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
         # "blue_coffee_cup")] = Object("blue_coffee_cup",
         #                              _movable_object_type)
+        for obj, pose in get_known_movable_objects().items():
+            detection_id = LanguageObjectDetectionID(obj.name)
+            detection_id_to_obj[detection_id] = obj
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
-            # if obj.name == "short_round_coffee_table":
-            #     table_obj = Object("short_round_coffee_table", _table_type)
-            #     detection_id_to_obj[stat_detection_id] = table_obj
-            if obj.name == "child_play_table":
-                table_obj = Object("child_play_table", _table_type)
+            if obj.name == "short_round_coffee_table":
+                table_obj = Object("short_round_coffee_table", _table_type)
                 detection_id_to_obj[stat_detection_id] = table_obj
+            # if obj.name == "child_play_table":
+            #     table_obj = Object("child_play_table", _table_type)
+            #     detection_id_to_obj[stat_detection_id] = table_obj
             else:
                 detection_id_to_obj[stat_detection_id] = obj
 

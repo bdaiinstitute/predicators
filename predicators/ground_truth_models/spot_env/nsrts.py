@@ -33,7 +33,6 @@ def _move_offset_sampler(state: State, robot_obj: Object,
     robot_geom = spot_pose_to_geom2d(spot_pose)
     convex_hulls = get_allowed_map_regions()
     collision_geoms = get_collision_geoms_for_nav(state)
-
     try:
         distance, angle, _ = sample_move_offset_from_target(
             obj_to_nav_to_pos,
@@ -297,8 +296,8 @@ def _move_and_wipe_table_sampler(state: State, goal: Set[GroundAtom],
     rel_dy = 0.25
     delta_dx = 0.05
     delta_dy = 0.0
-    num_wipes = 4
-    duration_per_stroke = 1.0
+    num_wipes = 5
+    duration_per_stroke = 0.65
     output_params = np.array([
         move_sample_params[0], move_sample_params[1], move_sample_params[2],
         rel_dx, rel_dy, delta_dx, delta_dy, num_wipes, duration_per_stroke

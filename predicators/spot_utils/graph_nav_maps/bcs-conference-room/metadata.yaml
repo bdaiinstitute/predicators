@@ -1,15 +1,10 @@
 # Additional info associated with the map.
 ---
 # NOTE: close to the center of the room
-#spot-home-pose:
-#  x: 2.85
-#  y: 0.0
-#  angle: -1.45769
-# NOTE: a place closer to the corner that the cable can reach - easier for debug
 spot-home-pose:
-  x: 3.5
-  y: 0.45
-  angle: 0.
+  x: 2.981
+  y: 0.082
+  angle: 1.27
 april-tag-offsets: []
 
 # Allowed regions. Each region is defined by a set of points
@@ -19,10 +14,10 @@ april-tag-offsets: []
 # points.
 allowed-regions:
   spot-room:
-    - [0.25, 1.9]
-    - [1.2, -2.5]
-    - [5.7, -1.5]
-    - [5.0, 2.7]
+    - [-0.2, -0.85]
+    - [4.1, -1.1]
+    - [3.8, 1.3]
+    - [-0.2, 1.6]
 
 # Known immovable objects. Assuming default rotations.
 # TODO note: later we can add static objects like short_round_coffee_tables, chairs, etc. here
@@ -31,14 +26,27 @@ known-immovable-objects:
     x: 1.4
     y: 0.5
     z: -0.5
-  # short_round_coffee_table:
+  # child_play_table:
   #   x: 1.65
   #   y: -0.24
   #   z: 0.14
-  child_play_table:
-    x: 1.65
-    y: -0.24
+
+known-movable-objects:
+  soda_can:
+    x: 3.223
+    y: 0.681
+    z: 0.20
+    object_type: "movable"
+  recycling_bin:
+    x: -0.045
+    y: 0.25
+    z: 0.2
+    object_type: "trashcan"
+  short_round_coffee_table:
+    x: 3.223
+    y: 0.681
     z: 0.14
+    object_type: "table"
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -75,6 +83,13 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
+  soda_can:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
   blue_block:
     shape: 2
     height: 0.1
@@ -102,6 +117,14 @@ static-object-features:
     height: 0.1
     length: 0.2
     width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  recycling_bin:
+    shape: 2
+    height: 0.4
+    length: 0.1
+    width: 0.1
     placeable: 1
     is_sweeper: 0
     flat_top_surface: 0
@@ -140,8 +163,10 @@ approach_angle_bounds:
   cardboard_box_bin: [1.47, 1.67]
   # approach the duster from the other side.
   fluffy_green_toy_eraser: [-0.1, 0.1] #[-1.67, -1.47]
+  soda_can: [-1.67, -1.47]
+  recycling_bin: [-0.1, 0.1]
 
 # Wiping skill params.
 wipe_location:
-  short_round_coffee_table: [2.48, 0.205, -2.96856]
-  child_play_table: [2.48, 0.205, -2.96856]
+  short_round_coffee_table: [3.223, 0.481, 1.396]
+  # child_play_table: [2.48, 0.205, -2.96856]

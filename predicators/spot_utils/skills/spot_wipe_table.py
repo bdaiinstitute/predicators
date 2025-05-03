@@ -9,6 +9,9 @@ from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import \
     move_hand_to_relative_pose, move_hand_to_relative_pose_with_velocity
+from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
+    open_gripper
+from predicators import utils
 
 
 def wipe_one_stroke(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
@@ -40,29 +43,38 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
                           stroke_dx: float, stroke_dy: float,
                           delta_x_y_between_strokes: Tuple[float, float],
                           num_strokes: int,
-                          duration_per_stroke: float) -> None:
+                          duration_per_stroke: float,
+                          num_attempts_per_stroke: int) -> None:
     """Wipe a table surface in the xy plane.
 
     The robot starts at a start pose, and then moves forward and back by
     dx and dy.
     """
+    # Ask for the eraser.
+    open_gripper(robot)
+    # Press any key, instead of just enter. Useful for remote control.
+    msg = "Put the brush in the robot's gripper, then press any key"
+    utils.wait_for_any_button_press(msg)
+    close_gripper(robot)
+
     curr_stroke_start_pose = wipe_start_pose
     for i in range(num_strokes):
-        move_hand_to_relative_pose(robot, curr_stroke_start_pose)
-        first_move_pose = math_helpers.SE3Pose(
-            x=curr_stroke_start_pose.x + stroke_dx,
-            y=curr_stroke_start_pose.y + stroke_dy,
-            z=curr_stroke_start_pose.z,
-            rot=curr_stroke_start_pose.rot,
-        )
-        move_hand_to_relative_pose_with_velocity(robot, curr_stroke_start_pose,
-                                                 first_move_pose,
-                                                 duration_per_stroke)
-        time.sleep(0.1)
-        # Move back to the start pose.
-        move_hand_to_relative_pose_with_velocity(robot, first_move_pose,
-                                                 curr_stroke_start_pose,
-                                                 duration_per_stroke)
+        for i in range(num_attempts_per_stroke):
+            move_hand_to_relative_pose(robot, curr_stroke_start_pose)
+            first_move_pose = math_helpers.SE3Pose(
+                x=curr_stroke_start_pose.x + stroke_dx,
+                y=curr_stroke_start_pose.y + stroke_dy,
+                z=curr_stroke_start_pose.z,
+                rot=curr_stroke_start_pose.rot,
+            )
+            move_hand_to_relative_pose_with_velocity(robot, curr_stroke_start_pose,
+                                                    first_move_pose,
+                                                    duration_per_stroke)
+            time.sleep(0.1)
+            # Move back to the start pose.
+            move_hand_to_relative_pose_with_velocity(robot, first_move_pose,
+                                                    curr_stroke_start_pose,
+                                                    duration_per_stroke)
         # Move to the next stroke position.
         curr_stroke_start_pose = math_helpers.SE3Pose(
             x=curr_stroke_start_pose.x + delta_x_y_between_strokes[0],

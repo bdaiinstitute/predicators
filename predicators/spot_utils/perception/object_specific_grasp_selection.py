@@ -45,7 +45,7 @@ chair_obj = LanguageObjectDetectionID(chair_prompt)
 trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
 blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 eraser_obj = LanguageObjectDetectionID("fluffy_toy/flower_arrangement")
-
+soda_can_obj = LanguageObjectDetectionID("soda_can")
 
 def _get_platform_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
@@ -108,6 +108,32 @@ def _get_apple_grasp_pixel(
         seg_bb = detections[apple_obj][camera_name]
     except KeyError:
         raise ValueError(f"{apple_obj} not detected in {camera_name}")
+    mask = seg_bb.mask
+    pixels_in_mask = np.where(mask)
+    # Select a pixel near the bottom, but not exactly the bottom-most.
+    pixel = (pixels_in_mask[1][-1], pixels_in_mask[0][-400])
+    # Force a forward top-down grasp.
+    roll = math_helpers.Quat.from_roll(np.pi / 2)
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    # # # Uncomment for debugging.
+    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    return pixel, pitch * roll  # NOTE: order is super important here!
+
+
+def _get_soda_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    # del rgbds, rng
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    try:
+        seg_bb = detections[soda_can_obj][camera_name]
+    except KeyError:
+        raise ValueError(f"{soda_can_obj} not detected in {camera_name}")
     mask = seg_bb.mask
     pixels_in_mask = np.where(mask)
     # Select a pixel near the bottom, but not exactly the bottom-most.
@@ -570,5 +596,6 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     blue_cup_obj: partial(_get_mask_center_grasp_pixel, blue_cup_obj),
     # Eraser-specific grasp selection.
     eraser_obj: partial(_get_mask_center_grasp_pixel, eraser_obj),
-
+    # Soda can specific grasp selection.
+    soda_can_obj: _get_soda_grasp_pixel,
 }

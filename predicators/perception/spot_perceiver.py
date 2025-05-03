@@ -692,21 +692,24 @@ class SpotPerceiver(BasePerceiver):
             # OnFloor = pred_name_to_pred["OnFloor"]
             # IsGrumpy = pred_name_to_pred["IsGrumpy"]
             # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
-            # Holding = pred_name_to_pred["Holding"]
+            Holding = pred_name_to_pred["Holding"]
             clear_trash_can = Object("clear_plastic_dustbin", _trash_can_type)
             cardboard_trash_can = Object("cardboard_box_bin", _trash_can_type)
             apple = Object("apple", _movable_object_type)
-            table = Object("child_play_table", _table_type)
+            table = Object("short_round_coffee_table", _table_type)
             # table = Object("short_round_coffee_table", _table_type)
             eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
-            # robot = Object("robot", _robot_type)
+            recycling_bin = Object("recycling_bin", _trash_can_type)
+            soda = Object("soda_can", _movable_object_type)
+            robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Holding, [robot, eraser]),
-                GroundAtom(Inside, [eraser, clear_trash_can]),
+                # GroundAtom(Inside, [eraser, clear_trash_can]),
                 # GroundAtom(Inside, [apple, clear_trash_can]),
                 GroundAtom(TableWiped, [table]),
+                # GroundAtom(Inside, [soda, recycling_bin]),
                 # GroundAtom(IsGrumpy, [trash_can]),
-                # GroundAtom(Holding, [robot, apple]),
+                # GroundAtom(Holding, [robot, soda]),
             }
             return goal
         if goal_description == "make some juice!":

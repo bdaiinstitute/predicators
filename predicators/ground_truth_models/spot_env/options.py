@@ -626,7 +626,7 @@ def _move_to_reach_and_wipe_surface_policy(name: str, state: State,
         #                                       np.pi / 2))
         start_pose = math_helpers.SE3Pose(x=0.8,
                                           y=-0.1,
-                                          z=-0.04,
+                                          z=-0.1,
                                           rot=math_helpers.Quat.from_pitch(
                                               np.pi / 2))
         end_pose = math_helpers.SE3Pose(x=0.65,
@@ -638,7 +638,7 @@ def _move_to_reach_and_wipe_surface_policy(name: str, state: State,
             3:9]
         wipe_multiple_strokes(robot, start_pose, end_pose,
                               rel_dx, rel_dy, (delta_dx, delta_dy),
-                              int(num_wipes), duration_per_stroke)
+                              int(num_wipes), duration_per_stroke, int(2))
 
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
