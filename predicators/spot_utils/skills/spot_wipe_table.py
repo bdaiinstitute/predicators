@@ -48,12 +48,12 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
     The robot starts at a start pose, and then moves forward and back by
     dx and dy.
     """
-    # Ask for the eraser.
-    open_gripper(robot)
-    # Press any key, instead of just enter. Useful for remote control.
-    msg = "Put the brush in the robot's gripper, then press any key"
-    utils.wait_for_any_button_press(msg)
-    close_gripper(robot)
+    # # Ask for the eraser.
+    # open_gripper(robot)
+    # # Press any key, instead of just enter. Useful for remote control.
+    # msg = "Put the brush in the robot's gripper, then press any key"
+    # utils.wait_for_any_button_press(msg)
+    # close_gripper(robot)
 
     curr_stroke_start_pose = wipe_start_pose
     for i in range(num_strokes):

@@ -79,8 +79,8 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     # Parameters are relative distance, dyaw (to the object you're moving to).
     del goal
 
-    min_dist = 1.2
-    max_dist = 1.5
+    min_dist = 1.0
+    max_dist = 1.4
 
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]

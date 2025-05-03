@@ -47,6 +47,11 @@ known-movable-objects:
     y: 0.681
     z: 0.14
     object_type: "table"
+  blue_and_pink_double_eraser:
+    x: 1.5
+    y: 0.9
+    z: 0.114
+    object_type: "movable"
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -128,7 +133,14 @@ static-object-features:
     placeable: 1
     is_sweeper: 0
     flat_top_surface: 0
-  fluffy_green_toy_eraser:
+  toy:
+    shape: 1
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  blue_and_pink_double_eraser:
     shape: 1
     height: 0.1
     length: 0.1
@@ -138,8 +150,8 @@ static-object-features:
   short_round_coffee_table:
     shape: 1
     height: 0.1
-    length: 0.79
-    width: 0.62
+    length: 0.45
+    width: 0.45
     flat_top_surface: 1
   child_play_table:
     shape: 1
@@ -162,7 +174,8 @@ approach_angle_bounds:
   clear_plastic_dustbin: [1.47, 1.67]
   cardboard_box_bin: [1.47, 1.67]
   # approach the duster from the other side.
-  fluffy_green_toy_eraser: [-0.1, 0.1] #[-1.67, -1.47]
+  blue_and_pink_double_eraser: [-1.67, -1.47]
+  toy: [-1.67, -1.47]
   soda_can: [-1.67, -1.47]
   recycling_bin: [-0.1, 0.1]
 

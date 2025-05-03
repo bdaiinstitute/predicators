@@ -698,7 +698,7 @@ class SpotPerceiver(BasePerceiver):
             apple = Object("apple", _movable_object_type)
             table = Object("short_round_coffee_table", _table_type)
             # table = Object("short_round_coffee_table", _table_type)
-            eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
+            eraser = Object("blue_and_pink_double_eraser", _movable_object_type)
             recycling_bin = Object("recycling_bin", _trash_can_type)
             soda = Object("soda_can", _movable_object_type)
             robot = Object("robot", _robot_type)

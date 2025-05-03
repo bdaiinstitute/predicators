@@ -255,7 +255,10 @@ def get_known_movable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     }
 
     for obj_name, obj_pos in known_immovables.items():
-        obj = Object(obj_name, type_name_to_type[obj_pos["object_type"]])
+        if obj_name == "blue_and_pink_double_eraser":
+            obj = Object("blue_and_pink_double_eraser", type_name_to_type[obj_pos["object_type"]])
+        else:
+            obj = Object(obj_name, type_name_to_type[obj_pos["object_type"]])
         yaw = obj_pos.get("yaw", 0.0)
         rot = math_helpers.Quat.from_yaw(yaw)
         pose = math_helpers.SE3Pose(obj_pos["x"],
@@ -4307,13 +4310,11 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x1 = Variable("?x1", _movable_object_type)
         x2 = Variable("?x2", _robot_type)
         parameters = [x2, x0, x1]
-        preconds = set()
-        # {
-        #     # LiftedAtom(self._ColorIsGreen, [x1]),
-        #     # LiftedAtom(_Holding, [x2, x1]),
-        #     # LiftedAtom(self._IsEraser, [x1]),
-        #     # LiftedAtom(self._NoObjectsOnTop, [x0]),
-        # }
+        preconds ={
+            LiftedAtom(_Holding, [x2, x1]),
+            LiftedAtom(self._IsEraser, [x1]),
+            # LiftedAtom(self._NoObjectsOnTop, [x0]),
+        }
         add_effs = {
             LiftedAtom(_TableWiped, [x0]),
         }
@@ -4390,8 +4391,14 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         # "blue_coffee_cup")] = Object("blue_coffee_cup",
         #                              _movable_object_type)
         for obj, pose in get_known_movable_objects().items():
-            detection_id = LanguageObjectDetectionID(obj.name)
-            detection_id_to_obj[detection_id] = obj
+            if obj.name == "blue_and_pink_double_eraser":
+                eraser_obj = Object("blue_and_pink_double_eraser",
+                                    _movable_object_type)
+                detection_id = LanguageObjectDetectionID("toy")
+                detection_id_to_obj[detection_id] = eraser_obj
+            else:
+                detection_id = LanguageObjectDetectionID(obj.name)
+                detection_id_to_obj[detection_id] = obj
         for obj, pose in get_known_immovable_objects().items():
             stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
             if obj.name == "short_round_coffee_table":
