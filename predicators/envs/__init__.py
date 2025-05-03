@@ -21,6 +21,12 @@ def create_new_env(name: str,
     later be loaded using get_or_create_env().
     """
     for cls in utils.get_all_subclasses(BaseEnv):
+        # try:
+        #     if cls.get_name() == name:
+        #         import ipdb; ipdb.set_trace()
+        #     print(cls.get_name())
+        # except NotImplementedError:
+        #     pass
         if not cls.__abstractmethods__ and cls.get_name() == name:
             env = cls(use_gui)
             break

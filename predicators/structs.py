@@ -125,7 +125,12 @@ class State:
     def __post_init__(self) -> None:
         # Check feature vector dimensions.
         for obj in self:
-            assert len(self[obj]) == obj.type.dim
+            try:
+                assert len(self[obj]) == obj.type.dim
+            except AssertionError:
+                print(f"Object: {obj} has a feature vector of length "
+                      f"{len(self[obj])}, but type {obj.type.name} has "
+                        f"dimensionality {obj.type.dim}.")
 
     def __iter__(self) -> Iterator[Object]:
         """An iterator over the state's objects, in sorted order."""
@@ -1027,9 +1032,12 @@ class NSRT:
         assert all(
             o.is_instance(p.type) for o, p in zip(objects, self.parameters))
         sub = dict(zip(self.parameters, objects))
-        preconditions = {atom.ground(sub) for atom in self.preconditions}
-        add_effects = {atom.ground(sub) for atom in self.add_effects}
-        delete_effects = {atom.ground(sub) for atom in self.delete_effects}
+        try:
+            preconditions = {atom.ground(sub) for atom in self.preconditions}
+            add_effects = {atom.ground(sub) for atom in self.add_effects}
+            delete_effects = {atom.ground(sub) for atom in self.delete_effects}
+        except AssertionError:
+            import ipdb; ipdb.set_trace()
         option_objs = [sub[v] for v in self.option_vars]
         return _GroundNSRT(self, objects, preconditions, add_effects,
                            delete_effects, self.option, option_objs,

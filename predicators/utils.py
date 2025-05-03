@@ -236,7 +236,10 @@ def create_state_from_dict(data: Dict[Object, Dict[str, float]],
     for obj, obj_data in data.items():
         obj_vec = []
         for feat in obj.type.feature_names:
-            obj_vec.append(obj_data[feat])
+            try:
+                obj_vec.append(obj_data[feat])
+            except KeyError:
+                print(f"Warning: feature not found in {obj.name} data dict: {feat}")
         state_dict[obj] = np.array(obj_vec)
     return State(state_dict, simulator_state)
 

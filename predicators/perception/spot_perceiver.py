@@ -24,7 +24,7 @@ from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
     _immovable_object_type, _movable_object_type, _robot_type, _table_type, \
     _trash_can_type, _wrappers_type, get_allowed_map_regions, \
-    load_spot_metadata, object_to_top_down_geom
+    load_spot_metadata, object_to_top_down_geom, _juicer_type
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
@@ -697,16 +697,37 @@ class SpotPerceiver(BasePerceiver):
             cardboard_trash_can = Object("cardboard_box_bin", _trash_can_type)
             apple = Object("apple", _movable_object_type)
             table = Object("child_play_table", _table_type)
+            # table = Object("short_round_coffee_table", _table_type)
             eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
             # robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Holding, [robot, eraser]),
                 GroundAtom(Inside, [eraser, clear_trash_can]),
-                GroundAtom(Inside, [apple, cardboard_trash_can]),
+                # GroundAtom(Inside, [apple, clear_trash_can]),
                 GroundAtom(TableWiped, [table]),
                 # GroundAtom(IsGrumpy, [trash_can]),
                 # GroundAtom(Holding, [robot, apple]),
             }
+            return goal
+        if goal_description == "make some juice!":
+            JuiceInCup = pred_name_to_pred["JuiceInCup"]
+            Empty = pred_name_to_pred["Empty"]
+            Inside = pred_name_to_pred["Inside"]
+            # plastic_cup = Object("clear_plastic_cup", _container_type)
+            orange = Object("orange", _movable_object_type)
+            # pear = Object("pear", _movable_object_type)
+            glass_cup = Object("clear_plastic_cup", _container_type)
+            red_cup = Object("red_cup", _container_type)
+            # paper_cup = Object("paper_cup", _container_type)
+            juice_machine = Object("ECOSELF_juice_machine", _juicer_type)
+            apple = Object("apple", _movable_object_type)
+            blue_Cup = Object("blue_plastic_cup", _container_type)
+            goal = {
+                GroundAtom(JuiceInCup, [orange, blue_Cup]),
+                # GroundAtom(Empty, [glass_cup]),
+                # GroundAtom(Inside, [orange, juice_machine]),
+                # GroundAtom(Inside, [apple, juice_machine]),
+                }
             return goal
         raise NotImplementedError("Unrecognized goal description")
 

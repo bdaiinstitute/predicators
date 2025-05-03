@@ -102,6 +102,12 @@ _wrappers_type = Type("wrappers",
 _table_type = Type("table",
                    list(_immovable_object_type.feature_names),
                    parent=_immovable_object_type)
+_juicer_type = Type("juicer",
+                     list(_movable_object_type.feature_names),
+                     parent=_movable_object_type)
+_cup_type = Type("cup",
+                    list(_movable_object_type.feature_names),
+                    parent=_movable_object_type)
 
 
 def get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:

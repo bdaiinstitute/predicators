@@ -3,6 +3,6 @@ Start by first describing the visual scene given all the provided images - which
 For each predicate, output True, False, or Unknown if the relevant objects are not in the scene or the value of the predicate simply cannot be determined. Output each predicate value as a bulleted list with each predicate and value on a different line. For each output value, provide an explanation as to why you labelled this predicate as having this particular value. Use the format: <predicate>: <truth_value>. <explanation>.
 
 Pay careful attention to whether the lid of the juicer is closed, and whether particular cups are in specific labelled 
-regions on the table or not.
+regions on the table or not. Note that the juicer is always on and ready to be used.
 
 Predicates:

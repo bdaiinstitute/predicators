@@ -46,7 +46,7 @@ from predicators.spot_utils.utils import _base_object_type, _broom_type, \
     _wrappers_type, construct_state_given_pbrspot, get_allowed_map_regions, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
-    update_pbrspot_robot_conf, verify_estop
+    update_pbrspot_robot_conf, verify_estop, _juicer_type, _cup_type
 from predicators.structs import Action, EnvironmentTask, GoalDescription, \
     GroundAtom, LiftedAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, STRIPSOperator, Type, Variable
@@ -461,7 +461,10 @@ class SpotRearrangementEnv(BaseEnv):
             while True:
                 try:
                     self._lease_client.take()
-                    self._current_task = self._actively_construct_env_task()
+                    # self._current_task = self._actively_construct_env_task()
+                    # TODO: hack for now; just to make planning + VLM running
+                    # much simpler.
+                    self._current_task = self._manually_construct_env_task()
                     break
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
@@ -865,6 +868,106 @@ class SpotRearrangementEnv(BaseEnv):
         goal = self._generate_goal_description()  # currently just one goal
         return [EnvironmentTask(None, goal) for _ in range(CFG.num_test_tasks)]
 
+    def _manually_construct_env_task(self) -> EnvironmentTask:
+        """A version of actively constructing the environment task that
+        doesn't require the robot to walk around and run object detection.
+        Useful for debugging/quick testing (or just trying to see if 
+        planning works without actually executing anything).
+        """
+        assert self._robot is not None
+        assert self._localizer is not None
+        rgbd_images = capture_images(self._robot, self._localizer)
+        gripper_open_percentage = get_robot_gripper_open_percentage(
+            self._robot)
+        self._localizer.localize()
+        robot_pos = self._localizer.get_last_robot_pose()
+        nonpercept_atoms = self._get_initial_nonpercept_atoms()
+        nonpercept_preds = self.predicates - self.percept_predicates
+        assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
+        objects_in_view = {
+            # Object("orange", _movable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("plastic_cup", _movable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("pear", _movable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("blue_coffee_cup", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("cardboard_box", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("blue_plastic_cup", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("clear_plastic_cup", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("rectangular_table", _immovable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("short_round_coffee_table", _immovable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("ECOSELF_juice_machine", _juicer_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("paper_cup", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("glass_cup", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("orange_bowl", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("purple_bowl", _container_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("apple", _movable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            # Object("orange", _movable_object_type): math_helpers.SE3Pose(
+            #     0.0, 0.0, 0.0,
+            #     math_helpers.Quat.from_yaw(0.0)),
+            Object("fluffy_green_toy_eraser", _movable_object_type):
+                math_helpers.SE3Pose(
+                    0.0, 0.0, 0.0,
+                    math_helpers.Quat.from_yaw(0.0)),
+            # Object("blue_coffee_cup", _movable_object_type):
+            #     math_helpers.SE3Pose(
+            #         0.0, 0.0, 0.0,
+            #         math_helpers.Quat.from_yaw(0.0)),
+            Object("child_play_table", _table_type):
+                math_helpers.SE3Pose(
+                    0.0, 0.0, 0.0,
+                    math_helpers.Quat.from_yaw(0.0)),
+            Object("apple", _movable_object_type):
+                math_helpers.SE3Pose(
+                    0.0, 0.0, 0.0,
+                    math_helpers.Quat.from_yaw(0.0)),
+            # Object("cardboard_box_bin", _trash_can_type):
+            #     math_helpers.SE3Pose(
+            #         0.0, 0.0, 0.0,
+            #         math_helpers.Quat.from_yaw(0.0)),
+            Object("clear_plastic_dustbin", _trash_can_type):
+                math_helpers.SE3Pose(
+                    0.0, 0.0, 0.0,
+                    math_helpers.Quat.from_yaw(0.0)),
+                
+        }
+        obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
+                               self._spot_object, gripper_open_percentage,
+                               robot_pos, nonpercept_atoms, nonpercept_preds,
+                               {})
+        goal_description = self._generate_goal_description()
+        task = EnvironmentTask(obs, goal_description)
+        return task
+
+
     def _actively_construct_env_task(self) -> EnvironmentTask:
         # Have the spot walk around the environment once to construct
         # an initial observation.
@@ -1108,7 +1211,8 @@ _ROBOT_SWEEP_READY_TOL = 0.25
 ## Types
 _ALL_TYPES = {
     _robot_type, _base_object_type, _movable_object_type,
-    _immovable_object_type, _container_type, _table_type, _trash_can_type
+    _immovable_object_type, _container_type, _table_type, _trash_can_type, 
+    _juicer_type, _cup_type
 }
 
 
@@ -2673,7 +2777,8 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
         while True:
             try:
                 self._lease_client.take()
-                self._current_task = self._actively_construct_env_task()
+                # self._current_task = self._actively_construct_env_task()
+
                 break
             except RetryableRpcError as e:
                 logging.warning("WARNING: the following retryable error "
@@ -4267,6 +4372,290 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "clean up the table!"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+    
+
+###############################################################################
+#            Juice Making Env with Invented Predicates and Map                #
+###############################################################################
+
+
+class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
+    """A version of the SpotVLMJuiceMakingHumanInventionEnv, but with an actual 
+    map and full skill implementations.
+
+    Also, this environment uses invented predicates for the juicing
+    task (these are manually copied over from invention done on the env
+    in vlm_envs.py).
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+        # Define VLM Predicates
+        self._IsCup = utils.create_vlm_predicate(
+            "IsCup", [_container_type],
+            lambda o: _get_vlm_query_str("IsCup", o))
+
+        self._NearJuiceValve = utils.create_vlm_predicate(
+            "NearJuiceValve", [_container_type, _juicer_type],
+            lambda o: _get_vlm_query_str("NearJuiceValve", o))
+
+        self._InsideWasteValveRegion = utils.create_vlm_predicate(
+            "InsideWasteValveRegion", [_container_type, _juicer_type], # Assuming cup type
+            lambda o: _get_vlm_query_str("InsideWasteValveRegion", o))
+
+        self._OutsideJuiceMachine = utils.create_vlm_predicate(
+            "OutsideJuiceMachine", [_movable_object_type], # Assuming cup type
+            lambda o: _get_vlm_query_str("OutsideJuiceMachine", o))
+
+        self._LidClosed = utils.create_vlm_predicate(
+            "LidClosed", [_juicer_type],
+            lambda o: _get_vlm_query_str("LidClosed", o))
+
+        self._Functional = utils.create_vlm_predicate(
+            "Functional", [_juicer_type],
+            lambda o: _get_vlm_query_str("Functional", o))
+
+        self._JuiceMachineOpen = utils.create_vlm_predicate(
+            "JuiceMachineOpen", [_juicer_type],
+            lambda o: _get_vlm_query_str("JuiceMachineOpen", o))
+
+        self._IsPlastic = utils.create_vlm_predicate(
+            "IsPlastic", [_movable_object_type],
+            lambda o: _get_vlm_query_str("IsPlastic", o))
+
+        self._HasContents = utils.create_vlm_predicate(
+            "HasContents", [_container_type],
+            lambda o: _get_vlm_query_str("HasContents", o))
+        
+        self._Empty = utils.create_vlm_predicate(
+            "Empty", [_container_type],
+            lambda o: _get_vlm_query_str("Empty", o))
+        
+        self._JuiceInCup = utils.create_vlm_predicate(
+            "JuiceInCup", [_movable_object_type, _container_type],
+            lambda o: _get_vlm_query_str("JuiceInCup", o))
+        
+        self._InsideJuicer = utils.create_vlm_predicate(
+            "Inside", [_movable_object_type, _juicer_type],
+            lambda o: _get_vlm_query_str("Inside", o)
+        )
+
+        # Store all newly defined VLM predicates
+        self._vlm_predicates = {
+            self._IsCup, 
+            self._NearJuiceValve, self._InsideWasteValveRegion,
+            self._OutsideJuiceMachine, self._LidClosed,
+            self._Functional, 
+            self._JuiceMachineOpen,
+            self._IsPlastic, self._HasContents, self._InsideJuicer, self._JuiceInCup,
+            self._Empty
+        }
+
+        # Add in Operators.
+        self._strips_operators = set()
+
+        # STRIPS-Op0: CloseLid
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _juicer_type)
+        parameters = [x0, x1]
+        preconds = {
+            LiftedAtom(self._Functional, [x1]),
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._JuiceMachineOpen, [x1]),
+        }
+        add_effs = {LiftedAtom(self._LidClosed, [x1])}
+        del_effs = {LiftedAtom(self._JuiceMachineOpen, [x1])}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("CloseLid", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # STRIPS-Op1: PickContainer
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _container_type) # Use container type
+        parameters = [x0, x1]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._IsCup, [x1]), # Check if it's a cup
+        }
+        add_effs = {LiftedAtom(_Holding, [x0, x1])}
+        del_effs = {LiftedAtom(_HandEmpty, [x0])} # Assuming standard _HandEmpty
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("PickContainer", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # STRIPS-Op2: PlaceInsideJuiceValveRegion
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _juicer_type)
+        x2 = Variable("?x2", _container_type) # Use container type
+        parameters = [x0, x2, x1] # Order matches Option Spec
+        preconds = {
+            LiftedAtom(self._Empty, [x2]),
+            LiftedAtom(self._Functional, [x1]),
+            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(self._IsCup, [x2]),
+            LiftedAtom(self._LidClosed, [x1]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._NearJuiceValve, [x2, x1]),
+        }
+        del_effs = {LiftedAtom(_Holding, [x0, x2])}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("PlaceInsideJuiceValveRegion", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # STRIPS-Op5: PlaceInsideWasteValveRegion
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _juicer_type)
+        x2 = Variable("?x2", _container_type) # Use container type
+        parameters = [x0, x2, x1] # Order matches Option Spec
+        preconds = {
+            LiftedAtom(self._Empty, [x2]), 
+            LiftedAtom(self._Functional, [x1]),
+            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(self._IsCup, [x2]),
+            LiftedAtom(self._IsPlastic, [x2]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._InsideWasteValveRegion, [x2, x1]),
+        }
+        del_effs = {LiftedAtom(_Holding, [x0, x2])}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("PlaceInsideWasteValveRegion", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # STRIPS-Op7: DumpFromOneIntoOther
+        x0 = Variable("?x0", _container_type) # Target container
+        x1 = Variable("?x1", _container_type) # Source container
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x1, x0] # Order matches Option Spec
+        preconds = {
+            LiftedAtom(self._Empty, [x0]), # Target is Empty
+            LiftedAtom(self._HasContents, [x1]),      # Source HasContents
+            LiftedAtom(_Holding, [x2, x1]),
+            LiftedAtom(self._IsCup, [x1]),
+            LiftedAtom(self._IsPlastic, [x1]),
+        }
+        add_effs = {
+            LiftedAtom(self._Empty, [x1]), # Source becomes Empty
+            LiftedAtom(self._HasContents, [x0]),      # Target HasContents
+        }
+        del_effs = {
+            LiftedAtom(self._Empty, [x0]), # Target not Empty anymore
+            LiftedAtom(self._HasContents, [x1]),      # Source not HasContents anymore
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("DumpFromOneIntoOther", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # STRIPS-Op10: TurnOnAndRunMachine
+        x0 = Variable("?x0", _container_type) # Juice cup
+        x1 = Variable("?x1", _container_type) # Waste cup
+        x2 = Variable("?x2", _robot_type)
+        x3 = Variable("?x3", _juicer_type)
+        x4 = Variable("?x4", _movable_object_type) # Fruit/veg
+        # parameters = [x2, x3, x0, x1, x4] # Order for operator!
+        parameters = [x2, x3, x0, x1] # Order for option spec
+        preconds = {
+            LiftedAtom(self._Empty, [x0]),
+            LiftedAtom(self._Empty, [x1]),
+            LiftedAtom(self._Functional, [x3]),
+            LiftedAtom(_HandEmpty, [x2]), # Assuming standard _HandEmpty
+            LiftedAtom(self._InsideJuicer, [x4, x3]), # Assuming standard _Inside
+            LiftedAtom(self._InsideWasteValveRegion, [x1, x3]),
+            LiftedAtom(self._IsCup, [x0]),
+            LiftedAtom(self._IsCup, [x1]),
+            LiftedAtom(self._IsPlastic, [x1]),
+            LiftedAtom(self._LidClosed, [x3]),
+            LiftedAtom(self._NearJuiceValve, [x0, x3]),
+        }
+        add_effs = {
+            LiftedAtom(self._HasContents, [x0]), # Juice cup HasContents
+            LiftedAtom(self._HasContents, [x1]), # Waste cup HasContents
+            LiftedAtom(self._JuiceInCup, [x4, x0]), # Custom predicate
+            LiftedAtom(self._OutsideJuiceMachine, [x4]),
+        }
+        del_effs = {
+            LiftedAtom(self._Empty, [x0]), # Juice cup not Empty
+            LiftedAtom(self._Empty, [x0]), # Waste cup not Empty
+            LiftedAtom(self._InsideJuicer, [x4, x3]), # Assuming standard _Inside
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("TurnOnAndRunMachine", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # STRIPS-Op11: PickMovable
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _movable_object_type)
+        parameters = [x0, x1]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._OutsideJuiceMachine, [x1]),
+        }
+        add_effs = {LiftedAtom(_Holding, [x0, x1])}
+        del_effs = {LiftedAtom(_HandEmpty, [x0])} # Assuming standard _HandEmpty
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("PickMovable", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # STRIPS-Op12: PlaceInside
+        x0 = Variable("?x0", _robot_type)
+        x1 = Variable("?x1", _juicer_type)
+        x2 = Variable("?x2", _movable_object_type)
+        parameters = [x0, x2, x1] # Order matches Option Spec
+        preconds = {
+            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(self._JuiceMachineOpen, [x1]),
+            LiftedAtom(self._OutsideJuiceMachine, [x2]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x0]), # Assuming standard _HandEmpty
+            LiftedAtom(self._InsideJuicer, [x2, x1]), # Assuming standard _Inside
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(self._OutsideJuiceMachine, [x2]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("PlaceInside", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+        
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = self._vlm_predicates
+        preds |= set(p for p in _ALL_PREDICATES if p.name in ["Holding", "HandEmpty",])
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_juice_making_invented_predicates_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        # TODO
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "make some juice!"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:

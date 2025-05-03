@@ -60,14 +60,14 @@ class SpotWrapperApproach(BaseApproachWrapper):
                 extra_info = SpotActionExtraInfo("done", [], None, tuple(),
                                                  None, tuple())
                 return utils.create_spot_env_action(extra_info)
-            # If some objects are lost, find them.
-            lost_objects: Set[Object] = set()
-            for obj in state:
-                if "lost" in obj.type.feature_names and \
-                    state.get(obj, "lost") > 0.5:
-                    lost_objects.add(obj)
-            # Need to find the objects.
             # NOTE: HACK: commenting out for now - just for some robot testing!
+            # # If some objects are lost, find them.
+            # lost_objects: Set[Object] = set()
+            # for obj in state:
+            #     if "lost" in obj.type.feature_names and \
+            #         state.get(obj, "lost") > 0.5:
+            #         lost_objects.add(obj)
+            # Need to find the objects.
             # if lost_objects and len(CFG.spot_vlm_teleop_demo_folderpath) == 0:
             #     logging.info(f"[Spot Wrapper] Lost objects: {lost_objects}")
             #     # Reset the base approach policy.

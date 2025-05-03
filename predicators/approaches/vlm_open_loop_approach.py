@@ -106,11 +106,11 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
 
         def _append_to_prompt_state_imgs_list(state: State) -> None:
             assert state.simulator_state is not None
-            assert len(state.simulator_state["images"]) == num_imgs_per_state
+            # assert len(state.simulator_state["images"]) == num_imgs_per_state
             for img_num, img in enumerate(state.simulator_state["images"]):
                 pil_img = PIL.Image.fromarray(img)  # type: ignore
                 width, height = pil_img.size
-                font_size = 6
+                font_size = 30
                 text = f"Demonstration {traj_num}, " + \
                     f"State {state_num}, Image {img_num}"
                 draw = ImageDraw.Draw(pil_img)
@@ -140,8 +140,8 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         assert dataset.trajectories[0].states[0].simulator_state is not None
         assert isinstance(
             dataset.trajectories[0].states[0].simulator_state["images"], List)
-        num_imgs_per_state = len(
-            dataset.trajectories[0].states[0].simulator_state["images"])
+        # num_imgs_per_state = len(
+        #     dataset.trajectories[0].states[0].simulator_state["images"])
         segmented_trajs = [
             segment_trajectory(traj, self._initial_predicates)
             for traj in dataset.trajectories
@@ -269,4 +269,5 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         for option_tuple in parsed_option_plan:
             option_plan.append(option_tuple[0].ground(
                 option_tuple[1], np.array(option_tuple[2])))
+        import ipdb; ipdb.set_trace()
         return option_plan

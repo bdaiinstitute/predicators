@@ -1256,8 +1256,12 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
             policy = _create_teleop_policy_with_name(operator_name)
             params_space = Box(0, 1, (0, ))  # null
         else:
-            params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
-            policy = _OPERATOR_NAME_TO_POLICY[operator_name]
+            if CFG.env != "spot_vlm_juice_making_invented_predicates_env":
+                params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
+                policy = _OPERATOR_NAME_TO_POLICY[operator_name]
+            else:
+                params_space = Box(0, 1, (0, )) # empty
+                policy = _create_teleop_policy_with_name(operator_name)        
         super().__init__(operator_name, policy, types, params_space)
 
     def __reduce__(self) -> Tuple:
@@ -1277,7 +1281,8 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_brush_shelf_env", "lis_spot_block_floor_env",
             "spot_vlm_simple_table_wiping_env",
             "spot_vlm_table_wiping_oracle_env",
-            "spot_vlm_table_wiping_invented_predicates_env"
+            "spot_vlm_table_wiping_invented_predicates_env",
+            "spot_vlm_juice_making_invented_predicates_env"
         }
 
     @classmethod
