@@ -11,6 +11,7 @@ from predicators import utils
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     move_hand_to_relative_pose, move_hand_to_relative_pose_with_velocity, \
     open_gripper
+from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 
 
 def wipe_one_stroke(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
@@ -48,6 +49,7 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
     The robot starts at a start pose, and then moves forward and back by
     dx and dy.
     """
+    # stow_arm(robot)
     # # Ask for the eraser.
     # open_gripper(robot)
     # # Press any key, instead of just enter. Useful for remote control.
@@ -83,6 +85,7 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
         )
     # Move to the end look pose.
     move_hand_to_relative_pose(robot, end_look_pose)
+    import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":

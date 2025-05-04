@@ -60,41 +60,41 @@ class SpotWrapperApproach(BaseApproachWrapper):
                 extra_info = SpotActionExtraInfo("done", [], None, tuple(),
                                                  None, tuple())
                 return utils.create_spot_env_action(extra_info)
-            # NOTE: HACK: commenting out for now - just for some robot testing!
-            # If some objects are lost, find them.
-            lost_objects: Set[Object] = set()
-            for obj in state:
-                if "lost" in obj.type.feature_names and \
-                    state.get(obj, "lost") > 0.5 and "soda" not in obj.name:
-                    lost_objects.add(obj)
-            # Need to find the objects.
-            if lost_objects and len(CFG.spot_vlm_teleop_demo_folderpath) == 0:
-                logging.info(f"[Spot Wrapper] Lost objects: {lost_objects}")
-                # Reset the base approach policy.
-                base_approach_policy = None
-                need_stow = True
-                self._base_approach_has_control = False
-                robot, localizer, lease_client = get_robot()
-                lost_object_ids = {
-                    get_detection_id_for_object(o)
-                    for o in lost_objects
-                }
-                allowed_regions = self._allowed_regions
-                extra_info = SpotActionExtraInfo(
-                    "find-objects", [], find_objects,
-                    (state, self._rng, robot, localizer, lease_client,
-                     lost_object_ids, allowed_regions), None, tuple())
-                return utils.create_spot_env_action(extra_info)
-            # Found the objects. Stow the arm before replanning.
-            if need_stow:
-                logging.info("[Spot Wrapper] Lost objects found, stowing.")
-                base_approach_policy = None
-                need_stow = False
-                self._base_approach_has_control = False
-                robot, _, _ = get_robot()
-                extra_info = SpotActionExtraInfo("stow-arm", [], stow_arm,
-                                                 (robot, ), None, tuple())
-                return utils.create_spot_env_action(extra_info)
+            # # NOTE: HACK: commenting out for now - just for some robot testing!
+            # # If some objects are lost, find them.
+            # lost_objects: Set[Object] = set()
+            # for obj in state:
+            #     if "lost" in obj.type.feature_names and \
+            #         state.get(obj, "lost") > 0.5 and "soda" not in obj.name:
+            #         lost_objects.add(obj)
+            # # Need to find the objects.
+            # if lost_objects and len(CFG.spot_vlm_teleop_demo_folderpath) == 0:
+            #     logging.info(f"[Spot Wrapper] Lost objects: {lost_objects}")
+            #     # Reset the base approach policy.
+            #     base_approach_policy = None
+            #     need_stow = True
+            #     self._base_approach_has_control = False
+            #     robot, localizer, lease_client = get_robot()
+            #     lost_object_ids = {
+            #         get_detection_id_for_object(o)
+            #         for o in lost_objects
+            #     }
+            #     allowed_regions = self._allowed_regions
+            #     extra_info = SpotActionExtraInfo(
+            #         "find-objects", [], find_objects,
+            #         (state, self._rng, robot, localizer, lease_client,
+            #          lost_object_ids, allowed_regions), None, tuple())
+            #     return utils.create_spot_env_action(extra_info)
+            # # Found the objects. Stow the arm before replanning.
+            # if need_stow:
+            #     logging.info("[Spot Wrapper] Lost objects found, stowing.")
+            #     base_approach_policy = None
+            #     need_stow = False
+            #     self._base_approach_has_control = False
+            #     robot, _, _ = get_robot()
+            #     extra_info = SpotActionExtraInfo("stow-arm", [], stow_arm,
+            #                                      (robot, ), None, tuple())
+            #     return utils.create_spot_env_action(extra_info)
             # Check if we need to re-solve.
             if base_approach_policy is None:
                 logging.info("[Spot Wrapper] Replanning with base approach.")

@@ -232,36 +232,36 @@ class SpotPerceiver(BasePerceiver):
                         # We lost the object!
                         logging.info("[Perceiver] Object was lost!")
                         self._lost_objects.add(object_attempted_to_grasp)
-            elif any(n in controller_name.lower() for n in
-                     ["place", "drop", "preparecontainerforsweeping", "drag"]):
-                self._held_object = None
-                # Check if the item we just placed is in view. It needs to
-                # be in view to assess whether it was placed correctly.
-                robot, obj = objects[:2]
-                if controller_name == "MoveToReachAndDropInside":
-                    # The object is the 3rd argument in this case.
-                    obj = objects[2]
-                state = self._create_state()
-                is_in_view = in_general_view_classifier(state, [robot, obj])
-                if not is_in_view:
-                    # We lost the object!
-                    logging.info("[Perceiver] Object was lost!")
-                    self._lost_objects.add(obj)
-            elif any(n in controller_name.lower()
-                     for n in ["sweepintocontainer", "sweeptwoobjects"]):
-                robot = objects[0]
-                state = self._create_state()
-                if controller_name.lower() == "sweepintocontsainer":
-                    objs = {objects[2]}
-                else:
-                    assert controller_name.lower().startswith("sweeptwoobject")
-                    objs = {objects[2], objects[3]}
-                for o in objs:
-                    is_in_view = in_general_view_classifier(state, [robot, o])
-                    if not is_in_view:
-                        # We lost the object!
-                        logging.info("[Perceiver] Object was lost!")
-                        self._lost_objects.add(o)
+            # elif any(n in controller_name.lower() for n in
+            #          ["place", "drop", "preparecontainerforsweeping", "drag"]):
+            #     self._held_object = None
+            #     # Check if the item we just placed is in view. It needs to
+            #     # be in view to assess whether it was placed correctly.
+            #     robot, obj = objects[:2]
+            #     if controller_name == "MoveToReachAndDropInside":
+            #         # The object is the 3rd argument in this case.
+            #         obj = objects[2]
+            #     state = self._create_state()
+            #     is_in_view = in_general_view_classifier(state, [robot, obj])
+            #     if not is_in_view:
+            #         # We lost the object!
+            #         logging.info("[Perceiver] Object was lost!")
+            #         self._lost_objects.add(obj)
+            # elif any(n in controller_name.lower()
+            #          for n in ["sweepintocontainer", "sweeptwoobjects"]):
+            #     robot = objects[0]
+            #     state = self._create_state()
+            #     if controller_name.lower() == "sweepintocontsainer":
+            #         objs = {objects[2]}
+            #     else:
+            #         assert controller_name.lower().startswith("sweeptwoobject")
+            #         objs = {objects[2], objects[3]}
+            #     for o in objs:
+            #         is_in_view = in_general_view_classifier(state, [robot, o])
+            #         if not is_in_view:
+            #             # We lost the object!
+            #             logging.info("[Perceiver] Object was lost!")
+            #             self._lost_objects.add(o)
             else:
                 # Ensure the held object is reset if the hand is empty.
                 prev_held_object = self._held_object
@@ -705,7 +705,7 @@ class SpotPerceiver(BasePerceiver):
             robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Holding, [robot, eraser]),
-                GroundAtom(Inside, [eraser, clear_trash_can]),
+                # GroundAtom(Inside, [eraser, clear_trash_can]),
                 # GroundAtom(Inside, [apple, clear_trash_can]),
                 GroundAtom(TableWiped, [table]),
                 GroundAtom(Inside, [soda, recycling_bin]),

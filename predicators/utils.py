@@ -2584,8 +2584,8 @@ def get_prompt_for_vlm_state_labelling(
                 draw_prev = ImageDraw.Draw(prev_img)
                 prev_img_shape = prev_img.size[:2]
                 font = get_scaled_default_font(draw_prev, font_size)
-                prev_img_font_loc = (int(prev_img_shape[0] * 0.9),
-                                     int(prev_img_shape[1] * 0.9))
+                prev_img_font_loc = (int(prev_img_shape[0] * 0.8),
+                                     int(prev_img_shape[1] * 0.8))
                 _ = add_text_to_draw_img(draw_prev, prev_img_font_loc,
                                          "Before", font)
             curr_prompt_imgs.append(prev_img)
@@ -2595,8 +2595,8 @@ def get_prompt_for_vlm_state_labelling(
                 draw_curr = ImageDraw.Draw(curr_img)
                 curr_img_shape = curr_img.size[:2]
                 font = get_scaled_default_font(draw_curr, font_size)
-                curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
-                                     int(curr_img_shape[1] * 0.9))
+                curr_img_font_loc = (int(curr_img_shape[0] * 0.8),
+                                     int(curr_img_shape[1] * 0.8))
                 _ = add_text_to_draw_img(draw_curr, curr_img_font_loc, "After",
                                          font)
             curr_prompt_imgs.append(curr_img)
@@ -2634,10 +2634,15 @@ def get_prompt_for_vlm_state_labelling(
             curr_prompt += "\n\nPredicate values in the first scene, " \
             "before the skill was executed: \n"
             curr_prompt += label_history[-1]
+
+        # import ipdb; ipdb.set_trace()
+
         return (curr_prompt, curr_prompt_imgs)
     # NOTE: we rip out only the first image from each trajectory
     # which is fine for most domains, but will be problematic for
     # situations in which there is more than one image per state.
+    import ipdb; ipdb.set_trace()
+
     return (prompt, imgs_history[-1])
 
 

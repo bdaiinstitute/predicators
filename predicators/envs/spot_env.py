@@ -4310,11 +4310,12 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x1 = Variable("?x1", _movable_object_type)
         x2 = Variable("?x2", _robot_type)
         parameters = [x2, x0, x1]
-        preconds ={
+        preconds = {
             LiftedAtom(_Holding, [x2, x1]),
             LiftedAtom(self._IsEraser, [x1]),
             LiftedAtom(self._NoObjectsOnTop, [x0]),
         }
+        # preconds = set()
         add_effs = {
             LiftedAtom(_TableWiped, [x0]),
         }

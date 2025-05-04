@@ -200,6 +200,11 @@ def _drop_at_relative_position_and_look(
     # Close the gripper after moving (to avoid accidentally regrasping the
     # object).
     close_gripper(robot)
+    # move backward to avoid collision with the object.
+    move_back_pose = math_helpers.SE2Pose(-0.12, 0.0, 0.0)
+    navigate_to_relative_pose(robot, move_back_pose)
+    time.sleep(0.5)
+
 
 
 def _move_closer_and_drop_at_relative_position_and_look(
