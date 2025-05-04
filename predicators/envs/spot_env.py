@@ -255,10 +255,7 @@ def get_known_movable_objects() -> Dict[Object, math_helpers.SE3Pose]:
     }
 
     for obj_name, obj_pos in known_immovables.items():
-        if obj_name == "blue_and_pink_double_eraser":
-            obj = Object("blue_and_pink_double_eraser", type_name_to_type[obj_pos["object_type"]])
-        else:
-            obj = Object(obj_name, type_name_to_type[obj_pos["object_type"]])
+        obj = Object(obj_name, type_name_to_type[obj_pos["object_type"]])
         yaw = obj_pos.get("yaw", 0.0)
         rot = math_helpers.Quat.from_yaw(yaw)
         pose = math_helpers.SE3Pose(obj_pos["x"],
@@ -734,7 +731,8 @@ class SpotRearrangementEnv(BaseEnv):
         all_objects_in_view = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in all_detections.items()
-            if self._detection_id_to_obj[det_id].type.name == "movable"
+            if (self._detection_id_to_obj[det_id].type.name == "movable")
+            # or self._detection_id_to_obj[det_id].name == "clear_plastic_container")
         }
         self._last_known_object_poses.update(all_objects_in_view)
         objects_in_hand_view = set(self._detection_id_to_obj[det_id]
@@ -984,7 +982,7 @@ class SpotRearrangementEnv(BaseEnv):
             #     math_helpers.SE3Pose(
             #         0.0, 0.0, 0.0,
             #         math_helpers.Quat.from_yaw(0.0)),
-            Object("clear_plastic_dustbin", _trash_can_type):
+            Object("clear_plastic_container", _trash_can_type):
             math_helpers.SE3Pose(0.0, 0.0, 0.0,
                                  math_helpers.Quat.from_yaw(0.0)),
         }
@@ -4269,7 +4267,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _trash_can_type)
         x2 = Variable("?x2", _robot_type)
+        x3 = Variable("?x3", _movable_object_type)
         parameters = [x2, x1, x0]
+        # parameters = [x2, x1, x0, x3]
         preconds = {
             LiftedAtom(_Holding, [x2, x0]),
         }
@@ -4313,7 +4313,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         preconds ={
             LiftedAtom(_Holding, [x2, x1]),
             LiftedAtom(self._IsEraser, [x1]),
-            # LiftedAtom(self._NoObjectsOnTop, [x0]),
+            LiftedAtom(self._NoObjectsOnTop, [x0]),
         }
         add_effs = {
             LiftedAtom(_TableWiped, [x0]),
@@ -4373,7 +4373,7 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "bottle/clear_cup/clear_trashcan")] = Object(
-        #         "clear_plastic_dustbin", _trash_can_type)
+        #         "clear_plastic_container", _trash_can_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
         #     "apple/red_ball")] = Object("apple", _movable_object_type)
         # detection_id_to_obj[LanguageObjectDetectionID(
@@ -4391,11 +4391,16 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         # "blue_coffee_cup")] = Object("blue_coffee_cup",
         #                              _movable_object_type)
         for obj, pose in get_known_movable_objects().items():
-            if obj.name == "blue_and_pink_double_eraser":
-                eraser_obj = Object("blue_and_pink_double_eraser",
+            if obj.name == "pink_furry_eraser":
+                eraser_obj = Object("pink_furry_eraser",
                                     _movable_object_type)
-                detection_id = LanguageObjectDetectionID("toy")
+                detection_id = LanguageObjectDetectionID("toy/flower_arrangement")
                 detection_id_to_obj[detection_id] = eraser_obj
+            elif obj.name == "clear_plastic_container":
+                container_obj = Object("clear_plastic_container",
+                                       _trash_can_type)
+                detection_id = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
+                detection_id_to_obj[detection_id] = container_obj
             else:
                 detection_id = LanguageObjectDetectionID(obj.name)
                 detection_id_to_obj[detection_id] = obj

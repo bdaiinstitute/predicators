@@ -177,3 +177,4 @@ if __name__ == "__main__":
             navigate_to_relative_pose(robot, relative_pose)
 
     _run_manual_test()
+    

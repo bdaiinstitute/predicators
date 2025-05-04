@@ -89,7 +89,7 @@ static-object-features:
     width: 0.2
     placeable: 1
     is_sweeper: 0
-  clear_plastic_dustbin:
+  clear_plastic_container:
     shape: 2
     height: 0.1
     length: 0.2
@@ -136,7 +136,7 @@ approach_angle_bounds:
   # only approach the child_play_table from in front of it!
   child_play_table: [-0.1, 0.1]
   # approach trash can from the side
-  clear_plastic_dustbin: [1.47, 1.67]
+  clear_plastic_container: [1.47, 1.67]
   cardboard_box_bin: [1.47, 1.67]
   # approach the duster from the other side.
   fluffy_green_toy_eraser: [-0.1, 0.1] #[-1.67, -1.47]

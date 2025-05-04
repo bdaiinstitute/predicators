@@ -1,5 +1,6 @@
 """Interface for moving the spot hand."""
 
+from typing import List, Optional, Sequence
 import time
 
 from bosdyn.api import arm_command_pb2, robot_command_pb2, \
@@ -156,6 +157,57 @@ def close_gripper(
     return change_gripper(robot, fraction=0.0, duration=duration)
 
 
+def move_arm_to_joint_angles(robot: Robot, joint_angles: Sequence[float], duration: float = 3.0) -> None:
+    """Commands the Spot arm to a specific set of joint angles.
+
+    Args:
+        robot: The Robot object.
+        joint_angles: A sequence of 6 joint angles in radians, ordered
+                      (sh0, sh1, el0, el1, wr0, wr1).
+        duration: Approximate time (seconds) for the movement.
+    """
+    assert len(joint_angles) == 6, "Must provide 6 joint angles."
+    robot_command_client = robot.ensure_client(RobotCommandClient.default_service_name)
+    # Build the arm joint move command.
+    # The order is sh0, sh1, el0, el1, wr0, wr1.
+    cmd = RobotCommandBuilder.arm_joint_command(
+        *joint_angles
+    )
+    # Send the command.
+    cmd_id = robot_command_client.robot_command(cmd)
+    # Wait until the arm arrives at the goal.
+    # Increase timeout slightly beyond duration to allow for completion.
+    block_until_arm_arrives(robot_command_client, cmd_id, timeout_sec=duration + 2.0)
+    print(f"Arm reached target joint angles: {joint_angles}")
+
+
+def get_current_arm_joint_angles(robot: Robot) -> Optional[List[float]]:
+    """Gets the current joint angles of the Spot arm.
+
+    Returns:
+        A list of 6 joint angles in radians (sh0, sh1, el0, el1, wr0, wr1),
+        or None if the state cannot be retrieved.
+    """
+    state_client = robot.ensure_client(RobotStateClient.default_service_name)
+    robot_state = state_client.get_robot_state()
+    kinematic_state = robot_state.kinematic_state
+    if not kinematic_state or not kinematic_state.joint_states:
+        print("Kinematic state or joint states not available.")
+        return None
+
+    # Define the expected order of arm joints
+    arm_joint_names = ["arm0.sh0", "arm0.sh1", "arm0.el0", "arm0.el1", "arm0.wr0", "arm0.wr1"]
+    joint_angles_map = {joint.name: joint.position.value for joint in kinematic_state.joint_states}
+
+    current_angles = []
+    for name in arm_joint_names:
+        if name not in joint_angles_map:
+            print(f"Could not find joint state for {name}.")
+            return None
+        current_angles.append(joint_angles_map[name])
+
+    return current_angles
+
 if __name__ == "__main__":
     # Run this file alone to test manually.
     # Make sure to pass in --spot_robot_ip.
@@ -169,6 +221,64 @@ if __name__ == "__main__":
     from predicators import utils
     from predicators.settings import CFG
     from predicators.spot_utils.utils import verify_estop
+
+    # def _run_manual_test() -> None:
+    #     # Put inside a function to avoid variable scoping issues.
+    #     args = utils.parse_args(env_required=False,
+    #                             seed_required=False,
+    #                             approach_required=False)
+    #     utils.update_config(args)
+
+    #     # Get constants.
+    #     hostname = CFG.spot_robot_ip
+
+    #     sdk = create_standard_sdk('MoveHandSkillTestClient')
+    #     robot = sdk.create_robot(hostname)
+    #     authenticate(robot)
+    #     verify_estop(robot)
+    #     lease_client = robot.ensure_client(LeaseClient.default_service_name)
+    #     lease_client.take()
+    #     robot.time_sync.wait_for_sync()
+    #     resting_pose = math_helpers.SE3Pose(x=0.80,
+    #                                         y=0,
+    #                                         z=0.45,
+    #                                         rot=math_helpers.Quat())
+    #     relative_down_pose = math_helpers.SE3Pose(
+    #         x=0.0, y=0, z=0.0, rot=math_helpers.Quat.from_pitch(np.pi / 4))
+    #     resting_down_pose = resting_pose * relative_down_pose
+    #     looking_down_and_rotated_right_pose = math_helpers.SE3Pose(
+    #         x=0.9,
+    #         y=0,
+    #         z=0.0,
+    #         rot=math_helpers.Quat.from_pitch(np.pi / 2) *
+    #         math_helpers.Quat.from_roll(np.pi / 2))
+
+    #     print(
+    #         "Moving to a pose that looks down and rotates the gripper to the "
+    #         + "right.")
+    #     move_hand_to_relative_pose(robot, looking_down_and_rotated_right_pose)
+    #     input("Press enter when ready to move on")
+
+    #     print("Moving to a resting pose in front of the robot.")
+    #     move_hand_to_relative_pose(robot, resting_pose)
+    #     input("Press enter when ready to move on")
+
+    #     print("Opening the gripper.")
+    #     open_gripper(robot)
+    #     input("Press enter when ready to move on")
+
+    #     print("Moving to the same pose (should have no change).")
+    #     move_hand_to_relative_pose(robot, resting_pose)
+    #     input("Press enter when ready to move on")
+
+    #     print("Closing the gripper.")
+    #     move_hand_to_relative_pose(robot, resting_pose)
+    #     close_gripper(robot)
+    #     input("Press enter when ready to move on")
+
+    #     print("Looking down and opening the gripper.")
+    #     move_hand_to_relative_pose(robot, resting_down_pose)
+    #     open_gripper(robot)
 
     def _run_manual_test() -> None:
         # Put inside a function to avoid variable scoping issues.
@@ -187,45 +297,23 @@ if __name__ == "__main__":
         lease_client = robot.ensure_client(LeaseClient.default_service_name)
         lease_client.take()
         robot.time_sync.wait_for_sync()
-        resting_pose = math_helpers.SE3Pose(x=0.80,
-                                            y=0,
-                                            z=0.45,
-                                            rot=math_helpers.Quat())
-        relative_down_pose = math_helpers.SE3Pose(
-            x=0.0, y=0, z=0.0, rot=math_helpers.Quat.from_pitch(np.pi / 4))
-        resting_down_pose = resting_pose * relative_down_pose
-        looking_down_and_rotated_right_pose = math_helpers.SE3Pose(
-            x=0.9,
-            y=0,
-            z=0.0,
-            rot=math_helpers.Quat.from_pitch(np.pi / 2) *
-            math_helpers.Quat.from_roll(np.pi / 2))
 
-        print(
-            "Moving to a pose that looks down and rotates the gripper to the "
-            + "right.")
-        move_hand_to_relative_pose(robot, looking_down_and_rotated_right_pose)
-        input("Press enter when ready to move on")
+        # Get and print current hand orientation
+        # current_orientation = get_current_hand_orientation(robot)
+        # if current_orientation:
+        #     print("Current Hand Orientation (Quaternion relative to body):")
+        #     print(f"  W: {current_orientation.w}")
+        #     print(f"  X: {current_orientation.x}")
+        #     print(f"  Y: {current_orientation.y}")
+        #     print(f"  Z: {current_orientation.z}")
+        #     # Example: Convert to Euler angles (roll, pitch, yaw)
+        #     roll, pitch, yaw = current_orientation.to_roll_pitch_yaw()
+        #     print("\nCurrent Hand Orientation (Euler Angles relative to body):")
+        #     print(f"  Roll: {np.degrees(roll):.2f} degrees")
+        #     print(f"  Pitch: {np.degrees(pitch):.2f} degrees")
+        #     print(f"  Yaw: {np.degrees(yaw):.2f} degrees")
+        # else:
+        #     print("Failed to get current hand orientation.")
+        print(get_current_arm_joint_angles(robot))
 
-        print("Moving to a resting pose in front of the robot.")
-        move_hand_to_relative_pose(robot, resting_pose)
-        input("Press enter when ready to move on")
-
-        print("Opening the gripper.")
-        open_gripper(robot)
-        input("Press enter when ready to move on")
-
-        print("Moving to the same pose (should have no change).")
-        move_hand_to_relative_pose(robot, resting_pose)
-        input("Press enter when ready to move on")
-
-        print("Closing the gripper.")
-        move_hand_to_relative_pose(robot, resting_pose)
-        close_gripper(robot)
-        input("Press enter when ready to move on")
-
-        print("Looking down and opening the gripper.")
-        move_hand_to_relative_pose(robot, resting_down_pose)
-        open_gripper(robot)
-
-    _run_manual_test()
+    _run_manual_test()    

@@ -8,6 +8,10 @@ import numpy as np
 from bosdyn.client import math_helpers
 from numpy.typing import NDArray
 from scipy.ndimage import convolve
+from predicators import utils
+from predicators.settings import CFG
+import re
+import json
 
 from predicators.spot_utils.perception.cv2_utils import \
     find_color_based_centroid
@@ -44,7 +48,7 @@ chair_prompt = "chair"
 chair_obj = LanguageObjectDetectionID(chair_prompt)
 trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
 blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
-eraser_obj = LanguageObjectDetectionID("fluffy_toy/flower_arrangement")
+eraser_obj = LanguageObjectDetectionID("toy/flower_arrangement")
 soda_can_obj = LanguageObjectDetectionID("soda_can")
 
 
@@ -136,9 +140,11 @@ def _get_soda_grasp_pixel(
     except KeyError:
         raise ValueError(f"{soda_can_obj} not detected in {camera_name}")
     mask = seg_bb.mask
-    pixels_in_mask = np.where(mask)
+    # pixels_in_mask = np.where(mask)
     # Select a pixel near the bottom, but not exactly the bottom-most.
-    pixel = (pixels_in_mask[1][-1], pixels_in_mask[0][-400])
+    # pixel = (pixels_in_mask[1][-1], pixels_in_mask[0][-400])
+    pixel = _get_mask_center_grasp_pixel(soda_can_obj, rgbds, artifacts,
+                                         camera_name, rng)[0]
     # Force a forward top-down grasp.
     roll = math_helpers.Quat.from_roll(np.pi / 2)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
@@ -148,7 +154,8 @@ def _get_soda_grasp_pixel(
     # cv2.imshow("Selected grasp", bgr)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-    return pixel, pitch * roll  # NOTE: order is super important here!
+    
+    return pixel, pitch #* roll
 
 
 def _get_chair_grasp_pixel(
@@ -468,6 +475,89 @@ def _get_bucket_grasp_pixel(
     return selected_pixel, pitch
 
 
+def _get_eraser_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    """Select a pixel on the eraser to grasp."""
+    # del rng  # not used
+    try:
+        pixel, _ = _get_mask_center_grasp_pixel(eraser_obj, rgbds, artifacts,
+                                    camera_name, rng)
+    except ValueError:
+        rgb_image = rgbds[camera_name].rgb
+        # Ensure rgb_image is a PIL Image if needed by VLM interface
+        if isinstance(rgb_image, np.ndarray):
+            from PIL import Image
+            pil_image = Image.fromarray(rgb_image)
+        else:
+            pil_image = rgb_image # Assume it's already PIL
+        # 1. Create VLM instance
+        # Assuming create_vlm_by_name exists and works like create_llm_by_name
+        # Use the specific model name from CFG or hardcode if necessary
+        vlm = utils.create_vlm_by_name(CFG.vlm_model_name)
+
+        # 2. Construct the query
+        # Adjust prompt as needed for better VLM performance
+        
+        vlm_query_str = """
+          Point to the pink eraser in the image.
+          The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+        """
+
+        def parse_json_output(json_output_str):
+            # Parsing out the markdown fencing
+            lines = json_output_str.splitlines()
+            for i, line in enumerate(lines):
+                if line.strip() == "```json":
+                    json_output_str = "\n".join(lines[i+1:])
+                    json_output_str = json_output_str.split("```")[0]
+                    break
+            json_output_str = json_output_str.strip()
+            return json_output_str
+
+        # 3. Query the VLM
+        # Assuming sample_completions takes a list of images
+        vlm_output_list = vlm.sample_completions(prompt=vlm_query_str,
+                                                    imgs=[pil_image],
+                                                    temperature=0.0, # Low temp for deterministic output
+                                                    seed=CFG.seed,
+                                                    num_completions=1)
+        vlm_output_str = vlm_output_list[0]
+        # 4. Parse the JSON string
+        json_string_to_parse = parse_json_output(vlm_output_str)
+        parsed_data = json.loads(json_string_to_parse)
+        # 5. Extract and denormalize coordinates
+        if not isinstance(parsed_data, list) or not parsed_data:
+            raise ValueError("Parsed JSON is not a non-empty list.")
+        # Assuming the first point is the desired one
+        first_point_obj = parsed_data[0]
+        if 'point' not in first_point_obj or not isinstance(first_point_obj['point'], list) or len(first_point_obj['point']) != 2:
+            raise ValueError("First element in JSON does not contain a valid 'point' list [y, x].")
+        y_norm, x_norm = first_point_obj['point']
+        if not isinstance(y_norm, (int, float)) or not isinstance(x_norm, (int, float)):
+                raise ValueError("Normalized coordinates are not numbers.")
+        # Denormalize from 0-1000 range to image pixel coordinates
+        img_height = pil_image.height
+        img_width = pil_image.width
+        y = int(y_norm * img_height / 1000.0)
+        x = int(x_norm * img_width / 1000.0)
+        # Clamp coordinates to be within image bounds
+        y = max(0, min(y, img_height - 1))
+        x = max(0, min(x, img_width - 1))
+        # Assign to the 'pixel' variable in (x, y) format
+        pixel = (x, y)
+
+    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    return pixel, pitch
+
+
 def _get_trash_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
@@ -476,13 +566,37 @@ def _get_trash_grasp_pixel(
     del rng  # not used
 
     detections = artifacts["language"]["object_id_to_img_detections"]
+    rgbd = rgbds[camera_name]
     try:
         seg_bb = detections[trash_can_obj][camera_name]
     except KeyError:
-        raise ValueError(f"{trash_can_obj} not detected in {camera_name}")
+        isolated_rgb = rgbd.rgb.copy()
+        lo, hi = ((0, 0, 130), (130, 255, 255))
+        centroid = find_color_based_centroid(isolated_rgb,
+                                         lo,
+                                         hi,
+                                         min_component_size=10)
+        # This can happen sometimes if the rim of the bucket is separated from the
+        # body of the bucket. If that happens, just pick the center bottom pixel in
+        # the mask, which should be the rim.
+        if centroid is None:
+            mask_args = np.argwhere(mask)
+            mask_min_c = min(mask_args[:, 1])
+            mask_max_c = max(mask_args[:, 1])
+            c_len = mask_max_c - mask_min_c
+            middle_c = mask_min_c + c_len // 2
+            max_r = max(r for r, c in mask_args if c == middle_c)
+            selected_pixel = (middle_c, max_r)
+        else:
+            # NOTE! Testing
+            # Specify a top-down grasp constraint.
+            pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+            selected_pixel = (centroid[0], centroid[1])
+
+            
+        return selected_pixel, pitch
 
     mask = seg_bb.mask
-    rgbd = rgbds[camera_name]
 
     # Helpful to dump these things and analyze separately.
     # import dill as pkl
@@ -522,17 +636,19 @@ def _get_trash_grasp_pixel(
         # NOTE! Testing
         selected_pixel = (centroid[0], centroid[1])
 
-    # # Uncomment for debugging.
-    # bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
-    # cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
-    # cv2.imshow("Selected grasp", bgr)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    # Uncomment for debugging.
+    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, selected_pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # Specify a top-down grasp constraint.
+    # roll = math_helpers.Quat.from_roll(np.pi / 2)
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    # pitch = math_helpers.Quat.from_pitch(np.pi / 2)
 
-    return selected_pixel, pitch
+    return selected_pixel, pitch #* roll  # NOTE: order is super important here!
 
 
 def _get_mask_center_grasp_pixel(
@@ -596,7 +712,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # Blue cup specific grasp selection.
     blue_cup_obj: partial(_get_mask_center_grasp_pixel, blue_cup_obj),
     # Eraser-specific grasp selection.
-    eraser_obj: partial(_get_mask_center_grasp_pixel, eraser_obj),
+    eraser_obj: _get_eraser_grasp_pixel,
     # Soda can specific grasp selection.
     soda_can_obj: _get_soda_grasp_pixel,
 }

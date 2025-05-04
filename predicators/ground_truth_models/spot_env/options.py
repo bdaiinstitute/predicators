@@ -686,8 +686,9 @@ def _move_to_view_and_grasp_and_dump_policy(name: str, robot_obj_idx: int,
         move_hand_to_relative_pose(robot, DEFAULT_HAND_POST_DUMP_POSE)
         close_gripper(robot)
         # Move back a step or two to see.
-        move_back_pose = math_helpers.SE2Pose(-0.4, 0.0, 0.0)
+        move_back_pose = math_helpers.SE2Pose(-1.15, 0.0, 0.0)
         navigate_to_relative_pose(robot, move_back_pose)
+        move_hand_to_relative_pose(robot, DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE)
 
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,

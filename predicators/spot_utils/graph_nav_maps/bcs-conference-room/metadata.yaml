@@ -47,11 +47,19 @@ known-movable-objects:
     y: 0.681
     z: 0.14
     object_type: "table"
-  blue_and_pink_double_eraser:
+  pink_furry_eraser:
     x: 1.5
     y: 0.9
     z: 0.114
     object_type: "movable"
+  clear_plastic_container:
+    # x: 1.5
+    # y: 0.9
+    # z: 0.114
+    x: 1.526
+    y: 1.385
+    z: -0.2
+    object_type: "trashcan"
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -109,7 +117,7 @@ static-object-features:
     width: 0.2
     placeable: 1
     is_sweeper: 0
-  clear_plastic_dustbin:
+  clear_plastic_container:
     shape: 2
     height: 0.1
     length: 0.2
@@ -140,7 +148,7 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  blue_and_pink_double_eraser:
+  pink_furry_eraser:
     shape: 1
     height: 0.1
     length: 0.1
@@ -171,13 +179,15 @@ approach_angle_bounds:
   # only approach the child_play_table from in front of it!
   child_play_table: [-0.1, 0.1]
   # approach trash can from the side
-  clear_plastic_dustbin: [1.47, 1.67]
+  # clear_plastic_container: [1.47, 1.67]
   cardboard_box_bin: [1.47, 1.67]
   # approach the duster from the other side.
-  blue_and_pink_double_eraser: [-1.67, -1.47]
+  pink_furry_eraser: [-1.67, -1.47]
   toy: [-1.67, -1.47]
   soda_can: [-1.67, -1.47]
   recycling_bin: [-0.1, 0.1]
+  clear_plastic_container: [-1.67, -1.47]
+
 
 # Wiping skill params.
 wipe_location:
