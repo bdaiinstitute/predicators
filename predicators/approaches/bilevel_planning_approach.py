@@ -18,6 +18,7 @@ from predicators.planning import PlanningFailure, PlanningTimeout, \
 from predicators.settings import CFG
 from predicators.structs import NSRT, Action, GroundAtom, Metrics, \
     ParameterizedOption, Predicate, State, Task, Type, _GroundNSRT, _Option
+from predicators.planning import task_plan_grounding
 
 
 class BilevelPlanningApproach(BaseApproach):
@@ -62,8 +63,38 @@ class BilevelPlanningApproach(BaseApproach):
         # Run task planning only and then greedily sample and execute in the
         # policy.
         if self._plan_without_sim:
-            nsrt_plan, atoms_seq, metrics = self._run_task_plan(
-                task, nsrts, preds, timeout, seed)
+            # nsrt_plan, atoms_seq, metrics = self._run_task_plan(
+            #     task, nsrts, preds, timeout, seed)
+            # init_atoms = utils.abstract(task.init, preds)
+            # all_ground_nsrts, _ = task_plan_grounding(
+            #     init_atoms, set(task.init), nsrts)
+
+            all_ground_nsrts = []
+            for nsrt in sorted(nsrts):
+                for ground_nsrt in utils.all_ground_nsrts(nsrt, set(task.init)):
+                        all_ground_nsrts.append(ground_nsrt)
+
+            vila_plan = ["MoveAndPickFromFloor[robot:robot, pink_furry_eraser:movable]",
+                    "MoveToReachAndDropInside[robot:robot, clear_plastic_container:trashcan, pink_furry_eraser:movable]",
+                    "MoveAndPickFromFloor[robot:robot, soda_can:movable]",
+                    "MoveToReachAndDropInside[robot:robot, recycling_bin:trashcan, soda_can:movable]",
+                    "MoveAndPickFromFloor[robot:robot, pink_furry_eraser:movable]",
+                    "MoveAndWipeSurfaceAndContinueHoldingEraser[robot:robot, short_round_coffee_table:table, pink_furry_eraser:movable]",
+                    ]
+            
+            vila_gnsrt_plan = []
+            for vila_action in vila_plan:
+                for gnsrt in all_ground_nsrts:
+                    gnsrt_str = f"{gnsrt.option.name}{gnsrt.option_objs}"
+                    if gnsrt_str == vila_action:
+                        vila_gnsrt_plan.append(gnsrt)
+                        break
+                else:
+                    import ipdb; ipdb.set_trace()
+            
+            nsrt_plan = vila_gnsrt_plan
+            atoms_seq = []
+
             self._last_nsrt_plan = nsrt_plan
             self._last_atoms_seq = atoms_seq
             policy = utils.nsrt_plan_to_greedy_policy(nsrt_plan, task.goal,
@@ -88,7 +119,7 @@ class BilevelPlanningApproach(BaseApproach):
             self._last_atoms_seq = atoms_seq
             policy = utils.option_plan_to_policy(option_plan)
 
-        self._save_metrics(metrics, nsrts, preds)
+        # self._save_metrics(metrics, nsrts, preds)
 
         def _policy(s: State) -> Action:
             try:
