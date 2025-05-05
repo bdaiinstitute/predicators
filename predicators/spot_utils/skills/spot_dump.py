@@ -65,34 +65,6 @@ def dump_container(robot: Robot,
     open_gripper(robot)
 
 
-def get_end_effector_state(robot) -> None:
-    """Get the current position and orientation of the Spot arm's end effector."""
-    # Create a RobotStateClient to query the robot's state
-    from bosdyn.client.robot_state import RobotStateClient
-
-    state_client = robot.ensure_client(RobotStateClient.default_service_name)
-
-    # Get the robot's state
-    robot_state = state_client.get_robot_state()
-
-    # Access the kinematic state of the arm
-    arm_state = robot_state.kinematic_state
-
-    # Extract the end-effector pose (position and orientation)
-    if arm_state and arm_state.transforms_snapshot:
-        ee_transform = arm_state.transforms_snapshot.child_to_parent_edge_map.get("hand", None)
-        if ee_transform:
-            position = ee_transform.parent_tform_child.position
-            orientation = ee_transform.parent_tform_child.rotation
-            print(f"End Effector Position: x={position.x}, y={position.y}, z={position.z}")
-            print(f"End Effector Orientation (Quaternion): x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")
-            orientation = math_helpers.Quat(x=orientation.x, y=orientation.y, z=orientation.z, w=orientation.w)
-            return math_helpers.SE3Pose(position.x, position.y, position.z, rot=orientation)
-        else:
-            print("End effector transform not found.")
-    else:
-        print("Arm state or transforms snapshot not available.")
-
 if __name__ == "__main__":
     # Run this file alone to test manually.
     # Make sure to pass in --spot_robot_ip.
