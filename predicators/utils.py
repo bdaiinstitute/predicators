@@ -2641,7 +2641,8 @@ def get_prompt_for_vlm_state_labelling(
     # NOTE: we rip out only the first image from each trajectory
     # which is fine for most domains, but will be problematic for
     # situations in which there is more than one image per state.
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
 
     return (prompt, imgs_history[-1])
 

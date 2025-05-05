@@ -15,7 +15,8 @@ from bosdyn.client.robot_command import RobotCommandBuilder, RobotCommandClient
 from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import get_robot_state, get_spot_home_pose
+from predicators.spot_utils.utils import get_robot_state, get_se2_distance, \
+    get_spot_home_pose
 
 
 def navigate_to_relative_pose(robot: Robot,
@@ -117,6 +118,55 @@ def navigate_to_absolute_pose(robot: Robot,
                                      min_xytheta_vel, timeout)
 
 
+def navigate_to_absolute_pose_precise(robot: Robot,
+                                      localizer: SpotLocalizer,
+                                      target_pose: math_helpers.SE2Pose,
+                                      max_xytheta_vel: Tuple[float, float,
+                                                             float] = (2.0,
+                                                                       2.0,
+                                                                       1.0),
+                                      min_xytheta_vel: Tuple[float, float,
+                                                             float] = (-2.0,
+                                                                       -2.0,
+                                                                       -1.0),
+                                      timeout: float = 20.0,
+                                      tolerance: float = 0.05,
+                                      max_num_tries: int = 5) -> None:
+    """Move to the specific target absolute pose; potentially trying multiple
+    times."""
+    # First, localize the robot.
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    robot_se2 = robot_pose.get_closest_se2_transform()
+    curr_dist_to_target = get_se2_distance(robot_se2, target_pose)
+    curr_tries = 0
+    prev_dist_to_target = float("inf")
+    while curr_dist_to_target > tolerance and max_num_tries > curr_tries:
+        prev_dist_to_target = curr_dist_to_target
+        localizer.localize()
+        navigate_to_absolute_pose(robot, localizer, target_pose,
+                                  max_xytheta_vel, min_xytheta_vel, timeout)
+        # Re-localize the robot.
+        localizer.localize()
+        robot_pose = localizer.get_last_robot_pose()
+        robot_se2 = robot_pose.get_closest_se2_transform()
+        curr_dist_to_target = get_se2_distance(robot_se2, target_pose)
+        # If the robot is not moving, we should move randomly backwards
+        # to avoid getting stuck.
+        if abs(curr_dist_to_target - prev_dist_to_target) < 0.01:
+            # Move backwards.
+            rel_pose = math_helpers.SE2Pose(x=-0.25, y=0, angle=0)
+            navigate_to_relative_pose(robot, rel_pose, max_xytheta_vel,
+                                      min_xytheta_vel, timeout)
+        curr_tries += 1
+    if curr_dist_to_target > tolerance:
+        navigate_to_absolute_pose(robot, localizer, target_pose,
+                                  max_xytheta_vel, min_xytheta_vel, timeout)
+        logging.warning(
+            f"Failed to reach the target pose after {curr_tries} tries. "
+            f"Current distance to target: {curr_dist_to_target}")
+
+
 def go_home(robot: Robot,
             localizer: SpotLocalizer,
             max_xytheta_vel: Tuple[float, float, float] = (2.0, 2.0, 1.0),
@@ -177,4 +227,3 @@ if __name__ == "__main__":
             navigate_to_relative_pose(robot, relative_pose)
 
     _run_manual_test()
-    

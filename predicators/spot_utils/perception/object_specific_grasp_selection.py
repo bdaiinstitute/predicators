@@ -1,5 +1,7 @@
 """Object-specific grasp selectors."""
 
+import json
+import re
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -8,11 +10,9 @@ import numpy as np
 from bosdyn.client import math_helpers
 from numpy.typing import NDArray
 from scipy.ndimage import convolve
+
 from predicators import utils
 from predicators.settings import CFG
-import re
-import json
-
 from predicators.spot_utils.perception.cv2_utils import \
     find_color_based_centroid
 from predicators.spot_utils.perception.perception_structs import \
@@ -154,8 +154,8 @@ def _get_soda_grasp_pixel(
     # cv2.imshow("Selected grasp", bgr)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-    
-    return pixel, pitch #* roll
+
+    return pixel, pitch  #* roll
 
 
 def _get_chair_grasp_pixel(
@@ -483,7 +483,7 @@ def _get_eraser_grasp_pixel(
     # del rng  # not used
     try:
         pixel, _ = _get_mask_center_grasp_pixel(eraser_obj, rgbds, artifacts,
-                                    camera_name, rng)
+                                                camera_name, rng)
     except ValueError:
         rgb_image = rgbds[camera_name].rgb
         # Ensure rgb_image is a PIL Image if needed by VLM interface
@@ -491,7 +491,7 @@ def _get_eraser_grasp_pixel(
             from PIL import Image
             pil_image = Image.fromarray(rgb_image)
         else:
-            pil_image = rgb_image # Assume it's already PIL
+            pil_image = rgb_image  # Assume it's already PIL
         # 1. Create VLM instance
         # Assuming create_vlm_by_name exists and works like create_llm_by_name
         # Use the specific model name from CFG or hardcode if necessary
@@ -499,7 +499,7 @@ def _get_eraser_grasp_pixel(
 
         # 2. Construct the query
         # Adjust prompt as needed for better VLM performance
-        
+
         vlm_query_str = """
           Point to the pink eraser in the image.
           The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
@@ -510,7 +510,7 @@ def _get_eraser_grasp_pixel(
             lines = json_output_str.splitlines()
             for i, line in enumerate(lines):
                 if line.strip() == "```json":
-                    json_output_str = "\n".join(lines[i+1:])
+                    json_output_str = "\n".join(lines[i + 1:])
                     json_output_str = json_output_str.split("```")[0]
                     break
             json_output_str = json_output_str.strip()
@@ -518,11 +518,12 @@ def _get_eraser_grasp_pixel(
 
         # 3. Query the VLM
         # Assuming sample_completions takes a list of images
-        vlm_output_list = vlm.sample_completions(prompt=vlm_query_str,
-                                                    imgs=[pil_image],
-                                                    temperature=0.0, # Low temp for deterministic output
-                                                    seed=CFG.seed,
-                                                    num_completions=1)
+        vlm_output_list = vlm.sample_completions(
+            prompt=vlm_query_str,
+            imgs=[pil_image],
+            temperature=0.0,  # Low temp for deterministic output
+            seed=CFG.seed,
+            num_completions=1)
         vlm_output_str = vlm_output_list[0]
         # 4. Parse the JSON string
         json_string_to_parse = parse_json_output(vlm_output_str)
@@ -532,11 +533,16 @@ def _get_eraser_grasp_pixel(
             raise ValueError("Parsed JSON is not a non-empty list.")
         # Assuming the first point is the desired one
         first_point_obj = parsed_data[0]
-        if 'point' not in first_point_obj or not isinstance(first_point_obj['point'], list) or len(first_point_obj['point']) != 2:
-            raise ValueError("First element in JSON does not contain a valid 'point' list [y, x].")
+        if 'point' not in first_point_obj or not isinstance(
+                first_point_obj['point'],
+                list) or len(first_point_obj['point']) != 2:
+            raise ValueError(
+                "First element in JSON does not contain a valid 'point' list [y, x]."
+            )
         y_norm, x_norm = first_point_obj['point']
-        if not isinstance(y_norm, (int, float)) or not isinstance(x_norm, (int, float)):
-                raise ValueError("Normalized coordinates are not numbers.")
+        if not isinstance(y_norm, (int, float)) or not isinstance(
+                x_norm, (int, float)):
+            raise ValueError("Normalized coordinates are not numbers.")
         # Denormalize from 0-1000 range to image pixel coordinates
         img_height = pil_image.height
         img_width = pil_image.width
@@ -573,9 +579,9 @@ def _get_trash_grasp_pixel(
         isolated_rgb = rgbd.rgb.copy()
         lo, hi = ((0, 0, 130), (130, 255, 255))
         centroid = find_color_based_centroid(isolated_rgb,
-                                         lo,
-                                         hi,
-                                         min_component_size=10)
+                                             lo,
+                                             hi,
+                                             min_component_size=10)
         # This can happen sometimes if the rim of the bucket is separated from the
         # body of the bucket. If that happens, just pick the center bottom pixel in
         # the mask, which should be the rim.
@@ -593,7 +599,6 @@ def _get_trash_grasp_pixel(
             pitch = math_helpers.Quat.from_pitch(np.pi / 2)
             selected_pixel = (centroid[0], centroid[1])
 
-            
         return selected_pixel, pitch
 
     mask = seg_bb.mask
@@ -648,7 +653,7 @@ def _get_trash_grasp_pixel(
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     # pitch = math_helpers.Quat.from_pitch(np.pi / 2)
 
-    return selected_pixel, pitch #* roll  # NOTE: order is super important here!
+    return selected_pixel, pitch  #* roll  # NOTE: order is super important here!
 
 
 def _get_mask_center_grasp_pixel(

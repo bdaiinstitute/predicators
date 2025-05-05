@@ -694,7 +694,8 @@ class SpotPerceiver(BasePerceiver):
             # IsGrumpy = pred_name_to_pred["IsGrumpy"]
             # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
             Holding = pred_name_to_pred["Holding"]
-            clear_trash_can = Object("clear_plastic_container", _trash_can_type)
+            clear_trash_can = Object("clear_plastic_container",
+                                     _trash_can_type)
             cardboard_trash_can = Object("cardboard_box_bin", _trash_can_type)
             apple = Object("apple", _movable_object_type)
             table = Object("short_round_coffee_table", _table_type)

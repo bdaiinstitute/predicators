@@ -7,9 +7,8 @@ from bosdyn.client import math_helpers
 from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import \
-    move_hand_to_relative_pose, move_arm_to_joint_angles, open_gripper
+    move_arm_to_joint_angles, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
-from predicators.spot_utils.skills.spot_hand_move import open_gripper
 
 
 def dump_container(robot: Robot,
@@ -34,7 +33,7 @@ def dump_container(robot: Robot,
     #                                       y=dump_y,
     #                                       z=dump_z,
     #                                       rot=dump_quat)
-   
+
     # dump_quat = math_helpers.Quat(x=-0.6664543747901917, y=0.6712515354156494, z=-0.19593559205532074, w=-0.25859081745147705)
     # # override dump x, y, z
     # dump_x=0.4373268187046051
@@ -50,11 +49,14 @@ def dump_container(robot: Robot,
     down_quat = math_helpers.Quat.from_pitch(np.pi / 2.5)
     end_eff_pose = get_end_effector_state(robot)
     hand_place_back_pose = math_helpers.SE3Pose(x=end_eff_pose.x,
-                                          y=end_eff_pose.y,
-                                          z=end_eff_pose.z - 0.01,
-                                          rot=down_quat)
+                                                y=end_eff_pose.y,
+                                                z=end_eff_pose.z - 0.01,
+                                                rot=down_quat)
     # Joint values for dumping:
-    joint_values = [-1.5590229034423828, -0.754558265209198, 1.6554505825042725, -0.05442166328430176, -1.8044668436050415, 2.883525848388672]
+    joint_values = [
+        -1.5590229034423828, -0.754558265209198, 1.6554505825042725,
+        -0.05442166328430176, -1.8044668436050415, 2.883525848388672
+    ]
     move_arm_to_joint_angles(robot, joint_values)
     # Wait a few seconds for the object(s) to be dumped.
     time.sleep(2.0)

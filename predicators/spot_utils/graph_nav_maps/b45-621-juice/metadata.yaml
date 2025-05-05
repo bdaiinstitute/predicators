@@ -194,5 +194,5 @@ wipe_location:
   short_round_coffee_table: [3.223, 0.481, 1.396]
   # child_play_table: [2.48, 0.205, -2.96856]
 
-juicing_location:
-  juicer_machine: []
+juicing_location: # x, y, yaw in absolute coordinates
+  juice_machine: [2.538, -1.061, -1.36778459519285]

@@ -85,7 +85,6 @@ def wipe_multiple_strokes(robot: Robot, wipe_start_pose: math_helpers.SE3Pose,
         )
     # Move to the end look pose.
     move_hand_to_relative_pose(robot, end_look_pose)
-    import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":

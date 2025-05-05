@@ -127,6 +127,14 @@ def get_collision_geoms_for_nav(state: State) -> List[_Geom2D]:
     return collision_geoms
 
 
+def get_se2_distance(pose1: math_helpers.SE2Pose,
+                     pose2: math_helpers.SE2Pose) -> float:
+    """Get the Euclidean distance between two SE2Poses, ignoring rotation."""
+    dx = pose2.x - pose1.x
+    dy = pose2.y - pose1.y
+    return (dx * dx + dy * dy)**0.5
+
+
 def object_to_top_down_geom(
         obj: Object,
         state: State,

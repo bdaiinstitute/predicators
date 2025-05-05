@@ -1,7 +1,7 @@
 """Interface for moving the spot hand."""
 
-from typing import List, Optional, Sequence
 import time
+from typing import List, Optional, Sequence
 
 from bosdyn.api import arm_command_pb2, robot_command_pb2, \
     synchronized_command_pb2, trajectory_pb2
@@ -157,7 +157,9 @@ def close_gripper(
     return change_gripper(robot, fraction=0.0, duration=duration)
 
 
-def move_arm_to_joint_angles(robot: Robot, joint_angles: Sequence[float], duration: float = 3.0) -> None:
+def move_arm_to_joint_angles(robot: Robot,
+                             joint_angles: Sequence[float],
+                             duration: float = 3.0) -> None:
     """Commands the Spot arm to a specific set of joint angles.
 
     Args:
@@ -167,17 +169,18 @@ def move_arm_to_joint_angles(robot: Robot, joint_angles: Sequence[float], durati
         duration: Approximate time (seconds) for the movement.
     """
     assert len(joint_angles) == 6, "Must provide 6 joint angles."
-    robot_command_client = robot.ensure_client(RobotCommandClient.default_service_name)
+    robot_command_client = robot.ensure_client(
+        RobotCommandClient.default_service_name)
     # Build the arm joint move command.
     # The order is sh0, sh1, el0, el1, wr0, wr1.
-    cmd = RobotCommandBuilder.arm_joint_command(
-        *joint_angles
-    )
+    cmd = RobotCommandBuilder.arm_joint_command(*joint_angles)
     # Send the command.
     cmd_id = robot_command_client.robot_command(cmd)
     # Wait until the arm arrives at the goal.
     # Increase timeout slightly beyond duration to allow for completion.
-    block_until_arm_arrives(robot_command_client, cmd_id, timeout_sec=duration + 2.0)
+    block_until_arm_arrives(robot_command_client,
+                            cmd_id,
+                            timeout_sec=duration + 2.0)
     print(f"Arm reached target joint angles: {joint_angles}")
 
 
@@ -196,8 +199,13 @@ def get_current_arm_joint_angles(robot: Robot) -> Optional[List[float]]:
         return None
 
     # Define the expected order of arm joints
-    arm_joint_names = ["arm0.sh0", "arm0.sh1", "arm0.el0", "arm0.el1", "arm0.wr0", "arm0.wr1"]
-    joint_angles_map = {joint.name: joint.position.value for joint in kinematic_state.joint_states}
+    arm_joint_names = [
+        "arm0.sh0", "arm0.sh1", "arm0.el0", "arm0.el1", "arm0.wr0", "arm0.wr1"
+    ]
+    joint_angles_map = {
+        joint.name: joint.position.value
+        for joint in kinematic_state.joint_states
+    }
 
     current_angles = []
     for name in arm_joint_names:
@@ -210,7 +218,8 @@ def get_current_arm_joint_angles(robot: Robot) -> Optional[List[float]]:
 
 
 def get_end_effector_state(robot) -> None:
-    """Get the current position and orientation of the Spot arm's end effector."""
+    """Get the current position and orientation of the Spot arm's end
+    effector."""
     # Create a RobotStateClient to query the robot's state
     from bosdyn.client.robot_state import RobotStateClient
 
@@ -224,14 +233,29 @@ def get_end_effector_state(robot) -> None:
 
     # Extract the end-effector pose (position and orientation)
     if arm_state and arm_state.transforms_snapshot:
-        ee_transform = arm_state.transforms_snapshot.child_to_parent_edge_map.get("hand", None)
+        ee_transform = arm_state.transforms_snapshot.child_to_parent_edge_map.get(
+            "hand", None)
         if ee_transform:
             position = ee_transform.parent_tform_child.position
             orientation = ee_transform.parent_tform_child.rotation
-            print(f"End Effector Position: x={position.x}, y={position.y}, z={position.z}")
-            print(f"End Effector Orientation (Quaternion): x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")
-            orientation = math_helpers.Quat(x=orientation.x, y=orientation.y, z=orientation.z, w=orientation.w)
-            return math_helpers.SE3Pose(position.x, position.y, position.z, rot=orientation)
+            print(
+                f"End Effector Position: x={position.x}, y={position.y}, z={position.z}"
+            )
+            print(
+                f"End Effector Orientation (Quaternion): x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}"
+            )
+            orientation = math_helpers.Quat(x=orientation.x,
+                                            y=orientation.y,
+                                            z=orientation.z,
+                                            w=orientation.w)
+            ret_pose = math_helpers.SE3Pose(position.x,
+                                            position.y,
+                                            position.z,
+                                            rot=orientation)
+            print(
+                f"math_helpers.SE3Pose(x={ret_pose.x}, y={ret_pose.y}, z={ret_pose.z}, rot=math_helpers.Quat(x={ret_pose.rot.x}, y={ret_pose.rot.y}, z={ret_pose.rot.z}, w={ret_pose.rot.w}))"
+            )
+            return ret_pose
         else:
             print("End effector transform not found.")
     else:
@@ -258,10 +282,8 @@ if __name__ == "__main__":
     #                             seed_required=False,
     #                             approach_required=False)
     #     utils.update_config(args)
-
     #     # Get constants.
     #     hostname = CFG.spot_robot_ip
-
     #     sdk = create_standard_sdk('MoveHandSkillTestClient')
     #     robot = sdk.create_robot(hostname)
     #     authenticate(robot)
@@ -282,33 +304,28 @@ if __name__ == "__main__":
     #         z=0.0,
     #         rot=math_helpers.Quat.from_pitch(np.pi / 2) *
     #         math_helpers.Quat.from_roll(np.pi / 2))
-
     #     print(
     #         "Moving to a pose that looks down and rotates the gripper to the "
     #         + "right.")
     #     move_hand_to_relative_pose(robot, looking_down_and_rotated_right_pose)
     #     input("Press enter when ready to move on")
-
     #     print("Moving to a resting pose in front of the robot.")
     #     move_hand_to_relative_pose(robot, resting_pose)
     #     input("Press enter when ready to move on")
-
     #     print("Opening the gripper.")
     #     open_gripper(robot)
     #     input("Press enter when ready to move on")
-
     #     print("Moving to the same pose (should have no change).")
     #     move_hand_to_relative_pose(robot, resting_pose)
     #     input("Press enter when ready to move on")
-
     #     print("Closing the gripper.")
     #     move_hand_to_relative_pose(robot, resting_pose)
     #     close_gripper(robot)
     #     input("Press enter when ready to move on")
-
     #     print("Looking down and opening the gripper.")
     #     move_hand_to_relative_pose(robot, resting_down_pose)
     #     open_gripper(robot)
+
 
     def _run_manual_test() -> None:
         # Put inside a function to avoid variable scoping issues.
@@ -347,4 +364,4 @@ if __name__ == "__main__":
         # print(get_current_arm_joint_angles(robot))
         get_end_effector_state(robot)
 
-    _run_manual_test()    
+    _run_manual_test()

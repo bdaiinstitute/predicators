@@ -4393,14 +4393,15 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
         #                              _movable_object_type)
         for obj, pose in get_known_movable_objects().items():
             if obj.name == "pink_furry_eraser":
-                eraser_obj = Object("pink_furry_eraser",
-                                    _movable_object_type)
-                detection_id = LanguageObjectDetectionID("toy/flower_arrangement")
+                eraser_obj = Object("pink_furry_eraser", _movable_object_type)
+                detection_id = LanguageObjectDetectionID(
+                    "toy/flower_arrangement")
                 detection_id_to_obj[detection_id] = eraser_obj
             elif obj.name == "clear_plastic_container":
                 container_obj = Object("clear_plastic_container",
                                        _trash_can_type)
-                detection_id = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
+                detection_id = LanguageObjectDetectionID(
+                    "bottle/clear_cup/clear_trashcan")
                 detection_id_to_obj[detection_id] = container_obj
             else:
                 detection_id = LanguageObjectDetectionID(obj.name)

@@ -206,7 +206,6 @@ def _drop_at_relative_position_and_look(
     time.sleep(0.5)
 
 
-
 def _move_closer_and_drop_at_relative_position_and_look(
         robot: Robot, localizer: SpotLocalizer,
         abs_pose: math_helpers.SE3Pose) -> None:
