@@ -14,6 +14,7 @@ from predicators.spot_utils.skills.spot_navigation import \
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_gripper_open_percentage
+from predicators.spot_utils.spot_localization import SpotLocalizer
 
 
 def place_in_waste_valve_region(robot: Robot) -> None:
@@ -63,11 +64,11 @@ def place_in_juice_valve_region(robot: Robot) -> None:
     # it properly places the object in the juice valve region.
     curr_robot_orn = get_end_effector_state(robot).rot
     pose0 = math_helpers.SE3Pose(x=0.9258418679237366, y=-0.2896403670310974, z=0.00937592267990112, rot=curr_robot_orn)
-    pose1 = math_helpers.SE3Pose(x=0.945264995098114, y=-0.11749177426099777, z=-0.01859173953533173, rot=curr_robot_orn)
-    pose2 = math_helpers.SE3Pose(x=0.745264995098114, y=-0.11749177426099777, z=-0.01859173953533173, rot=curr_robot_orn)
+    pose1 = math_helpers.SE3Pose(x=0.945264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
+    pose2 = math_helpers.SE3Pose(x=0.745264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
     # Conformant push poses
-    pose3 = math_helpers.SE3Pose(x=0.98499596118927, y=-0.3708963990211487, z=-0.01537534177303314, rot=math_helpers.Quat(x=0.00928519293665886, y=0.010129101574420929, z=-0.2520125210285187, w=0.9676263928413391))
-    pose4 = math_helpers.SE3Pose(x=1.1113766431808472, y=-0.2160855382680893, z=0.014770278707146645, rot=math_helpers.Quat(x=0.002047186717391014, y=0.02063177339732647, z=-0.14226560294628143, w=0.9896113276481628))
+    pose3 = math_helpers.SE3Pose(x=0.98499596118927, y=-0.3708963990211487, z=-0.03537534177303314, rot=math_helpers.Quat(x=0.00928519293665886, y=0.010129101574420929, z=-0.2520125210285187, w=0.9676263928413391))
+    pose4 = math_helpers.SE3Pose(x=1.1113766431808472, y=-0.2160855382680893, z=-0.034770278707146645, rot=math_helpers.Quat(x=0.002047186717391014, y=0.02063177339732647, z=-0.14226560294628143, w=0.9896113276481628))
     # Place the cup and retract, then push the cup to align
     # with the juicer!
     move_hand_to_relative_pose(robot, pose0)
@@ -216,7 +217,7 @@ def close_juicer_lid(robot: Robot) -> None:
     time.sleep(0.1)
 
 
-def turn_juicer_on(robot: Robot) -> None:
+def turn_juicer_on(robot: Robot, localizer: SpotLocalizer) -> None:
     """Turn on the Ecoself juicer.
 
     Assumes that the robot is lined up such that it's facing the juicer
@@ -232,7 +233,7 @@ def turn_juicer_on(robot: Robot) -> None:
                                               y=-0.00844526756554842,
                                               z=-0.00026528292801231146))
     grasp_pose = math_helpers.SE3Pose(x=0.822599199295044,
-                                      y=0.020432027116417885,
+                                      y=0.010432027116417885,
                                       z=-0.04757143884897232,
                                       rot=math_helpers.Quat(
                                           w=0.997207760810852,
@@ -257,26 +258,46 @@ def turn_juicer_on(robot: Robot) -> None:
     time.sleep(0.1)
     # Keep attempting to move the arm incrementally
     # until the gripper closes around the juicer button.
-    max_num_tries = 8
-    curr_pose_to_try = grasp_pose
-    for _ in range(max_num_tries):
-        move_hand_to_relative_pose(robot, curr_pose_to_try)
-        time.sleep(0.1)
+    max_num_reach_tries = 3
+    max_num_nav_tries = 4
+    for _ in range(max_num_nav_tries):
+        curr_pose_to_try = grasp_pose
+        for _ in range(max_num_reach_tries):
+            move_hand_to_relative_pose(robot, curr_pose_to_try)
+            time.sleep(0.1)
+            close_gripper(robot)
+            # NOTE: we use 15 here, because sometimes we get a "partial"
+            # grip on the button, and we want to make sure that
+            # we have a good grip on it.
+            if get_robot_gripper_open_percentage(robot) < 15:
+                # We didn't grip the button; move slightly
+                # forward and try again.
+                open_gripper(robot)
+                curr_pose_to_try = math_helpers.SE3Pose(x=curr_pose_to_try.x +
+                                                        0.025,
+                                                        y=curr_pose_to_try.y,
+                                                        z=curr_pose_to_try.z,
+                                                        rot=curr_pose_to_try.rot)
+            else:
+                close_gripper(robot)
+                break
         close_gripper(robot)
-        # NOTE: we use 15 here, because sometimes we get a "partial"
-        # grip on the button, and we want to make sure that
-        # we have a good grip on it.
         if get_robot_gripper_open_percentage(robot) < 15:
-            # We didn't grip the button; move slightly
-            # forward and try again.
+            stow_arm(robot)
             open_gripper(robot)
-            curr_pose_to_try = math_helpers.SE3Pose(x=curr_pose_to_try.x +
-                                                    0.025,
-                                                    y=curr_pose_to_try.y,
-                                                    z=curr_pose_to_try.z,
-                                                    rot=curr_pose_to_try.rot)
+            juicer_pose_params = load_spot_metadata(
+            )["juicing_location"]["juice_machine"]
+            juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
+                                                y=juicer_pose_params[1],
+                                                angle=juicer_pose_params[2])
+            navigate_to_absolute_pose_precise(robot,
+                                            localizer,
+                                            juicing_pose,
+                                            tolerance=0.025,
+                                            max_num_tries=10)
         else:
             break
+
     time.sleep(0.1)
     # Now turn the knob.
     rotated_pose = math_helpers.SE3Pose(x=curr_pose_to_try.x,
@@ -337,10 +358,10 @@ if __name__ == "__main__":
                                           juicing_pose,
                                           tolerance=0.025,
                                           max_num_tries=10)
-        place_in_juice_valve_region(robot)
+        # place_in_juice_valve_region(robot)
         # place_in_waste_valve_region(robot)
         # drop_inside_juicer(robot)
         # close_juicer_lid(robot)
-        # turn_juicer_on(robot)
+        turn_juicer_on(robot, localizer)
 
     _run_manual_test()
