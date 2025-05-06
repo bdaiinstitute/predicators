@@ -16,7 +16,7 @@ allowed-regions:
   spot-room:
     - [0.25, 1.9]
     - [1.2, -2.5]
-    - [5.7, -1.5]
+    - [5.7, -2.5]
     - [5.0, 2.7]
 
 # Known immovable objects. Assuming default rotations.
@@ -30,15 +30,15 @@ known-immovable-objects:
 known-movable-objects:
   orange:
     x: 3.418
-    y: -1.15
+    y: -1.45
     z: 0.18
     object_type: "movable"
-  fancy_clear_acrylic_plastic_cup:
+  clear_acrylic_plastic_cup_with_blue_tape:
     # x: 2.018
     # y: -1.17
     # z: 0.18
     x: 3.418
-    y: -1.15
+    y: -1.45
     z: 0.18
     object_type: "container"
   beige_solid_plastic_cup:
@@ -46,12 +46,12 @@ known-movable-objects:
     # y: -1.17
     # z: 0.18
     x: 3.418
-    y: -1.15
+    y: -1.45
     z: 0.18
     object_type: "container"
   juice_machine:
-    x: 2.058
-    y: -1.17
+    x: 2.858
+    y: -1.47
     z: 0.18
     object_type: "juicer"
 
@@ -70,7 +70,7 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  fancy_clear_acrylic_plastic_cup:
+  clear_acrylic_plastic_cup_with_blue_tape:
     shape: 2
     height: 0.1
     length: 0.1
@@ -96,7 +96,7 @@ static-object-features:
 approach_angle_bounds:
   # approach all objects from directly ahead for now.
   orange: [1.47, 1.67]
-  fancy_clear_acrylic_plastic_cup: [1.47, 1.67]
+  clear_acrylic_plastic_cup_with_blue_tape: [1.47, 1.67]
   beige_solid_plastic_cup: [1.47, 1.67]
   juice_machine: [1.47, 1.67]
   

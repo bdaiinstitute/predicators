@@ -720,6 +720,7 @@ class SpotPerceiver(BasePerceiver):
             Holding = pred_name_to_pred["Holding"]
             HoldingContainer = pred_name_to_pred["HoldingContainer"]
             JuiceInCup = pred_name_to_pred["JuiceInCup"]
+            NearJuiceValve = pred_name_to_pred["NearJuiceValve"]
             Empty = pred_name_to_pred["Empty"]
             Inside = pred_name_to_pred["Inside"]
             # plastic_cup = Object("clear_plastic_cup", _container_type)
@@ -731,12 +732,14 @@ class SpotPerceiver(BasePerceiver):
             # juice_machine = Object("ECOSELF_juice_machine", _juicer_type)
             # apple = Object("apple", _movable_object_type)
             # blue_Cup = Object("blue_plastic_cup", _container_type)
-            # fancy_clear_acrylic_plastic_cup = Object("fancy_clear_acrylic_plastic_cup", _container_type)
+            clear_acrylic_plastic_cup_with_blue_tape = Object("clear_acrylic_plastic_cup_with_blue_tape", _container_type)
             beige_solid_plastic_cup = Object("beige_solid_plastic_cup", _container_type)
+            juice_machine = Object("juice_machine", _juicer_type)
             robot = Object("robot", _robot_type)
             goal = {
-                # GroundAtom(JuiceInCup, [orange, fancy_clear_acrylic_plastic_cup]),
-                GroundAtom(HoldingContainer, [robot, beige_solid_plastic_cup]),
+                # GroundAtom(JuiceInCup, [orange, clear_acrylic_plastic_cup_with_blue_tape]),
+                # GroundAtom(NearJuiceValve, [clear_acrylic_plastic_cup_with_blue_tape, juice_machine])
+                GroundAtom(HoldingContainer, [robot, clear_acrylic_plastic_cup_with_blue_tape]),
                 # GroundAtom(Holding, [robot, orange]),
                 # GroundAtom(Empty, [glass_cup]),
                 # GroundAtom(Inside, [orange, juice_machine]),

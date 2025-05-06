@@ -355,7 +355,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "Sweep": utils.null_sampler,
             "PlaceOnFloor": utils.null_sampler,
             "DumpContentsOntoFloor": _pick_object_from_top_sampler,
-            "MoveAndPickFromFloor": _move_to_hand_view_object_sampler,
+            "MoveAndPickFromFloorContainer": _move_to_hand_view_object_sampler,
+            "MoveAndPickFromFloorObject": _move_to_hand_view_object_sampler,
             "MoveAndPickFromTop": _move_to_hand_view_object_sampler,
             "MoveToReachAndDropInside": _move_to_reach_object_sampler,
             "MoveAndWipeSurfaceAndContinueHoldingEraser":
@@ -364,6 +365,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveAndDropInsideJuicer": utils.null_sampler,
             "MoveAndCloseJuicer": utils.null_sampler,
             "MoveAndTurnJuicerOn": utils.null_sampler,
+            "MoveAndPlaceInJuiceValveRegion": utils.null_sampler,
+            "MoveAndPlaceInWasteValveRegion": utils.null_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then

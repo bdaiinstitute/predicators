@@ -4536,7 +4536,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                                [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndPickFromFloorContainer", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op2: PlaceInsideJuiceValveRegion
@@ -4558,7 +4558,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = {LiftedAtom(_HoldingContainer, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("TeleopPlaceInsideJuiceValveRegion", parameters, preconds,
+            STRIPSOperator("MoveAndPlaceInJuiceValveRegion", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op5: PlaceInsideWasteValveRegion
@@ -4580,7 +4580,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = {LiftedAtom(_HoldingContainer, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("TeleopPlaceInsideWasteValveRegion", parameters, preconds,
+            STRIPSOperator("MoveAndPlaceInWasteValveRegion", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op7: DumpFromOneIntoOther
@@ -4661,7 +4661,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                                [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndPickFromFloorObject", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op12: PlaceInside

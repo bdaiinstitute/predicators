@@ -46,7 +46,7 @@ from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, SpotActionExtraInfo, State, Type
 from predicators.spot_utils.skills.spot_juicing import drop_inside_juicer, \
-    close_juicer_lid, turn_juicer_on
+    close_juicer_lid, turn_juicer_on, place_in_juice_valve_region, place_in_waste_valve_region
 
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
@@ -559,7 +559,7 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
                    grasp_rot=rot_constraint,
                    rot_thresh=1.00,
                    timeout=10.0,
-                   retry_with_no_constraints=False)
+                   retry_with_no_constraints=True)
         # Object specific logic.
         if "cup" in objects[target_obj_idx].name:
             # don't stow, but kind of tuck the arm with a particular
@@ -739,8 +739,35 @@ def _generic_juicer_policy(name: str, state: State, memory: Dict,
         elif name == "CloseJuicerLid":
             close_juicer_lid(robot)
         elif name == "TurnJuicerOn":
-            turn_juicer_on(robot)
+            turn_juicer_on(robot, localizer)
 
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+def _move_and_place_in_region_policy(name: str,
+        state: State, memory: Dict,
+        objects: Sequence[Object], params: Array) -> Action:
+    """Policy for placing a cup inside the juice valve region."""
+    del state, memory, params
+    def _fn() -> None:
+        robot, localizer, _ = get_robot()
+        juicer_pose_params = load_spot_metadata(
+        )["juicing_location"]["juice_machine"]
+        juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
+                                            y=juicer_pose_params[1],
+                                            angle=juicer_pose_params[2])
+        navigate_to_absolute_pose_precise(robot,
+                                          localizer,
+                                          juicing_pose,
+                                          tolerance=0.025,
+                                          max_num_tries=10)
+        if name == "MoveAndPlaceInJuiceValveRegion":
+            place_in_juice_valve_region(robot)
+        else:
+            assert name == "MoveAndPlaceInWasteValveRegion"
+            place_in_waste_valve_region(robot)
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
                                             tuple())
@@ -1199,6 +1226,20 @@ def _move_and_turn_juicer_on_policy(state: State, memory: Dict,
     return _generic_juicer_policy(name, state, memory, objects,
                                   params)
 
+def _move_and_place_in_juice_valve_region_policy(state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    name = "MoveAndPlaceInJuiceValveRegion"
+    return _move_and_place_in_region_policy(name, state, memory, objects,
+                                            params)
+
+def _move_and_place_in_waste_valve_region_policy(state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    name = "MoveAndPlaceInWasteValveRegion"
+    return _move_and_place_in_region_policy(name, state, memory, objects,
+                                            params)
+
 
 def _create_teleop_policy_with_name(
         name: str) -> Callable[[State, Dict, Sequence[Object], Array], Action]:
@@ -1265,7 +1306,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty,
     "MoveAndPickFromTop": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
-    "MoveAndPickFromFloor": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
+    "MoveAndPickFromFloorContainer": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
+    "MoveAndPickFromFloorObject": Box(-np.inf, np.inf, (2, )),  # rel dist, grasp
     "DumpContentsOntoFloor": Box(-np.inf, np.inf, (6, )),
     "MoveAndWipeSurfaceAndContinueHoldingEraser":
     Box(-np.inf, np.inf, (9, )
@@ -1275,6 +1317,8 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "MoveAndDropInsideJuicer": Box(0, 1, (0, )),  # empty
     "MoveAndCloseJuicer": Box(0, 1, (0, )),  # empty,
     "MoveAndTurnJuicerOn": Box(0, 1, (0, )),  # empty,
+    "MoveAndPlaceInJuiceValveRegion": Box(0, 1, (0, )), # empty,
+    "MoveAndPlaceInWasteValveRegion": Box(0, 1, (0, )), # empty,
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -1301,7 +1345,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
     "MoveAndPickFromTop": _move_and_pick_fatop_policy,
-    "MoveAndPickFromFloor": _move_and_pick_ffloor_policy,
+    "MoveAndPickFromFloorContainer": _move_and_pick_ffloor_policy,
+    "MoveAndPickFromFloorObject": _move_and_pick_ffloor_policy,
     "DumpContentsOntoFloor": _move_and_grasp_and_dump_policy,
     "MoveAndWipeSurfaceAndContinueHoldingEraser":
     _move_and_wipe_surface_policy,
@@ -1309,6 +1354,8 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveAndDropInsideJuicer": _move_and_drop_inside_juicer_policy,
     "MoveAndCloseJuicer": _move_and_close_juicer_lid_policy,
     "MoveAndTurnJuicerOn": _move_and_turn_juicer_on_policy,
+    "MoveAndPlaceInJuiceValveRegion": _move_and_place_in_juice_valve_region_policy,
+    "MoveAndPlaceInWasteValveRegion": _move_and_place_in_waste_valve_region_policy,
 }
 
 

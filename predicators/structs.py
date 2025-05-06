@@ -650,7 +650,11 @@ class ParameterizedOption:
             import ipdb
             ipdb.set_trace()
         for obj, t in zip(objects, self.types):
-            assert obj.is_instance(t)
+            try:
+                assert obj.is_instance(t)
+            except AssertionError:
+                import ipdb
+                ipdb.set_trace()
         params = np.array(params, dtype=self.params_space.dtype)
         assert self.params_space.contains(params)
         memory: Dict = {}  # each option has its own memory dict

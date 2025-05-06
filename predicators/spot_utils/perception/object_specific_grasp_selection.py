@@ -51,7 +51,7 @@ trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
 blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 eraser_obj = LanguageObjectDetectionID("toy/flower_arrangement")
 soda_can_obj = LanguageObjectDetectionID("soda_can")
-acrylic_cup_obj = LanguageObjectDetectionID("fancy_clear_acrylic_plastic_cup")
+acrylic_cup_obj = LanguageObjectDetectionID("clear_acrylic_plastic_cup_with_blue_tape")
 beige_cup_obj = LanguageObjectDetectionID("beige_solid_plastic_cup")
 
 def _get_pixel_from_gemini(vlm_query_str: str, pil_image: PIL.Image.Image) -> Tuple[int, int]:
@@ -239,7 +239,7 @@ def _get_acrylic_cup_grasp_pixel(
         else:
             pil_image = rgb_image
         vlm_query_str = """
-                Point to the fancy clear cup in the image.
+                Point to the fancy clear cup with blue tape encircling it in the image.
                 The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
             """
         pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
@@ -284,14 +284,14 @@ def _get_beige_cup_grasp_pixel(
             """
         pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
    
-    # Uncomment for debugging.
-    rgbd = rgbds[camera_name]
-    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
-    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
-    cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
-    cv2.imshow("Selected grasp", bgr)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # # Uncomment for debugging.
+    # rgbd = rgbds[camera_name]
+    # bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    # cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    # cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
+    # cv2.imshow("Selected grasp", bgr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
    
     return pixel, quat_constraint
 
