@@ -360,7 +360,10 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToReachAndDropInside": _move_to_reach_object_sampler,
             "MoveAndWipeSurfaceAndContinueHoldingEraser":
             _move_and_wipe_table_sampler,
-            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler
+            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler,
+            "MoveAndDropInsideJuicer": utils.null_sampler,
+            "MoveAndCloseJuicer": utils.null_sampler,
+            "MoveAndTurnJuicerOn": utils.null_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then
@@ -371,8 +374,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             # similarly in the future.
 
         for strips_op in env.strips_operators:
-            if "teleop" in strips_op.name.lower(
-            ) or CFG.env == "spot_vlm_juice_making_invented_predicates_env":
+            if "teleop" in strips_op.name.lower():
                 sampler = utils.null_sampler
             else:
                 sampler = operator_name_to_sampler[strips_op.name]

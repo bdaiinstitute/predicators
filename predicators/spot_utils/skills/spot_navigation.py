@@ -151,6 +151,7 @@ def navigate_to_absolute_pose_precise(robot: Robot,
         robot_pose = localizer.get_last_robot_pose()
         robot_se2 = robot_pose.get_closest_se2_transform()
         curr_dist_to_target = get_se2_distance(robot_se2, target_pose)
+        print(curr_dist_to_target)
         # If the robot is not moving, we should move randomly backwards
         # to avoid getting stuck.
         if abs(curr_dist_to_target - prev_dist_to_target) < 0.01:
@@ -162,7 +163,7 @@ def navigate_to_absolute_pose_precise(robot: Robot,
     if curr_dist_to_target > tolerance:
         navigate_to_absolute_pose(robot, localizer, target_pose,
                                   max_xytheta_vel, min_xytheta_vel, timeout)
-        logging.warning(
+        print(
             f"Failed to reach the target pose after {curr_tries} tries. "
             f"Current distance to target: {curr_dist_to_target}")
 

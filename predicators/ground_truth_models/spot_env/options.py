@@ -33,7 +33,7 @@ from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_absolute_pose, navigate_to_relative_pose, \
-    simulated_navigate_to_relative_pose
+    simulated_navigate_to_relative_pose, navigate_to_absolute_pose_precise
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
@@ -45,6 +45,8 @@ from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     get_relative_se2_from_se3, load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, Array, Object, ParameterizedOption, \
     Predicate, SpotActionExtraInfo, State, Type
+from predicators.spot_utils.skills.spot_juicing import drop_inside_juicer, \
+    close_juicer_lid, turn_juicer_on
 
 ###############################################################################
 #            Helper functions for chaining multiple spot skills               #
@@ -700,6 +702,38 @@ def _move_to_view_and_grasp_and_dump_policy(name: str, robot_obj_idx: int,
     return utils.create_spot_env_action(action_extra_info)
 
 
+def _generic_juicer_policy(name: str, state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    """Juicer policy that can be used for placing inside,
+    closing the lid, or turning on the juicer."""
+    del state, memory, params
+
+    def _fn() -> None:
+        robot, localizer, _ = get_robot()
+        juicer_pose_params = load_spot_metadata(
+        )["juicing_location"]["juice_machine"]
+        juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
+                                            y=juicer_pose_params[1],
+                                            angle=juicer_pose_params[2])
+        navigate_to_absolute_pose_precise(robot,
+                                          localizer,
+                                          juicing_pose,
+                                          tolerance=0.025,
+                                          max_num_tries=10)
+        if name == "DropFruitInsideJuicer":
+            drop_inside_juicer(robot)
+        elif name == "CloseJuicerLid":
+            close_juicer_lid(robot)
+        elif name == "TurnJuicerOn":
+            turn_juicer_on(robot)
+
+    # Note simulation fn and args not implemented yet.
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 ###############################################################################
 #                   Concrete parameterized option policies                    #
 ###############################################################################
@@ -1131,6 +1165,27 @@ def _move_and_grasp_and_dump_policy(state: State, memory: Dict,
     return _move_to_view_and_grasp_and_dump_policy(name, 0, 1, state, memory,
                                                    objects, params)
 
+def _move_and_drop_inside_juicer_policy(state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    name = "DropFruitInsideJuicer"
+    return _generic_juicer_policy(name, state, memory, objects,
+                                            params)
+
+def _move_and_close_juicer_lid_policy(state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    name = "CloseJuicerLid"
+    return _generic_juicer_policy(name, state, memory, objects,
+                                            params)
+
+def _move_and_turn_juicer_on_policy(state: State, memory: Dict,
+                                        objects: Sequence[Object],
+                                        params: Array) -> Action:
+    name = "TurnJuicerOn"
+    return _generic_juicer_policy(name, state, memory, objects,
+                                  params)
+
 
 def _create_teleop_policy_with_name(
         name: str) -> Callable[[State, Dict, Sequence[Object], Array], Action]:
@@ -1204,6 +1259,9 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
         ),  # move_abs_x, move_abs_y, move_abs_yaw, rel dx, dy, number of wipes
     "DumpContentsOntoFloor": Box(-np.inf, np.inf, (2, )),  # params for moving.
     "MoveToReachAndDropInside": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveAndDropInsideJuicer": Box(0, 1, (0, )),  # empty
+    "MoveAndCloseJuicer": Box(0, 1, (0, )),  # empty,
+    "MoveAndTurnJuicerOn": Box(0, 1, (0, )),  # empty,
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -1235,6 +1293,9 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveAndWipeSurfaceAndContinueHoldingEraser":
     _move_and_wipe_surface_policy,
     "MoveToReachAndDropInside": _move_and_drop_inside_policy,
+    "MoveAndDropInsideJuicer": _move_and_drop_inside_juicer_policy,
+    "MoveAndCloseJuicer": _move_and_close_juicer_lid_policy,
+    "MoveAndTurnJuicerOn": _move_and_turn_juicer_on_policy,
 }
 
 
@@ -1261,12 +1322,8 @@ class _SpotParameterizedOption(utils.SingletonParameterizedOption):
             policy = _create_teleop_policy_with_name(operator_name)
             params_space = Box(0, 1, (0, ))  # null
         else:
-            if CFG.env != "spot_vlm_juice_making_invented_predicates_env":
-                params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
-                policy = _OPERATOR_NAME_TO_POLICY[operator_name]
-            else:
-                params_space = Box(0, 1, (0, ))  # empty
-                policy = _create_teleop_policy_with_name(operator_name)
+            params_space = _OPERATOR_NAME_TO_PARAM_SPACE[operator_name]
+            policy = _OPERATOR_NAME_TO_POLICY[operator_name]
         super().__init__(operator_name, policy, types, params_space)
 
     def __reduce__(self) -> Tuple:

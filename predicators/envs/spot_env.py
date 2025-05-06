@@ -1173,10 +1173,10 @@ class SpotRearrangementEnv(BaseEnv):
         obj_to_se3_pose = get_known_movable_objects()
         obj_to_se3_pose.update(get_known_immovable_objects())
         self._last_known_object_poses.update(obj_to_se3_pose)
-        # Move the robot into a good place to construct the initial state
-        # by running VLM predicates.
-        prompt = "Finished initial search for objects. Take control of the robot and move it into a good initial location for constructing the initial state of the task. Press 'Enter' when done!"
-        _ = input(prompt)
+        # # Move the robot into a good place to construct the initial state
+        # # by running VLM predicates.
+        # prompt = "Finished initial search for objects. Take control of the robot and move it into a good initial location for constructing the initial state of the task. Press 'Enter' when done!"
+        # _ = input(prompt)
         assert self._lease_client is not None
         self._lease_client.take()
         return obj_to_se3_pose, {}
@@ -4518,7 +4518,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = {LiftedAtom(self._JuiceMachineOpen, [x1])}
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("CloseLid", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndCloseJuicer", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op1: PickContainer
@@ -4534,7 +4534,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                                [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("PickContainer", parameters, preconds, add_effs,
+            STRIPSOperator("TeleopPickContainer", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op2: PlaceInsideJuiceValveRegion
@@ -4556,7 +4556,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = {LiftedAtom(_Holding, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("PlaceInsideJuiceValveRegion", parameters, preconds,
+            STRIPSOperator("TeleopPlaceInsideJuiceValveRegion", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op5: PlaceInsideWasteValveRegion
@@ -4578,7 +4578,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         del_effs = {LiftedAtom(_Holding, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("PlaceInsideWasteValveRegion", parameters, preconds,
+            STRIPSOperator("TeleopPlaceInsideWasteValveRegion", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op7: DumpFromOneIntoOther
@@ -4604,7 +4604,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         }
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("DumpFromOneIntoOther", parameters, preconds,
+            STRIPSOperator("TeleopDumpFromOneIntoOther", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op10: TurnOnAndRunMachine
@@ -4613,8 +4613,8 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         x2 = Variable("?x2", _robot_type)
         x3 = Variable("?x3", _juicer_type)
         x4 = Variable("?x4", _movable_object_type)  # Fruit/veg
-        # parameters = [x2, x3, x0, x1, x4] # Order for operator!
-        parameters = [x2, x3, x0, x1]  # Order for option spec
+        parameters = [x2, x3, x0, x1, x4] # Order for operator!
+        # parameters = [x2, x3, x0, x1]  # Order for option spec
         preconds = {
             LiftedAtom(self._Empty, [x0]),
             LiftedAtom(self._Empty, [x1]),
@@ -4643,7 +4643,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         }
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("TurnOnAndRunMachine", parameters, preconds,
+            STRIPSOperator("MoveAndTurnJuicerOn", parameters, preconds,
                            add_effs, del_effs, ignore_effs))
 
         # STRIPS-Op11: PickMovable
@@ -4659,7 +4659,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
                                [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("PickMovable", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op12: PlaceInside
@@ -4683,7 +4683,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         }
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("PlaceInside", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndDropInsideJuicer", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
     @property
@@ -4706,7 +4706,13 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        # TODO
+        for obj, pose in get_known_movable_objects().items():
+            detection_id = LanguageObjectDetectionID(obj.name)
+            detection_id_to_obj[detection_id] = obj
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[stat_detection_id] = obj
+
         return detection_id_to_obj
 
     def _generate_goal_description(self) -> GoalDescription:

@@ -2,9 +2,9 @@
 ---
 # NOTE: close to the center of the room
 spot-home-pose:
-  x: 2.981
-  y: 0.082
-  angle: 1.27
+  x: 3.5
+  y: 0.45
+  angle: 0.
 april-tag-offsets: []
 
 # Allowed regions. Each region is defined by a set of points
@@ -26,40 +26,28 @@ known-immovable-objects:
     x: 1.4
     y: 0.5
     z: -0.5
-  # child_play_table:
-  #   x: 1.65
-  #   y: -0.24
-  #   z: 0.14
 
 known-movable-objects:
-  soda_can:
-    x: 3.223
-    y: 0.681
-    z: 0.20
+  orange:
+    x: 3.418
+    y: -1.15
+    z: 0.18
     object_type: "movable"
-  recycling_bin:
-    x: -0.045
-    y: 0.25
-    z: 0.2
-    object_type: "trashcan"
-  short_round_coffee_table:
-    x: 3.223
-    y: 0.681
-    z: 0.14
-    object_type: "table"
-  pink_furry_eraser:
-    x: 1.5
-    y: 0.9
-    z: 0.114
-    object_type: "movable"
-  clear_plastic_container:
-    # x: 1.5
-    # y: 0.9
-    # z: 0.114
-    x: 1.526
-    y: 1.385
-    z: -0.2
-    object_type: "trashcan"
+  fancy_clear_acrylic_plastic_cup:
+    x: 2.018
+    y: -1.17
+    z: 0.18
+    object_type: "container"
+  beige_solid_plastic_cup:
+    x: 2.088
+    y: -1.17
+    z: 0.18
+    object_type: "container"
+  juice_machine:
+    x: 2.058
+    y: -1.17
+    z: 0.18
+    object_type: "juicer"
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -69,130 +57,44 @@ static-object-features:
     length: 10000000  # effectively infinite
     width: 10000000
     flat_top_surface: 1
-  red_block:
+  orange:
     shape: 2
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  yellow_toy_cup:
+  fancy_clear_acrylic_plastic_cup:
     shape: 2
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  small_cardboard_box_with_black_tape:
-    shape: 1  # cuboid
-    height: 0.55
-    length: 0.28
-    width: 0.6
-    flat_top_surface: 1
-  apple:
+  beige_solid_plastic_cup:
     shape: 2
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  soda_can:
+  juice_machine:
     shape: 2
-    height: 0.1
-    length: 0.1
-    width: 0.1
-    placeable: 1
-    is_sweeper: 0
-  blue_block:
-    shape: 2
-    height: 0.1
-    length: 0.1
-    width: 0.1
-    placeable: 1
-    is_sweeper: 0
-  blue_coffee_cup:
-    shape: 1
-    height: 0.2
+    height: 0.5
     length: 0.2
     width: 0.2
-    placeable: 1
+    placeable: 0
     is_sweeper: 0
-  clear_plastic_container:
-    shape: 2
-    height: 0.1
-    length: 0.2
-    width: 0.2
-    placeable: 1
-    is_sweeper: 0
-    flat_top_surface: 0
-  cardboard_box_bin:
-    shape: 2
-    height: 0.1
-    length: 0.2
-    width: 0.2
-    placeable: 1
-    is_sweeper: 0
-    flat_top_surface: 0
-  recycling_bin:
-    shape: 2
-    height: 0.4
-    length: 0.1
-    width: 0.1
-    placeable: 1
-    is_sweeper: 0
-    flat_top_surface: 0
-  toy:
-    shape: 1
-    height: 0.1
-    length: 0.1
-    width: 0.1
-    placeable: 1
-    is_sweeper: 0
-  pink_furry_eraser:
-    shape: 1
-    height: 0.1
-    length: 0.1
-    width: 0.1
-    placeable: 1
-    is_sweeper: 0
-  short_round_coffee_table:
-    shape: 1
-    height: 0.1
-    length: 0.45
-    width: 0.45
-    flat_top_surface: 1
-  child_play_table:
-    shape: 1
-    height: 0.1
-    length: 0.79
-    width: 0.62
-    flat_top_surface: 1
 
 # Helpful for static objects that are up against a wall, for example.
 approach_angle_bounds:
-  # only approach the apple from in front of it!
-  apple: [-0.1, 0.1]
-  # only approach the coffee cup from in front of it!
-  blue_coffee_cup: [-0.1, 0.1]
-  # also only approach the short_round_coffee_table from in front of it!
-  short_round_coffee_table: [-0.1, 0.1]
-  # only approach the child_play_table from in front of it!
-  child_play_table: [-0.1, 0.1]
-  # approach trash can from the side
-  # clear_plastic_container: [1.47, 1.67]
-  cardboard_box_bin: [1.47, 1.67]
-  # approach the duster from the other side.
-  pink_furry_eraser: [-1.67, -1.47]
-  toy: [-1.67, -1.47]
-  soda_can: [-1.67, -1.47]
-  recycling_bin: [-0.1, 0.1]
-  clear_plastic_container: [-1.67, -1.47]
-
-
-# Wiping skill params.
-wipe_location:
-  short_round_coffee_table: [3.223, 0.481, 1.396]
-  # child_play_table: [2.48, 0.205, -2.96856]
+  # approach all objects from directly ahead for now.
+  orange: [1.47, 1.67]
+  fancy_clear_acrylic_plastic_cup: [1.47, 1.67]
+  beige_solid_plastic_cup: [1.47, 1.67]
+  juice_machine: [1.47, 1.67]
+  
 
 juicing_location: # x, y, yaw in absolute coordinates
-  juice_machine: [2.538, -1.061, -1.36778459519285]
+  # juice_machine: [2.538, -1.061, -1.36778459519285]
+  juice_machine: [2.559, -1.109, -1.36778459519285]

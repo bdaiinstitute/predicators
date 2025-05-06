@@ -717,20 +717,24 @@ class SpotPerceiver(BasePerceiver):
             }
             return goal
         if goal_description == "make some juice!":
+            Holding = pred_name_to_pred["Holding"]
             JuiceInCup = pred_name_to_pred["JuiceInCup"]
             Empty = pred_name_to_pred["Empty"]
             Inside = pred_name_to_pred["Inside"]
             # plastic_cup = Object("clear_plastic_cup", _container_type)
             orange = Object("orange", _movable_object_type)
             # pear = Object("pear", _movable_object_type)
-            glass_cup = Object("clear_plastic_cup", _container_type)
-            red_cup = Object("red_cup", _container_type)
-            # paper_cup = Object("paper_cup", _container_type)
-            juice_machine = Object("ECOSELF_juice_machine", _juicer_type)
-            apple = Object("apple", _movable_object_type)
-            blue_Cup = Object("blue_plastic_cup", _container_type)
+            # glass_cup = Object("clear_plastic_cup", _container_type)
+            # red_cup = Object("red_cup", _container_type)
+            # # paper_cup = Object("paper_cup", _container_type)
+            # juice_machine = Object("ECOSELF_juice_machine", _juicer_type)
+            # apple = Object("apple", _movable_object_type)
+            # blue_Cup = Object("blue_plastic_cup", _container_type)
+            fancy_clear_acrylic_plastic_cup = Object("fancy_clear_acrylic_plastic_cup", _container_type)
+            robot = Object("robot", _robot_type)
             goal = {
-                GroundAtom(JuiceInCup, [orange, blue_Cup]),
+                GroundAtom(JuiceInCup, [orange, fancy_clear_acrylic_plastic_cup]),
+                # GroundAtom(Holding, [robot, orange]),
                 # GroundAtom(Empty, [glass_cup]),
                 # GroundAtom(Inside, [orange, juice_machine]),
                 # GroundAtom(Inside, [apple, juice_machine]),

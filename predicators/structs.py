@@ -1033,13 +1033,13 @@ class NSRT:
         assert all(
             o.is_instance(p.type) for o, p in zip(objects, self.parameters))
         sub = dict(zip(self.parameters, objects))
-        try:
-            preconditions = {atom.ground(sub) for atom in self.preconditions}
-            add_effects = {atom.ground(sub) for atom in self.add_effects}
-            delete_effects = {atom.ground(sub) for atom in self.delete_effects}
-        except AssertionError:
-            import ipdb
-            ipdb.set_trace()
+        # try:
+        preconditions = {atom.ground(sub) for atom in self.preconditions}
+        add_effects = {atom.ground(sub) for atom in self.add_effects}
+        delete_effects = {atom.ground(sub) for atom in self.delete_effects}
+        # except AssertionError:
+        #     import ipdb
+        #     ipdb.set_trace()
         option_objs = [sub[v] for v in self.option_vars]
         return _GroundNSRT(self, objects, preconditions, add_effects,
                            delete_effects, self.option, option_objs,
