@@ -63,8 +63,8 @@ def place_in_juice_valve_region(robot: Robot) -> None:
     # Pre-recorded poses for the arm to move through such that
     # it properly places the object in the juice valve region.
     curr_robot_orn = get_end_effector_state(robot).rot
-    pose0 = math_helpers.SE3Pose(x=0.9258418679237366, y=-0.2896403670310974, z=0.00937592267990112, rot=curr_robot_orn)
-    pose1 = math_helpers.SE3Pose(x=0.945264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
+    pose0 = math_helpers.SE3Pose(x=0.8858418679237366, y=-0.2896403670310974, z=0.00937592267990112, rot=curr_robot_orn)
+    pose1 = math_helpers.SE3Pose(x=0.895264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
     pose2 = math_helpers.SE3Pose(x=0.745264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
     # Conformant push poses
     pose3 = math_helpers.SE3Pose(x=0.98499596118927, y=-0.3708963990211487, z=-0.03537534177303314, rot=math_helpers.Quat(x=0.00928519293665886, y=0.010129101574420929, z=-0.2520125210285187, w=0.9676263928413391))
@@ -76,11 +76,12 @@ def place_in_juice_valve_region(robot: Robot) -> None:
     move_hand_to_relative_pose(robot, pose1)
     time.sleep(0.1)
     open_gripper(robot)
-    time.sleep(1)
-    move_hand_to_relative_pose(robot, pose2)
-    time.sleep(0.1)
-    close_gripper(robot)
+    # time.sleep(1)
+    # move_hand_to_relative_pose(robot, pose2)
+    # time.sleep(0.1)
+    # close_gripper(robot)
     stow_arm(robot)
+    close_gripper(robot)
     move_hand_to_relative_pose(robot, pose3)
     time.sleep(0.1)
     move_hand_to_relative_pose_with_velocity(robot, pose3, pose4,
@@ -105,8 +106,8 @@ def drop_inside_juicer(robot: Robot) -> None:
                                               y=0.564949631690979,
                                               z=-0.015587270259857178,
                                               w=0.8249775171279907))
-    place_pose = math_helpers.SE3Pose(x=0.9380689964294434,
-                                      y=0.026553533487021923,
+    place_pose = math_helpers.SE3Pose(x=0.9080689964294434,
+                                      y=0.040553533487021923,
                                       z=0.42345791816711426,
                                       rot=math_helpers.Quat(
                                           x=0.0010119372745975852,
@@ -143,7 +144,7 @@ def close_juicer_lid(robot: Robot) -> None:
     """
     # Pre-recorded joint angles for the arm to move through such that
     # it properly closes the lid of the juicer.
-    pose0 = math_helpers.SE3Pose(x=0.8552572727203369,
+    pose0 = math_helpers.SE3Pose(x=0.8352572727203369,
                                  y=0.012051388621330261,
                                  z=0.0961974561214447,
                                  rot=math_helpers.Quat(
@@ -151,9 +152,9 @@ def close_juicer_lid(robot: Robot) -> None:
                                      y=0.016635911539196968,
                                      z=-0.0014844289980828762,
                                      w=0.9998451471328735))
-    pose1 = math_helpers.SE3Pose(x=0.856045184135437,
+    pose1 = math_helpers.SE3Pose(x=0.836045184135437,
                                  y=0.012051388621330261,
-                                 z=0.37765690207481384,
+                                 z=0.39765690207481384,
                                  rot=math_helpers.Quat(
                                      w=0.9883142709732056,
                                      x=-0.017500856891274452,
@@ -161,7 +162,7 @@ def close_juicer_lid(robot: Robot) -> None:
                                      z=-0.037925124168395996))
     pose2 = math_helpers.SE3Pose(x=0.9593419432640076,
                                  y=-0.030203117057681084,
-                                 z=0.34951632738113403,
+                                 z=0.37951632738113403,
                                  rot=math_helpers.Quat(w=0.9974877834320068,
                                                        x=-0.025175603106617928,
                                                        y=0.0591338574886322,
@@ -358,10 +359,10 @@ if __name__ == "__main__":
                                           juicing_pose,
                                           tolerance=0.025,
                                           max_num_tries=10)
-        # place_in_juice_valve_region(robot)
+        place_in_juice_valve_region(robot)
         # place_in_waste_valve_region(robot)
         # drop_inside_juicer(robot)
         # close_juicer_lid(robot)
-        turn_juicer_on(robot, localizer)
+        # turn_juicer_on(robot, localizer)
 
     _run_manual_test()

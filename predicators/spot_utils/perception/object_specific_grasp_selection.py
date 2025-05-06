@@ -226,24 +226,24 @@ def _get_acrylic_cup_grasp_pixel(
     detections = artifacts["language"]["object_id_to_img_detections"]
     # Force a side grasp.
     quat_constraint = math_helpers.Quat(x=0.7640143036842346, y=-0.00013345752086024731, z=-0.025522785261273384, w=0.6446943283081055)
-    try:
-        pixel = _get_mask_center_grasp_pixel(acrylic_cup_obj, rgbds, artifacts,
-                                            camera_name, rng)[0]
-    except (KeyError, ValueError):
-        # Use Gemini.
-        rgb_image = rgbds[camera_name].rgb
-        # Ensure rgb_image is a PIL Image if needed by VLM interface
-        if isinstance(rgb_image, np.ndarray):
-            from PIL import Image
-            pil_image = Image.fromarray(rgb_image)
-        else:
-            pil_image = rgb_image
-        vlm_query_str = """
-                Point to the fancy clear cup with blue tape encircling it in the image.
-                The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
-            """
-        pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
-   
+    # try:
+    #     pixel = _get_mask_center_grasp_pixel(acrylic_cup_obj, rgbds, artifacts,
+    #                                         camera_name, rng)[0]
+    # except (KeyError, ValueError):
+    # Use Gemini.
+    rgb_image = rgbds[camera_name].rgb
+    # Ensure rgb_image is a PIL Image if needed by VLM interface
+    if isinstance(rgb_image, np.ndarray):
+        from PIL import Image
+        pil_image = Image.fromarray(rgb_image)
+    else:
+        pil_image = rgb_image
+    vlm_query_str = """
+            Point to the fancy clear cup with blue tape encircling it in the image.
+            The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+        """
+    pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
+
     # Uncomment for debugging.
     rgbd = rgbds[camera_name]
     bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
@@ -266,23 +266,23 @@ def _get_beige_cup_grasp_pixel(
     # Combine rotations (order matters!)
     quat_constraint = base_rot * roll
     # quat_constraint = math_helpers.Quat(x=0.7640143036842346, y=-0.00013345752086024731, z=-0.025522785261273384, w=0.6446943283081055)
-    try:
-        pixel = _get_mask_center_grasp_pixel(beige_cup_obj, rgbds, artifacts,
-                                            camera_name, rng)[0]
-    except (KeyError, ValueError):
-        # Use Gemini.
-        rgb_image = rgbds[camera_name].rgb
-        # Ensure rgb_image is a PIL Image if needed by VLM interface
-        if isinstance(rgb_image, np.ndarray):
-            from PIL import Image
-            pil_image = Image.fromarray(rgb_image)
-        else:
-            pil_image = rgb_image
-        vlm_query_str = """
-                Point to the beige solid cup in the image.
-                The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
-            """
-        pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
+    # try:
+    #     pixel = _get_mask_center_grasp_pixel(beige_cup_obj, rgbds, artifacts,
+    #                                         camera_name, rng)[0]
+    # except (KeyError, ValueError):
+    # Use Gemini.
+    rgb_image = rgbds[camera_name].rgb
+    # Ensure rgb_image is a PIL Image if needed by VLM interface
+    if isinstance(rgb_image, np.ndarray):
+        from PIL import Image
+        pil_image = Image.fromarray(rgb_image)
+    else:
+        pil_image = rgb_image
+    vlm_query_str = """
+            Point to the beige solid cup in the image.
+            The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+        """
+    pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
    
     # # Uncomment for debugging.
     # rgbd = rgbds[camera_name]

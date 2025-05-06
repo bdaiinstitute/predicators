@@ -525,55 +525,61 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
 
     def _fn() -> None:
         assert isinstance(move_action.extra_info, SpotActionExtraInfo)
-        move_action.extra_info.real_world_fn(
-            *move_action.extra_info.real_world_fn_args)
-        time.sleep(0.5)  # Wait for the hand image to settle
-        while True:
-            robot, localizer, lease_client = get_robot()
-            rgbds = capture_images(robot, localizer, relocalize=True)
-            pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
-            _, artifacts = detect_objects([pick_obj_id], rgbds)
-            try:
-                grasp_pixel_sample, rot_constraint = get_grasp_pixel(
-                    rgbds, artifacts, pick_obj_id, "hand_color_image",
-                    _options_rng)
+        num_attempts = 3
+        for _ in range(num_attempts):
+            move_action.extra_info.real_world_fn(
+                *move_action.extra_info.real_world_fn_args)
+            time.sleep(0.5)  # Wait for the hand image to settle
+            while True:
+                robot, localizer, lease_client = get_robot()
+                rgbds = capture_images(robot, localizer, relocalize=True)
+                pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
+                _, artifacts = detect_objects([pick_obj_id], rgbds)
+                try:
+                    grasp_pixel_sample, rot_constraint = get_grasp_pixel(
+                        rgbds, artifacts, pick_obj_id, "hand_color_image",
+                        _options_rng)
 
+                    break
+                except ValueError:
+                    logging.info(
+                        "Object not seen in hand camera! Moving slightly...")
+                    prompt = ("Hit 'c' to have the robot do a random movement "
+                            "or take control and move the robot accordingly. "
+                            "Hit the 'Enter' key when you're done!")
+                    user_pref = input(prompt)
+                    import PIL
+                    PIL.Image.fromarray(
+                        rgbds["hand_color_image"].rotated_rgb).save(
+                            "hand_image_failed_detection.png")
+                    assert lease_client is not None
+                    lease_client.take()
+            img = rgbds["hand_color_image"]
+            grasp_at_pixel(robot,
+                    img,
+                    grasp_pixel_sample,
+                    grasp_rot=rot_constraint,
+                    rot_thresh=1.00,
+                    timeout=10.0,
+                    retry_with_no_constraints=True)
+            # Object specific logic.
+            if "cup" in objects[target_obj_idx].name:
+                # don't stow, but kind of tuck the arm with a particular
+                # orientation.
+                curr_arm_pose = get_end_effector_state(robot)
+                tuck_pose = math_helpers.SE3Pose(
+                    x = 0.5031850337982178,
+                    y = 0.03466499224305153,
+                    z = 0.3768514394760132,
+                    rot = curr_arm_pose.rot)
+                move_hand_to_relative_pose(robot, tuck_pose)
+            else:
+                stow_arm(robot)
+            time.sleep(0.1)
+            if get_robot_gripper_open_percentage(robot) > HANDEMPTY_GRIPPER_THRESHOLD:
                 break
-            except ValueError:
-                logging.info(
-                    "Object not seen in hand camera! Moving slightly...")
-                prompt = ("Hit 'c' to have the robot do a random movement "
-                          "or take control and move the robot accordingly. "
-                          "Hit the 'Enter' key when you're done!")
-                user_pref = input(prompt)
-                import PIL
-                PIL.Image.fromarray(
-                    rgbds["hand_color_image"].rotated_rgb).save(
-                        "hand_image_failed_detection.png")
-                assert lease_client is not None
-                lease_client.take()
-        img = rgbds["hand_color_image"]
-        grasp_at_pixel(robot,
-                   img,
-                   grasp_pixel_sample,
-                   grasp_rot=rot_constraint,
-                   rot_thresh=1.00,
-                   timeout=10.0,
-                   retry_with_no_constraints=True)
-        # Object specific logic.
-        if "cup" in objects[target_obj_idx].name:
-            # don't stow, but kind of tuck the arm with a particular
-            # orientation.
-            curr_arm_pose = get_end_effector_state(robot)
-            tuck_pose = math_helpers.SE3Pose(
-                x = 0.5031850337982178,
-                y = 0.03466499224305153,
-                z = 0.3768514394760132,
-                rot = curr_arm_pose.rot)
-            move_hand_to_relative_pose(robot, tuck_pose)
-        else:
-            stow_arm(robot)
-        time.sleep(0.1)
+            else:
+                localizer.localize()
 
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
@@ -729,16 +735,18 @@ def _generic_juicer_policy(name: str, state: State, memory: Dict,
         juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
                                             y=juicer_pose_params[1],
                                             angle=juicer_pose_params[2])
-        navigate_to_absolute_pose_precise(robot,
+        if name == "DropFruitInsideJuicer":
+            navigate_to_absolute_pose_precise(robot,
                                           localizer,
                                           juicing_pose,
                                           tolerance=0.025,
                                           max_num_tries=10)
-        if name == "DropFruitInsideJuicer":
             drop_inside_juicer(robot)
         elif name == "CloseJuicerLid":
+            # unnecessary to navigate
             close_juicer_lid(robot)
         elif name == "TurnJuicerOn":
+            # unnecessary to navigate
             turn_juicer_on(robot, localizer)
 
     # Note simulation fn and args not implemented yet.

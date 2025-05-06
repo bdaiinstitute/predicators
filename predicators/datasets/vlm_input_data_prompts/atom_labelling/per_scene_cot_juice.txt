@@ -3,7 +3,10 @@ Start by first describing the visual scene given all the provided images - which
 For each predicate, output True, False, or Unknown if the relevant objects are not in the scene or the value of the predicate simply cannot be determined. Output each predicate value as a bulleted list with each predicate and value on a different line. For each output value, provide an explanation as to why you labelled this predicate as having this particular value. Use the format: <predicate>: <truth_value>. <explanation>.
 
 Pay careful attention to the state of the hinged lid of the ECOSELF juicing machine, and whether particular cups are in specific labelled 
-regions on the table or not. Also, note the cups in the scene: if you can't obviously see anything inside them, assume they are empty regargless 
+regions on the table or not. 
+If they are on a different table, or on the floor, then they can't be in the labelled region(s).
+If you can see the blue tape on the inside of the juicer lid, then the lid is open and not properly closed.
+Note the cups in the scene: if you can't obviously see anything inside them, assume they are empty regardless 
 of their location. Assume that the juicing machine is always on and ready to be used.
 
 Predicates:

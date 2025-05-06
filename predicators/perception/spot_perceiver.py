@@ -738,8 +738,8 @@ class SpotPerceiver(BasePerceiver):
             robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(JuiceInCup, [orange, clear_acrylic_plastic_cup_with_blue_tape]),
-                # GroundAtom(NearJuiceValve, [clear_acrylic_plastic_cup_with_blue_tape, juice_machine])
-                GroundAtom(HoldingContainer, [robot, clear_acrylic_plastic_cup_with_blue_tape]),
+                GroundAtom(NearJuiceValve, [clear_acrylic_plastic_cup_with_blue_tape, juice_machine])
+                # GroundAtom(HoldingContainer, [robot, clear_acrylic_plastic_cup_with_blue_tape]),
                 # GroundAtom(Holding, [robot, orange]),
                 # GroundAtom(Empty, [glass_cup]),
                 # GroundAtom(Inside, [orange, juice_machine]),
