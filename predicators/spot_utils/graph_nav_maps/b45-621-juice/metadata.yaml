@@ -34,13 +34,19 @@ known-movable-objects:
     z: 0.18
     object_type: "movable"
   fancy_clear_acrylic_plastic_cup:
-    x: 2.018
-    y: -1.17
+    # x: 2.018
+    # y: -1.17
+    # z: 0.18
+    x: 3.418
+    y: -1.15
     z: 0.18
     object_type: "container"
   beige_solid_plastic_cup:
-    x: 2.088
-    y: -1.17
+    # x: 2.088
+    # y: -1.17
+    # z: 0.18
+    x: 3.418
+    y: -1.15
     z: 0.18
     object_type: "container"
   juice_machine:

@@ -18,6 +18,7 @@ from predicators.spot_utils.perception.cv2_utils import \
 from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, LanguageObjectDetectionID, ObjectDetectionID, \
     RGBDImageWithContext
+import PIL
 
 ball_prompt = "/".join([
     "small white ball", "ping-pong ball", "snowball", "cotton ball",
@@ -50,6 +51,65 @@ trash_can_obj = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
 blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 eraser_obj = LanguageObjectDetectionID("toy/flower_arrangement")
 soda_can_obj = LanguageObjectDetectionID("soda_can")
+acrylic_cup_obj = LanguageObjectDetectionID("fancy_clear_acrylic_plastic_cup")
+beige_cup_obj = LanguageObjectDetectionID("beige_solid_plastic_cup")
+
+def _get_pixel_from_gemini(vlm_query_str: str, pil_image: PIL.Image.Image) -> Tuple[int, int]:
+    # Assuming create_vlm_by_name exists and works like create_llm_by_name
+    # Use the specific model name from CFG or hardcode if necessary
+    vlm = utils.create_vlm_by_name(CFG.vlm_model_name)
+
+    # 2. Construct the query
+    # Adjust prompt as needed for better VLM performance
+    def parse_json_output(json_output_str):
+        # Parsing out the markdown fencing
+        lines = json_output_str.splitlines()
+        for i, line in enumerate(lines):
+            if line.strip() == "```json":
+                json_output_str = "\n".join(lines[i + 1:])
+                json_output_str = json_output_str.split("```")[0]
+                break
+        json_output_str = json_output_str.strip()
+        return json_output_str
+
+    # 3. Query the VLM
+    # Assuming sample_completions takes a list of images
+    vlm_output_list = vlm.sample_completions(
+        prompt=vlm_query_str,
+        imgs=[pil_image],
+        temperature=0.0,  # Low temp for deterministic output
+        seed=CFG.seed,
+        num_completions=1)
+    vlm_output_str = vlm_output_list[0]
+    # 4. Parse the JSON string
+    json_string_to_parse = parse_json_output(vlm_output_str)
+    parsed_data = json.loads(json_string_to_parse)
+    # 5. Extract and denormalize coordinates
+    if not isinstance(parsed_data, list) or not parsed_data:
+        raise ValueError("Parsed JSON is not a non-empty list.")
+    # Assuming the first point is the desired one
+    first_point_obj = parsed_data[0]
+    if 'point' not in first_point_obj or not isinstance(
+            first_point_obj['point'],
+            list) or len(first_point_obj['point']) != 2:
+        raise ValueError(
+            "First element in JSON does not contain a valid 'point' list [y, x]."
+        )
+    y_norm, x_norm = first_point_obj['point']
+    if not isinstance(y_norm, (int, float)) or not isinstance(
+            x_norm, (int, float)):
+        raise ValueError("Normalized coordinates are not numbers.")
+    # Denormalize from 0-1000 range to image pixel coordinates
+    img_height = pil_image.height
+    img_width = pil_image.width
+    y = int(y_norm * img_height / 1000.0)
+    x = int(x_norm * img_width / 1000.0)
+    # Clamp coordinates to be within image bounds
+    y = max(0, min(y, img_height - 1))
+    x = max(0, min(x, img_width - 1))
+    # Assign to the 'pixel' variable in (x, y) format
+    pixel = (x, y)
+    return pixel
 
 
 def _get_platform_grasp_pixel(
@@ -156,6 +216,84 @@ def _get_soda_grasp_pixel(
     # cv2.destroyAllWindows()
 
     return pixel, pitch  #* roll
+
+
+def _get_acrylic_cup_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    # del rgbds, rng
+    detections = artifacts["language"]["object_id_to_img_detections"]
+    # Force a side grasp.
+    quat_constraint = math_helpers.Quat(x=0.7640143036842346, y=-0.00013345752086024731, z=-0.025522785261273384, w=0.6446943283081055)
+    try:
+        pixel = _get_mask_center_grasp_pixel(acrylic_cup_obj, rgbds, artifacts,
+                                            camera_name, rng)[0]
+    except (KeyError, ValueError):
+        # Use Gemini.
+        rgb_image = rgbds[camera_name].rgb
+        # Ensure rgb_image is a PIL Image if needed by VLM interface
+        if isinstance(rgb_image, np.ndarray):
+            from PIL import Image
+            pil_image = Image.fromarray(rgb_image)
+        else:
+            pil_image = rgb_image
+        vlm_query_str = """
+                Point to the fancy clear cup in the image.
+                The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+            """
+        pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
+   
+    # Uncomment for debugging.
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+   
+    return pixel, quat_constraint
+
+
+def _get_beige_cup_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+    camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    # Start with identity quaternion
+    base_rot = math_helpers.Quat()
+    roll = math_helpers.Quat.from_roll(3 * np.pi / 2)
+    # Combine rotations (order matters!)
+    quat_constraint = base_rot * roll
+    # quat_constraint = math_helpers.Quat(x=0.7640143036842346, y=-0.00013345752086024731, z=-0.025522785261273384, w=0.6446943283081055)
+    try:
+        pixel = _get_mask_center_grasp_pixel(beige_cup_obj, rgbds, artifacts,
+                                            camera_name, rng)[0]
+    except (KeyError, ValueError):
+        # Use Gemini.
+        rgb_image = rgbds[camera_name].rgb
+        # Ensure rgb_image is a PIL Image if needed by VLM interface
+        if isinstance(rgb_image, np.ndarray):
+            from PIL import Image
+            pil_image = Image.fromarray(rgb_image)
+        else:
+            pil_image = rgb_image
+        vlm_query_str = """
+                Point to the beige solid cup in the image.
+                The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+            """
+        pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
+   
+    # Uncomment for debugging.
+    rgbd = rgbds[camera_name]
+    bgr = cv2.cvtColor(rgbd.rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.circle(bgr, pixel, 5, (255, 0, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+   
+    return pixel, quat_constraint
 
 
 def _get_chair_grasp_pixel(
@@ -492,67 +630,11 @@ def _get_eraser_grasp_pixel(
             pil_image = Image.fromarray(rgb_image)
         else:
             pil_image = rgb_image  # Assume it's already PIL
-        # 1. Create VLM instance
-        # Assuming create_vlm_by_name exists and works like create_llm_by_name
-        # Use the specific model name from CFG or hardcode if necessary
-        vlm = utils.create_vlm_by_name(CFG.vlm_model_name)
-
-        # 2. Construct the query
-        # Adjust prompt as needed for better VLM performance
-
         vlm_query_str = """
-          Point to the pink eraser in the image.
-          The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+            Point to the pink eraser in the image.
+            The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
         """
-
-        def parse_json_output(json_output_str):
-            # Parsing out the markdown fencing
-            lines = json_output_str.splitlines()
-            for i, line in enumerate(lines):
-                if line.strip() == "```json":
-                    json_output_str = "\n".join(lines[i + 1:])
-                    json_output_str = json_output_str.split("```")[0]
-                    break
-            json_output_str = json_output_str.strip()
-            return json_output_str
-
-        # 3. Query the VLM
-        # Assuming sample_completions takes a list of images
-        vlm_output_list = vlm.sample_completions(
-            prompt=vlm_query_str,
-            imgs=[pil_image],
-            temperature=0.0,  # Low temp for deterministic output
-            seed=CFG.seed,
-            num_completions=1)
-        vlm_output_str = vlm_output_list[0]
-        # 4. Parse the JSON string
-        json_string_to_parse = parse_json_output(vlm_output_str)
-        parsed_data = json.loads(json_string_to_parse)
-        # 5. Extract and denormalize coordinates
-        if not isinstance(parsed_data, list) or not parsed_data:
-            raise ValueError("Parsed JSON is not a non-empty list.")
-        # Assuming the first point is the desired one
-        first_point_obj = parsed_data[0]
-        if 'point' not in first_point_obj or not isinstance(
-                first_point_obj['point'],
-                list) or len(first_point_obj['point']) != 2:
-            raise ValueError(
-                "First element in JSON does not contain a valid 'point' list [y, x]."
-            )
-        y_norm, x_norm = first_point_obj['point']
-        if not isinstance(y_norm, (int, float)) or not isinstance(
-                x_norm, (int, float)):
-            raise ValueError("Normalized coordinates are not numbers.")
-        # Denormalize from 0-1000 range to image pixel coordinates
-        img_height = pil_image.height
-        img_width = pil_image.width
-        y = int(y_norm * img_height / 1000.0)
-        x = int(x_norm * img_width / 1000.0)
-        # Clamp coordinates to be within image bounds
-        y = max(0, min(y, img_height - 1))
-        x = max(0, min(x, img_width - 1))
-        # Assign to the 'pixel' variable in (x, y) format
-        pixel = (x, y)
+        pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
 
     bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
     cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
@@ -720,4 +802,8 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     eraser_obj: _get_eraser_grasp_pixel,
     # Soda can specific grasp selection.
     soda_can_obj: _get_soda_grasp_pixel,
+    # Acrylic cup specific grasp selection.
+    acrylic_cup_obj: _get_acrylic_cup_grasp_pixel,
+    # Beige cup specific grasp selection.
+    beige_cup_obj: _get_beige_cup_grasp_pixel,
 }

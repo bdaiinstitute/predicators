@@ -718,6 +718,7 @@ class SpotPerceiver(BasePerceiver):
             return goal
         if goal_description == "make some juice!":
             Holding = pred_name_to_pred["Holding"]
+            HoldingContainer = pred_name_to_pred["HoldingContainer"]
             JuiceInCup = pred_name_to_pred["JuiceInCup"]
             Empty = pred_name_to_pred["Empty"]
             Inside = pred_name_to_pred["Inside"]
@@ -730,10 +731,12 @@ class SpotPerceiver(BasePerceiver):
             # juice_machine = Object("ECOSELF_juice_machine", _juicer_type)
             # apple = Object("apple", _movable_object_type)
             # blue_Cup = Object("blue_plastic_cup", _container_type)
-            fancy_clear_acrylic_plastic_cup = Object("fancy_clear_acrylic_plastic_cup", _container_type)
+            # fancy_clear_acrylic_plastic_cup = Object("fancy_clear_acrylic_plastic_cup", _container_type)
+            beige_solid_plastic_cup = Object("beige_solid_plastic_cup", _container_type)
             robot = Object("robot", _robot_type)
             goal = {
-                GroundAtom(JuiceInCup, [orange, fancy_clear_acrylic_plastic_cup]),
+                # GroundAtom(JuiceInCup, [orange, fancy_clear_acrylic_plastic_cup]),
+                GroundAtom(HoldingContainer, [robot, beige_solid_plastic_cup]),
                 # GroundAtom(Holding, [robot, orange]),
                 # GroundAtom(Empty, [glass_cup]),
                 # GroundAtom(Inside, [orange, juice_machine]),

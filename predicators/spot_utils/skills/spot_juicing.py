@@ -8,12 +8,85 @@ from bosdyn.client.sdk import Robot
 
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     move_hand_to_relative_pose, move_hand_to_relative_pose_with_velocity, \
-    open_gripper
+    open_gripper, get_end_effector_state
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_absolute_pose_precise
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_gripper_open_percentage
+
+
+def place_in_waste_valve_region(robot: Robot) -> None:
+    """Place an object in the waste valve region of the Ecoself juicer.
+
+    Assumes that the robot is lined up such that it's facing the juicer,
+    and it is holding the cup to be placed.
+    """
+    # Pre-recorded poses for the arm to move through such that
+    # it properly places the object in the waste valve region.
+    curr_robot_orn = get_end_effector_state(robot).rot
+    pose0 = math_helpers.SE3Pose(x=0.9818210005760193, y=0.3118826746940613, z=-0.04188335061073303, rot=curr_robot_orn)
+    pose1 = math_helpers.SE3Pose(x=0.9785254001617432, y=0.12745216488838196, z=-0.04429827332496643, rot=curr_robot_orn)
+    pose2 = math_helpers.SE3Pose(x=0.6208083033561707, y=0.05527550354599953, z=-0.0448486977815628, rot=curr_robot_orn)
+    # Conformant push poses
+    pose3 = math_helpers.SE3Pose(x=1.11581552028656, y=0.37607961893081665, z=-0.022341951727867126, rot=math_helpers.Quat(x=-0.012795763090252876, y=0.019999774172902107, z=0.2269088327884674, w=0.9736265540122986))
+    pose4 = math_helpers.SE3Pose(x=1.1671946048736572, y=0.20484676957130432, z=-0.029089663177728653, rot=math_helpers.Quat(x=-0.012298588640987873, y=0.020446956157684326, z=0.12993541359901428, w=0.9912353754043579))
+    # Place the cup and retract, then push the cup to align
+    # with the juicer!
+    move_hand_to_relative_pose(robot, pose0)
+    time.sleep(0.1)
+    move_hand_to_relative_pose(robot, pose1)
+    time.sleep(0.1)
+    open_gripper(robot)
+    time.sleep(0.5)
+    move_hand_to_relative_pose(robot, pose2)
+    time.sleep(0.1)
+    close_gripper(robot)
+    stow_arm(robot)
+    move_hand_to_relative_pose(robot, pose3)
+    time.sleep(0.1)
+    move_hand_to_relative_pose_with_velocity(robot, pose3, pose4,
+                                             duration=1.5)
+    time.sleep(0.1)
+    move_hand_to_relative_pose(robot, pose3)
+    stow_arm(robot)
+    time.sleep(0.1)
+
+
+def place_in_juice_valve_region(robot: Robot) -> None:
+    """Place an object in the juice valve region of the Ecoself juicer.
+
+    Assumes that the robot is lined up such that it's facing the juicer,
+    and it is holding the cup to be placed.
+    """
+    # Pre-recorded poses for the arm to move through such that
+    # it properly places the object in the juice valve region.
+    curr_robot_orn = get_end_effector_state(robot).rot
+    pose0 = math_helpers.SE3Pose(x=0.9258418679237366, y=-0.2896403670310974, z=0.00937592267990112, rot=curr_robot_orn)
+    pose1 = math_helpers.SE3Pose(x=0.945264995098114, y=-0.11749177426099777, z=-0.01859173953533173, rot=curr_robot_orn)
+    pose2 = math_helpers.SE3Pose(x=0.745264995098114, y=-0.11749177426099777, z=-0.01859173953533173, rot=curr_robot_orn)
+    # Conformant push poses
+    pose3 = math_helpers.SE3Pose(x=0.98499596118927, y=-0.3708963990211487, z=-0.01537534177303314, rot=math_helpers.Quat(x=0.00928519293665886, y=0.010129101574420929, z=-0.2520125210285187, w=0.9676263928413391))
+    pose4 = math_helpers.SE3Pose(x=1.1113766431808472, y=-0.2160855382680893, z=0.014770278707146645, rot=math_helpers.Quat(x=0.002047186717391014, y=0.02063177339732647, z=-0.14226560294628143, w=0.9896113276481628))
+    # Place the cup and retract, then push the cup to align
+    # with the juicer!
+    move_hand_to_relative_pose(robot, pose0)
+    time.sleep(0.1)
+    move_hand_to_relative_pose(robot, pose1)
+    time.sleep(0.1)
+    open_gripper(robot)
+    time.sleep(1)
+    move_hand_to_relative_pose(robot, pose2)
+    time.sleep(0.1)
+    close_gripper(robot)
+    stow_arm(robot)
+    move_hand_to_relative_pose(robot, pose3)
+    time.sleep(0.1)
+    move_hand_to_relative_pose_with_velocity(robot, pose3, pose4,
+                                                duration=1.5)
+    time.sleep(0.1)
+    move_hand_to_relative_pose(robot, pose3)
+    stow_arm(robot)
 
 
 def drop_inside_juicer(robot: Robot) -> None:
@@ -264,8 +337,10 @@ if __name__ == "__main__":
                                           juicing_pose,
                                           tolerance=0.025,
                                           max_num_tries=10)
+        place_in_juice_valve_region(robot)
+        # place_in_waste_valve_region(robot)
         # drop_inside_juicer(robot)
         # close_juicer_lid(robot)
-        turn_juicer_on(robot)
+        # turn_juicer_on(robot)
 
     _run_manual_test()

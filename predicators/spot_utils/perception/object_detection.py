@@ -431,7 +431,6 @@ def get_grasp_pixel(
     center of the april tag, which may not always be ideal for grasping.
     Consider using OBJECT_SPECIFIC_GRASP_SELECTORS in this case.
     """
-
     if object_id in OBJECT_SPECIFIC_GRASP_SELECTORS:
         selector = OBJECT_SPECIFIC_GRASP_SELECTORS[object_id]
         return selector(rgbds, artifacts, camera_name, rng)

@@ -1607,6 +1607,8 @@ _NotInsideAnyContainer = Predicate("NotInsideAnyContainer",
 _HandEmpty = Predicate("HandEmpty", [_robot_type], _handempty_classifier)
 _Holding = Predicate("Holding", [_robot_type, _movable_object_type],
                      _holding_classifier)
+_HoldingContainer = Predicate("HoldingContainer", [_robot_type, _container_type],
+                     _holding_classifier)
 _NotHolding = Predicate("NotHolding", [_robot_type, _base_object_type],
                         _not_holding_classifier)
 _InHandView = Predicate("InHandView", [_robot_type, _movable_object_type],
@@ -1690,7 +1692,7 @@ _ALL_PREDICATES = {
     _Holding, _NotHolding, _InHandView, _InView, _Reachable, _Blocking,
     _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable, _IsNotPlaceable,
     _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan, _Inside
+    _IsSemanticallyGreaterThan, _Inside, _HoldingContainer
 }
 _VLM_PREDICATES = {
     _VLMOn,
@@ -4475,7 +4477,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             lambda o: _get_vlm_query_str("JuiceMachineOpen", o))
 
         self._IsPlastic = utils.create_vlm_predicate(
-            "IsPlastic", [_movable_object_type],
+            "IsPlastic", [_container_type],
             lambda o: _get_vlm_query_str("IsPlastic", o))
 
         self._HasContents = utils.create_vlm_predicate(
@@ -4529,12 +4531,12 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._IsCup, [x1]),  # Check if it's a cup
         }
-        add_effs = {LiftedAtom(_Holding, [x0, x1])}
+        add_effs = {LiftedAtom(_HoldingContainer, [x0, x1])}
         del_effs = {LiftedAtom(_HandEmpty,
                                [x0])}  # Assuming standard _HandEmpty
         ignore_effs = set()
         self._strips_operators.add(
-            STRIPSOperator("TeleopPickContainer", parameters, preconds, add_effs,
+            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds, add_effs,
                            del_effs, ignore_effs))
 
         # STRIPS-Op2: PlaceInsideJuiceValveRegion
@@ -4545,7 +4547,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         preconds = {
             LiftedAtom(self._Empty, [x2]),
             LiftedAtom(self._Functional, [x1]),
-            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(_HoldingContainer, [x0, x2]),
             LiftedAtom(self._IsCup, [x2]),
             LiftedAtom(self._LidClosed, [x1]),
         }
@@ -4553,7 +4555,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._NearJuiceValve, [x2, x1]),
         }
-        del_effs = {LiftedAtom(_Holding, [x0, x2])}
+        del_effs = {LiftedAtom(_HoldingContainer, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
             STRIPSOperator("TeleopPlaceInsideJuiceValveRegion", parameters, preconds,
@@ -4567,7 +4569,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         preconds = {
             LiftedAtom(self._Empty, [x2]),
             LiftedAtom(self._Functional, [x1]),
-            LiftedAtom(_Holding, [x0, x2]),
+            LiftedAtom(_HoldingContainer, [x0, x2]),
             LiftedAtom(self._IsCup, [x2]),
             LiftedAtom(self._IsPlastic, [x2]),
         }
@@ -4575,7 +4577,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
             LiftedAtom(_HandEmpty, [x0]),  # Assuming standard _HandEmpty
             LiftedAtom(self._InsideWasteValveRegion, [x2, x1]),
         }
-        del_effs = {LiftedAtom(_Holding, [x0, x2])}
+        del_effs = {LiftedAtom(_HoldingContainer, [x0, x2])}
         ignore_effs = set()
         self._strips_operators.add(
             STRIPSOperator("TeleopPlaceInsideWasteValveRegion", parameters, preconds,
@@ -4589,7 +4591,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         preconds = {
             LiftedAtom(self._Empty, [x0]),  # Target is Empty
             LiftedAtom(self._HasContents, [x1]),  # Source HasContents
-            LiftedAtom(_Holding, [x2, x1]),
+            LiftedAtom(_HoldingContainer, [x2, x1]),
             LiftedAtom(self._IsCup, [x1]),
             LiftedAtom(self._IsPlastic, [x1]),
         }
@@ -4692,6 +4694,7 @@ class VLMJuiceMakingInventedPredsEnv(SpotRearrangementEnv):
         preds |= set(p for p in _ALL_PREDICATES if p.name in [
             "Holding",
             "HandEmpty",
+            "HoldingContainer"
         ])
         return preds
 

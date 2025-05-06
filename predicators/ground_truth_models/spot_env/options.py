@@ -30,7 +30,7 @@ from predicators.spot_utils.skills.spot_dump import dump_container
 from predicators.spot_utils.skills.spot_grasp import grasp_at_pixel, \
     simulated_grasp_at_pixel
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
-    gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper
+    gaze_at_relative_pose, move_hand_to_relative_pose, open_gripper, get_end_effector_state
 from predicators.spot_utils.skills.spot_navigation import \
     navigate_to_absolute_pose, navigate_to_relative_pose, \
     simulated_navigate_to_relative_pose, navigate_to_absolute_pose_precise
@@ -99,7 +99,9 @@ def _grasp_at_pixel_and_maybe_stow_or_dump(
                    grasp_rot=grasp_rot,
                    rot_thresh=rot_thresh,
                    timeout=timeout,
-                   retry_with_no_constraints=retry_grasp_after_fail)
+                   retry_with_no_constraints=False)
+                #    retry_with_no_constraints=retry_grasp_after_fail)
+                
     # Dump, if the grasp was successful.
     thresh = HANDEMPTY_GRIPPER_THRESHOLD
     if do_dump and get_robot_gripper_open_percentage(robot) > thresh:
@@ -550,17 +552,28 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
                         "hand_image_failed_detection.png")
                 assert lease_client is not None
                 lease_client.take()
-        if rot_constraint is None:
-            rot_quat_tuple = (0.0, 0.0, 0.0, 0.0)
+        img = rgbds["hand_color_image"]
+        grasp_at_pixel(robot,
+                   img,
+                   grasp_pixel_sample,
+                   grasp_rot=rot_constraint,
+                   rot_thresh=1.00,
+                   timeout=10.0,
+                   retry_with_no_constraints=False)
+        # Object specific logic.
+        if "cup" in objects[target_obj_idx].name:
+            # don't stow, but kind of tuck the arm with a particular
+            # orientation.
+            curr_arm_pose = get_end_effector_state(robot)
+            tuck_pose = math_helpers.SE3Pose(
+                x = 0.5031850337982178,
+                y = 0.03466499224305153,
+                z = 0.3768514394760132,
+                rot = curr_arm_pose.rot)
+            move_hand_to_relative_pose(robot, tuck_pose)
         else:
-            rot_quat_tuple = (rot_constraint.w, rot_constraint.x,
-                              rot_constraint.y, rot_constraint.z)
-        params_tuple = grasp_pixel_sample + rot_quat_tuple
-        grasp_action = _pick_object_from_top_policy(state, memory, objects,
-                                                    np.array(params_tuple))
-        assert isinstance(grasp_action.extra_info, SpotActionExtraInfo)
-        grasp_action.extra_info.real_world_fn(
-            *grasp_action.extra_info.real_world_fn_args)
+            stow_arm(robot)
+        time.sleep(0.1)
 
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,

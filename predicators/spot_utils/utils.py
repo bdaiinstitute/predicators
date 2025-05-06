@@ -86,7 +86,7 @@ _immovable_object_type = Type("immovable",
                               parent=_base_object_type)
 _container_type = Type("container",
                        list(_movable_object_type.feature_names),
-                       parent=_movable_object_type)
+                       parent=_base_object_type)
 _trash_can_type = Type("trashcan",
                        list(_immovable_object_type.feature_names),
                        parent=_immovable_object_type)
