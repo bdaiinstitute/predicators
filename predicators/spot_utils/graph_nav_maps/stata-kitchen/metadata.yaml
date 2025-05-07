@@ -2,9 +2,9 @@
 ---
 # NOTE: close to the center of the room
 spot-home-pose:
-  x: 3.5
-  y: 0.45
-  angle: 0.
+  x: 1.481
+  y: 0.865
+  angle: -0.9106692648946799
 april-tag-offsets: []
 
 # Allowed regions. Each region is defined by a set of points
@@ -14,13 +14,12 @@ april-tag-offsets: []
 # points.
 allowed-regions:
   spot-room:
-    - [0.25, 1.9]
-    - [1.2, -2.5]
-    - [5.7, -2.5]
-    - [5.0, 2.7]
+    - [2.5, -2.5]
+    - [6.0, 0.91]
+    - [4.0, 4.9]
+    - [-0.26, 0.78]
 
 # Known immovable objects. Assuming default rotations.
-# TODO note: later we can add static objects like short_round_coffee_tables, chairs, etc. here
 known-immovable-objects:
   floor:
     x: 1.4
@@ -28,25 +27,19 @@ known-immovable-objects:
     z: -0.5
 
 known-movable-objects:
-  orange:
-    x: 3.418
-    y: -1.45
+  pear:
+    x: 3.5
+    y: 0.6
     z: 0.18
     object_type: "movable"
   clear_acrylic_plastic_cup_with_blue_tape:
-    # x: 2.018
-    # y: -1.17
-    # z: 0.18
-    x: 3.418
-    y: -1.45
+    x: 3.5
+    y: 0.6
     z: 0.18
     object_type: "container"
-  beige_solid_plastic_cup:
-    # x: 2.088
-    # y: -1.17
-    # z: 0.18
-    x: 3.418
-    y: -1.45
+  pink_solid_plastic_cup:
+    x: 3.5
+    y: 0.6
     z: 0.18
     object_type: "container"
   juice_machine:
@@ -63,7 +56,7 @@ static-object-features:
     length: 10000000  # effectively infinite
     width: 10000000
     flat_top_surface: 1
-  orange:
+  pear:
     shape: 2
     height: 0.1
     length: 0.1
@@ -77,7 +70,7 @@ static-object-features:
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  beige_solid_plastic_cup:
+  pink_solid_plastic_cup:
     shape: 2
     height: 0.1
     length: 0.1
@@ -95,12 +88,14 @@ static-object-features:
 # Helpful for static objects that are up against a wall, for example.
 approach_angle_bounds:
   # approach all objects from directly ahead for now.
-  orange: [1.47, 1.67]
+  pear: [1.47, 1.67]
   clear_acrylic_plastic_cup_with_blue_tape: [1.47, 1.67]
-  beige_solid_plastic_cup: [1.47, 1.67]
+  pink_solid_plastic_cup: [1.47, 1.67]
   juice_machine: [1.47, 1.67]
   
 
 juicing_location: # x, y, yaw in absolute coordinates
-  # juice_machine: [2.538, -1.061, -1.36778459519285]
-  juice_machine: [2.559, -1.109, -1.36778459519285]
+  # juice_machine: [1.440, 0.652, -0.862936232883456]
+  # juice_machine: [1.520, 0.504, -0.7933338571986024]
+  # juice_machine: [1.471, 0.573, -0.8106978167280854]
+  juice_machine: [1.450, 0.641, -0.8264691075818265]

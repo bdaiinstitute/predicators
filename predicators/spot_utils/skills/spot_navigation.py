@@ -26,7 +26,7 @@ def navigate_to_relative_pose(robot: Robot,
                               min_xytheta_vel: Tuple[float, float,
                                                      float] = (-2.0, -2.0,
                                                                -1.0),
-                              timeout: float = 20.0) -> None:
+                              timeout: float = 8.0) -> None:
     """Execute a relative move.
 
     The pose is dx, dy, dyaw relative to the robot's body.

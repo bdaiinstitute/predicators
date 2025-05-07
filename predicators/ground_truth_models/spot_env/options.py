@@ -555,11 +555,14 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
                     assert lease_client is not None
                     lease_client.take()
             img = rgbds["hand_color_image"]
+            grasp_threshold = 1.00
+            if objects[target_obj_idx].name == "pear":
+                grasp_threshold = 0.17
             grasp_at_pixel(robot,
                     img,
                     grasp_pixel_sample,
                     grasp_rot=rot_constraint,
-                    rot_thresh=1.00,
+                    rot_thresh=grasp_threshold,
                     timeout=10.0,
                     retry_with_no_constraints=True)
             # Object specific logic.
@@ -741,12 +744,16 @@ def _generic_juicer_policy(name: str, state: State, memory: Dict,
                                           juicing_pose,
                                           tolerance=0.025,
                                           max_num_tries=10)
-            drop_inside_juicer(robot)
+            drop_inside_juicer(robot, localizer)
         elif name == "CloseJuicerLid":
             # unnecessary to navigate
-            close_juicer_lid(robot)
+            close_juicer_lid(robot, localizer)
         elif name == "TurnJuicerOn":
-            # unnecessary to navigate
+            navigate_to_absolute_pose_precise(robot,
+                                          localizer,
+                                          juicing_pose,
+                                          tolerance=0.025,
+                                          max_num_tries=10)
             turn_juicer_on(robot, localizer)
 
     # Note simulation fn and args not implemented yet.

@@ -15,6 +15,7 @@ from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_robot_gripper_open_percentage
 from predicators.spot_utils.spot_localization import SpotLocalizer
+from predicators.spot_utils.utils import get_se2_distance, load_spot_metadata
 
 
 def place_in_waste_valve_region(robot: Robot) -> None:
@@ -31,7 +32,7 @@ def place_in_waste_valve_region(robot: Robot) -> None:
     pose2 = math_helpers.SE3Pose(x=0.6208083033561707, y=0.05527550354599953, z=-0.0448486977815628, rot=curr_robot_orn)
     # Conformant push poses
     pose3 = math_helpers.SE3Pose(x=1.11581552028656, y=0.37607961893081665, z=-0.022341951727867126, rot=math_helpers.Quat(x=-0.012795763090252876, y=0.019999774172902107, z=0.2269088327884674, w=0.9736265540122986))
-    pose4 = math_helpers.SE3Pose(x=1.1671946048736572, y=0.20484676957130432, z=-0.029089663177728653, rot=math_helpers.Quat(x=-0.012298588640987873, y=0.020446956157684326, z=0.12993541359901428, w=0.9912353754043579))
+    pose4 = math_helpers.SE3Pose(x=1.0585227012634277, y=-0.2040458470582962, z=0.014832879416644573, rot=math_helpers.Quat(x=0.004835119005292654, y=0.01349063590168953, z=-0.14040349423885345, w=0.9899906516075134))
     # Place the cup and retract, then push the cup to align
     # with the juicer!
     move_hand_to_relative_pose(robot, pose0)
@@ -68,7 +69,7 @@ def place_in_juice_valve_region(robot: Robot) -> None:
     pose2 = math_helpers.SE3Pose(x=0.745264995098114, y=-0.11749177426099777, z=-0.03859173953533173, rot=curr_robot_orn)
     # Conformant push poses
     pose3 = math_helpers.SE3Pose(x=0.98499596118927, y=-0.3708963990211487, z=-0.03537534177303314, rot=math_helpers.Quat(x=0.00928519293665886, y=0.010129101574420929, z=-0.2520125210285187, w=0.9676263928413391))
-    pose4 = math_helpers.SE3Pose(x=1.1113766431808472, y=-0.2160855382680893, z=-0.034770278707146645, rot=math_helpers.Quat(x=0.002047186717391014, y=0.02063177339732647, z=-0.14226560294628143, w=0.9896113276481628))
+    pose4 = math_helpers.SE3Pose(x=0.9634215831756592, y=-0.20193132758140564, z=0.0378618711233139, rot=math_helpers.Quat(x=0.007309658918529749, y=-0.009135212749242783, z=-0.14072160422801971, w=0.9899801015853882))
     # Place the cup and retract, then push the cup to align
     # with the juicer!
     move_hand_to_relative_pose(robot, pose0)
@@ -85,20 +86,34 @@ def place_in_juice_valve_region(robot: Robot) -> None:
     move_hand_to_relative_pose(robot, pose3)
     time.sleep(0.1)
     move_hand_to_relative_pose_with_velocity(robot, pose3, pose4,
-                                                duration=1.5)
+                                                duration=3.5)
     time.sleep(0.1)
     move_hand_to_relative_pose(robot, pose3)
     stow_arm(robot)
 
 
-def drop_inside_juicer(robot: Robot) -> None:
+def drop_inside_juicer(robot: Robot, localizer: SpotLocalizer) -> None:
     """Place an object inside the juicer.
 
     Assumes that the robot is lined up such that it's facing the juicer,
     and its arm is stowed. Also assumes the robot is holding the object
     to be juiced.
     """
-    pre_place_pose = math_helpers.SE3Pose(x=0.6108426666259766,
+    # Try to move to the juicer navigation pose.
+    juicer_pose_params = load_spot_metadata()["juicing_location"]["juice_machine"]
+    juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
+                                        y=juicer_pose_params[1],
+                                        angle=juicer_pose_params[2])
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    robot_se2 = robot_pose.get_closest_se2_transform()
+    curr_dist_to_target = get_se2_distance(robot_se2, juicing_pose)
+    x_offset = 0.0
+    if curr_dist_to_target > 0.025:
+        x_offset = 0.05
+    print(f"x_offset: {x_offset}")
+
+    pre_place_pose = math_helpers.SE3Pose(x=0.6208426666259766,
                                           y=-0.00424979580566287,
                                           z=0.5442570447921753,
                                           rot=math_helpers.Quat(
@@ -106,8 +121,8 @@ def drop_inside_juicer(robot: Robot) -> None:
                                               y=0.564949631690979,
                                               z=-0.015587270259857178,
                                               w=0.8249775171279907))
-    place_pose = math_helpers.SE3Pose(x=0.8980689964294434,
-                                      y=0.040553533487021923,
+    place_pose = math_helpers.SE3Pose(x=1.080689964294434 + x_offset,
+                                      y=0.010553533487021923,
                                       z=0.42345791816711426,
                                       rot=math_helpers.Quat(
                                           x=0.0010119372745975852,
@@ -137,22 +152,36 @@ def drop_inside_juicer(robot: Robot) -> None:
     time.sleep(0.1)
 
 
-def close_juicer_lid(robot: Robot) -> None:
+def close_juicer_lid(robot: Robot, localizer: SpotLocalizer) -> None:
     """Close the lid of the Ecoself juicer.
 
     Assumes that the robot is lined up such that it's facing the juicer.
     """
+    juicer_pose_params = load_spot_metadata()["juicing_location"]["juice_machine"]
+    juicing_pose = math_helpers.SE2Pose(x=juicer_pose_params[0],
+                                        y=juicer_pose_params[1],
+                                        angle=juicer_pose_params[2])
+    localizer.localize()
+    robot_pose = localizer.get_last_robot_pose()
+    robot_se2 = robot_pose.get_closest_se2_transform()
+    curr_dist_to_target = get_se2_distance(robot_se2, juicing_pose)
+    x_offset = 0.0
+    # if curr_dist_to_target > 0.025:
+    #     x_offset = 0.035
+    # print(f"x_offset: {x_offset}")
+
+
     # Pre-recorded joint angles for the arm to move through such that
     # it properly closes the lid of the juicer.
-    pose0 = math_helpers.SE3Pose(x=0.8352572727203369,
+    pose0 = math_helpers.SE3Pose(x=0.8152572727203369 + x_offset,
                                  y=0.012051388621330261,
-                                 z=0.0961974561214447,
+                                 z=0.0921974561214447,
                                  rot=math_helpers.Quat(
                                      x=-0.005542381200939417,
                                      y=0.016635911539196968,
                                      z=-0.0014844289980828762,
                                      w=0.9998451471328735))
-    pose1 = math_helpers.SE3Pose(x=0.836045184135437,
+    pose1 = math_helpers.SE3Pose(x=0.816045184135437 + x_offset,
                                  y=0.012051388621330261,
                                  z=0.39765690207481384,
                                  rot=math_helpers.Quat(
@@ -160,7 +189,7 @@ def close_juicer_lid(robot: Robot) -> None:
                                      x=-0.017500856891274452,
                                      y=0.14659591019153595,
                                      z=-0.037925124168395996))
-    pose2 = math_helpers.SE3Pose(x=0.9593419432640076,
+    pose2 = math_helpers.SE3Pose(x=0.9393419432640076 + x_offset,
                                  y=-0.030203117057681084,
                                  z=0.37951632738113403,
                                  rot=math_helpers.Quat(w=0.9974877834320068,
@@ -168,14 +197,14 @@ def close_juicer_lid(robot: Robot) -> None:
                                                        y=0.0591338574886322,
                                                        z=-0.02979166992008686))
     ready_to_whack_lid_pose = math_helpers.SE3Pose(
-        x=1.0326576232910156,
+        x=1.0026576232910156 + x_offset,
         y=-0.03433791548013687,
         z=0.4801491451263428,
         rot=math_helpers.Quat(w=0.9980011582374573,
                               x=-0.023644166067242622,
                               y=0.05118606984615326,
                               z=-0.028539864346385002))
-    lid_whacking_down_pose = math_helpers.SE3Pose(x=1.0537371635437012,
+    lid_whacking_down_pose = math_helpers.SE3Pose(x=1.0237371635437012 + x_offset,
                                                   y=-0.01710928559303284,
                                                   z=0.33800581693649292,
                                                   rot=math_helpers.Quat(
@@ -203,19 +232,19 @@ def close_juicer_lid(robot: Robot) -> None:
     time.sleep(0.1)
     move_hand_to_relative_pose(robot, pose2)
     time.sleep(0.1)
-    # Whack the lid twice to make sure it's
-    # locked and shut.
-    for i in range(2):
-        move_hand_to_relative_pose(robot, ready_to_whack_lid_pose)
-        move_hand_to_relative_pose_with_velocity(robot,
-                                                 ready_to_whack_lid_pose,
-                                                 lid_whacking_down_pose,
-                                                 duration=0.1)
-        time.sleep(0.1)
-    # Finally, move the arm to a pose
-    # where we can check if the lid is closed.
-    move_hand_to_relative_pose(robot, lid_check_look_pose)
-    time.sleep(0.1)
+    # # Whack the lid twice to make sure it's
+    # # locked and shut.
+    # for i in range(2):
+    #     move_hand_to_relative_pose(robot, ready_to_whack_lid_pose)
+    #     move_hand_to_relative_pose_with_velocity(robot,
+    #                                              ready_to_whack_lid_pose,
+    #                                              lid_whacking_down_pose,
+    #                                              duration=0.1)
+    #     time.sleep(0.1)
+    # # Finally, move the arm to a pose
+    # # where we can check if the lid is closed.
+    # move_hand_to_relative_pose(robot, lid_check_look_pose)
+    # time.sleep(0.1)
 
 
 def turn_juicer_on(robot: Robot, localizer: SpotLocalizer) -> None:
@@ -233,7 +262,7 @@ def turn_juicer_on(robot: Robot, localizer: SpotLocalizer) -> None:
                                               x=0.05800527706742287,
                                               y=-0.00844526756554842,
                                               z=-0.00026528292801231146))
-    grasp_pose = math_helpers.SE3Pose(x=0.822599199295044,
+    grasp_pose = math_helpers.SE3Pose(x=0.882599199295044,
                                       y=0.010432027116417885,
                                       z=-0.04757143884897232,
                                       rot=math_helpers.Quat(
@@ -361,8 +390,8 @@ if __name__ == "__main__":
                                           max_num_tries=10)
         place_in_juice_valve_region(robot)
         # place_in_waste_valve_region(robot)
-        # drop_inside_juicer(robot)
-        # close_juicer_lid(robot)
+        # drop_inside_juicer(robot, localizer)
+        # close_juicer_lid(robot, localizer)
         # turn_juicer_on(robot, localizer)
 
     _run_manual_test()

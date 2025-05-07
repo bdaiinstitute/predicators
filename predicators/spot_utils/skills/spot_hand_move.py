@@ -363,5 +363,7 @@ if __name__ == "__main__":
         #     print("Failed to get current hand orientation.")
         # print(get_current_arm_joint_angles(robot))
         get_end_effector_state(robot)
+        # print(get_current_arm_joint_angles(robot))
+        # [0.1250004768371582, -1.850521206855774, 1.2487618923187256, 0.020213842391967773, 1.5477559566497803, -0.02704763412475586]
 
     _run_manual_test()

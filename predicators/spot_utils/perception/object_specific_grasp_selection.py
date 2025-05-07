@@ -52,7 +52,8 @@ blue_cup_obj = LanguageObjectDetectionID("blue_coffee_cup")
 eraser_obj = LanguageObjectDetectionID("toy/flower_arrangement")
 soda_can_obj = LanguageObjectDetectionID("soda_can")
 acrylic_cup_obj = LanguageObjectDetectionID("clear_acrylic_plastic_cup_with_blue_tape")
-beige_cup_obj = LanguageObjectDetectionID("beige_solid_plastic_cup")
+pink_cup_obj = LanguageObjectDetectionID("pink_solid_plastic_cup")
+pear_obj = LanguageObjectDetectionID("pear")
 
 def _get_pixel_from_gemini(vlm_query_str: str, pil_image: PIL.Image.Image) -> Tuple[int, int]:
     # Assuming create_vlm_by_name exists and works like create_llm_by_name
@@ -188,6 +189,33 @@ def _get_apple_grasp_pixel(
     # cv2.destroyAllWindows()
     return pixel, pitch * roll  # NOTE: order is super important here!
 
+def _get_pear_grasp_pixel(
+        rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
+        camera_name: str, rng: np.random.Generator
+) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
+    # del rgbds, rng
+    # Use Gemini.
+    rgb_image = rgbds[camera_name].rgb
+    # Ensure rgb_image is a PIL Image if needed by VLM interface
+    if isinstance(rgb_image, np.ndarray):
+        from PIL import Image
+        pil_image = Image.fromarray(rgb_image)
+    else:
+        pil_image = rgb_image
+    vlm_query_str = """
+            Point to the pear in the image.
+            The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
+        """
+    pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
+    # # # Uncomment for debugging.
+    bgr = cv2.cvtColor(rgbds[camera_name].rgb, cv2.COLOR_RGB2BGR)
+    cv2.circle(bgr, pixel, 5, (0, 255, 0), -1)
+    cv2.imshow("Selected grasp", bgr)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    return pixel, pitch # top-down grasp!
+
 
 def _get_soda_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
@@ -256,7 +284,7 @@ def _get_acrylic_cup_grasp_pixel(
     return pixel, quat_constraint
 
 
-def _get_beige_cup_grasp_pixel(
+def _get_pink_cup_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
@@ -267,7 +295,7 @@ def _get_beige_cup_grasp_pixel(
     quat_constraint = base_rot * roll
     # quat_constraint = math_helpers.Quat(x=0.7640143036842346, y=-0.00013345752086024731, z=-0.025522785261273384, w=0.6446943283081055)
     # try:
-    #     pixel = _get_mask_center_grasp_pixel(beige_cup_obj, rgbds, artifacts,
+    #     pixel = _get_mask_center_grasp_pixel(pink_cup_obj, rgbds, artifacts,
     #                                         camera_name, rng)[0]
     # except (KeyError, ValueError):
     # Use Gemini.
@@ -279,7 +307,7 @@ def _get_beige_cup_grasp_pixel(
     else:
         pil_image = rgb_image
     vlm_query_str = """
-            Point to the beige solid cup in the image.
+            Point to the pink solid cup in the image.
             The answer should follow the json format: [{"point": , "label": }, ...]. The points are in [y, x] format normalized to 0-1000.
         """
     pixel = _get_pixel_from_gemini(vlm_query_str, pil_image)
@@ -805,5 +833,7 @@ OBJECT_SPECIFIC_GRASP_SELECTORS: Dict[ObjectDetectionID, Callable[[
     # Acrylic cup specific grasp selection.
     acrylic_cup_obj: _get_acrylic_cup_grasp_pixel,
     # Beige cup specific grasp selection.
-    beige_cup_obj: _get_beige_cup_grasp_pixel,
+    pink_cup_obj: _get_pink_cup_grasp_pixel,
+    # Pear specific grasp selection.
+    pear_obj: _get_pear_grasp_pixel,
 }
