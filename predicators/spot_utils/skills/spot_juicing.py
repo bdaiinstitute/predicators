@@ -106,7 +106,7 @@ def drop_inside_juicer(robot: Robot) -> None:
                                               y=0.564949631690979,
                                               z=-0.015587270259857178,
                                               w=0.8249775171279907))
-    place_pose = math_helpers.SE3Pose(x=0.9080689964294434,
+    place_pose = math_helpers.SE3Pose(x=0.8980689964294434,
                                       y=0.040553533487021923,
                                       z=0.42345791816711426,
                                       rot=math_helpers.Quat(

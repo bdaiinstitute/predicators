@@ -1,0 +1,106 @@
+# Additional info associated with the map.
+---
+# NOTE: close to the center of the room
+spot-home-pose:
+  x: 3.5
+  y: 0.45
+  angle: 0.
+april-tag-offsets: []
+
+# Allowed regions. Each region is defined by a set of points
+# that form the boundary of the region. We will check
+# whether a pose is within the region by checking whether the
+# robot will be within the convex hull of these boundary
+# points.
+allowed-regions:
+  spot-room:
+    - [0.25, 1.9]
+    - [1.2, -2.5]
+    - [5.7, -2.5]
+    - [5.0, 2.7]
+
+# Known immovable objects. Assuming default rotations.
+# TODO note: later we can add static objects like short_round_coffee_tables, chairs, etc. here
+known-immovable-objects:
+  floor:
+    x: 1.4
+    y: 0.5
+    z: -0.5
+
+known-movable-objects:
+  orange:
+    x: 3.418
+    y: -1.45
+    z: 0.18
+    object_type: "movable"
+  clear_acrylic_plastic_cup_with_blue_tape:
+    # x: 2.018
+    # y: -1.17
+    # z: 0.18
+    x: 3.418
+    y: -1.45
+    z: 0.18
+    object_type: "container"
+  beige_solid_plastic_cup:
+    # x: 2.088
+    # y: -1.17
+    # z: 0.18
+    x: 3.418
+    y: -1.45
+    z: 0.18
+    object_type: "container"
+  juice_machine:
+    x: 2.858
+    y: -1.47
+    z: 0.18
+    object_type: "juicer"
+
+# Static object features, including the shapes and sizes of known objects.
+static-object-features:
+  floor:
+    shape: 1
+    height: 0.0001
+    length: 10000000  # effectively infinite
+    width: 10000000
+    flat_top_surface: 1
+  orange:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  clear_acrylic_plastic_cup_with_blue_tape:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  beige_solid_plastic_cup:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  juice_machine:
+    shape: 2
+    height: 0.5
+    length: 0.2
+    width: 0.2
+    placeable: 0
+    is_sweeper: 0
+
+# Helpful for static objects that are up against a wall, for example.
+approach_angle_bounds:
+  # approach all objects from directly ahead for now.
+  orange: [1.47, 1.67]
+  clear_acrylic_plastic_cup_with_blue_tape: [1.47, 1.67]
+  beige_solid_plastic_cup: [1.47, 1.67]
+  juice_machine: [1.47, 1.67]
+  
+
+juicing_location: # x, y, yaw in absolute coordinates
+  # juice_machine: [2.538, -1.061, -1.36778459519285]
+  juice_machine: [2.559, -1.109, -1.36778459519285]
