@@ -377,6 +377,7 @@ class MockSpotEnv(BaseEnv):
         # MoveToReachObject: Move robot to a position where it can reach an object
         # Preconditions: Object not blocked, robot not holding it
         # Effects: Object becomes reachable
+        # TODO NOTE: add NotReachable, so remove self-loops
         robot = Variable("?robot", _robot_type)
         obj = Variable("?object", _movable_object_type)
         parameters = [robot, obj]
