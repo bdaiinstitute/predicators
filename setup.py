@@ -50,7 +50,9 @@ setup(
         "tenacity",
         "google-generativeai",
         "tenacity",
-        "httpx==0.27.0"
+        "httpx==0.27.0",
+        "pillow-heif",
+        "graphviz"
     ],
     include_package_data=True,
     extras_require={
