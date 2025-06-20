@@ -1706,6 +1706,742 @@ class MockEnvCreatorBase(ABC):
         """
         return predicate_name in self._key_predicates
 
+    def plan_and_visualize_with_branches(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], task_name: str, use_graphviz: bool = False) -> None:
+        """Plan and visualize transitions with branching for information gathering operators.
+        
+        This method creates a tree/graph visualization that shows both branches
+        for information gathering operators (e.g., InspectSurface can lead to
+        either Clean or Dirty outcomes).
+        
+        Args:
+            initial_atoms: Initial state atoms
+            goal_atoms_or: Goal state atoms
+            objects: Objects in the environment
+            task_name: Name of the task for visualization
+            use_graphviz: Whether to use graphviz instead of cytoscape.js
+        """
+        # Track all objects first
+        for obj in objects:
+            self.objects[obj.name] = obj
+        
+        # Explore states and transitions
+        self.explore_states(initial_atoms, objects)
+        
+        # Get transitions and edges
+        transitions = self.get_operator_transitions(initial_atoms, objects)
+        
+        # Build branching tree from initial state to goal
+        branching_paths = self._find_branching_paths(initial_atoms, goal_atoms_or, objects, transitions)
+        
+        # Track all states and edges in branching paths
+        branching_path_states = set()
+        branching_path_edges = set()
+        
+        # Track the main/shortest path edges specifically for highlighting
+        main_path = branching_paths[0] if branching_paths else None
+        shortest_path_edges = set(main_path['edges']) if main_path and main_path['type'] == 'shortest_path' else set()
+        
+        for path_info in branching_paths:
+            path_states = path_info['states']
+            path_edges = path_info['edges']
+            branching_path_states.update(frozenset(state) for state in path_states)
+            branching_path_edges.update(path_edges)
+        
+        # Create edge data - ONLY for edges in branching paths
+        edge_data = []
+        edge_count = 0
+        for source_atoms, operator, dest_atoms in transitions:
+            source_state = frozenset(source_atoms)
+            dest_state = frozenset(dest_atoms)
+            source_id = self.state_to_id[source_state]
+            dest_id = self.state_to_id[dest_state]
+            
+            # ONLY include edges that are part of branching paths
+            if (source_id, dest_id) in branching_path_edges and source_id != dest_id:
+                # Create detailed edge label
+                op_str = f"{operator.name}({','.join(obj.name for obj in operator.objects)})"
+                
+                # Detect information gathering operators by naming convention
+                is_info_gathering = self._is_information_gathering_operator(operator)
+                
+                # Check if this edge is part of the shortest path
+                is_shortest_path = (source_id, dest_id) in shortest_path_edges
+                
+                edge_data.append({
+                    'id': f'edge_{edge_count}',
+                    'source': source_id,
+                    'target': dest_id,
+                    'label': op_str,
+                    'fullLabel': self._get_edge_label(operator),
+                    'is_branching_path': True,  # All edges are now part of branching paths
+                    'is_shortest_path': is_shortest_path,  # Highlight the optimal path
+                    'is_info_gathering': is_info_gathering,
+                    'affects_belief': any(effect.predicate.name.startswith(('Believe', 'Known_', 'Unknown_')) 
+                                       for effect in (operator.add_effects | operator.delete_effects))
+                })
+                edge_count += 1
+        
+        # Create visualization with branching highlighting
+        if use_graphviz:
+            # Create graphviz visualization (enhanced for branching) - only branching edges
+            trans_ops = {(source_id, operator.name, tuple(obj.name for obj in operator.objects), dest_id) 
+                        for source_atoms, operator, dest_atoms in transitions
+                        for source_id, dest_id in [(self.state_to_id[frozenset(source_atoms)], self.state_to_id[frozenset(dest_atoms)])]
+                        if (source_id, dest_id) in branching_path_edges}
+            output_path = self.output_dir / "transitions" / f"{task_name}_branching"
+            create_graphviz_visualization(trans_ops, f"{task_name} (Branching)", output_path)
+        else:
+            # Create interactive visualization with branching data
+            graph_data = {
+                'nodes': {},
+                'edges': edge_data,
+                'metadata': {
+                    'task_name': f"{task_name} (Branching Visualization)",
+                    'fluent_predicates': [],
+                    'branching_paths': branching_paths,
+                    'layout': 'horizontal',  # Use horizontal layout for tree structure
+                    'highlight_shortest_path': True  # Enable shortest path highlighting
+                }
+            }
+            
+            # Add node data - ONLY for nodes in branching paths
+            for atoms, state_id in self.state_to_id.items():
+                # ONLY include nodes that are part of branching paths
+                if atoms in branching_path_states:
+                    is_initial = atoms == frozenset(initial_atoms)
+                    is_goal = any([goal_atoms.issubset(atoms) for goal_atoms in goal_atoms_or])
+                    
+                    # Get self loops - only those that are in branching paths
+                    self_loops = []
+                    for source_atoms, op, dest_atoms in transitions:
+                        if (frozenset(source_atoms) == atoms and 
+                            frozenset(dest_atoms) == atoms and
+                            (state_id, state_id) in branching_path_edges):
+                            self_loops.append(f"{op.name}({','.join(obj.name for obj in op.objects)})")
+                    
+                    # Create label
+                    state_label = f"{'Initial ' if is_initial else ''}{'Goal ' if is_goal else ''}State {state_id}"
+                    
+                    full_label_parts = [
+                        state_label,
+                        "",
+                        self._format_atoms(set(atoms))  # Convert frozenset to regular set
+                    ]
+                    if self_loops:
+                        full_label_parts.extend([
+                            "",
+                            "Self-loop operators:",
+                            *[f"  {op}" for op in self_loops]
+                        ])
+                    
+                    # Add node
+                    graph_data['nodes'][state_id] = {
+                        'id': state_id,
+                        'state_num': state_id,
+                        'atoms': [str(atom) for atom in atoms],
+                        'is_initial': is_initial,
+                        'is_goal': is_goal,
+                        'is_branching_path': True,  # All nodes are now part of branching paths
+                        'label': state_label,
+                        'fullLabel': '\n'.join(full_label_parts)
+                    }
+            
+            # Create visualization
+            output_path = self.output_dir / "transitions" / f"{task_name}_branching.html"
+            create_interactive_visualization(graph_data, output_path)
+        
+        # Save branching plan data as YAML
+        self._save_branching_plan_yaml(branching_paths, initial_atoms, goal_atoms_or, objects, task_name)
+        
+        # Create emoji version of the visualization (only for interactive mode)
+        if not use_graphviz:
+            self._create_emoji_branching_visualization(graph_data, branching_paths, initial_atoms, goal_atoms_or, objects, task_name)
+
+    def _find_branching_paths(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], transitions: Set[Tuple[FrozenSet[GroundAtom], Any, FrozenSet[GroundAtom]]]) -> List[Dict]:
+        """Find paths from initial state to goal that include branching for information gathering.
+        
+        Returns:
+            List of path dictionaries with 'states', 'edges', 'operators', and 'branch_points'
+        """
+        from collections import deque
+        
+        # Convert transitions to a more usable format
+        transition_map = {}  # state -> [(operator, next_state), ...]
+        for source_atoms, operator, dest_atoms in transitions:
+            source_key = frozenset(source_atoms)
+            if source_key not in transition_map:
+                transition_map[source_key] = []
+            transition_map[source_key].append((operator, frozenset(dest_atoms)))
+        
+        # Find shortest path first (without branching)
+        shortest_path = self._find_shortest_path_bfs(initial_atoms, goal_atoms_or, transition_map)
+        if not shortest_path:
+            return []
+        
+        # Identify information gathering points in the shortest path
+        branching_paths = []
+        
+        # Create the main shortest path
+        main_path = {
+            'type': 'shortest_path',
+            'states': [set(state) for state in shortest_path['states']],
+            'edges': shortest_path['edges'],
+            'operators': shortest_path['operators'],
+            'branch_points': []
+        }
+        
+        # For each information gathering operator in the path, create alternative branches
+        for i, operator in enumerate(shortest_path['operators']):
+            if self._is_information_gathering_operator(operator):
+                # Find alternative operators with same preconditions
+                current_state = shortest_path['states'][i]
+                alternatives = self._find_alternative_info_gathering_operators(
+                    current_state, operator, transition_map)
+                
+                if alternatives:
+                    branch_point = {
+                        'state_index': i,
+                        'state': set(current_state),
+                        'main_operator': operator,
+                        'alternatives': []
+                    }
+                    
+                    # Create alternative paths for each branch
+                    for alt_operator, alt_next_state in alternatives:
+                        # Try to find path from alternative state to goal
+                        alt_path_to_goal = self._find_shortest_path_bfs(
+                            set(alt_next_state), goal_atoms_or, transition_map)
+                        
+                        if alt_path_to_goal:
+                            # Create alternative branch path
+                            alt_path = {
+                                'type': 'alternative_branch',
+                                'branch_from_state': set(current_state),
+                                'branch_operator': alt_operator,
+                                'states': [set(alt_next_state)] + [set(state) for state in alt_path_to_goal['states'][1:]],
+                                'edges': [(self.state_to_id[current_state], self.state_to_id[alt_next_state])] + alt_path_to_goal['edges'],
+                                'operators': [alt_operator] + alt_path_to_goal['operators']
+                            }
+                            branching_paths.append(alt_path)
+                            branch_point['alternatives'].append(alt_operator)
+                    
+                    if branch_point['alternatives']:
+                        main_path['branch_points'].append(branch_point)
+        
+        # Add the main path first
+        branching_paths.insert(0, main_path)
+        
+        return branching_paths
+
+    def _find_shortest_path_bfs(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], transition_map: Dict) -> Dict:
+        """Find shortest path using BFS."""
+        from collections import deque
+        
+        initial_key = frozenset(initial_atoms)
+        queue = deque([(initial_key, [])])  # (state, path_of_operators)
+        visited = set()
+        
+        while queue:
+            current_state, path = queue.popleft()
+            
+            if current_state in visited:
+                continue
+            visited.add(current_state)
+            
+            # Check if goal is reached
+            if any(goal_atoms.issubset(set(current_state)) for goal_atoms in goal_atoms_or):
+                # Reconstruct full path
+                states = [initial_key]
+                edges = []
+                current = initial_key
+                
+                for operator in path:
+                    next_state = None
+                    for op, next_st in transition_map.get(current, []):
+                        if op.name == operator.name and op.objects == operator.objects:
+                            next_state = next_st
+                            break
+                    if next_state:
+                        edges.append((self.state_to_id[current], self.state_to_id[next_state]))
+                        states.append(next_state)
+                        current = next_state
+                
+                return {
+                    'states': states,
+                    'edges': edges,
+                    'operators': path
+                }
+            
+            # Explore neighbors
+            for operator, next_state in transition_map.get(current_state, []):
+                if next_state not in visited:
+                    queue.append((next_state, path + [operator]))
+        
+        return None  # No path found
+
+    def _is_information_gathering_operator(self, operator) -> bool:
+        """Check if an operator is an information gathering operator based on naming patterns."""
+        info_gathering_patterns = [
+            'Inspect', 'Observe', 'Check', 'Examine', 'Look', 'Detect', 'Measure'
+        ]
+        return any(pattern in operator.name for pattern in info_gathering_patterns)
+
+    def _find_alternative_info_gathering_operators(self, current_state: FrozenSet[GroundAtom], operator, transition_map: Dict) -> List[Tuple]:
+        """Find alternative information gathering operators with same preconditions but different outcomes."""
+        alternatives = []
+        
+        if current_state not in transition_map:
+            return alternatives
+        
+        # Look for operators with same base name but different outcomes
+        base_name = self._get_base_operator_name(operator.name)
+        
+        for alt_operator, next_state in transition_map[current_state]:
+            alt_base_name = self._get_base_operator_name(alt_operator.name)
+            
+            # Same base operator but different variant (e.g., InspectSurfaceClean vs InspectSurfaceDirty)
+            if (alt_base_name == base_name and 
+                alt_operator.name != operator.name and
+                alt_operator.objects == operator.objects):
+                alternatives.append((alt_operator, next_state))
+        
+        return alternatives
+
+    def _get_base_operator_name(self, operator_name: str) -> str:
+        """Extract base name from operator (e.g., 'InspectSurfaceClean' -> 'InspectSurface')."""
+        # Remove common suffixes that indicate outcomes
+        suffixes = ['Clean', 'Dirty', 'Empty', 'Full', 'HasContent', 'NoContent', 'FindWater', 'FindEmpty', 'FindNotEmpty']
+        
+        for suffix in suffixes:
+            if operator_name.endswith(suffix):
+                return operator_name[:-len(suffix)]
+        
+        return operator_name
+
+    def _save_branching_plan_yaml(self, branching_paths: List[Dict], initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], task_name: str) -> None:
+        """Save the branching plan data as a YAML file."""
+        import yaml
+        from pathlib import Path
+        
+        # Convert paths to serializable format
+        serializable_paths = []
+        for path in branching_paths:
+            serializable_path = {
+                'type': path['type'],
+                'operators': [f"{op.name}({', '.join(obj.name for obj in op.objects)})" for op in path.get('operators', [])],
+                'states': [
+                    [str(atom) for atom in state] for state in path['states']
+                ]
+            }
+            
+            if 'branch_points' in path:
+                serializable_path['branch_points'] = [
+                    {
+                        'state_index': bp['state_index'],
+                        'main_operator': f"{bp['main_operator'].name}({', '.join(obj.name for obj in bp['main_operator'].objects)})",
+                        'alternatives': [f"{alt.name}({', '.join(obj.name for obj in alt.objects)})" for alt in bp['alternatives']]
+                    }
+                    for bp in path['branch_points']
+                ]
+            
+            if path['type'] == 'alternative_branch':
+                # Ensure branch_operator is converted to string
+                if hasattr(path['branch_operator'], 'name'):
+                    serializable_path['branch_operator'] = f"{path['branch_operator'].name}({', '.join(obj.name for obj in path['branch_operator'].objects)})"
+                else:
+                    serializable_path['branch_operator'] = str(path['branch_operator'])
+                serializable_path['branch_from_state'] = [str(atom) for atom in path['branch_from_state']]
+            
+            serializable_paths.append(serializable_path)
+        
+        # Generate all complete paths through the decision tree
+        all_complete_paths = self._generate_all_complete_paths(serializable_paths)
+        
+        # Create YAML data
+        yaml_data = {
+            'task_name': task_name,
+            'initial_state': [str(atom) for atom in initial_atoms],
+            'goal_states': [[str(atom) for atom in goal_atoms] for goal_atoms in goal_atoms_or],
+            'objects': [obj.name for obj in objects],
+            'branching_paths': serializable_paths,
+            'all_complete_paths': all_complete_paths
+        }
+        
+        # Save to file
+        output_path = self.output_dir / "transitions" / f"{task_name}_branching_plan.yaml"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            yaml.dump(yaml_data, f, default_flow_style=False, indent=2)
+        
+        print(f"Saved branching plan YAML to: {output_path}")
+        
+        # Also print all complete paths to console for immediate visibility
+        print("\n" + "="*80)
+        print("ALL COMPLETE PATHS THROUGH INFORMATION GATHERING BRANCHES:")
+        print("="*80)
+        for i, path in enumerate(all_complete_paths, 1):
+            print(f"\nPath {i}: {path['description']}")
+            print(f"Operators: {' -> '.join(path['operators'])}")
+            
+            # Show key decision points
+            if path.get('decisions'):
+                print("Key Decisions:")
+                for decision in path['decisions']:
+                    print(f"  - {decision}")
+        print("="*80)
+
+    def _generate_all_complete_paths(self, serializable_paths: List[Dict]) -> List[Dict]:
+        """Generate all complete paths through the decision tree."""
+        if not serializable_paths:
+            return []
+        
+        main_path = serializable_paths[0]
+        if main_path['type'] != 'shortest_path':
+            return []
+        
+        all_paths = []
+        
+        # Start with the main path (all clean scenario)
+        main_operators = main_path.get('operators', [])
+        
+        main_decisions = []
+        for bp in main_path.get('branch_points', []):
+            main_decisions.append(f"Surface inspection finds clean: {bp['main_operator']}")
+        
+        all_paths.append({
+            'path_id': 1,
+            'description': 'Optimal Path (All surfaces clean)',
+            'operators': main_operators,
+            'decisions': main_decisions,
+            'branch_outcomes': [bp['main_operator'] for bp in main_path.get('branch_points', [])]
+        })
+        
+        # Generate alternative paths based on different information gathering outcomes
+        branch_points = main_path.get('branch_points', [])
+        
+        if len(branch_points) == 1:
+            # Single branch point - generate 2 paths
+            self._add_single_branch_paths_serialized(all_paths, main_path, serializable_paths, branch_points[0])
+        elif len(branch_points) == 2:
+            # Two branch points - generate 4 paths (2^2 combinations)
+            self._add_double_branch_paths_serialized(all_paths, main_path, serializable_paths, branch_points)
+        else:
+            # Multiple branch points - generate all combinations
+            self._add_multiple_branch_paths_serialized(all_paths, main_path, serializable_paths, branch_points)
+        
+        return all_paths
+
+    def _add_single_branch_paths_serialized(self, all_paths: List[Dict], main_path: Dict, serializable_paths: List[Dict], branch_point: Dict) -> None:
+        """Add paths for single branch point scenario with serialized data."""
+        # Find the alternative branch
+        for alt_path in serializable_paths[1:]:
+            if (alt_path['type'] == 'alternative_branch' and 
+                alt_path.get('branch_operator', '')):
+                # Now both are strings, safe to compare
+                alt_branch_op_str = alt_path.get('branch_operator', '')
+                bp_alt_str = branch_point['alternatives'][0]
+                if bp_alt_str.split('(')[0] in alt_branch_op_str:
+                    alt_operators = alt_path.get('operators', [])
+                    
+                    all_paths.append({
+                        'path_id': 2,
+                        'description': 'Alternative Path (Surface dirty, requires cleaning)',
+                        'operators': alt_operators,
+                        'decisions': [f"Surface inspection finds dirty: {alt_path['branch_operator']}"],
+                        'branch_outcomes': [alt_path['branch_operator']]
+                    })
+                    break
+
+    def _add_double_branch_paths_serialized(self, all_paths: List[Dict], main_path: Dict, serializable_paths: List[Dict], branch_points: List[Dict]) -> None:
+        """Add paths for double branch point scenario with serialized data."""
+        bp1, bp2 = branch_points
+        
+        # We already have Path 1 (both clean) from main path
+        
+        # Path 2: First surface dirty, second clean
+        alt1_branch = None
+        for alt_path in serializable_paths[1:]:
+            if (alt_path['type'] == 'alternative_branch' and 
+                alt_path.get('branch_operator', '')):
+                # Now both are strings, safe to compare
+                alt_branch_op_str = alt_path.get('branch_operator', '')
+                bp1_alt_str = bp1['alternatives'][0]
+                if bp1_alt_str in alt_branch_op_str:
+                    alt1_branch = alt_path
+                    break
+        
+        if alt1_branch:
+            # Build hybrid path: use alternative for first branch, then main path continuation
+            path2_ops = self._build_hybrid_path_serialized(main_path, alt1_branch, 1, 2)
+            all_paths.append({
+                'path_id': 2,
+                'description': 'Hybrid Path (First surface dirty, second clean)',
+                'operators': path2_ops,
+                'decisions': [
+                    f"Surface 1 inspection finds dirty: {bp1['alternatives'][0]}",
+                    f"Surface 2 inspection finds clean: {bp2['main_operator']}"
+                ],
+                'branch_outcomes': [bp1['alternatives'][0], bp2['main_operator']]
+            })
+        
+        # Path 3: First surface clean, second dirty  
+        alt2_branch = None
+        for alt_path in serializable_paths[1:]:
+            if (alt_path['type'] == 'alternative_branch' and 
+                alt_path.get('branch_operator', '')):
+                # Now both are strings, safe to compare
+                alt_branch_op_str = alt_path.get('branch_operator', '')
+                bp2_alt_str = bp2['alternatives'][0]
+                if bp2_alt_str in alt_branch_op_str:
+                    alt2_branch = alt_path
+                    break
+        
+        if alt2_branch:
+            path3_ops = self._build_hybrid_path_serialized(main_path, alt2_branch, 2, 1)
+            all_paths.append({
+                'path_id': 3,
+                'description': 'Hybrid Path (First surface clean, second dirty)',
+                'operators': path3_ops,
+                'decisions': [
+                    f"Surface 1 inspection finds clean: {bp1['main_operator']}",
+                    f"Surface 2 inspection finds dirty: {bp2['alternatives'][0]}"
+                ],
+                'branch_outcomes': [bp1['main_operator'], bp2['alternatives'][0]]
+            })
+        
+        # Path 4: Both surfaces dirty
+        if alt1_branch and alt2_branch:
+            path4_ops = self._build_double_dirty_path_serialized(main_path, alt1_branch, alt2_branch)
+            all_paths.append({
+                'path_id': 4,
+                'description': 'Worst Case Path (Both surfaces dirty, requires cleaning both)',
+                'operators': path4_ops,
+                'decisions': [
+                    f"Surface 1 inspection finds dirty: {bp1['alternatives'][0]}",
+                    f"Surface 2 inspection finds dirty: {bp2['alternatives'][0]}"
+                ],
+                'branch_outcomes': [bp1['alternatives'][0], bp2['alternatives'][0]]
+            })
+
+    def _add_multiple_branch_paths_serialized(self, all_paths: List[Dict], main_path: Dict, serializable_paths: List[Dict], branch_points: List[Dict]) -> None:
+        """Add paths for multiple branch point scenario with serialized data."""
+        # For now, just add the available alternative branches
+        path_id = 2
+        for alt_path in serializable_paths[1:]:
+            if alt_path['type'] == 'alternative_branch':
+                alt_operators = alt_path.get('operators', [])
+                
+                all_paths.append({
+                    'path_id': path_id,
+                    'description': f'Alternative Path {path_id-1} ({alt_path.get("branch_operator", "Unknown")})',
+                    'operators': alt_operators,
+                    'decisions': [f"Information gathering outcome: {alt_path.get('branch_operator', 'Unknown')}"],
+                    'branch_outcomes': [alt_path.get('branch_operator', 'Unknown')]
+                })
+                path_id += 1
+
+    def _build_hybrid_path_serialized(self, main_path: Dict, alt_branch: Dict, dirty_surface_num: int, clean_surface_num: int) -> List[str]:
+        """Build a hybrid path where one surface is dirty and one is clean."""
+        # This is a simplified version - in practice, you'd need to carefully construct
+        # the path based on the specific operators and state transitions
+        main_ops = main_path.get('operators', [])
+        
+        # For now, return the main path as approximation
+        # TODO: Implement proper hybrid path construction
+        return main_ops
+
+    def _build_double_dirty_path_serialized(self, main_path: Dict, alt1_branch: Dict, alt2_branch: Dict) -> List[str]:
+        """Build a path where both surfaces are dirty and need cleaning."""
+        # This is a simplified version - in practice, you'd need to carefully construct
+        # the path with both cleaning sequences
+        alt1_ops = alt1_branch.get('operators', [])
+        
+        # For now, return the first alternative path as approximation
+        # TODO: Implement proper double dirty path construction
+        return alt1_ops
+
+    def _get_object_emoji_mapping(self, objects: Set[Object]) -> Dict[str, str]:
+        """Create a mapping from object names to emoji representations."""
+        emoji_map = {}
+        
+        # Define emoji mappings based on object names and types
+        emoji_mappings = {
+            # Robot and agents
+            'robot': '🤖',
+            'agent': '🤖',
+            
+            # Kitchen objects
+            'bowl': '🥣',
+            'cup': '☕',
+            'plate': '🍽️',
+            'spoon': '🥄',
+            'fork': '🍴',
+            'knife': '🔪',
+            'glass': '🥃',
+            'mug': '☕',
+            
+            # Food items
+            'soup': '🍲',
+            'salad': '🥗',
+            'bread': '🍞',
+            'water': '💧',
+            'milk': '🥛',
+            'juice': '🧃',
+            'ice_cream': '🍦',
+            'cream': '🍦',
+            'meat': '🥩',
+            'expired': '❌',
+            'fresh': '✅',
+            
+            # Surfaces and furniture
+            'table': '🪑',
+            'counter': '🏢',
+            'surface': '📋',
+            'shelf': '🗄️',
+            'cabinet': '🗃️',
+            'freezer': '🧊',
+            
+            # Cleaning supplies
+            'cloth': '🧽',
+            'cleaning': '🧽',
+            'towel': '🧻',
+            'sponge': '🧽',
+            
+            # Tools and utensils
+            'tool': '🔧',
+            'screwdriver': '🪛',
+            'hammer': '🔨',
+            'wrench': '🔧',
+            
+            # Containers and storage
+            'box': '📦',
+            'container': '📦',
+            'basket': '🧺',
+            'bin': '🗑️',
+            
+            # Measurement and scales
+            'scale': '⚖️',
+            'weight': '⚖️',
+            'measure': '📏',
+            
+            # Colors (for colored objects)
+            'red': '🔴',
+            'blue': '🔵',
+            'green': '🟢',
+            'yellow': '🟡',
+            'orange': '🟠',
+            'purple': '🟣',
+            'black': '⚫',
+            'white': '⚪',
+            'brown': '🤎',
+            
+            # Generic fallbacks
+            'object': '📦',
+            'item': '📦',
+            'thing': '❓',
+        }
+        
+        # Map each object to an emoji
+        for obj in objects:
+            obj_name = obj.name.lower()
+            emoji = None
+            
+            # Try exact match first
+            if obj_name in emoji_mappings:
+                emoji = emoji_mappings[obj_name]
+            else:
+                # Try partial matches (contains keyword)
+                for keyword, emoji_char in emoji_mappings.items():
+                    if keyword in obj_name:
+                        emoji = emoji_char
+                        break
+                
+                # If still no match, use type-based or generic
+                if emoji is None:
+                    obj_type = str(getattr(obj, 'type', '')).lower()
+                    if obj_type in emoji_mappings:
+                        emoji = emoji_mappings[obj_type]
+                    else:
+                        emoji = '📦'  # Default fallback
+            
+            emoji_map[obj.name] = emoji
+        
+        return emoji_map
+
+    def _create_emoji_branching_visualization(self, graph_data: Dict[str, Any], branching_paths: List[Dict], 
+                                            initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], 
+                                            objects: Set[Object], task_name: str) -> None:
+        """Create an emoji-enhanced version of the branching visualization."""
+        # Get emoji mapping
+        emoji_map = self._get_object_emoji_mapping(objects)
+        
+        # Create emoji-enhanced graph data
+        emoji_graph_data = {
+            'nodes': {},
+            'edges': [],
+            'metadata': {
+                'task_name': f"{task_name} (Emoji Branching Visualization)",
+                'fluent_predicates': [],
+                'branching_paths': branching_paths,
+                'layout': 'horizontal',
+                'highlight_shortest_path': True,
+                'emoji_enhanced': True
+            }
+        }
+        
+        # Process nodes with emoji replacements
+        for node_id, node_data in graph_data['nodes'].items():
+            emoji_node_data = node_data.copy()
+            
+            # Replace object names with emoji in labels
+            if 'label' in emoji_node_data:
+                emoji_node_data['label'] = self._replace_objects_with_emoji(emoji_node_data['label'], emoji_map)
+            if 'fullLabel' in emoji_node_data:
+                emoji_node_data['fullLabel'] = self._replace_objects_with_emoji(emoji_node_data['fullLabel'], emoji_map)
+            
+            emoji_graph_data['nodes'][node_id] = emoji_node_data
+        
+        # Process edges with emoji replacements
+        for edge_data in graph_data['edges']:
+            emoji_edge_data = edge_data.copy()
+            
+            # Replace object names with emoji in edge labels
+            if 'label' in emoji_edge_data:
+                emoji_edge_data['label'] = self._replace_objects_with_emoji(emoji_edge_data['label'], emoji_map)
+            if 'fullLabel' in emoji_edge_data:
+                emoji_edge_data['fullLabel'] = self._replace_objects_with_emoji(emoji_edge_data['fullLabel'], emoji_map)
+            
+            emoji_graph_data['edges'].append(emoji_edge_data)
+        
+        # Create emoji visualization
+        output_path = self.output_dir / "transitions" / f"{task_name}_branching_emoji.html"
+        create_interactive_visualization(emoji_graph_data, output_path)
+        
+        print(f"✨ Created emoji-enhanced branching visualization: {output_path}")
+
+    def _replace_objects_with_emoji(self, text: str, emoji_map: Dict[str, str]) -> str:
+        """Replace object names in text with their emoji representations."""
+        result = text
+        
+        # Sort by length (longest first) to avoid partial replacements
+        sorted_objects = sorted(emoji_map.keys(), key=len, reverse=True)
+        
+        for obj_name in sorted_objects:
+            emoji = emoji_map[obj_name]
+            # Extract number/ID from object name if present
+            import re
+            number_match = re.search(r'\d+', obj_name)
+            number_suffix = number_match.group() if number_match else ""
+            
+            # Replace object name with just emoji + number (no text name)
+            if number_suffix:
+                result = result.replace(obj_name, f"{emoji}{number_suffix}")
+            else:
+                result = result.replace(obj_name, emoji)
+        
+        return result
+
 def create_graphviz_visualization(transitions: Set[Tuple[str, str, tuple, str]], 
                                 task_name: str,
                                 output_path: Path) -> None:
@@ -1769,10 +2505,15 @@ def create_interactive_visualization(graph_data: Dict[str, Any], output_path: Pa
     with open(template_path) as f:
         template = Template(f.read())
     
-    # Render template with graph data
+    # Get metadata for enhanced rendering
+    metadata = graph_data.get('metadata', {})
+    task_name = metadata.get('task_name', 'State Transitions')
+    
+    # Render template with graph data and metadata
     html_content = template.render(
-        task_name=graph_data['metadata']['task_name'],
-        graph_data_json=json.dumps(cytoscape_data)
+        task_name=task_name,
+        graph_data_json=json.dumps(cytoscape_data),
+        metadata=metadata  # Pass metadata to template
     )
     
     # Create output directory if it doesn't exist
