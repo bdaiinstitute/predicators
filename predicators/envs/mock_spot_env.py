@@ -36,18 +36,26 @@ from predicators.structs import LiftedAtom, STRIPSOperator, Variable, Predicate,
 from predicators.settings import CFG
 from predicators.utils import get_object_combinations, get_fluent_predicates, get_active_predicates
 from predicators.spot_utils.mock_env.mock_env_utils import (
-    PREDICATES, PREDICATES_WITH_VLM, VLM_PREDICATES, TYPES, BELIEF_PREDICATES, GOAL_PREDICATES,
-    _robot_type, _base_object_type, _movable_object_type, _container_type,
-    _immovable_object_type, _SavedMockSpotObservation, _MockSpotObservation,
-    _NotBlocked, _NotHolding, _Reachable, _InHandView, _InView, _RobotReadyForSweeping,
-    _HandEmpty, _NotInsideAnyContainer, _Inside, _DrawerOpen, _DrawerClosed,
-    _ContainingWaterKnown, _Known_ContainerEmpty, _NEq, _On, _TopAbove, _FitsInXY,
-    _InHandViewFromTop, _Holding, _Known_ObjectHeavy, _Unknown_ObjectHeavy, 
-    _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy, _IsScale, _IsPlaceable,
-    _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _ContainingWaterUnknown,
-    _ContainingWater, _NotContainingWater, _ContainerEmpty, _Unknown_ContainerEmpty,
-    _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty
-)
+    PREDICATES, PREDICATES_WITH_VLM, VLM_PREDICATES, TYPES,
+    BELIEF_PREDICATES, GOAL_PREDICATES, _robot_type, _base_object_type,
+    _movable_object_type, _container_type, _immovable_object_type,
+    _SavedMockSpotObservation, _MockSpotObservation, _NotBlocked, _NotHolding,
+    _Reachable, _InHandView, _InView, _RobotReadyForSweeping, _HandEmpty,
+    _NotInsideAnyContainer, _Inside, _DrawerOpen, _DrawerClosed,
+    _ContainingWaterKnown, _Known_ContainerEmpty, _NEq, _On, _TopAbove,
+    _FitsInXY, _InHandViewFromTop, _Holding, _Known_ObjectHeavy,
+    _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy,
+    _IsScale, _IsPlaceable, _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface,
+    _ContainingWaterUnknown, _ContainingWater, _NotContainingWater,
+    _ContainerEmpty, _Unknown_ContainerEmpty, _BelieveTrue_ContainerEmpty,
+    _BelieveFalse_ContainerEmpty, _CupTypeUnknown, _CupTypeKnown,
+    _IsDisposableCup, _IsWashableCup, _Unknown_CupHasContent,
+    _Known_CupHasContent, _BelieveTrue_CupHasContent,
+    _BelieveFalse_CupHasContent, _IsCleaningTool, _Covers, _SurfaceClear,
+    _Unknown_SurfaceClean, _Known_SurfaceClean, _BelieveSurfaceClean,
+    _BelieveSurfaceDirty, _Unknown_ObjectLocation, _Known_ObjectLocation,
+    _Unknown_ObjectExpiration, _Known_ObjectExpiration, _BelieveTrue_ObjectExpired,
+    _BelieveFalse_ObjectExpired)
 
 
 def get_vlm_atom_combinations_test(objects: Set[Object],
@@ -1699,6 +1707,592 @@ class MockSpotDrawerCleaningSameColorEnv(MockSpotEnv):
     def _generate_goal_description(self) -> GoalDescription:
         """Generate a goal description for the current task."""
         # NOTE: to update this from language
+        return self.goal_atoms
+    
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
+
+
+class MockSpotCupClassificationEnv(MockSpotEnv):
+    """A mock environment for testing cup classification and conditional placement.
+    
+    This environment demonstrates:
+    - Semantic object naming for type inference (paper_cup vs ceramic_mug)
+    - Information gathering for dynamic properties (cup content)
+    - Conditional goal achievement based on cup type and content
+    
+    Objects:
+    - paper_cup: Disposable (invariant) → goes to trash regardless of content
+    - ceramic_mug: Washable (invariant) → must empty if has content, then to dishwasher
+    
+    The task is to:
+    1. Inspect each cup to determine if it has content/waste
+    2. Handle disposable cups by putting in trash
+    3. Handle washable cups by emptying if needed, then to dishwasher
+    """
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotCupClassification")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_cup_classification"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = "mock_spot_cup_classification"
+        
+        # Create objects with semantic naming for cup classification
+        self.robot = Object("robot", _robot_type)
+        self.kitchen_table = Object("kitchen_table", _immovable_object_type)
+        self.paper_cup = Object("paper_cup", _movable_object_type)      # Disposable - semantic name
+        self.ceramic_mug = Object("ceramic_mug", _movable_object_type)  # Washable - semantic name
+        self.trash_bin = Object("trash_bin", _container_type)
+        self.dishwasher = Object("dishwasher", _container_type)
+        
+        # Set up objects dictionary
+        self._objects = {
+            "robot": self.robot,
+            "kitchen_table": self.kitchen_table,
+            "paper_cup": self.paper_cup,
+            "ceramic_mug": self.ceramic_mug,
+            "trash_bin": self.trash_bin,
+            "dishwasher": self.dishwasher
+        }
+        
+        self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Paper cup state (disposable - content state unknown)
+            GroundAtom(_On, [self.paper_cup, self.kitchen_table]),
+            GroundAtom(_Unknown_CupHasContent, [self.paper_cup]),
+            GroundAtom(_NotBlocked, [self.paper_cup]),
+            GroundAtom(_IsPlaceable, [self.paper_cup]),
+            GroundAtom(_NotInsideAnyContainer, [self.paper_cup]),
+            GroundAtom(_FitsInXY, [self.paper_cup, self.trash_bin]),
+            GroundAtom(_NotHolding, [self.robot, self.paper_cup]),
+            GroundAtom(_NEq, [self.paper_cup, self.kitchen_table]),
+            GroundAtom(_NEq, [self.paper_cup, self.trash_bin]),
+            GroundAtom(_NEq, [self.paper_cup, self.dishwasher]),
+            GroundAtom(_Reachable, [self.robot, self.paper_cup]),
+            
+            # Ceramic mug state (washable - content state unknown)
+            GroundAtom(_On, [self.ceramic_mug, self.kitchen_table]),
+            GroundAtom(_Unknown_CupHasContent, [self.ceramic_mug]),
+            GroundAtom(_NotBlocked, [self.ceramic_mug]),
+            GroundAtom(_IsPlaceable, [self.ceramic_mug]),
+            GroundAtom(_NotInsideAnyContainer, [self.ceramic_mug]),
+            GroundAtom(_FitsInXY, [self.ceramic_mug, self.dishwasher]),
+            GroundAtom(_NotHolding, [self.robot, self.ceramic_mug]),
+            GroundAtom(_NEq, [self.ceramic_mug, self.kitchen_table]),
+            GroundAtom(_NEq, [self.ceramic_mug, self.trash_bin]),
+            GroundAtom(_NEq, [self.ceramic_mug, self.dishwasher]),
+            GroundAtom(_Reachable, [self.robot, self.ceramic_mug]),
+            
+            # Trash bin state
+            GroundAtom(_NotBlocked, [self.trash_bin]),
+            GroundAtom(_NotInsideAnyContainer, [self.trash_bin]),
+            GroundAtom(_HasFlatTopSurface, [self.trash_bin]),
+            GroundAtom(_NotHolding, [self.robot, self.trash_bin]),
+            GroundAtom(_Reachable, [self.robot, self.trash_bin]),
+            
+            # Dishwasher state
+            GroundAtom(_NotBlocked, [self.dishwasher]),
+            GroundAtom(_NotInsideAnyContainer, [self.dishwasher]),
+            GroundAtom(_HasFlatTopSurface, [self.dishwasher]),
+            GroundAtom(_NotHolding, [self.robot, self.dishwasher]),
+            GroundAtom(_Reachable, [self.robot, self.dishwasher]),
+            
+            # Environment state
+            GroundAtom(_HasFlatTopSurface, [self.kitchen_table]),
+            GroundAtom(_NEq, [self.paper_cup, self.ceramic_mug]),
+            GroundAtom(_NEq, [self.trash_bin, self.dishwasher]),
+            GroundAtom(_NEq, [self.trash_bin, self.kitchen_table]),
+            GroundAtom(_NEq, [self.dishwasher, self.kitchen_table])
+        }
+        
+        # Goal encodes disposal logic based on object names (VLM understands semantics)
+        self.goal_atoms = {
+            # Disposable items go to trash (regardless of content)
+            GroundAtom(_Inside, [self.paper_cup, self.trash_bin]),
+            
+            # Washable items must be emptied if they have content, then go to dishwasher
+            GroundAtom(_Inside, [self.ceramic_mug, self.dishwasher]),
+            GroundAtom(_BelieveFalse_CupHasContent, [self.ceramic_mug]),  # Ensures emptying happened if needed
+            
+            # All cups must be inspected (demonstrates information gathering)
+            GroundAtom(_Known_CupHasContent, [self.paper_cup]),
+            GroundAtom(_Known_CupHasContent, [self.ceramic_mug])
+        }
+        
+        # Add goal_atoms_or for compatibility with creator
+        self.goal_atoms_or = [self.goal_atoms]
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to cup classification tasks."""
+        # Get base operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject", 
+            "MoveToHandViewObjectFromTop",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside"
+        }
+        
+        # Filter and yield base operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+                
+        # Define variables
+        robot = Variable("?robot", _robot_type)
+        cup = Variable("?cup", _movable_object_type)
+        parameters = [robot, cup]
+        
+        # InspectCupContents: Check if cup has waste/content (applies to any cup)
+        preconds = {
+            LiftedAtom(_InHandView, [robot, cup]),
+            LiftedAtom(_Unknown_CupHasContent, [cup])
+        }
+        add_effs = {LiftedAtom(_Known_CupHasContent, [cup])}
+        del_effs = {LiftedAtom(_Unknown_CupHasContent, [cup])}
+        ignore_effs = set()
+        
+        # Operator variant that finds cup has content
+        add_effs_has_content = add_effs | {LiftedAtom(_BelieveTrue_CupHasContent, [cup])}
+        yield STRIPSOperator("InspectCupContentsHasContent",
+                            parameters,
+                            preconds,
+                            add_effs_has_content,
+                            del_effs,
+                            ignore_effs)
+        
+        # Operator variant that finds cup is empty
+        add_effs_empty = add_effs | {LiftedAtom(_BelieveFalse_CupHasContent, [cup])}
+        yield STRIPSOperator("InspectCupContentsEmpty",
+                            parameters,
+                            preconds,
+                            add_effs_empty,
+                            del_effs,
+                            ignore_effs)
+                            
+        # DumpContents: Empty a cup that has content (applies to washable cups only, enforced by goal)
+        preconds = {
+            LiftedAtom(_Holding, [robot, cup]),
+            LiftedAtom(_BelieveTrue_CupHasContent, [cup])
+        }
+        add_effs = {LiftedAtom(_BelieveFalse_CupHasContent, [cup])}
+        del_effs = {LiftedAtom(_BelieveTrue_CupHasContent, [cup])}
+        
+        yield STRIPSOperator("DumpContents",
+                            parameters,
+                            preconds,
+                            add_effs,
+                            del_effs,
+                            ignore_effs)
+
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
+        return self.goal_atoms
+    
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def get_train_tasks(self) -> List[EnvironmentTask]:
+        """Get list of training tasks."""
+        return []
+
+    def get_test_tasks(self) -> List[EnvironmentTask]:
+        """Get list of test tasks."""
+        # Reset environment to get initial observation
+        obs = self.reset("test", 0)
+        # Create task with initial observation and goal
+        task = EnvironmentTask(obs, self.goal_atoms)
+        return [task]
+
+class MockSpotTableCleaningEnv(MockSpotEnv):
+    """A mock environment for testing table cleaning with replanning.
+
+    This version uses explicit surface objects and a Covers predicate
+    to ensure the robot must move objects to inspect and clean.
+    """
+    preset_data_dir = os.path.join("mock_env_data",
+                                   "MockSpotTableCleaning")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_table_cleaning"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = "mock_spot_table_cleaning"
+
+        # Create objects for table cleaning scenario
+        self.robot = Object("robot", _robot_type)
+        self.kitchen_table = Object("kitchen_table",
+                                    _immovable_object_type)
+        self.counter = Object("counter", _immovable_object_type)
+        self.bowl1 = Object("bowl1", _movable_object_type)
+        self.bowl2 = Object("bowl2", _movable_object_type)
+        self.table_surface1 = Object("table_surface1",
+                                     _immovable_object_type)
+        self.table_surface2 = Object("table_surface2",
+                                     _immovable_object_type)
+        self.cleaning_cloth = Object("cleaning_cloth",
+                                     _movable_object_type)
+
+        # Set up objects dictionary
+        self._objects = {
+            "robot": self.robot,
+            "kitchen_table": self.kitchen_table,
+            "counter": self.counter,
+            "bowl1": self.bowl1,
+            "bowl2": self.bowl2,
+            "table_surface1": self.table_surface1,
+            "table_surface2": self.table_surface2,
+            "cleaning_cloth": self.cleaning_cloth
+        }
+        self._set_initial_state_and_goal()
+
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Bowls covering their surfaces
+            GroundAtom(_Covers, [self.bowl1, self.table_surface1]),
+            GroundAtom(_Covers, [self.bowl2, self.table_surface2]),
+
+            # NOTE: debugging and experimenting
+            # Surface states are unknown
+            GroundAtom(_Unknown_SurfaceClean, [self.table_surface1]),
+            # HACK: Pre-knowledge of surface states for demo
+            # Surface 1 is known to be clean (no cleaning needed)
+            # GroundAtom(_Known_SurfaceClean, [self.table_surface1]),
+            # GroundAtom(_BelieveSurfaceClean, [self.table_surface1]),
+            # Surface 2
+            GroundAtom(_Unknown_SurfaceClean, [self.table_surface2]),
+
+            # Cleaning cloth is on the counter
+            GroundAtom(_On, [self.cleaning_cloth, self.counter]),
+            GroundAtom(_IsCleaningTool, [self.cleaning_cloth]),
+
+            # General object properties
+            GroundAtom(_HasFlatTopSurface, [self.counter]),
+            GroundAtom(_IsPlaceable, [self.bowl1]),
+            GroundAtom(_IsPlaceable, [self.bowl2]),
+            GroundAtom(_IsPlaceable, [self.cleaning_cloth]),
+        }
+
+        self.goal_atoms = {
+            # Surfaces are clean
+            GroundAtom(_BelieveSurfaceClean, [self.table_surface1]),
+            GroundAtom(_BelieveSurfaceClean, [self.table_surface2]),
+            # Bowls are back on their surfaces
+            GroundAtom(_Covers, [self.bowl1, self.table_surface1]),
+            GroundAtom(_Covers, [self.bowl2, self.table_surface2]),
+            # Cloth is back on the counter
+            GroundAtom(_On, [self.cleaning_cloth, self.counter]),
+        }
+        self.goal_atoms_or = [self.goal_atoms]
+
+    @property
+    def objects(self) -> Set[Object]:
+        """Get all objects in the environment."""
+        return set(self._objects.values())
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to table cleaning tasks."""
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?obj", _movable_object_type)
+        surface = Variable("?surface", _immovable_object_type)
+        tool = Variable("?tool", _movable_object_type)
+
+        # Base operator: PickObjectFromTop
+        pick_params = [robot, obj, surface]
+        pick_preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_On, [obj, surface]),
+            LiftedAtom(_IsPlaceable, [obj])
+        }
+        pick_add_effs = {LiftedAtom(_Holding, [robot, obj])}
+        pick_del_effs = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_On, [obj, surface])}
+        yield STRIPSOperator("PickObjectFromTop", pick_params, pick_preconds, pick_add_effs, pick_del_effs, set())
+
+        # Base operator: PlaceObjectOnTop
+        place_params = [robot, obj, surface]
+        place_preconds = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_HasFlatTopSurface, [surface]),
+            LiftedAtom(_IsPlaceable, [obj])
+        }
+        place_add_effs = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_On, [obj, surface])}
+        place_del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        yield STRIPSOperator("PlaceObjectOnTop", place_params, place_preconds, place_add_effs, place_del_effs, set())
+        
+        # Custom PickCoveringObject
+        pick_cov_params = [robot, obj, surface]
+        pick_cov_preconds = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_Covers, [obj, surface])}
+        pick_cov_add_effs = {LiftedAtom(_Holding, [robot, obj]), LiftedAtom(_SurfaceClear, [surface])}
+        pick_cov_del_effs = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_Covers, [obj, surface])}
+        yield STRIPSOperator("PickCoveringObject", pick_cov_params, pick_cov_preconds, pick_cov_add_effs, pick_cov_del_effs, set())
+
+        # Custom PlaceCoveringObject
+        place_cov_params = [robot, obj, surface]
+        place_cov_preconds = {LiftedAtom(_Holding, [robot, obj]), LiftedAtom(_SurfaceClear, [surface])}
+        place_cov_add_effs = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_Covers, [obj, surface])}
+        place_cov_del_effs = {LiftedAtom(_Holding, [robot, obj]), LiftedAtom(_SurfaceClear, [surface])}
+        yield STRIPSOperator("PlaceCoveringObject", place_cov_params, place_cov_preconds, place_cov_add_effs, place_cov_del_effs, set())
+        
+        # InspectSurface (Clean and Dirty variants)
+        inspect_params = [robot, surface]
+        inspect_preconds = {LiftedAtom(_HandEmpty, [robot]), LiftedAtom(_SurfaceClear, [surface]), LiftedAtom(_Unknown_SurfaceClean, [surface])}
+        inspect_add = {LiftedAtom(_Known_SurfaceClean, [surface])}
+        inspect_del = {LiftedAtom(_Unknown_SurfaceClean, [surface])}
+        
+        add_clean = inspect_add | {LiftedAtom(_BelieveSurfaceClean, [surface])}
+        yield STRIPSOperator("InspectSurfaceClean", inspect_params, inspect_preconds, add_clean, inspect_del, set())
+        
+        add_dirty = inspect_add | {LiftedAtom(_BelieveSurfaceDirty, [surface])}
+        yield STRIPSOperator("InspectSurfaceDirty", inspect_params, inspect_preconds, add_dirty, inspect_del, set())
+
+        # CleanSurface
+        clean_params = [robot, surface, tool]
+        clean_preconds = {
+            LiftedAtom(_Holding, [robot, tool]),
+            LiftedAtom(_IsCleaningTool, [tool]),
+            LiftedAtom(_BelieveSurfaceDirty, [surface]),
+            LiftedAtom(_SurfaceClear, [surface]),
+        }
+        clean_add = {LiftedAtom(_BelieveSurfaceClean, [surface])}
+        clean_del = {LiftedAtom(_BelieveSurfaceDirty, [surface])}
+        yield STRIPSOperator("CleanSurface", clean_params, clean_preconds, clean_add, clean_del, set())
+
+
+class MockSpotIceCreamMeatDiscoveryEnv(MockSpotEnv):
+    """A mock environment for ice cream storage with incidental meat discovery and expiration checking.
+    
+    This environment demonstrates:
+    - Primary task: Store ice cream tub in freezer
+    - Incidental discovery: Package of meat found unexpectedly
+    - Dynamic object introduction: Meat starts unknown/absent from world model
+    - Information gathering: Check expiration date of discovered meat
+    - Conditional handling: Dispose of expired meat, store fresh meat
+    - Replanning when unexpected objects are discovered
+    
+    Scenario:
+    1. Robot starts with task to put ice cream tub in freezer
+    2. When opening freezer, discovers unknown package of meat
+    3. Inspects meat expiration date → discovers it's expired  
+    4. Must dispose of expired meat first, then continue with ice cream storage
+    
+    This demonstrates the "determinize + replan" approach for POMDP scenarios.
+    """
+    preset_data_dir = os.path.join("mock_env_data", "MockSpotIceCreamMeatDiscovery")
+
+    @classmethod
+    def get_name(cls) -> str:
+        """Get the name of this environment."""
+        return "mock_spot_ice_cream_meat_discovery"
+
+    def __init__(self, use_gui: bool = True) -> None:
+        """Initialize the environment."""
+        super().__init__(use_gui=use_gui)
+        self.name = "mock_spot_ice_cream_meat_discovery"
+        
+        # Create objects with semantic naming for clear VLM understanding
+        self.robot = Object("robot", _robot_type)
+        self.kitchen_counter = Object("kitchen_counter", _immovable_object_type)
+        self.ice_cream_tub = Object("ice_cream_tub", _movable_object_type)  # Primary task object
+        self.freezer = Object("freezer", _container_type)
+        self.trash_bin = Object("trash_bin", _container_type)
+        
+        # Discovery object - initially not in world model (Unknown_ObjectLocation = True)
+        # Name signals expiration: "expired_meat_package" 
+        self.expired_meat_package = Object("expired_meat_package", _movable_object_type)
+        
+        # Set up objects dictionary
+        self._objects = {
+            "robot": self.robot,
+            "kitchen_counter": self.kitchen_counter,
+            "ice_cream_tub": self.ice_cream_tub,
+            "freezer": self.freezer,
+            "trash_bin": self.trash_bin,
+            "expired_meat_package": self.expired_meat_package
+        }
+        
+        self._set_initial_state_and_goal()
+    
+    def _set_initial_state_and_goal(self) -> None:
+        """Set up initial state and goal atoms."""
+        # Create initial atoms
+        self.initial_atoms = {
+            # Robot state
+            GroundAtom(_HandEmpty, [self.robot]),
+            
+            # Ice cream tub state (primary task object)
+            GroundAtom(_On, [self.ice_cream_tub, self.kitchen_counter]),
+            GroundAtom(_NotBlocked, [self.ice_cream_tub]),
+            GroundAtom(_IsPlaceable, [self.ice_cream_tub]),
+            GroundAtom(_NotInsideAnyContainer, [self.ice_cream_tub]),
+            GroundAtom(_FitsInXY, [self.ice_cream_tub, self.freezer]),
+            GroundAtom(_NotHolding, [self.robot, self.ice_cream_tub]),
+            GroundAtom(_Reachable, [self.robot, self.ice_cream_tub]),
+            
+            # Freezer state (initially closed)
+            GroundAtom(_DrawerClosed, [self.freezer]),
+            GroundAtom(_NotBlocked, [self.freezer]),
+            GroundAtom(_NotInsideAnyContainer, [self.freezer]),
+            GroundAtom(_HasFlatTopSurface, [self.freezer]),
+            GroundAtom(_NotHolding, [self.robot, self.freezer]),
+            GroundAtom(_Reachable, [self.robot, self.freezer]),
+            
+            # Trash bin state
+            GroundAtom(_NotBlocked, [self.trash_bin]),
+            GroundAtom(_NotInsideAnyContainer, [self.trash_bin]),
+            GroundAtom(_HasFlatTopSurface, [self.trash_bin]),
+            GroundAtom(_NotHolding, [self.robot, self.trash_bin]),
+            GroundAtom(_Reachable, [self.robot, self.trash_bin]),
+            
+            # Key insight: Meat package starts UNKNOWN in world model
+            # Robot doesn't know it exists or where it is
+            GroundAtom(_Unknown_ObjectLocation, [self.expired_meat_package]),
+            GroundAtom(_Unknown_ObjectExpiration, [self.expired_meat_package]),
+            GroundAtom(_NotHolding, [self.robot, self.expired_meat_package]),
+            
+            # Environment state
+            GroundAtom(_HasFlatTopSurface, [self.kitchen_counter]),
+            GroundAtom(_NEq, [self.ice_cream_tub, self.kitchen_counter]),
+            GroundAtom(_NEq, [self.ice_cream_tub, self.freezer]),
+            GroundAtom(_NEq, [self.ice_cream_tub, self.trash_bin]),
+            GroundAtom(_NEq, [self.freezer, self.kitchen_counter]),
+            GroundAtom(_NEq, [self.freezer, self.trash_bin]),
+            GroundAtom(_NEq, [self.trash_bin, self.kitchen_counter]),
+            GroundAtom(_NEq, [self.expired_meat_package, self.ice_cream_tub])
+        }
+        
+        # Goal: Complete primary task AND handle discovered object properly
+        self.goal_atoms = {
+            # Primary goal: Ice cream in freezer
+            GroundAtom(_Inside, [self.ice_cream_tub, self.freezer]),
+            GroundAtom(_DrawerClosed, [self.freezer]),
+            
+            # Discovery handling goals: Must inspect and dispose properly
+            GroundAtom(_Known_ObjectLocation, [self.expired_meat_package]),
+            GroundAtom(_Known_ObjectExpiration, [self.expired_meat_package]),
+            GroundAtom(_Inside, [self.expired_meat_package, self.trash_bin])  # VLM will determine this from "expired" name
+        }
+        
+        # Add goal_atoms_or for compatibility with creator
+        self.goal_atoms_or = [self.goal_atoms]
+    
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create STRIPS operators specific to ice cream storage and meat discovery tasks."""
+        # Get base operators from parent class
+        all_operators = list(super()._create_operators())
+        
+        # Define operators to keep for this task
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject", 
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",
+            "PickObjectFromContainer",
+            "OpenContainer",
+            "CloseContainer"
+        }
+        
+        # Filter and yield base operators
+        for op in all_operators:
+            if op.name in op_names_to_keep:
+                yield op
+                
+        # Define variables for discovery operators
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?obj", _movable_object_type)
+        container = Variable("?container", _container_type)
+        parameters_discover = [robot, obj, container]
+        parameters_inspect = [robot, obj]
+        
+        # DiscoverObjectInContainer: Find unexpected object when opening container
+        # This happens when robot looks inside opened container
+        preconds_discover = {
+            LiftedAtom(_InHandView, [robot, container]),
+            LiftedAtom(_DrawerOpen, [container]),
+            LiftedAtom(_Unknown_ObjectLocation, [obj])
+        }
+        add_effs_discover = {
+            LiftedAtom(_Known_ObjectLocation, [obj]),
+            LiftedAtom(_Inside, [obj, container]),
+            LiftedAtom(_InHandView, [robot, obj])  # Object becomes visible
+        }
+        del_effs_discover = {LiftedAtom(_Unknown_ObjectLocation, [obj])}
+        
+        yield STRIPSOperator("DiscoverObjectInContainer",
+                            parameters_discover,
+                            preconds_discover,
+                            add_effs_discover,
+                            del_effs_discover,
+                            set())
+        
+        # InspectObjectExpiration: Check expiration date (applies to food items)
+        preconds_inspect = {
+            LiftedAtom(_InHandView, [robot, obj]),
+            LiftedAtom(_Unknown_ObjectExpiration, [obj])
+        }
+        add_effs_inspect = {LiftedAtom(_Known_ObjectExpiration, [obj])}
+        del_effs_inspect = {LiftedAtom(_Unknown_ObjectExpiration, [obj])}
+        
+        # Operator variant that finds object is expired (VLM reads "expired" in name)
+        add_effs_expired = add_effs_inspect | {LiftedAtom(_BelieveTrue_ObjectExpired, [obj])}
+        yield STRIPSOperator("InspectObjectExpirationExpired",
+                            parameters_inspect,
+                            preconds_inspect,
+                            add_effs_expired,
+                            del_effs_inspect,
+                            set())
+        
+        # Operator variant that finds object is fresh
+        add_effs_fresh = add_effs_inspect | {LiftedAtom(_BelieveFalse_ObjectExpired, [obj])}
+        yield STRIPSOperator("InspectObjectExpirationFresh",
+                            parameters_inspect,
+                            preconds_inspect,
+                            add_effs_fresh,
+                            del_effs_inspect,
+                            set())
+
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate a goal description for the current task."""
         return self.goal_atoms
     
     @property
