@@ -34,7 +34,8 @@ AVAILABLE_ENVS = [
     "mock_spot_drawer_cleaning",
     "mock_spot_pick_place_two_cup", 
     "mock_spot_sort_weight",
-    "mock_spot_cup_emptiness"
+    "mock_spot_cup_emptiness",
+    "mock_spot_cup_classification",
 ]
 
 # Available planners
