@@ -106,6 +106,27 @@ _BelieveFalse_ObjectHeavy = GroundTruthPredicate("BelieveFalse_ObjectHeavy", [_m
 
 _IsScale = GroundTruthPredicate("IsScale", [_immovable_object_type], _dummy_classifier)
 
+# Cup classification predicates  
+_CupTypeKnown = GroundTruthPredicate("CupTypeKnown", [_movable_object_type], _dummy_classifier)
+_CupTypeUnknown = GroundTruthPredicate("CupTypeUnknown", [_movable_object_type], _dummy_classifier)
+_IsDisposableCup = GroundTruthPredicate("IsDisposableCup", [_movable_object_type], _dummy_classifier)
+_IsWashableCup = GroundTruthPredicate("IsWashableCup", [_movable_object_type], _dummy_classifier)
+
+# Cup content belief predicates (following established pattern)
+_Unknown_CupHasContent = GroundTruthPredicate("Unknown_CupHasContent", [_movable_object_type], _dummy_classifier)
+_Known_CupHasContent = GroundTruthPredicate("Known_CupHasContent", [_movable_object_type], _dummy_classifier)
+_BelieveTrue_CupHasContent = GroundTruthPredicate("BelieveTrue_CupHasContent", [_movable_object_type], _dummy_classifier)
+_BelieveFalse_CupHasContent = GroundTruthPredicate("BelieveFalse_CupHasContent", [_movable_object_type], _dummy_classifier)
+
+# Surface cleaning predicates
+_IsCleaningTool = GroundTruthPredicate("IsCleaningTool", [_movable_object_type], _dummy_classifier)
+_Covers = GroundTruthPredicate("Covers", [_movable_object_type, _immovable_object_type], _dummy_classifier)
+_SurfaceClear = GroundTruthPredicate("SurfaceClear", [_immovable_object_type], _dummy_classifier)
+_Unknown_SurfaceClean = GroundTruthPredicate("Unknown_SurfaceClean", [_immovable_object_type], _dummy_classifier)
+_Known_SurfaceClean = GroundTruthPredicate("Known_SurfaceClean", [_immovable_object_type], _dummy_classifier)
+_BelieveSurfaceClean = GroundTruthPredicate("BelieveSurfaceClean", [_immovable_object_type], _dummy_classifier)
+_BelieveSurfaceDirty = GroundTruthPredicate("BelieveSurfaceDirty", [_immovable_object_type], _dummy_classifier)
+
 # Export all predicates
 PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
              _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
@@ -116,7 +137,10 @@ PREDICATES = {_NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
 BELIEF_PREDICATES = {_Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
                      _Unknown_ContainerEmpty, _Known_ContainerEmpty, _BelieveTrue_ContainerEmpty,
                      _BelieveFalse_ContainerEmpty, _InHandViewFromTop, _ContainingWaterUnknown,
-                     _ContainingWaterKnown, _ContainingWater, _NotContainingWater, _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy}
+                     _ContainingWaterKnown, _ContainingWater, _NotContainingWater, _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy,
+                     _CupTypeKnown, _CupTypeUnknown, _IsDisposableCup, _IsWashableCup,
+                     _Unknown_CupHasContent, _Known_CupHasContent, _BelieveTrue_CupHasContent, _BelieveFalse_CupHasContent,
+                     _IsCleaningTool, _Covers, _SurfaceClear, _Unknown_SurfaceClean, _Known_SurfaceClean, _BelieveSurfaceClean, _BelieveSurfaceDirty}
 PREDICATES = PREDICATES | BELIEF_PREDICATES
 
 # Export goal predicates
@@ -251,13 +275,92 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the object weighs less than 1.0 oz by reading the scale. If you believe it is heavy, answer [no]."
     )
     
+    # Cup classification VLM predicates
+    _CupTypeKnown = VLMPredicate(
+        "CupTypeKnown", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine the type of cup (disposable vs washable) from the image. If you cannot tell, answer [no]."
+    )
+    
+    _CupTypeUnknown = VLMPredicate(
+        "CupTypeUnknown", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine the type of cup (disposable vs washable) from the image. If you can tell, answer [no]."
+    )
+    
+    _IsDisposableCup = VLMPredicate(
+        "IsDisposableCup", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the cup is disposable (paper, plastic, etc.) and should go in the trash. If it's washable (ceramic, glass, etc.), answer [no]."
+    )
+    
+    _IsWashableCup = VLMPredicate(
+        "IsWashableCup", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if the cup is washable (ceramic, glass, etc.) and should go to the dishwasher. If it's disposable (paper, plastic, etc.), answer [no]."
+    )
+    
+    # Cup content belief predicates
+    _Unknown_CupHasContent = VLMPredicate(
+        "Unknown_CupHasContent", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you cannot determine whether the cup has any content/waste inside it. If you can tell whether it has content or not, answer [no]."
+    )
+    
+    _Known_CupHasContent = VLMPredicate(
+        "Known_CupHasContent", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether the cup has content/waste inside it. If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_CupHasContent = VLMPredicate(
+        "BelieveTrue_CupHasContent", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the cup has content/waste inside it based on what you can see. If you believe it's empty, answer [no]."
+    )
+    
+    _BelieveFalse_CupHasContent = VLMPredicate(
+        "BelieveFalse_CupHasContent", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe the cup is empty based on what you can see. If you believe it has content/waste, answer [no]."
+    )
+    
+    # Object location discovery predicates (for incidental discovery)
+    _Unknown_ObjectLocation = VLMPredicate(
+        "Unknown_ObjectLocation", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know where this object is located. If you can see the object, answer [no]."
+    )
+    
+    _Known_ObjectLocation = VLMPredicate(
+        "Known_ObjectLocation", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you know where this object is located (can see it). If you cannot see it, answer [no]."
+    )
+    
+    # Object expiration predicates (for food safety)
+    _Unknown_ObjectExpiration = VLMPredicate(
+        "Unknown_ObjectExpiration", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you do not know whether this food item is expired or fresh. If you can tell, answer [no]."
+    )
+    
+    _Known_ObjectExpiration = VLMPredicate(
+        "Known_ObjectExpiration", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you can determine whether this food item is expired or fresh by reading the expiration date. If you cannot tell, answer [no]."
+    )
+    
+    _BelieveTrue_ObjectExpired = VLMPredicate(
+        "BelieveTrue_ObjectExpired", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe this food item is expired based on the expiration date. If you believe it's fresh, answer [no]."
+    )
+    
+    _BelieveFalse_ObjectExpired = VLMPredicate(
+        "BelieveFalse_ObjectExpired", [_movable_object_type],
+        prompt="[Answer: yes/no only] This predicate is true (answer [yes]) if you believe this food item is fresh based on the expiration date. If you believe it's expired, answer [no]."
+    )
+
+    
     vlm_predicates = {_On, _Blocking, _NotBlocked, _NotInsideAnyContainer, 
             _Inside, _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside,
             _ContainingWaterKnown, _ContainingWaterUnknown, _ContainingWater, _NotContainingWater,
             _InHandViewFromTop, _Unknown_ContainerEmpty, _Known_ContainerEmpty,
             _BelieveTrue_ContainerEmpty, _BelieveFalse_ContainerEmpty,
             _DrawerClosed, _DrawerOpen,
-            _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy}
+            _Known_ObjectHeavy, _Unknown_ObjectHeavy, _BelieveTrue_ObjectHeavy, _BelieveFalse_ObjectHeavy,
+            _CupTypeKnown, _CupTypeUnknown, _IsDisposableCup, _IsWashableCup,
+            _Unknown_CupHasContent, _Known_CupHasContent, _BelieveTrue_CupHasContent, _BelieveFalse_CupHasContent,
+            _Unknown_ObjectLocation, _Known_ObjectLocation,
+            _Unknown_ObjectExpiration, _Known_ObjectExpiration, _BelieveTrue_ObjectExpired, _BelieveFalse_ObjectExpired}
     
     belief_predicates = {
         _ContainingWaterUnknown,
@@ -276,13 +379,52 @@ def get_vlm_predicates() -> Tuple[Set[VLMPredicate], Set[VLMPredicate]]:
         _Known_ObjectHeavy,
         _Unknown_ObjectHeavy, 
         _BelieveTrue_ObjectHeavy,
-        _BelieveFalse_ObjectHeavy
+        _BelieveFalse_ObjectHeavy,
+        _CupTypeKnown,
+        _CupTypeUnknown,
+        _IsDisposableCup,
+        _IsWashableCup,
+        _Unknown_CupHasContent,
+        _Known_CupHasContent,
+        _BelieveTrue_CupHasContent,
+        _BelieveFalse_CupHasContent,
+        _Unknown_ObjectLocation,
+        _Known_ObjectLocation,
+        _Unknown_ObjectExpiration,
+        _Known_ObjectExpiration,
+        _BelieveTrue_ObjectExpired,
+        _BelieveFalse_ObjectExpired
     }
     
     return vlm_predicates, belief_predicates
 
-# Export VLM predicates
+# Export specific predicates for easy access
+_Unknown_ObjectLocation = None
+_Known_ObjectLocation = None 
+_Unknown_ObjectExpiration = None
+_Known_ObjectExpiration = None
+_BelieveTrue_ObjectExpired = None
+_BelieveFalse_ObjectExpired = None
+
+# Initialize predicates when module loads
 VLM_PREDICATES, VLM_BELIEF_PREDICATES = get_vlm_predicates()
+
+# Extract specific predicates for export
+for pred in VLM_PREDICATES:
+    if pred.name == "Unknown_ObjectLocation":
+        _Unknown_ObjectLocation = pred
+    elif pred.name == "Known_ObjectLocation":
+        _Known_ObjectLocation = pred
+    elif pred.name == "Unknown_ObjectExpiration":
+        _Unknown_ObjectExpiration = pred
+    elif pred.name == "Known_ObjectExpiration":
+        _Known_ObjectExpiration = pred
+    elif pred.name == "BelieveTrue_ObjectExpired":
+        _BelieveTrue_ObjectExpired = pred
+    elif pred.name == "BelieveFalse_ObjectExpired":
+        _BelieveFalse_ObjectExpired = pred
+
+# Note: VLM predicates already initialized above for exports
 
 # Export all predicates - use VLM or non-VLM based on config
 def get_all_predicates() -> Set[Predicate]:
