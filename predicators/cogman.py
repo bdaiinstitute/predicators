@@ -87,8 +87,9 @@ class CogMan:
         if self._exec_monitor.step(state):
             logging.info("[CogMan] Replanning triggered.")
             assert self._current_goal is not None
-            # Pass action history to task state for replanning
-            state.action_history = self._episode_action_history
+            # Pass action history to task state for replanning (if supported)
+            if hasattr(state, 'action_history'):
+                state.action_history = self._episode_action_history
             task = Task(state, self._current_goal)
             self._reset_policy(task)
             self._exec_monitor.reset(task)
@@ -113,6 +114,16 @@ class CogMan:
         self._exec_monitor.update_approach_info(
             self._approach.get_execution_monitoring_info())
         self._episode_action_history.append(act)
+        
+        # Save executed action to run data saver
+        try:
+            from predicators.run_data_saver import get_run_data_saver
+            saver = get_run_data_saver()
+            step_num = len(self._episode_action_history) - 1
+            saver.save_executed_action(act, step_num)
+        except ImportError:
+            pass  # Run data saver not available
+        
         return act
 
     def finish_episode(self, observation: Observation) -> None:
@@ -122,6 +133,15 @@ class CogMan:
                 self._episode_action_history):
             state = self._perceiver.step(observation)
             self._episode_state_history.append(state)
+        
+        # Save state and VLM data to run data saver
+        try:
+            from predicators.run_data_saver import get_run_data_saver
+            saver = get_run_data_saver()
+            step_num = len(self._episode_state_history) - 1
+            saver.save_state_and_vlm_data(state, step_num)
+        except ImportError:
+            pass  # Run data saver not available
         if CFG.make_cogman_videos:
             save_prefix = utils.get_config_path_str()
             outfile = f"{save_prefix}__cogman__episode{self._episode_num}.mp4"
@@ -206,8 +226,17 @@ class CogMan:
             logging.info("\n=== Planned Actions ===")
             exec_info = self._approach.get_execution_monitoring_info()
             if exec_info and isinstance(exec_info[0], dict) and "current_option_plan" in exec_info[0]:
-                for option in exec_info[0]["current_option_plan"]:
+                planned_actions = exec_info[0]["current_option_plan"]
+                for option in planned_actions:
                     logging.info(f"{option.name}({', '.join(obj.name for obj in option.objects)})")
+                
+                # Save planned actions to run data saver
+                try:
+                    from predicators.run_data_saver import get_run_data_saver
+                    saver = get_run_data_saver()
+                    saver.save_planned_actions(planned_actions)
+                except ImportError:
+                    pass  # Run data saver not available
 
 
 def run_episode_and_get_observations(

@@ -51,7 +51,8 @@ matplotlib.use('Agg')
 from predicators import utils
 from predicators.approaches import ApproachFailure, ApproachTimeout, \
     create_approach
-from predicators.cogman import CogMan, run_episode_and_get_observations
+from predicators.cogman import CogMan, run_episode_and_get_observations, \
+    run_episode_and_get_states
 from predicators.datasets import create_dataset
 from predicators.envs import BaseEnv, create_new_env
 from predicators.execution_monitoring import create_execution_monitor
@@ -64,6 +65,7 @@ from predicators.structs import Dataset, InteractionRequest, \
 from predicators.teacher import Teacher, TeacherInteractionMonitorWithVideo
 from predicators.pretrained_model_interface import OpenAIModel
 import yaml
+from predicators.run_data_saver import initialize_run_data_saver, get_run_data_saver
 
 assert os.environ.get("PYTHONHASHSEED") == "0", \
         "Please add `export PYTHONHASHSEED=0` to your bash profile!"
@@ -393,6 +395,15 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
     metrics: Metrics = defaultdict(float)
     curr_num_nodes_created = 0.0
     curr_num_nodes_expanded = 0.0
+
+    # Initialize run data saver for this testing session
+    try:
+        saver = initialize_run_data_saver()
+        logging.info("Initialized run data saver for comprehensive run tracking")
+    except Exception as e:
+        logging.warning(f"Could not initialize run data saver: {e}")
+        saver = None
+
     for test_task_idx, env_task in enumerate(test_tasks):
         solve_start = time.perf_counter()
         try:
@@ -437,6 +448,20 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
         else:
             monitor = None
         try:
+            # Start tracking this run
+            if saver:
+                try:
+                    run_config = {
+                        "test_task_idx": test_task_idx,
+                        "env_name": env.__class__.__name__,
+                        "approach_name": cogman._approach.__class__.__name__,
+                        "max_steps": CFG.horizon,
+                        "seed": CFG.seed
+                    }
+                    saver.start_new_run(env_task.task, run_config)
+                except Exception as e:
+                    logging.warning(f"Could not start run tracking: {e}")
+
             # Now, measure success by running the policy in the environment.
             traj, solved, execution_metrics = run_episode_and_get_observations(
                 cogman,
@@ -499,6 +524,29 @@ def _run_testing(env: BaseEnv, cogman: CogMan) -> Metrics:
             assert monitor is not None
             video = monitor.get_video()
             utils.save_video(video_file, video)
+
+        # Save final metrics and finalize run
+        if saver:
+            try:
+                # Get the low-level trajectory if needed
+                ll_traj = cogman.get_current_history()
+                
+                # Create task metrics for this run - with safe variable access
+                task_metrics = {
+                    "solved": solved,
+                    "solve_time": locals().get('solve_time', 0),
+                    "exec_time": locals().get('exec_time', 0),
+                    "num_steps": len(locals().get('traj', [[], []])[1]),
+                    "task_idx": test_task_idx,
+                }
+                
+                saver.save_final_metrics(task_metrics, solved, ll_traj)
+                saved_path = saver.finalize_and_save_run()
+                if saved_path:
+                    logging.info(f"Saved comprehensive run data to: {saved_path}")
+            except Exception as e:
+                logging.warning(f"Could not finalize run tracking: {e}")
+
     metrics["num_solved"] = num_solved
     metrics["num_total"] = len(test_tasks)
     metrics["avg_suc_time"] = (total_suc_time /
