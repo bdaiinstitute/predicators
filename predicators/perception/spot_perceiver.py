@@ -687,6 +687,31 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainerReadyForSweeping, [bucket, black_table]),
                 GroundAtom(IsSweeper, [brush])
             }
+        if goal_description == "throw the cup into the trash bucket, temporarily move the bowl to counter, clean the kitchen table surface, then return the bowl to its original position":
+            # Table cleaning environment goal
+            robot = Object("robot", _robot_type)
+            ceramic_bowl = Object("ceramic_bowl", _movable_object_type)
+            plastic_cup = Object("plastic_cup", _movable_object_type)
+            kitchen_table = Object("kitchen_table", _immovable_object_type)
+            counter_table = Object("counter_table", _immovable_object_type)
+            cleaning_cloth = Object("cleaning_cloth", _movable_object_type)
+            trash_bucket = Object("trash_bucket", _container_type)
+            
+            Inside = pred_name_to_pred["Inside"]
+            On = pred_name_to_pred["On"]
+            HandEmpty = pred_name_to_pred["HandEmpty"]
+            
+            return {
+                # Cup should be in trash bucket
+                GroundAtom(Inside, [plastic_cup, trash_bucket]),
+                # Bowl should be back on kitchen table (original position)
+                GroundAtom(On, [ceramic_bowl, kitchen_table]),
+                # Cleaning cloth should be available (back on counter)
+                GroundAtom(On, [cleaning_cloth, counter_table]),
+                # Robot should have empty hands at the end
+                GroundAtom(HandEmpty, [robot]),
+                # Kitchen table surface should be clean (this will be handled by VLM predicates during execution)
+            }
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,

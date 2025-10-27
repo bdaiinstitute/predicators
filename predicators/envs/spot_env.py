@@ -4176,6 +4176,12 @@ _OBJECT_PROMPTS = {
     # Containers
     "green_bowl": "green bowl/greenish bowl",
     "cardboard_box": "cardboard (paper) box on the ground",
+    
+    # Table cleaning objects
+    "ceramic_bowl": "ceramic bowl/white bowl/ceramic dish",
+    "plastic_cup": "plastic cup/disposable cup/white cup",
+    "cleaning_cloth": "cleaning cloth/cleaning rag/towel/cloth",
+    "trash_bucket": "trash bucket/garbage bin/waste basket",
 
     # Fixed objects with AprilTags
     "wooden_table": 32,  # AprilTag ID
@@ -4734,3 +4740,319 @@ class LISSpotGatherCupEmptinessEnv(SpotRearrangementEnv):
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
         raise NotImplementedError("Dry task generation not implemented.")
+
+
+class SpotTableCleaningEnv(SpotRearrangementEnv):
+    """An environment for table cleaning tasks with replanning.
+    
+    This environment implements the scene 2 table cleaning task from the implementation plan.
+    Task flow (improved design):
+    1. Throw plastic cup into trash bucket (disposal)
+    2. Move ceramic bowl to counter table (temporary storage)  
+    3. Clean exposed kitchen table surface (surface cleaning)
+    4. Return ceramic bowl to original position (restoration)
+    
+    Features:
+    - Bowl + cup objects (better for Detic than two similar bowls)
+    - Surface cleanliness states (unknown initially, requires inspection)
+    - Cleaning cloth as a tool
+    - Information gathering through surface inspection → replanning
+    - Conditional cleaning based on surface state
+    
+    The environment uses hard-coded initial conditions (as mentioned in the implementation
+    plan hack) rather than scanning the scene.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        # Get available operators and add custom table cleaning operators
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+            "PlaceObjectOnTop",
+            "DropObjectInside",  # Added for throwing cup in bucket
+        }
+        
+        # Add custom operators for table cleaning
+        base_operators = {op_to_name[o] for o in op_names_to_keep}
+        custom_operators = set(self._create_table_cleaning_operators())
+        self._strips_operators = base_operators | custom_operators
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_bowl_removing_table_inspecting_wiping"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+
+        # Objects to detect for table cleaning (improved: bowl + cup instead of two bowls)
+        objects_to_detect = [
+            # Bowl and cup that cover table surfaces (better for Detic than color-only differences)
+            ("ceramic_bowl", "ceramic_bowl", _movable_object_type),
+            ("plastic_cup", "plastic_cup", _movable_object_type),
+            
+            # Cleaning tool
+            ("cleaning_cloth", "cleaning_cloth", _movable_object_type),
+            
+            # Trash bucket for disposal
+            ("trash_bucket", "trash_bucket", _container_type),
+        ]
+
+        # Add detection object prompt and save object identifier
+        for obj_identifier, obj_name, obj_type in objects_to_detect:
+            obj = Object(obj_identifier, obj_type)
+            detection_id = _get_detection_id(obj_name)
+            detection_id_to_obj[detection_id] = obj
+
+        # Add known immovable objects (kitchen table, counter table, etc.)
+        for obj, pose in get_known_immovable_objects().items():
+            detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        """Generate goal description for table cleaning.
+        
+        Goal: Throw cup away, move bowl temporarily, clean surface, return bowl.
+        """
+        return "throw the cup into the trash bucket, temporarily move the bowl to counter, clean the kitchen table surface, then return the bowl to its original position"
+
+    def _get_dry_task(self, train_or_test: str, task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+    def _actively_construct_env_task(self) -> EnvironmentTask:
+        """Construct initial task using hard-coded conditions instead of environment scanning.
+        
+        This overrides the base class method to implement the "no scene scanning" approach.
+        Instead of searching for objects, we use our pre-defined initial atoms and 
+        assumed object locations.
+        """
+        assert self._robot is not None
+        assert self._localizer is not None
+
+        # Get basic robot state without object scanning
+        stow_arm(self._robot)
+        go_home(self._robot, self._localizer)
+        self._localizer.localize()
+        
+        # Capture images for VLM use later, but don't require object detection
+        rgbd_images = capture_images(self._robot, self._localizer)
+        gripper_open_percentage = get_robot_gripper_open_percentage(self._robot)
+        robot_pos = self._localizer.get_last_robot_pose()
+
+        # CRITICAL: Use hard-coded initial conditions instead of object scanning
+        # This is the key difference from the base class implementation
+        nonpercept_atoms = self._get_initial_nonpercept_atoms()
+        nonpercept_preds = self.predicates - self.percept_predicates
+        
+        # Create assumed object positions for objects in _detection_id_to_obj
+        # Even if they weren't detected, we assume they exist at these locations
+        objects_in_view = self._get_assumed_object_locations()
+        
+        # No VLM atom evaluation at startup - will be done during execution
+        vlm_atom_dict: Dict[VLMGroundAtom, Optional[bool]] = {}
+
+        obs = _SpotObservation(
+            rgbd_images, 
+            objects_in_view, 
+            set(),  # objects_in_hand_view - empty initially
+            set(),  # objects_in_any_view_except_back - empty initially  
+            self._spot_object, 
+            gripper_open_percentage,
+            robot_pos, 
+            nonpercept_atoms, 
+            nonpercept_preds,
+            vlm_atom_dict, 
+            self.vlm_predicates
+        )
+        
+        goal_description = self._generate_goal_description()
+        task = EnvironmentTask(obs, goal_description)
+        return task
+
+    def _get_assumed_object_locations(self) -> Dict[Object, math_helpers.SE3Pose]:
+        """Get assumed object locations without requiring detection.
+        
+        This provides hard-coded object poses based on our initial atom assumptions.
+        These locations will be used for planning even if objects aren't detected.
+        """
+        assumed_locations: Dict[Object, math_helpers.SE3Pose] = {}
+        
+        # Get objects from our detection mapping
+        detection_id_to_obj = self._detection_id_to_obj
+        
+        # Hard-coded assumed locations based on initial atoms
+        # These match the assumptions in _get_initial_nonpercept_atoms
+        for detection_id, obj in detection_id_to_obj.items():
+            if obj.name == "ceramic_bowl":
+                # Assume bowl is on kitchen table at a reasonable location
+                assumed_locations[obj] = math_helpers.SE3Pose(x=1.0, y=0.3, z=0.75, rot=math_helpers.Quat())
+            elif obj.name == "plastic_cup":
+                # Assume cup is on kitchen table next to bowl
+                assumed_locations[obj] = math_helpers.SE3Pose(x=1.0, y=-0.3, z=0.75, rot=math_helpers.Quat())  
+            elif obj.name == "cleaning_cloth":
+                # Assume cleaning cloth is on counter table
+                assumed_locations[obj] = math_helpers.SE3Pose(x=0.5, y=0.8, z=0.75, rot=math_helpers.Quat())
+            elif obj.name == "trash_bucket":
+                # Assume trash bucket is near counter
+                assumed_locations[obj] = math_helpers.SE3Pose(x=0.3, y=1.2, z=0.3, rot=math_helpers.Quat())
+            elif obj.name == "kitchen_table":
+                # Known immovable object location
+                assumed_locations[obj] = math_helpers.SE3Pose(x=1.0, y=0.0, z=0.5, rot=math_helpers.Quat())
+            elif obj.name == "counter_table":
+                # Known immovable object location  
+                assumed_locations[obj] = math_helpers.SE3Pose(x=0.5, y=0.8, z=0.5, rot=math_helpers.Quat())
+        
+        # Store these for later use during execution
+        self._last_known_object_poses.update(assumed_locations)
+        
+        return assumed_locations
+
+    def _create_table_cleaning_operators(self) -> Iterator[STRIPSOperator]:
+        """Create custom operators for table cleaning with surface inspection."""
+        
+        # InspectSurfaceClean: Use VLM to check if uncovered surface is clean
+        robot = Variable("?robot", _robot_type)
+        surface = Variable("?surface", _immovable_object_type)
+        parameters = [robot, surface]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_Reachable, [robot, surface]),
+        }
+        add_effs = set()  # VLM predicate will be evaluated during execution
+        del_effs = set()
+        ignore_effs = set()
+        
+        yield STRIPSOperator("InspectSurfaceClean", parameters, preconds,
+                            add_effs, del_effs, ignore_effs)
+        
+        # InspectSurfaceDirty: Alternative operator when surface is found dirty
+        yield STRIPSOperator("InspectSurfaceDirty", parameters, preconds,
+                            add_effs, del_effs, ignore_effs)
+        
+        # CleanSurface: Use cleaning cloth to clean a dirty surface
+        cleaning_tool = Variable("?tool", _movable_object_type)
+        clean_params = [robot, surface, cleaning_tool]
+        clean_preconds = {
+            LiftedAtom(_Holding, [robot, cleaning_tool]),
+            LiftedAtom(_Reachable, [robot, surface]),
+        }
+        clean_add_effs = set()  # Surface becomes clean (handled by VLM)
+        clean_del_effs = set()
+        
+        yield STRIPSOperator("CleanSurface", clean_params, clean_preconds,
+                            clean_add_effs, clean_del_effs, ignore_effs)
+
+    def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
+        """Hard-coded initial conditions (hack as mentioned in implementation plan).
+        
+        This provides initial state directly rather than scanning the scene,
+        similar to how the synthetic scene is set up.
+        
+        Key insight: We create objects and set their predicates to Unknown states
+        even when they're not detected, so the robot can start planning immediately
+        without requiring full scene scanning.
+        """
+        atoms = super()._get_initial_nonpercept_atoms()
+        
+        # Get objects from detection mapping - these will exist regardless of detection
+        detection_id_to_obj = self._detection_id_to_obj
+        
+        # Find objects by their detection IDs (they're created even if not detected)
+        ceramic_bowl = None
+        plastic_cup = None
+        cleaning_cloth = None
+        trash_bucket = None
+        kitchen_table = None
+        counter_table = None
+        
+        for detection_id, obj in detection_id_to_obj.items():
+            if obj.name == "ceramic_bowl":
+                ceramic_bowl = obj
+            elif obj.name == "plastic_cup":
+                plastic_cup = obj
+            elif obj.name == "cleaning_cloth":
+                cleaning_cloth = obj
+            elif obj.name == "trash_bucket":
+                trash_bucket = obj
+            elif obj.name == "kitchen_table":
+                kitchen_table = obj
+            elif obj.name == "counter_table":
+                counter_table = obj
+        
+        # CRITICAL: Always add atoms even if objects weren't detected
+        # This allows planning to start immediately without scene scanning
+        if ceramic_bowl and plastic_cup and cleaning_cloth and trash_bucket and kitchen_table and counter_table:
+            # Initial state atoms (hard-coded as per implementation plan)
+            initial_atoms = {
+                # Robot state
+                GroundAtom(_HandEmpty, [self._robot]),
+                
+                # Bowl and cup initially on kitchen table (covering surfaces)
+                GroundAtom(_On, [ceramic_bowl, kitchen_table]),
+                GroundAtom(_NotBlocked, [ceramic_bowl]),
+                GroundAtom(_IsPlaceable, [ceramic_bowl]),
+                GroundAtom(_NotInsideAnyContainer, [ceramic_bowl]),
+                GroundAtom(_FitsInXY, [ceramic_bowl, kitchen_table]),
+                GroundAtom(_FitsInXY, [ceramic_bowl, counter_table]),  # Can move to counter
+                GroundAtom(_NotHolding, [self._robot, ceramic_bowl]),
+                GroundAtom(_Reachable, [self._robot, ceramic_bowl]),
+                
+                # Plastic cup on kitchen table (to be thrown away)
+                GroundAtom(_On, [plastic_cup, kitchen_table]),
+                GroundAtom(_NotBlocked, [plastic_cup]),
+                GroundAtom(_IsPlaceable, [plastic_cup]),
+                GroundAtom(_NotInsideAnyContainer, [plastic_cup]),
+                GroundAtom(_FitsInXY, [plastic_cup, trash_bucket]),  # Can fit in bucket
+                GroundAtom(_NotHolding, [self._robot, plastic_cup]),
+                GroundAtom(_Reachable, [self._robot, plastic_cup]),
+                
+                # Cleaning cloth on counter table
+                GroundAtom(_On, [cleaning_cloth, counter_table]),
+                GroundAtom(_NotBlocked, [cleaning_cloth]),
+                GroundAtom(_IsPlaceable, [cleaning_cloth]),
+                GroundAtom(_NotInsideAnyContainer, [cleaning_cloth]),
+                GroundAtom(_FitsInXY, [cleaning_cloth, counter_table]),
+                GroundAtom(_NotHolding, [self._robot, cleaning_cloth]),
+                GroundAtom(_Reachable, [self._robot, cleaning_cloth]),
+                
+                # Trash bucket for disposal
+                GroundAtom(_NotBlocked, [trash_bucket]),
+                GroundAtom(_Reachable, [self._robot, trash_bucket]),
+                GroundAtom(_NotHolding, [self._robot, trash_bucket]),
+                
+                # Surface properties
+                GroundAtom(_HasFlatTopSurface, [kitchen_table]),
+                GroundAtom(_HasFlatTopSurface, [counter_table]),
+                
+                # Object relationships
+                GroundAtom(_NEq, [ceramic_bowl, plastic_cup]),
+                GroundAtom(_NEq, [ceramic_bowl, kitchen_table]),
+                GroundAtom(_NEq, [ceramic_bowl, counter_table]),
+                GroundAtom(_NEq, [ceramic_bowl, trash_bucket]),
+                GroundAtom(_NEq, [plastic_cup, kitchen_table]),
+                GroundAtom(_NEq, [plastic_cup, counter_table]),
+                GroundAtom(_NEq, [plastic_cup, trash_bucket]),
+                GroundAtom(_NEq, [cleaning_cloth, kitchen_table]),
+                GroundAtom(_NEq, [cleaning_cloth, counter_table]),
+                GroundAtom(_NEq, [kitchen_table, counter_table]),
+                GroundAtom(_NEq, [kitchen_table, trash_bucket]),
+            }
+            
+            atoms.update(initial_atoms)
+            
+        # CRITICAL INSIGHT FOR UNKNOWN PREDICATES:
+        # The key here is that objects are created in _detection_id_to_obj regardless of
+        # whether they're actually detected. This allows us to set up initial predicates
+        # (including unknown ones) for objects that may not be visible at startup.
+        # 
+        # For surface cleanliness, the _Stained VLM predicate will handle determining
+        # actual surface state during execution - we don't need to know it upfront!
+        # This implements the "hack" approach from the implementation plan.
+        
+        return atoms

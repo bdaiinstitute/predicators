@@ -1060,8 +1060,49 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "TeleopPick2": Box(0, 1, (0, )),  # empty
     "TeleopPlace1": Box(0, 1, (0, )),  # empty
     "Sweep": Box(0, 1, (0, )),  # empty
-    "PlaceOnFloor": Box(0, 1, (0, ))  # empty
+    "PlaceOnFloor": Box(0, 1, (0, )),  # empty
+    # Table cleaning operators
+    "InspectSurfaceClean": Box(0, 1, (0, )),  # empty - VLM inspection
+    "InspectSurfaceDirty": Box(0, 1, (0, )),  # empty - VLM inspection  
+    "CleanSurface": Box(0, 1, (0, )),  # empty - cleaning action
 }
+
+# Table cleaning policy functions
+def _inspect_surface_clean_policy(state: State, memory: Dict,
+                                  objects: Sequence[Object],
+                                  params: Array) -> Action:
+    """Policy for InspectSurfaceClean operator."""
+    name = "InspectSurfaceClean"
+    # VLM-based inspection - just a belief update action
+    def _fn() -> None:
+        return
+
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+def _inspect_surface_dirty_policy(state: State, memory: Dict,
+                                  objects: Sequence[Object],
+                                  params: Array) -> Action:
+    """Policy for InspectSurfaceDirty operator.""" 
+    name = "InspectSurfaceDirty"
+    # VLM-based inspection - just a belief update action
+    def _fn() -> None:
+        return
+
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+def _clean_surface_policy(state: State, memory: Dict,
+                          objects: Sequence[Object],
+                          params: Array) -> Action:
+    """Policy for CleanSurface operator."""
+    name = "CleanSurface"
+    # Surface cleaning action - for now just a placeholder
+    def _fn() -> None:
+        return
+
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    return utils.create_spot_env_action(action_extra_info)
 
 # NOTE: the policies MUST be unique because they output actions with extra info
 # that includes the name of the operators.
@@ -1094,7 +1135,11 @@ _OPERATOR_NAME_TO_POLICY = {
     "TeleopPick2": _create_teleop_policy_with_name("TeleopPick2"),
     "TeleopPlace1": _create_teleop_policy_with_name("TeleopPlace1"),
     "Sweep": _create_teleop_policy_with_name("Sweep"),
-    "PlaceOnFloor": _create_teleop_policy_with_name("PlaceOnFloor")
+    "PlaceOnFloor": _create_teleop_policy_with_name("PlaceOnFloor"),
+    # Table cleaning operators
+    "InspectSurfaceClean": _inspect_surface_clean_policy,
+    "InspectSurfaceDirty": _inspect_surface_dirty_policy,
+    "CleanSurface": _clean_surface_policy,
 }
 
 
@@ -1150,6 +1195,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "lis_spot_empty_cup_box_env",
             "lis_spot_gather_cup_emptiness_env",
             "lis_spot_table_two_cup_in_box_env",
+            "spot_bowl_removing_table_inspecting_wiping",
         }
 
     @classmethod

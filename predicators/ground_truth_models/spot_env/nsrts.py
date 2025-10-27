@@ -332,6 +332,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "lis_spot_empty_cup_box_env",
             "lis_spot_gather_cup_emptiness_env",
             "lis_spot_table_two_cup_in_box_env",
+            "spot_bowl_removing_table_inspecting_wiping",
         }
 
     @staticmethod
@@ -372,7 +373,11 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PlaceNextTo": utils.null_sampler,
             "TeleopPick2": utils.null_sampler,
             "Sweep": utils.null_sampler,
-            "PlaceOnFloor": utils.null_sampler
+            "PlaceOnFloor": utils.null_sampler,
+            # Table cleaning operators
+            "InspectSurfaceClean": utils.null_sampler,
+            "InspectSurfaceDirty": utils.null_sampler,
+            "CleanSurface": utils.null_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then
