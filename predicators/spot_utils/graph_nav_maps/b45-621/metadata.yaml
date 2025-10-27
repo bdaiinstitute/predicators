@@ -149,6 +149,51 @@ static-object-features:
     placeable: 1
     is_sweeper: 0
     radius: 0.1
+  # Table cleaning objects
+  ceramic_bowl:
+    shape: 2 # cylinder/circular
+    height: 0.08
+    length: 0.15
+    width: 0.15
+    placeable: 1
+    is_sweeper: 0
+    radius: 0.075
+  plastic_cup:
+    shape: 2 # cylinder/circular
+    height: 0.12
+    length: 0.08
+    width: 0.08
+    placeable: 1
+    is_sweeper: 0
+    radius: 0.04
+  cleaning_cloth:
+    shape: 1 # rectangular
+    height: 0.01
+    length: 0.3
+    width: 0.2
+    placeable: 1
+    is_sweeper: 1 # This is a cleaning tool
+    radius: 0.15
+  trash_bucket:
+    shape: 2 # cylinder/circular
+    height: 0.4
+    length: 0.3
+    width: 0.3
+    placeable: 0 # Container, not placeable itself
+    is_sweeper: 0
+    radius: 0.15
+  kitchen_table:
+    shape: 1 # cuboid
+    height: 0.75
+    length: 1.5
+    width: 0.8
+    flat_top_surface: 1
+  counter_table:
+    shape: 1 # cuboid
+    height: 0.9
+    length: 1.2
+    width: 0.6
+    flat_top_surface: 1
 
 # NOTE: Not sure what these mean, but have to be there?
 prepare_container_relative_xy:
