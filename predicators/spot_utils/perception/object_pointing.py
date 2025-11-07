@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import io
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, TypeVar, Union
 
@@ -40,12 +42,23 @@ class GeminiBoxPrediction:
 
 
 @dataclass
+class GeminiMaskPrediction:
+    """Segmentation mask (SAM2) returned by Gemini service."""
+    label: str
+    image: Image.Image
+    source: str = "point"
+    anchor_index: int = 0
+    variant_index: int = 0
+
+
+@dataclass
 class GeminiPointingResult:
     """Aggregated pointing/detection results for an image/prompt pair."""
     image_index: int
     prompt: str
     points: List[GeminiPointPrediction]
     boxes: List[GeminiBoxPrediction]
+    masks: List[GeminiMaskPrediction] = field(default_factory=list)
     image_path: Optional[str] = None
 
     def primary_pixel(self) -> Optional[Tuple[int, int]]:
@@ -102,6 +115,31 @@ def _denormalize_boxes(boxes: List[List[float]], width: int, height: int,
     return results
 
 
+def _decode_masks(mask_entries: List[dict], width: int,
+                  height: int, fallback_label: str) -> List[GeminiMaskPrediction]:
+    decoded: List[GeminiMaskPrediction] = []
+    for entry in mask_entries:
+        mask_b64 = entry.get("mask_png")
+        if not mask_b64:
+            continue
+        try:
+            mask_img = Image.open(io.BytesIO(base64.b64decode(mask_b64))).convert("L")
+        except Exception as exc:  # pragma: no cover - debug helper
+            logging.debug("Failed to decode Gemini mask: %s", exc)
+            continue
+        if mask_img.size != (width, height):
+            mask_img = mask_img.resize((width, height), Image.NEAREST)
+        decoded.append(
+            GeminiMaskPrediction(
+                label=entry.get("prompt", fallback_label),
+                image=mask_img,
+                source=str(entry.get("source", "point")),
+                anchor_index=int(entry.get("anchor_index", 0)),
+                variant_index=int(entry.get("variant_index", 0)),
+            ))
+    return decoded
+
+
 def point_objects_with_gemini(
         images: Union[ImageLike, Sequence[ImageLike]],
         prompts: Union[str, Sequence[str]],
@@ -131,15 +169,18 @@ def point_objects_with_gemini(
             continue
         points_data = entry.get("points") or []
         boxes_data = entry.get("boxes") or []
+        mask_entries = entry.get("masks") or []
         label = entry.get("prompt", "")
         points = _denormalize_points(points_data, width, height)
         boxes = _denormalize_boxes(boxes_data, width, height, label)
+        masks = _decode_masks(mask_entries, width, height, label)
         parsed.append(
             GeminiPointingResult(
                 image_index=entry.get("image_index", 0),
                 prompt=entry.get("prompt", ""),
                 points=points,
                 boxes=boxes,
+                masks=masks,
                 image_path=None,
             ))
     return parsed
@@ -151,10 +192,15 @@ def point_single_image(
         *,
         host: str = "localhost",
         port: int = 7100,
-        detection: bool = False) -> Optional[GeminiPointingResult]:
+        detection: bool = False,
+        segmentation: bool = False) -> Optional[GeminiPointingResult]:
     """Convenience wrapper for a single image/prompt pair."""
-    results = point_objects_with_gemini(image, prompt, host=host, port=port,
-                                        detection=detection)
+    results = point_objects_with_gemini(image,
+                                        prompt,
+                                        host=host,
+                                        port=port,
+                                        detection=detection,
+                                        segmentation=segmentation)
     return results[0] if results else None
 
 
@@ -174,13 +220,17 @@ def _cli() -> None:
     parser.add_argument("--detection",
                         action="store_true",
                         help="Request detection boxes instead of direct points.")
+    parser.add_argument("--segmentation",
+                        action="store_true",
+                        help="Request SAM2 masks for debugging.")
     args = parser.parse_args()
 
     result = point_single_image(args.image,
                                 args.prompt,
                                 host=args.host,
                                 port=args.port,
-                                detection=args.detection)
+                                detection=args.detection,
+                                segmentation=args.segmentation)
     if result is None:
         print("No pointing result returned.")
         return
