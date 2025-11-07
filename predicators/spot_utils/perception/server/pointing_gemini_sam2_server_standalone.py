@@ -3,6 +3,7 @@
 import os
 import base64
 import io
+import time
 from typing import Dict, List, Optional, Tuple, Union, cast
 from pathlib import Path
 
@@ -186,6 +187,7 @@ class PointingGeminiSAM2Service:
         self.verbose = verbose
         self.save_visualizations = save_visualizations
         self.visualization_dir = visualization_dir
+        Path(self.visualization_dir).mkdir(parents=True, exist_ok=True)
 
         if self.verbose:
             console.rule("[bold blue]Device Configuration")
@@ -266,7 +268,7 @@ class PointingGeminiSAM2Service:
                 
                 # Parse response
                 if detection:
-                    result = parse_gemini_detection_response(response, (width, height))
+                    result = parse_gemini_detection_response(response)
                 else:
                     result = parse_gemini_point_response(response, (width, height))
 
@@ -311,7 +313,25 @@ class PointingGeminiSAM2Service:
                     "image_height": height,
                     "image": image_b64
                 }
-                results.append(formatted_result)
+        results.append(formatted_result)
+
+        if self.save_visualizations:
+            for resp in results:
+                try:
+                    image = decode_image(resp["image"])
+                    if resp["points"]:
+                        image = draw_points(image, resp["points"])
+                    if resp["detections"]:
+                        image = draw_boxes(image, {"detections": resp["detections"]})
+                    ts = time.strftime("%Y%m%d-%H%M%S")
+                    filename = os.path.join(
+                        self.visualization_dir,
+                        f"server_pointing_{ts}_{resp['prompt'].replace(' ', '_')}_{resp['image_index']}.png",
+                    )
+                    image.save(filename)
+                    console.print(f"Saved visualization to {filename}", style="yellow")
+                except Exception as exc:
+                    console.print(f"[red]Failed to save visualization: {exc}[/red]")
 
         return results
 
