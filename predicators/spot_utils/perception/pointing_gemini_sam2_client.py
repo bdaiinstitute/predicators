@@ -145,10 +145,31 @@ class PointingGeminiSAM2Client:
                         },
                         timeout=120.0
                     )
-                    
+
                     progress.update(task, completed=True)
+
+                    if response.status_code != 200:
+                        raise RuntimeError(
+                            f"Pointing service returned status {response.status_code}:\n"
+                            f"{response.text}"
+                        )
+
                     result = response.json()
-                    console.print("[green]Server request completed successfully[/green]")
+                    entries = []
+                    count = "unknown"
+                    example = None
+                    if isinstance(result, dict):
+                        entries = result.get("results") or []
+                        count = len(entries)
+                        example = entries[0].get("prompt") if entries else None
+                        if not entries:
+                            logging.warning(
+                                "[PointingClient] No detections returned (HTTP 200)"
+                                "; check server logs for details.")
+                    extra = f", sample='{example}'" if example else ""
+                    console.print(
+                        f"[green]Server request completed successfully[/green]"
+                        f" (results={count}{extra})")
             timings["server_request"] = t.elapsed_time
 
         return {"results": result, "timings": timings}
@@ -235,4 +256,4 @@ def predict(
 
 
 if __name__ == "__main__":
-    app() 
+    app()
