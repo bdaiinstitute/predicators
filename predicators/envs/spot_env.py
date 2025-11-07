@@ -33,6 +33,8 @@ from predicators.structs import AugmentedState, State, Object, GroundAtom, \
     Predicate, Action, GoalDescription, EnvironmentTask, STRIPSOperator, \
     VLMPredicate, VLMGroundAtom, Observation, Type, SpotActionExtraInfo, \
     LiftedAtom, Variable
+from predicators.perception.perception_monitor import PerceptionDecision, \
+    PerceptionMonitor
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects_from_language, \
@@ -73,6 +75,11 @@ from predicators.utils import get_active_predicates, get_fluent_predicates, log_
 # necessary.
 _SIMULATED_SPOT_ROBOT: Optional[pbrspot.spot.Spot] = None
 _obj_name_to_sim_obj: Dict[str, pbrspot.body.Body] = {}
+
+
+def _is_hand_view_action(action_name: str) -> bool:
+    """Detect whether the operator causes a hand-view observation."""
+    return "HandView" in action_name
 
 
 @dataclass(frozen=True)
@@ -213,7 +220,8 @@ def get_robot(
     lease_client.take()
     lease_keepalive = LeaseKeepAlive(lease_client,
                                      must_acquire=True,
-                                     return_at_exit=True)
+                                     return_at_exit=True,
+                                     warnings=False)
     localizer = None
     assert path.exists()
     if use_localizer:
@@ -331,6 +339,7 @@ class SpotRearrangementEnv(BaseEnv):
         self._cached_realworld_observation: Optional[_SpotObservation] = None
         self._last_vlm_pointing: Optional[
             vlm_pointing.VLMPointingResult] = None
+        self._perception_monitor = PerceptionMonitor()
 
     def _initialize_pybullet(self) -> None:
         # First, check if we have any connections to pybullet already,
@@ -515,7 +524,7 @@ class SpotRearrangementEnv(BaseEnv):
                                     action_objs: Sequence[Object],
                                     observation: _SpotObservation) -> None:
         """Optionally compute a hand-camera grasp point via Gemini pointing."""
-        if not CFG.spot_use_object_pointing:
+        if not CFG.spot_use_vlm_pointing:
             self._last_vlm_pointing = None
             return
 
@@ -777,6 +786,11 @@ class SpotRearrangementEnv(BaseEnv):
             while True:
                 try:
                     self._lease_client.take()
+                    if CFG.spot_enable_manual_reset_teleop and \
+                            not CFG.spot_run_dry:
+                        logging.info(
+                            "[SpotEnv] Manual reset enabled; skipping automatic"
+                            " stow/go-home motions before initial observation.")
                     self._current_task = self._actively_construct_env_task()
                     break
                 except RetryableRpcError as e:
@@ -790,6 +804,8 @@ class SpotRearrangementEnv(BaseEnv):
             self._cached_realworld_observation = self._current_observation
         else:
             self._cached_realworld_observation = None
+        self._perception_monitor.reset(
+            initial_scan_done=self._cached_realworld_observation is not None)
         self._current_task_goal_reached = False
         self._last_action = None
 
@@ -900,96 +916,104 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            observe_only_refresh = CFG.spot_perception_refresh_observe_only
-            force_skip_perception = observe_only_refresh and not is_info_action
-            cached_available = self._cached_realworld_observation is not None
-            skip_perception = False
+            decision = self._perception_monitor.decide(
+                has_cached_observation=self._cached_realworld_observation
+                is not None,
+                is_information_gathering=is_info_action,
+                is_hand_view_action=_is_hand_view_action(action_name))
+            logging.debug("[SpotEnv] Perception decision: %s",
+                          decision.reason)
 
-            if force_skip_perception:
-                if cached_available:
-                    skip_perception = True
-                else:
-                    logging.debug(
-                        "[SpotEnv] Observe-only perception requested but no "
-                        "cached observation is available; running perception "
-                        "once to seed cache.")
-            elif CFG.spot_skip_perception_for_manipulation and \
-                    not is_info_action and cached_available:
-                skip_perception = True
-
-            if skip_perception:
-                next_obs = self._reuse_cached_observation(next_nonpercept)
-                self._cached_realworld_observation = next_obs
-            else:
-                # Get the new observation. Again, automatically retry if needed.
+            if decision.refresh_full:
                 while True:
                     try:
                         next_obs = self._build_realworld_observation(
                             next_nonpercept, curr_obs=obs)
+                        self._perception_monitor.mark_refresh_complete()
+                        self._cached_realworld_observation = next_obs
+                        break
+                    except RetryableRpcError as e:
+                        logging.warning(
+                            "WARNING: the following retryable error "
+                            f"was encountered. Trying again.\n{e}")
+            elif decision.reuse_cache and \
+                    self._cached_realworld_observation is not None:
+                next_obs = self._reuse_cached_observation(next_nonpercept)
+            else:
+                logging.debug(
+                    "[SpotEnv] No cached observation available; running "
+                    "perception to seed cache.")
+                while True:
+                    try:
+                        next_obs = self._build_realworld_observation(
+                            next_nonpercept, curr_obs=obs)
+                        self._perception_monitor.mark_refresh_complete()
+                        self._cached_realworld_observation = next_obs
                         break
                     except RetryableRpcError as e:
                         logging.warning(
                             "WARNING: the following retryable error "
                             f"was encountered. Trying again.\n{e}")
 
+            if decision.trigger_pointing:
                 self._maybe_trigger_vlm_pointing(action_name, action_objs,
                                                  next_obs)
 
-                # Very hacky optimization to force viewing/reaching to work.
-                # NOTE: enter the check if "move to" "object"; make sure op names in such pattern are always needed to check
-                if CFG.spot_enable_interactive_checks and \
-                        "MoveTo" in action_name and "Object" in action_name:
+            # Very hacky optimization to force viewing/reaching to work.
+            # NOTE: enter the check if "move to" "object"; make sure op names in such pattern are always needed to check
+            if CFG.spot_enable_interactive_checks and \
+                    "MoveTo" in action_name and "Object" in action_name:
+                logging.warning(
+                    f"Entering object detection check with action_name: {action_name}")
+                _, target_obj = action_objs
+                # Retry if each of the types of moving failed in their own way.
+                if action_name == "MoveToHandViewObject" or "Hand" in action_name:
+                    need_retry = target_obj not in \
+                        next_obs.objects_in_hand_view
+                elif action_name == "MoveToBodyViewObject":
+                    need_retry = target_obj not in \
+                        next_obs.objects_in_any_view_except_back
+                elif action_name == "MoveToReachObject":
+                    obj_pose = self._last_known_object_poses[target_obj]
+                    obj_position = math_helpers.Vec3(x=obj_pose.x,
+                                                     y=obj_pose.y,
+                                                     z=obj_pose.z)
+                    need_retry = not _obj_reachable_from_spot_pose(
+                        next_obs.robot_pos, obj_position)
+                else:
+                    need_retry = False
+                    logging.info("WARNING: object detection check not "
+                                 "implemented for this action: %s",
+                                 action_name)
+                if need_retry:
                     logging.warning(
-                        f"Entering object detection check with action_name: {action_name}")
-                    _, target_obj = action_objs
-                    # Retry if each of the types of moving failed in their own way.
-                    if action_name == "MoveToHandViewObject" or "Hand" in action_name:
-                        need_retry = target_obj not in \
-                            next_obs.objects_in_hand_view
-                    elif action_name == "MoveToBodyViewObject":
-                        need_retry = target_obj not in \
-                            next_obs.objects_in_any_view_except_back
-                    elif action_name == "MoveToReachObject":
-                        obj_pose = self._last_known_object_poses[target_obj]
-                        obj_position = math_helpers.Vec3(x=obj_pose.x,
-                                                         y=obj_pose.y,
-                                                         z=obj_pose.z)
-                        need_retry = not _obj_reachable_from_spot_pose(
-                            next_obs.robot_pos, obj_position)
-                    else:
-                        need_retry = False
-                        logging.info("WARNING: object detection check not "
-                                     "implemented for this action: %s",
-                                     action_name)
-                    if need_retry:
-                        logging.warning(
-                            "WARNING: retrying %s because %s was not "
-                            "seen/reached.", action_name, target_obj)
-                        prompt = (
-                            "Hit 'c' to have the robot do a random movement "
-                            "or take control and move the robot accordingly. "
-                            "Hit the 'Enter' key when you're done!\n")
-                        user_pref = input(prompt)
-                        assert self._lease_client is not None
-                        self._lease_client.take()
-                        angle = 0.0
-                        if user_pref == "c":
-                            # Do a small random movement to get a new view.
-                            assert isinstance(action_fn_args[1],
-                                              math_helpers.SE2Pose)
-                            angle = self._noise_rng.uniform(-np.pi / 6,
-                                                            np.pi / 6)
-                        rel_pose = math_helpers.SE2Pose(0, 0, angle)
-                        assert isinstance(action_fn_args, tuple)
-                        new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
-                            action_fn_args[2:]
+                        "WARNING: retrying %s because %s was not "
+                        "seen/reached.", action_name, target_obj)
+                    prompt = (
+                        "Hit 'c' to have the robot do a random movement "
+                        "or take control and move the robot accordingly. "
+                        "Hit the 'Enter' key when you're done!\n")
+                    user_pref = input(prompt)
+                    assert self._lease_client is not None
+                    self._lease_client.take()
+                    angle = 0.0
+                    if user_pref == "c":
+                        # Do a small random movement to get a new view.
+                        assert isinstance(action_fn_args[1],
+                                          math_helpers.SE2Pose)
+                        angle = self._noise_rng.uniform(-np.pi / 6,
+                                                        np.pi / 6)
+                    rel_pose = math_helpers.SE2Pose(0, 0, angle)
+                    assert isinstance(action_fn_args, tuple)
+                    new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
+                        action_fn_args[2:]
 
-                        new_action = utils.create_spot_env_action(
-                            SpotActionExtraInfo(action_name, action_objs,
-                                                action_fn, new_action_args,
-                                                sim_action_fn,
-                                                sim_action_args))
-                        return self.step(new_action)
+                    new_action = utils.create_spot_env_action(
+                        SpotActionExtraInfo(action_name, action_objs,
+                                            action_fn, new_action_args,
+                                            sim_action_fn,
+                                            sim_action_args))
+                    return self.step(new_action)
             self._allow_incidental_discovery = False
 
         self._current_observation = next_obs
@@ -1464,13 +1488,22 @@ class SpotRearrangementEnv(BaseEnv):
                                                         bool or None]]:
         assert self._robot is not None
         assert self._localizer is not None
-        stow_arm(self._robot)
-        go_home(self._robot, self._localizer)
+        skip_motion = (CFG.spot_enable_manual_reset_teleop
+                       and not CFG.spot_run_dry)
+        if skip_motion:
+            logging.info(
+                "[SpotEnv] Manual reset enabled; skipping automatic stow/go_home"
+                " during initial observation. Ensure the robot is already in a"
+                " safe pose before continuing.")
+        else:
+            stow_arm(self._robot)
+            go_home(self._robot, self._localizer)
         self._localizer.localize()
         detection_ids = self._detection_id_to_obj.keys()
         detections, vlm_atom_dict = self._run_init_search_for_objects(
             set(detection_ids))
-        stow_arm(self._robot)
+        if not skip_motion:
+            stow_arm(self._robot)
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
@@ -1485,12 +1518,18 @@ class SpotRearrangementEnv(BaseEnv):
         """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
-        hand_pose = math_helpers.SE3Pose(x=0.80,
-                                         y=0.0,
-                                         z=0.75,
-                                         rot=math_helpers.Quat.from_pitch(
-                                             np.pi / 3))
-        move_hand_to_relative_pose(self._robot, hand_pose)
+        skip_motion = (CFG.spot_enable_manual_reset_teleop
+                       and not CFG.spot_run_dry)
+        if skip_motion:
+            logging.info("[SpotEnv] Manual reset enabled; keeping operator-set"
+                         " hand pose for initial scan.")
+        else:
+            hand_pose = math_helpers.SE3Pose(x=0.80,
+                                             y=0.0,
+                                             z=0.75,
+                                             rot=math_helpers.Quat.from_pitch(
+                                                 np.pi / 3))
+            move_hand_to_relative_pose(self._robot, hand_pose)
         # Input VLM predicates (to filter task-relevant ones) and objects
         # Obtain detections and additionally VLM ground atoms
         detections, artifacts, vlm_atom_dict = init_search_for_objects(
@@ -5007,7 +5046,7 @@ class LISSpotEmptyCupBoxEnv(SpotRearrangementEnv):
         # NOTE: cup is container type
         objects_to_detect = [
             ("cardboard_box", "cardboard_box", _container_type),
-            ("cup", "orange_cup", _container_type),
+            ("cup", "green_cup", _container_type),
         ]
 
         # Add detection object prompt and save object identifier
