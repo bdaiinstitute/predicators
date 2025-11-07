@@ -232,25 +232,29 @@ class PointingGeminiSAM2Service:
     ):
         """Initialize the service."""
         self.verbose = verbose
+        self._use_gpu = use_gpu and torch.cuda.is_available()
+        if not self._use_gpu:
+            raise RuntimeError("No CUDA GPU available. Gemini SAM2 service requires GPU.")
         self.save_visualizations = save_visualizations
         self.visualization_dir = visualization_dir
         Path(self.visualization_dir).mkdir(parents=True, exist_ok=True)
 
         if self.verbose:
             console.rule("[bold blue]Device Configuration")
-            console.print(f"Using GPU: {use_gpu}", style="cyan")
+            console.print(f"Requested GPU: {use_gpu}", style="cyan")
             console.print(f"CUDA available: {torch.cuda.is_available()}", style="cyan")
-            if torch.cuda.is_available():
+            console.print(f"GPU enabled for SAM2: {self._use_gpu}", style="cyan")
+            if self._use_gpu:
                 console.print(f"CUDA device: {torch.cuda.get_device_name(0)}", style="green")
 
         # Initialize Ray if not already initialized
         if not ray.is_initialized():
-            if not torch.cuda.is_available():
-                raise RuntimeError("No CUDA GPU available. This service requires a GPU.")
             ray.init(num_gpus=1)
 
         # Initialize SAM2 actor
-        self.sam_actor = SAM2Actor.options(num_gpus=1).remote()  # type: ignore
+        actor_options = {"num_gpus": 1} if self._use_gpu else {}
+        self.sam_actor = SAM2Actor.options(  # type: ignore
+            **actor_options).remote(use_gpu=self._use_gpu)
         
         # Initialize Gemini client
         self.engine = GeminiClient()
