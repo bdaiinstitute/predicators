@@ -8,9 +8,9 @@ from google.generativeai.generative_models import GenerativeModel
 from google.generativeai.types import GenerationConfig
 
 
-# GEMINI_MODEL_NAME = "gemini-2.5.pro-exp-03-25"
 # GEMINI_MODEL_NAME = "gemini-2.5.pro"
-GEMINI_MODEL_NAME = "gemini-2.0-flash"
+# GEMINI_MODEL_NAME = "gemini-2.0-flash"
+GEMINI_MODEL_NAME = "gemini-robotics-er-1.5-preview"  # Gemini Robotics 1.5 for robotics tasks
 
 
 class GeminiClient:

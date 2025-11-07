@@ -4,7 +4,7 @@ import os
 import base64
 import io
 import time
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 from pathlib import Path
 
 import ray
@@ -145,6 +145,53 @@ def draw_boxes(
     return image
 
 
+def _tensor_to_numpy(data: Any) -> np.ndarray:
+    """Convert tensors / sequences to numpy arrays on CPU."""
+    if isinstance(data, torch.Tensor):
+        return data.detach().cpu().numpy()
+    if isinstance(data, np.ndarray):
+        return data
+    return np.asarray(data)
+
+
+def _serialize_sam_masks(mask_result: Any, width: int, height: int,
+                         prompt: str, source: str,
+                         anchor_index: int) -> List[Dict[str, Any]]:
+    """Turn SAM mask outputs into base64 PNGs that the client can overlay."""
+    if mask_result is None:
+        return []
+    masks_attr = getattr(mask_result, "masks", None)
+    if masks_attr is None:
+        return []
+    data = getattr(masks_attr, "data", None)
+    if data is None:
+        return []
+    mask_array = _tensor_to_numpy(data)
+    if mask_array.ndim == 2:
+        mask_array = np.expand_dims(mask_array, axis=0)
+    serialized: List[Dict[str, Any]] = []
+    for variant_idx, mask in enumerate(mask_array):
+        try:
+            mask_img = (mask > 0.5).astype(np.uint8) * 255
+            image = Image.fromarray(mask_img)
+            if image.size != (width, height):
+                image = image.resize((width, height), Image.NEAREST)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            serialized.append({
+                "mask_png": base64.b64encode(buffer.getvalue()).decode(),
+                "prompt": prompt,
+                "source": source,
+                "anchor_index": anchor_index,
+                "variant_index": variant_idx,
+                "width": width,
+                "height": height,
+            })
+        except Exception as exc:  # pragma: no cover - best effort
+            console.print(f"[red]Failed to serialize SAM mask: {exc}[/red]")
+    return serialized
+
+
 # Create FastAPI app
 app = FastAPI()
 
@@ -273,56 +320,70 @@ class PointingGeminiSAM2Service:
                     result = parse_gemini_point_response(response, (width, height))
 
                 # Get masks from SAM2 if requested
-                masks_data = []
-                if segmentation:
+                masks_data: List[Dict[str, Any]] = []
+                if segmentation and self.sam_actor is not None:
                     if detection:
-                        for box_data in result["detections"]:
+                        for det_idx, box_data in enumerate(result.get("detections", [])):
                             box = cast(List[float], box_data["box_2d"])
                             # Convert normalized box to image coordinates
                             x1, y1, x2, y2 = denormalize_box(box, (width, height))
-                            mask = ray.get(
+                            mask_result = ray.get(
                                 self.sam_actor.predict.remote(  # type: ignore
                                     image, input=[(x1, y1, x2, y2)], type="box"
                                 )
                             )
-                            masks_data.append(mask)
+                            masks_data.extend(
+                                _serialize_sam_masks(mask_result, width, height,
+                                                     prompt, "detection", det_idx))
                     else:
-                        for point_data in result["points"]:
+                        for point_idx, point_data in enumerate(result.get("points", [])):
                             point = cast(List[float], point_data["point"])
                             # Convert normalized point to image coordinates
                             y, x = denormalize_point(point, (width, height))
-                            mask = ray.get(
+                            mask_result = ray.get(
                                 self.sam_actor.predict.remote(  # type: ignore
                                     image, input=[(x, y)], type="point"
                                 )
                             )
-                            masks_data.append(mask)
+                            masks_data.extend(
+                                _serialize_sam_masks(mask_result, width, height,
+                                                     prompt, "point", point_idx))
 
                 # Format result to match Molmo's format
+                detections = result.get("detections", [])
                 formatted_result = {
                     "image_index": img_idx,
                     "prompt_index": prompt_idx,
                     "prompt": prompt,
                     "points": result.get("points", []),
                     "boxes": [
-                        [float(x) for x in box["box_2d"]]
-                        for box in result.get("detections", [])
-                    ] if result.get("detections") else None,
-                    "masks": masks_data if segmentation else None,
+                        [float(x) for x in det["box_2d"]]
+                        for det in detections
+                    ] if detections else None,
+                    "masks": masks_data if masks_data else None,
                     "image_width": width,
                     "image_height": height,
                     "image": image_b64
                 }
-        results.append(formatted_result)
+                results.append(formatted_result)
 
         if self.save_visualizations:
             for resp in results:
                 try:
                     image = decode_image(resp["image"])
-                    if resp["points"]:
+                    if resp.get("points"):
                         image = draw_points(image, resp["points"])
-                    if resp["detections"]:
-                        image = draw_boxes(image, {"detections": resp["detections"]})
+                    boxes = resp.get("detections") or resp.get("boxes")
+                    if boxes:
+                        detections_payload = []
+                        if isinstance(boxes, list) and boxes and isinstance(boxes[0], dict):
+                            detections_payload = boxes  # already structured
+                        else:
+                            detections_payload = [{
+                                "box_2d": box,
+                                "label": resp.get("prompt", "")
+                            } for box in boxes]
+                        image = draw_boxes(image, {"detections": detections_payload})
                     ts = time.strftime("%Y%m%d-%H%M%S")
                     filename = os.path.join(
                         self.visualization_dir,
