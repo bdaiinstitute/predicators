@@ -83,22 +83,24 @@ def parse_gemini_detection_response(
         json_str = response[start:end]
         detection_data = json.loads(json_str)
         
-        # Validate and normalize boxes
+        # Validate and normalize boxes (Gemini uses [ymin, xmin, ymax, xmax])
         normalized_boxes = []
         for item in detection_data:
             box = item["box_2d"]
             if not isinstance(box, list) or len(box) != 4:
                 raise ValueError(f"Invalid box format: {box}")
-                
+            ymin, xmin, ymax, xmax = box
             if normalize and image_size:
-                # Convert to normalized coordinates [0-1000]
-                x1, y1, x2, y2 = box
-                x1 = x1 * 1000 / image_size[0]
-                y1 = y1 * 1000 / image_size[1]
-                x2 = x2 * 1000 / image_size[0]
-                y2 = y2 * 1000 / image_size[1]
-                box = [x1, y1, x2, y2]
-            
+                xmin = xmin * 1000 / image_size[0]
+                xmax = xmax * 1000 / image_size[0]
+                ymin = ymin * 1000 / image_size[1]
+                ymax = ymax * 1000 / image_size[1]
+            box = [
+                _clamp(float(xmin), 0.0, 1000.0),
+                _clamp(float(ymin), 0.0, 1000.0),
+                _clamp(float(xmax), 0.0, 1000.0),
+                _clamp(float(ymax), 0.0, 1000.0),
+            ]
             normalized_boxes.append({
                 "box_2d": box,
                 "label": str(item["label"])
@@ -137,15 +139,15 @@ def denormalize_box(
     """Convert normalized box [0-1000] back to image coordinates.
     
     Args:
-        box: Normalized box coordinates [x1, y1, x2, y2]
+        box: Normalized box coordinates [xmin, ymin, xmax, ymax]
         image_size: Size of the image (width, height)
         
     Returns:
         Box coordinates in image space
     """
-    x1, y1, x2, y2 = box
-    x1 = _clamp(float(x1), 0.0, 1000.0) * image_size[0] / 1000
-    y1 = _clamp(float(y1), 0.0, 1000.0) * image_size[1] / 1000
-    x2 = _clamp(float(x2), 0.0, 1000.0) * image_size[0] / 1000
-    y2 = _clamp(float(y2), 0.0, 1000.0) * image_size[1] / 1000
-    return [x1, y1, x2, y2]
+    xmin, ymin, xmax, ymax = box
+    xmin = _clamp(float(xmin), 0.0, 1000.0) * image_size[0] / 1000
+    xmax = _clamp(float(xmax), 0.0, 1000.0) * image_size[0] / 1000
+    ymin = _clamp(float(ymin), 0.0, 1000.0) * image_size[1] / 1000
+    ymax = _clamp(float(ymax), 0.0, 1000.0) * image_size[1] / 1000
+    return [xmin, ymin, xmax, ymax]
