@@ -20,6 +20,13 @@ from predicators.structs import Object
 
 _POINTING_SERVICE_AVAILABLE = True
 _POINTING_WARNING_EMITTED = False
+_MASK_COLORS = [
+    (255, 0, 0),
+    (0, 200, 255),
+    (0, 255, 127),
+    (255, 165, 0),
+    (186, 85, 211),
+]
 
 
 @dataclass
@@ -96,7 +103,7 @@ def _save_pointing_debug_visual(target_name: str,
     try:
         outdir = Path(CFG.spot_pointing_debug_dir)
         outdir.mkdir(parents=True, exist_ok=True)
-        image = Image.fromarray(rgbd.rgb.copy())
+        image = Image.fromarray(rgbd.rgb.copy()).convert("RGBA")
         draw = ImageDraw.Draw(image)
         for point in result.points:
             x, y = point.pixel
@@ -109,10 +116,18 @@ def _save_pointing_debug_visual(target_name: str,
             x1, y1, x2, y2 = box.box
             draw.rectangle((x1, y1, x2, y2), outline="cyan", width=2)
             draw.text((x1 + 5, y1 - 5), box.label or "", fill="cyan")
+        if result.masks:
+            for idx, mask_prediction in enumerate(result.masks):
+                mask_image = mask_prediction.image
+                if mask_image.size != image.size:
+                    mask_image = mask_image.resize(image.size, Image.NEAREST)
+                color = _MASK_COLORS[idx % len(_MASK_COLORS)]
+                overlay = Image.new("RGBA", image.size, color + (110,))
+                image = Image.composite(overlay, image, mask_image)
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         filename = outdir / \
             f"{timestamp}_{target_name}_{rgbd.camera_name}_pointing.png"
-        image.save(filename)
+        image.convert("RGB").save(filename)
         logging.info("[GeminiPointing] Saved debug visualization to %s",
                      filename)
     except Exception as exc:  # pragma: no cover - best-effort logging
