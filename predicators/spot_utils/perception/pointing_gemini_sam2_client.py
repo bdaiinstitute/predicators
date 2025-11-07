@@ -3,9 +3,11 @@
 import asyncio
 import base64
 import io
+import logging
 import os
 import time
-from typing import Dict, List, Union, Sequence
+from pathlib import Path
+from typing import Dict, List, Sequence, Union
 
 import httpx
 from PIL import Image, ImageDraw
@@ -85,6 +87,65 @@ def draw_points(
     return image
 
 
+def draw_detections(
+    image: Image.Image,
+    detections: List[Dict[str, Union[List[float], str]]],
+    box_width: int = 2,
+    text_offset: int = 10,
+) -> Image.Image:
+    draw = ImageDraw.Draw(image)
+    width, height = image.size
+    for det in detections:
+        box = det.get("box_2d")
+        if not isinstance(box, list) or len(box) != 4:
+            continue
+        x1, y1, x2, y2 = box
+        x1 = int(float(x1) * width / 1000)
+        x2 = int(float(x2) * width / 1000)
+        y1 = int(float(y1) * height / 1000)
+        y2 = int(float(y2) * height / 1000)
+        draw.rectangle((x1, y1, x2, y2), outline="cyan", width=box_width)
+        label = str(det.get("label", ""))
+        if label:
+            draw.text((x1 + text_offset, y1 - text_offset), label, fill="cyan")
+    return image
+
+
+_MASK_COLORS = [
+    (255, 0, 0),
+    (0, 200, 255),
+    (0, 255, 127),
+    (255, 165, 0),
+    (186, 85, 211),
+]
+
+
+def overlay_masks(
+    image: Image.Image,
+    masks: List[Dict[str, Union[str, int]]],
+    alpha: int = 110,
+) -> Image.Image:
+    """Blend segmentation masks onto the provided image."""
+    if not masks:
+        return image
+    base = image.convert("RGBA")
+    for idx, mask_entry in enumerate(masks):
+        mask_b64 = mask_entry.get("mask_png")
+        if not mask_b64:
+            continue
+        try:
+            mask = Image.open(io.BytesIO(base64.b64decode(mask_b64))).convert("L")
+        except Exception as exc:  # pragma: no cover - debug helper
+            console.print(f"[red]Failed to decode mask for visualization: {exc}[/red]")
+            continue
+        if mask.size != base.size:
+            mask = mask.resize(base.size, Image.NEAREST)
+        color = _MASK_COLORS[idx % len(_MASK_COLORS)]
+        overlay = Image.new("RGBA", base.size, color + (alpha,))
+        base = Image.composite(overlay, base, mask)
+    return base.convert("RGB")
+
+
 class PointingGeminiSAM2Client:
     def __init__(self, host: str = "localhost", port: int = 7100):
         """Initialize client with host and port."""
@@ -155,17 +216,19 @@ class PointingGeminiSAM2Client:
                         )
 
                     result = response.json()
-                    entries = []
-                    count = "unknown"
-                    example = None
+                    entries: List[Dict] = []
                     if isinstance(result, dict):
                         entries = result.get("results") or []
-                        count = len(entries)
-                        example = entries[0].get("prompt") if entries else None
-                        if not entries:
-                            logging.warning(
-                                "[PointingClient] No detections returned (HTTP 200)"
-                                "; check server logs for details.")
+                    elif isinstance(result, list):
+                        entries = result
+                    count = len(entries)
+                    example = None
+                    if entries and isinstance(entries[0], dict):
+                        example = entries[0].get("prompt")
+                    if not entries:
+                        logging.warning(
+                            "[PointingClient] No detections returned (HTTP 200); "
+                            "check server logs for details.")
                     extra = f", sample='{example}'" if example else ""
                     console.print(
                         f"[green]Server request completed successfully[/green]"
@@ -181,13 +244,19 @@ class PointingGeminiSAM2Client:
         points: bool = True,
         segmentation: bool = False,
         detection: bool = False,
+        save_visualizations: bool = False,
+        viz_dir: str = "spot_pointing_outputs_cli",
     ) -> Dict:
         """Synchronous wrapper for predict_async."""
         with Timer(enable_print=False) as t:
-            result = asyncio.run(self.predict_async(
-                images, prompts, points, segmentation, detection
-            ))
+            result = asyncio.run(
+                self.predict_async(images, prompts, points, segmentation, detection))
         result["timings"]["total"] = t.elapsed_time
+        if save_visualizations:
+            try:
+                _save_client_visualizations(result.get("results", []), viz_dir)
+            except Exception as exc:  # pragma: no cover - debug helper
+                console.print(f"[red]Failed to save pointing visualizations: {exc}[/red]")
         return result
 
 
@@ -213,6 +282,8 @@ def predict(
     points: bool = typer.Option(True, help="Whether to return point coordinates"),
     segmentation: bool = typer.Option(False, help="Whether to perform segmentation"),
     detection: bool = typer.Option(False, help="Whether to perform detection instead of pointing"),
+    save_viz: bool = typer.Option(False, "--save-viz", help="Save annotated results to disk"),
+    viz_dir: str = typer.Option("spot_pointing_outputs_cli", "--viz-dir", help="Directory for saved visualizations"),
 ):
     """Run predictions using the PointingGeminiSAM2 service."""
     try:
@@ -224,7 +295,13 @@ def predict(
             raise typer.BadParameter("Must provide at least one image (-i) and one prompt (-p)")
 
         client = PointingGeminiSAM2Client(host=host, port=port)
-        result = client.predict(image_paths, prompts, points=points, segmentation=segmentation, detection=detection)
+        result = client.predict(image_paths,
+                                prompts,
+                                points=points,
+                                segmentation=segmentation,
+                                detection=detection,
+                                save_visualizations=save_viz,
+                                viz_dir=viz_dir)
 
         # Print results
         console.rule("[bold blue]Results")
@@ -236,10 +313,18 @@ def predict(
             console.print(f"\n[yellow]Image {img_idx + 1}, Prompt {prompt_idx + 1}: '{prompt}'[/yellow]")
             if res.get("points"):
                 console.print(f"Points coordinates: {res['points']}", style="cyan")
-            if res.get("detections"):
+            boxes = res.get("detections")
+            if not boxes and res.get("boxes"):
+                boxes = [{
+                    "box_2d": box,
+                    "label": res.get("prompt", "")
+                } for box in res["boxes"]]
+            if boxes:
                 console.print("\nBounding boxes:", style="cyan")
-                for i, box in enumerate(res["detections"], 1):
+                for i, box in enumerate(boxes, 1):
                     console.print(f"Box {i}: {box['box_2d']} ({box['label']})", style="cyan")
+            if res.get("masks"):
+                console.print(f"Segmentation masks: {len(res['masks'])}", style="magenta")
 
         # Print timing
         console.rule("[bold blue]Timing")
@@ -257,3 +342,40 @@ def predict(
 
 if __name__ == "__main__":
     app()
+
+
+def _save_client_visualizations(entries: Union[List[Dict], Dict], directory: str) -> None:
+    if isinstance(entries, dict):
+        entries = [entries]
+    if not entries:
+        console.print("[yellow]No results to visualize.[/yellow]")
+        return
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    for entry in entries:
+        image_b64 = entry.get("image")
+        if not image_b64:
+            continue
+        try:
+            image = Image.open(io.BytesIO(base64.b64decode(image_b64))).convert("RGB")
+        except Exception as exc:
+            console.print(f"[red]Failed to decode image for visualization: {exc}[/red]")
+            continue
+        if entry.get("points"):
+            image = draw_points(image, entry["points"])
+        detections = entry.get("detections")
+        if not detections and entry.get("boxes"):
+            detections = [{
+                "box_2d": box,
+                "label": entry.get("prompt", "")
+            } for box in entry["boxes"]]
+        if detections:
+            image = draw_detections(image, detections)
+        masks = entry.get("masks") or []
+        if masks:
+            image = overlay_masks(image, masks)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        prompt = entry.get("prompt", "prompt").replace(" ", "_")
+        image_idx = entry.get("image_index", 0)
+        filename = Path(directory) / f"client_pointing_{timestamp}_{prompt}_{image_idx}.png"
+        image.save(filename)
+        console.print(f"Saved pointing visualization to {filename}", style="yellow")
