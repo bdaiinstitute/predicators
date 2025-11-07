@@ -6,11 +6,13 @@ import functools
 import json
 import logging
 import time
+from itertools import product
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
-    Optional, Sequence, Set, Tuple
+from typing import Any, Callable, ClassVar, Collection, Dict, Iterator, List, \
+    Mapping, Optional, Sequence, Set, Tuple
 import multiprocessing as mp
+import re
 
 import matplotlib
 import numpy as np
@@ -35,6 +37,7 @@ from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, detect_objects_from_language, \
     detect_objects, visualize_all_artifacts
+from predicators.spot_utils.perception import vlm_pointing
 from predicators.spot_utils.perception.object_perception import \
     get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
@@ -304,9 +307,30 @@ class SpotRearrangementEnv(BaseEnv):
 
         # For object detection.
         self._allowed_regions: Collection[Delaunay] = get_allowed_map_regions()
+        self._allow_incidental_discovery = False
+        self._episode_incidental_discovery_enabled = True
+        self._discovery_candidates: Dict[ObjectDetectionID, Object] = {}
+        self._discovered_detection_id_to_obj: Dict[ObjectDetectionID,
+                                                   Object] = {}
+        self._discovery_type_lookup = {
+            "movable": _movable_object_type,
+            "container": _container_type,
+            "immovable": _immovable_object_type,
+            "dustpan": _dustpan_type,
+            "wrapper": _wrappers_type,
+            "robot": _robot_type,
+        }
+        self._default_discovery_candidate_specs = tuple(
+            CFG.spot_incidental_discovery_candidates)
+        self._set_discovery_candidates_from_specs(
+            self._default_discovery_candidate_specs,
+            "CFG.spot_incidental_discovery_candidates")
 
         # Used for the move-related hacks in step().
         self._last_known_object_poses: Dict[Object, math_helpers.SE3Pose] = {}
+        self._cached_realworld_observation: Optional[_SpotObservation] = None
+        self._last_vlm_pointing: Optional[
+            vlm_pointing.VLMPointingResult] = None
 
     def _initialize_pybullet(self) -> None:
         # First, check if we have any connections to pybullet already,
@@ -328,6 +352,252 @@ class SpotRearrangementEnv(BaseEnv):
         self._sim_robot.set_point(
             [0, 0,
              pbrspot.placements.stable_z(self._sim_robot, floor_obj)])
+
+    def _get_default_task_metadata(self) -> Mapping[str, Any]:
+        """Return per-task metadata defaults for incidental discovery, etc."""
+        return {}
+
+    def _get_detection_id_mapping_for_cycle(
+            self) -> Dict[ObjectDetectionID, Object]:
+        """Combine base detections with discovery bookkeeping."""
+        mapping = dict(self._detection_id_to_obj)
+        mapping.update(self._discovered_detection_id_to_obj)
+        if self._allow_incidental_discovery:
+            mapping.update(self._discovery_candidates)
+        return mapping
+
+    def _update_discovered_objects(
+            self, detections: Dict[ObjectDetectionID, math_helpers.SE3Pose]
+    ) -> None:
+        """Promote incidental discovery candidates that were just detected."""
+        if not self._allow_incidental_discovery or \
+                not self._discovery_candidates:
+            return
+        newly_seen = [
+            det_id for det_id in self._discovery_candidates
+            if det_id in detections
+        ]
+        if not newly_seen:
+            return
+        promoted = []
+        for det_id in newly_seen:
+            obj = self._discovery_candidates.pop(det_id)
+            self._discovered_detection_id_to_obj[det_id] = obj
+            promoted.append(obj)
+        logging.info("[SpotEnv] Discovered new objects via observation: %s",
+                     [obj.name for obj in promoted])
+
+    def _set_discovery_candidates_from_specs(
+            self, specs: Optional[Sequence[Any]], source: str) -> None:
+        """Reset discovery candidates based on provided configuration."""
+        self._discovery_candidates = {}
+        if not specs:
+            return
+        parsed = self._parse_discovery_candidate_specs(specs, source)
+        self._discovery_candidates = parsed
+
+    def _parse_discovery_candidate_specs(
+            self, specs: Sequence[Any], source: str
+    ) -> Dict[ObjectDetectionID, Object]:
+        """Parse incidental discovery candidate specs into objects."""
+        mapping: Dict[ObjectDetectionID, Object] = {}
+        used_names = {
+            obj.name
+            for obj in self._detection_id_to_obj.values()
+        }
+        used_names.update(obj.name
+                          for obj in self._discovered_detection_id_to_obj.
+                          values())
+
+        for idx, raw in enumerate(specs):
+            name, prompt, type_name = self._normalize_discovery_candidate_entry(
+                raw, idx, source)
+            if not prompt:
+                raise ValueError(
+                    f"Empty prompt for incidental discovery candidate #{idx} "
+                    f"from {source}.")
+            if name:
+                candidate_name = name
+            else:
+                candidate_name = self._generate_discovery_object_name(
+                    prompt, idx, used_names)
+            lower_type = type_name.lower()
+            obj_type = self._discovery_type_lookup.get(lower_type)
+            if obj_type is None:
+                raise ValueError(
+                    f"Unknown discovery object type '{type_name}' (source: "
+                    f"{source}).")
+            detection_id = LanguageObjectDetectionID(prompt)
+            if detection_id in mapping:
+                raise ValueError(
+                    f"Duplicate incidental discovery detection id '{prompt}' "
+                    f"from {source}.")
+            if candidate_name in used_names:
+                raise ValueError(
+                    f"Duplicate incidental discovery object name "
+                    f"'{candidate_name}' from {source}.")
+            mapping[detection_id] = Object(candidate_name, obj_type)
+            used_names.add(candidate_name)
+        return mapping
+
+    def _normalize_discovery_candidate_entry(
+        self,
+        entry: Any,
+        idx: int,
+        source: str,
+    ) -> Tuple[Optional[str], str, str]:
+        """Normalize incidental discovery entry to (name, prompt, type)."""
+        default_type = "movable"
+        if isinstance(entry, str):
+            prompt = entry.strip()
+            return None, prompt, default_type
+        if isinstance(entry, Sequence) and not isinstance(entry, (str, bytes)):
+            length = len(entry)
+            if length == 1:
+                prompt = str(entry[0]).strip()
+                return None, prompt, default_type
+            if length == 2:
+                name = str(entry[0]).strip()
+                prompt = str(entry[1]).strip()
+                return name or None, prompt, default_type
+            if length == 3:
+                name = str(entry[0]).strip()
+                prompt = str(entry[1]).strip()
+                type_name = str(entry[2]).strip()
+                return name or None, prompt, type_name or default_type
+            raise ValueError(
+                "Incidental discovery candidate entries must have length "
+                "1 (prompt), 2 (name, prompt), or 3 (name, prompt, type). "
+                f"Offending entry #{idx} from {source}: {entry!r}")
+        if isinstance(entry, dict):
+            if "prompt" not in entry:
+                raise ValueError(
+                    f"Incidental discovery candidate dict from {source} "
+                    f"missing 'prompt': {entry}")
+            prompt = str(entry["prompt"]).strip()
+            name = entry.get("name")
+            type_name = entry.get("type", default_type)
+            return (str(name).strip() if name is not None else None, prompt,
+                    str(type_name).strip())
+        raise ValueError(
+            "Unsupported incidental discovery candidate format from "
+            f"{source} (entry #{idx}: {entry!r}).")
+
+    def _generate_discovery_object_name(self, prompt: str, idx: int,
+                                        used_names: Set[str]) -> str:
+        """Generate a deterministic fallback object name from a prompt."""
+        base = re.sub(r"[^a-z0-9]+", "_", prompt.lower()).strip("_")
+        if not base:
+            base = f"candidate_{idx}"
+        candidate = f"discovery_{base}"
+        suffix = 2
+        while candidate in used_names:
+            candidate = f"{candidate}_{suffix}"
+            suffix += 1
+        return candidate
+
+    def _load_episode_discovery_candidates(self,
+                                           task: EnvironmentTask) -> None:
+        """Load discovery candidates for the current task."""
+        self._discovered_detection_id_to_obj.clear()
+        metadata = dict(getattr(task, "metadata", {}) or {})
+        self._episode_incidental_discovery_enabled = bool(
+            metadata.get("enable_incidental_discovery", True))
+        if metadata and "discovery_candidates" in metadata:
+            specs = metadata.get("discovery_candidates")
+            source = "EnvironmentTask.metadata['discovery_candidates']"
+        else:
+            specs = self._default_discovery_candidate_specs
+            source = "CFG.spot_incidental_discovery_candidates"
+        self._set_discovery_candidates_from_specs(specs, source)
+
+    def _maybe_trigger_vlm_pointing(self, action_name: str,
+                                    action_objs: Sequence[Object],
+                                    observation: _SpotObservation) -> None:
+        """Optionally compute a hand-camera grasp point via Gemini pointing."""
+        if not CFG.spot_use_object_pointing:
+            self._last_vlm_pointing = None
+            return
+
+        pointing_prefixes = ("MoveToHandViewObject", "MoveToHandViewObjectFromTop")
+        if not any(action_name.startswith(prefix) for prefix in pointing_prefixes):
+            return
+        if len(action_objs) < 2:
+            logging.debug("[SpotEnv] Cannot trigger VLM pointing for %s "
+                          "because target object is missing.", action_name)
+            return
+        target_obj = action_objs[1]
+        result = vlm_pointing.compute_pointing_result(
+            target_obj,
+            observation.images,
+            detection_artifacts=None,
+            detection_id_to_obj={},
+            rng=self._noise_rng)
+        if result is None:
+            logging.debug("[SpotEnv] VLM pointing produced no result for %s.",
+                          target_obj.name)
+            self._last_vlm_pointing = None
+        else:
+            self._last_vlm_pointing = result
+            logging.info("[SpotEnv] VLM pointing stored for %s: %s",
+                         target_obj.name, result.pixel)
+
+    def _apply_initial_unknown_overrides(
+            self, atoms: Set[GroundAtom]) -> Set[GroundAtom]:
+        """Inject Unknown belief atoms according to configuration."""
+        predicate_names = CFG.spot_initial_unknown_predicates
+        if not predicate_names or not _UNKNOWN_KNOWN_VLM_PREDICATES:
+            return atoms
+        base_objects = {self._spot_object}
+        base_objects.update(self._detection_id_to_obj.values())
+        base_objects.update(self._discovered_detection_id_to_obj.values())
+        objects = list(base_objects)
+
+        for name in predicate_names:
+            info = _UNKNOWN_KNOWN_VLM_PREDICATES.get(name)
+            if info is None and name.startswith("Unknown_"):
+                info = _UNKNOWN_KNOWN_VLM_PREDICATES.get(name[len("Unknown_"):])
+            if info is None:
+                logging.warning("Unknown predicate '%s' configured for "
+                                "spot_initial_unknown_predicates; skipping.",
+                                name)
+                continue
+            unknown_pred, known_pred = info
+            type_seq = unknown_pred.types
+            candidate_lists: List[List[Object]] = []
+            for pred_type in type_seq:
+                objs = [obj for obj in objects if obj.is_instance(pred_type)]
+                if not objs:
+                    candidate_lists = []
+                    break
+                candidate_lists.append(objs)
+            if not candidate_lists:
+                continue
+            for combo in product(*candidate_lists):
+                combo_list = list(combo)
+                atoms.add(GroundAtom(unknown_pred, combo_list))
+                if known_pred is not None:
+                    atoms.discard(GroundAtom(known_pred, combo_list))
+        return self._apply_initial_unknown_overrides(atoms)
+
+    def _reuse_cached_observation(
+            self, nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
+        """Create an observation by reusing cached perception results."""
+        assert self._cached_realworld_observation is not None
+        cached = self._cached_realworld_observation
+        return _SpotObservation(
+            images=cached.images,
+            objects_in_view=cached.objects_in_view,
+            objects_in_hand_view=cached.objects_in_hand_view,
+            objects_in_any_view_except_back=cached.objects_in_any_view_except_back,
+            robot=cached.robot,
+            gripper_open_percentage=cached.gripper_open_percentage,
+            robot_pos=cached.robot_pos,
+            nonpercept_atoms=nonpercept_atoms,
+            nonpercept_predicates=cached.nonpercept_predicates,
+            vlm_atom_dict=cached.vlm_atom_dict,
+            vlm_predicates=cached.vlm_predicates,
+        )
 
     @property
     def strips_operators(self) -> Set[STRIPSOperator]:
@@ -495,8 +765,10 @@ class SpotRearrangementEnv(BaseEnv):
             # For the real spot environment, only actively construct the state
             # once, at the very beginning (or on loading, if needed).
             goal_description = self._generate_goal_description()
+            metadata = dict(self._get_default_task_metadata())
             self._current_task = EnvironmentTask(self._current_observation,
-                                                 goal_description)
+                                                 goal_description,
+                                                 metadata=metadata)
         else:
             prompt = f"Please set up {train_or_test} task {task_idx}!"
             utils.prompt_user(prompt)
@@ -510,8 +782,14 @@ class SpotRearrangementEnv(BaseEnv):
                 except RetryableRpcError as e:
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
-        logging.info(f"Current task goal: {self._current_task.goal_description}")
+        self._load_episode_discovery_candidates(self._current_task)
+        logging.info(
+            f"Current task goal: {self._current_task.goal_description}")
         self._current_observation = self._current_task.init_obs
+        if isinstance(self._current_observation, _SpotObservation):
+            self._cached_realworld_observation = self._current_observation
+        else:
+            self._cached_realworld_observation = None
         self._current_task_goal_reached = False
         self._last_action = None
 
@@ -556,6 +834,11 @@ class SpotRearrangementEnv(BaseEnv):
         sim_action_fn = action.extra_info.simulation_fn
         sim_action_args = action.extra_info.simulation_fn_args
         self._last_action = action
+        is_info_action = utils.is_information_gathering_operator_name(
+            action_name)
+        self._allow_incidental_discovery = (
+            self._episode_incidental_discovery_enabled and is_info_action
+            and bool(self._discovery_candidates))
         # The extra info is (action name, objects, function, function args).
         # The action name is either an operator name (for use with nonpercept
         # predicates) or a special name. See below for the special names.
@@ -568,9 +851,9 @@ class SpotRearrangementEnv(BaseEnv):
         # believes it has finished the task. Used for goal checking.
         if action_name == "done":
 
-            # During a dry run, trust that the goal is accomplished if the
-            # done action is returned, since we don't want a human in the loop.
-            if CFG.spot_run_dry:
+            # During a dry run or when interactive checks are disabled, trust
+            # that the goal is accomplished if the done action is returned.
+            if CFG.spot_run_dry or not CFG.spot_enable_interactive_checks:
                 self._current_task_goal_reached = True
                 return self._current_observation
 
@@ -597,7 +880,6 @@ class SpotRearrangementEnv(BaseEnv):
         # The action corresponds to an operator finishing.
         if action_name in operator_names:
             # Update the non-percepts.
-            operator_names = {o.name for o in self._strips_operators}
             next_nonpercept = self._get_next_nonpercept_atoms(obs, action)
         else:
             next_nonpercept = obs.nonpercept_atoms
@@ -605,6 +887,7 @@ class SpotRearrangementEnv(BaseEnv):
         if CFG.spot_run_dry:
             # Simulate the effect of the action.
             next_obs = self._get_next_dry_observation(action, next_nonpercept)
+            self._allow_incidental_discovery = False
 
         else:
             # Execute the action in the real environment. Automatically retry
@@ -617,64 +900,97 @@ class SpotRearrangementEnv(BaseEnv):
                     logging.warning("WARNING: the following retryable error "
                                     f"was encountered. Trying again.\n{e}")
 
-            # Get the new observation. Again, automatically retry if needed.
-            while True:
-                try:
-                    next_obs = self._build_realworld_observation(
-                        next_nonpercept, curr_obs=obs)
-                    break
-                except RetryableRpcError as e:
-                    logging.warning("WARNING: the following retryable error "
-                                    f"was encountered. Trying again.\n{e}")
+            observe_only_refresh = CFG.spot_perception_refresh_observe_only
+            force_skip_perception = observe_only_refresh and not is_info_action
+            cached_available = self._cached_realworld_observation is not None
+            skip_perception = False
 
-            # Very hacky optimization to force viewing/reaching to work.
-            # NOTE: enter the check if "move to" "object"; make sure op names in such pattern are always needed to check
-            if "MoveTo" in action_name and "Object" in action_name:
-                logging.warning(f"Entering object detection check with action_name: {action_name}")
-                _, target_obj = action_objs
-                # Retry if each of the types of moving failed in their own way.
-                if action_name == "MoveToHandViewObject" or "Hand" in action_name:
-                    need_retry = target_obj not in \
-                        next_obs.objects_in_hand_view
-                elif action_name == "MoveToBodyViewObject":
-                    need_retry = target_obj not in \
-                        next_obs.objects_in_any_view_except_back
-                elif action_name == "MoveToReachObject":
-                    obj_pose = self._last_known_object_poses[target_obj]
-                    obj_position = math_helpers.Vec3(x=obj_pose.x,
-                                                     y=obj_pose.y,
-                                                     z=obj_pose.z)
-                    need_retry = not _obj_reachable_from_spot_pose(
-                        next_obs.robot_pos, obj_position)
+            if force_skip_perception:
+                if cached_available:
+                    skip_perception = True
                 else:
-                    need_retry = False
-                    logging.info(f"WARNING: object detection check not implemented for this action: {action_name}")
-                if need_retry:
-                    logging.warning(f"WARNING: retrying {action_name} because "
-                                    f"{target_obj} was not seen/reached.")
-                    prompt = (
-                        "Hit 'c' to have the robot do a random movement "
-                        "or take control and move the robot accordingly. "
-                        "Hit the 'Enter' key when you're done!\n")
-                    user_pref = input(prompt)
-                    assert self._lease_client is not None
-                    self._lease_client.take()
-                    angle = 0.0
-                    if user_pref == "c":
-                        # Do a small random movement to get a new view.
-                        assert isinstance(action_fn_args[1],
-                                          math_helpers.SE2Pose)
-                        angle = self._noise_rng.uniform(-np.pi / 6, np.pi / 6)
-                    rel_pose = math_helpers.SE2Pose(0, 0, angle)
-                    assert isinstance(action_fn_args, tuple)
-                    new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
-                        action_fn_args[2:]
+                    logging.debug(
+                        "[SpotEnv] Observe-only perception requested but no "
+                        "cached observation is available; running perception "
+                        "once to seed cache.")
+            elif CFG.spot_skip_perception_for_manipulation and \
+                    not is_info_action and cached_available:
+                skip_perception = True
 
-                    new_action = utils.create_spot_env_action(
-                        SpotActionExtraInfo(action_name, action_objs,
-                                            action_fn, new_action_args,
-                                            sim_action_fn, sim_action_args))
-                    return self.step(new_action)
+            if skip_perception:
+                next_obs = self._reuse_cached_observation(next_nonpercept)
+                self._cached_realworld_observation = next_obs
+            else:
+                # Get the new observation. Again, automatically retry if needed.
+                while True:
+                    try:
+                        next_obs = self._build_realworld_observation(
+                            next_nonpercept, curr_obs=obs)
+                        break
+                    except RetryableRpcError as e:
+                        logging.warning(
+                            "WARNING: the following retryable error "
+                            f"was encountered. Trying again.\n{e}")
+
+                self._maybe_trigger_vlm_pointing(action_name, action_objs,
+                                                 next_obs)
+
+                # Very hacky optimization to force viewing/reaching to work.
+                # NOTE: enter the check if "move to" "object"; make sure op names in such pattern are always needed to check
+                if CFG.spot_enable_interactive_checks and \
+                        "MoveTo" in action_name and "Object" in action_name:
+                    logging.warning(
+                        f"Entering object detection check with action_name: {action_name}")
+                    _, target_obj = action_objs
+                    # Retry if each of the types of moving failed in their own way.
+                    if action_name == "MoveToHandViewObject" or "Hand" in action_name:
+                        need_retry = target_obj not in \
+                            next_obs.objects_in_hand_view
+                    elif action_name == "MoveToBodyViewObject":
+                        need_retry = target_obj not in \
+                            next_obs.objects_in_any_view_except_back
+                    elif action_name == "MoveToReachObject":
+                        obj_pose = self._last_known_object_poses[target_obj]
+                        obj_position = math_helpers.Vec3(x=obj_pose.x,
+                                                         y=obj_pose.y,
+                                                         z=obj_pose.z)
+                        need_retry = not _obj_reachable_from_spot_pose(
+                            next_obs.robot_pos, obj_position)
+                    else:
+                        need_retry = False
+                        logging.info("WARNING: object detection check not "
+                                     "implemented for this action: %s",
+                                     action_name)
+                    if need_retry:
+                        logging.warning(
+                            "WARNING: retrying %s because %s was not "
+                            "seen/reached.", action_name, target_obj)
+                        prompt = (
+                            "Hit 'c' to have the robot do a random movement "
+                            "or take control and move the robot accordingly. "
+                            "Hit the 'Enter' key when you're done!\n")
+                        user_pref = input(prompt)
+                        assert self._lease_client is not None
+                        self._lease_client.take()
+                        angle = 0.0
+                        if user_pref == "c":
+                            # Do a small random movement to get a new view.
+                            assert isinstance(action_fn_args[1],
+                                              math_helpers.SE2Pose)
+                            angle = self._noise_rng.uniform(-np.pi / 6,
+                                                            np.pi / 6)
+                        rel_pose = math_helpers.SE2Pose(0, 0, angle)
+                        assert isinstance(action_fn_args, tuple)
+                        new_action_args = action_fn_args[0:1] + (rel_pose, ) + \
+                            action_fn_args[2:]
+
+                        new_action = utils.create_spot_env_action(
+                            SpotActionExtraInfo(action_name, action_objs,
+                                                action_fn, new_action_args,
+                                                sim_action_fn,
+                                                sim_action_args))
+                        return self.step(new_action)
+            self._allow_incidental_discovery = False
 
         self._current_observation = next_obs
         return self._current_observation
@@ -698,7 +1014,8 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._localizer is not None
         self._localizer.localize()
         # Get the universe of all object detections.
-        all_object_detection_ids = set(self._detection_id_to_obj)
+        detection_id_to_obj = self._get_detection_id_mapping_for_cycle()
+        all_object_detection_ids = set(detection_id_to_obj)
         # Get the camera images.
         time.sleep(0.5)
         rgbds = capture_images(self._robot, self._localizer)
@@ -739,6 +1056,9 @@ class SpotRearrangementEnv(BaseEnv):
             # p1.start()
             # p2.start()
 
+        self._update_discovered_objects(all_detections)
+        detection_id_to_obj = self._get_detection_id_mapping_for_cycle()
+
         # Also, get detections that every camera except the back camera can
         # see. This is important for our 'InView' predicate.
         non_back_camera_rgbds = {
@@ -748,6 +1068,10 @@ class SpotRearrangementEnv(BaseEnv):
                 "frontright_fisheye_image"
             ]
         }
+        # TODO we can add new object detection id here, using the RGBD views
+        # NOTE Make object id and add to the current object list
+        # NOTE we limit the scope of adding new objects: (1) we only use hand view after information-gathering action, (2) we specify the potential object types (features) we want (e.g., salient objects in the drawer). Then we can replan with this
+        
         non_back_detections, _ = detect_objects(all_object_detection_ids,
                                                 non_back_camera_rgbds,
                                                 self._allowed_regions)
@@ -756,14 +1080,14 @@ class SpotRearrangementEnv(BaseEnv):
         # of objects that the hand can see, and that all cameras except
         # the back can see.
         all_objects_in_view = {
-            self._detection_id_to_obj[det_id]: val
+            detection_id_to_obj[det_id]: val
             for (det_id, val) in all_detections.items()
         }
         self._last_known_object_poses.update(all_objects_in_view)
-        objects_in_hand_view = set(self._detection_id_to_obj[det_id]
+        objects_in_hand_view = set(detection_id_to_obj[det_id]
                                    for det_id in hand_detections)
         objects_in_any_view_except_back = set(
-            self._detection_id_to_obj[det_id]
+            detection_id_to_obj[det_id]
             for det_id in non_back_detections)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -884,6 +1208,9 @@ class SpotRearrangementEnv(BaseEnv):
                                robot_pos, nonpercept_atoms, nonpercept_preds,
                                vlm_atom_return, self.vlm_predicates)
 
+        self._cached_realworld_observation = obs
+        self._allow_incidental_discovery = False
+
         return obs
 
     def _get_next_nonpercept_atoms(self, obs: _SpotObservation,
@@ -960,13 +1287,19 @@ class SpotRearrangementEnv(BaseEnv):
 
     def _generate_train_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal
+        metadata = dict(self._get_default_task_metadata())
         return [
-            EnvironmentTask(None, goal) for _ in range(CFG.num_train_tasks)
+            EnvironmentTask(None, goal, metadata=metadata)
+            for _ in range(CFG.num_train_tasks)
         ]
 
     def _generate_test_tasks(self) -> List[EnvironmentTask]:
         goal = self._generate_goal_description()  # currently just one goal
-        return [EnvironmentTask(None, goal) for _ in range(CFG.num_test_tasks)]
+        metadata = dict(self._get_default_task_metadata())
+        return [
+            EnvironmentTask(None, goal, metadata=metadata)
+            for _ in range(CFG.num_test_tasks)
+        ]
 
     def _actively_construct_env_task(self) -> EnvironmentTask:
         # Have the spot walk around the environment once to construct
@@ -994,7 +1327,8 @@ class SpotRearrangementEnv(BaseEnv):
                                robot_pos, nonpercept_atoms, nonpercept_preds,
                                vlm_atom_dict, self.vlm_predicates)
         goal_description = self._generate_goal_description()
-        task = EnvironmentTask(obs, goal_description)
+        metadata = dict(self._get_default_task_metadata())
+        task = EnvironmentTask(obs, goal_description, metadata=metadata)
         # Save the task for future use.
         json_objects = {o.name: o.type.name for o in objects_in_view}
         json_objects[self._spot_object.name] = self._spot_object.type.name
@@ -1165,7 +1499,7 @@ class SpotRearrangementEnv(BaseEnv):
             detection_ids,
             allowed_regions=self._allowed_regions,
             vlm_predicates=self.vlm_predicates,
-            id2object=self._detection_id_to_obj,
+            id2object=self._get_detection_id_mapping_for_cycle(),
         )
         if CFG.spot_render_perception_outputs:
             outdir = Path(CFG.spot_perception_outdir)
@@ -1183,7 +1517,7 @@ class SpotRearrangementEnv(BaseEnv):
 
     def _get_initial_nonpercept_atoms(self) -> Set[GroundAtom]:
         """Get the initial atoms for nonpercept predicates."""
-        return set()
+        return self._apply_initial_unknown_overrides(set())
 
     @abc.abstractmethod
     def _generate_goal_description(self) -> GoalDescription:
@@ -1890,6 +2224,15 @@ if use_vlm:
         _Unknown_Inside, _Known_Inside, _BelieveTrue_Inside, _BelieveFalse_Inside
     }
 
+    _UNKNOWN_KNOWN_VLM_PREDICATES: Dict[str, Tuple[VLMPredicate, Optional[VLMPredicate]]] = {
+        "Unknown_ContainerEmpty": (_Unknown_ContainerEmpty, _Known_ContainerEmpty),
+        "ContainerEmpty": (_Unknown_ContainerEmpty, _Known_ContainerEmpty),
+        "Unknown_ContainingWater": (_Unknown_ContainingWater, _Known_ContainingWater),
+        "ContainingWater": (_Unknown_ContainingWater, _Known_ContainingWater),
+        "Unknown_Inside": (_Unknown_Inside, _Known_Inside),
+        "Inside": (_Unknown_Inside, _Known_Inside),
+    }
+
     _ALL_PREDICATES.update(_VLM_PREDICATES)
 
 else:
@@ -1911,6 +2254,7 @@ else:
     _ALL_PREDICATES.update({
         _On, _Inside, _FakeInside, _Blocking, _NotBlocked, _NotInsideAnyContainer
     })
+    _UNKNOWN_KNOWN_VLM_PREDICATES: Dict[str, Tuple[VLMPredicate, Optional[VLMPredicate]]] = {}
 
 _NONPERCEPT_PREDICATES: Set[Predicate] = set()
 
@@ -4304,6 +4648,16 @@ class LISSpotBlockBowlEnv(SpotRearrangementEnv):
 
     def _generate_goal_description(self) -> GoalDescription:
         return "pick the red block into the green bowl"
+
+    def _get_default_task_metadata(self) -> Mapping[str, Any]:
+        return {
+            "enable_incidental_discovery": True,
+            "discovery_candidates": [{
+                "prompt": "any snacks on the table",
+                "name": "snack_candidate",
+                "type": "movable",
+            }],
+        }
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:
