@@ -4,7 +4,9 @@ import json
 import logging
 from typing import Dict, List, Optional, Tuple, Union
 
-from PIL import Image
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(value, hi))
 
 
 def parse_gemini_point_response(
@@ -42,6 +44,10 @@ def parse_gemini_point_response(
                 y = y * 1000 / image_size[1]
                 x = x * 1000 / image_size[0]
                 point = [y, x]
+            point = [
+                _clamp(float(point[0]), 0.0, 1000.0),
+                _clamp(float(point[1]), 0.0, 1000.0),
+            ]
             
             normalized_points.append({
                 "point": point,
@@ -119,8 +125,8 @@ def denormalize_point(
         Point coordinates in image space
     """
     y, x = point
-    y = y * image_size[1] / 1000
-    x = x * image_size[0] / 1000
+    y = _clamp(float(y), 0.0, 1000.0) * image_size[1] / 1000
+    x = _clamp(float(x), 0.0, 1000.0) * image_size[0] / 1000
     return [y, x]
 
 
@@ -138,8 +144,8 @@ def denormalize_box(
         Box coordinates in image space
     """
     x1, y1, x2, y2 = box
-    x1 = x1 * image_size[0] / 1000
-    y1 = y1 * image_size[1] / 1000
-    x2 = x2 * image_size[0] / 1000
-    y2 = y2 * image_size[1] / 1000
-    return [x1, y1, x2, y2] 
+    x1 = _clamp(float(x1), 0.0, 1000.0) * image_size[0] / 1000
+    y1 = _clamp(float(y1), 0.0, 1000.0) * image_size[1] / 1000
+    x2 = _clamp(float(x2), 0.0, 1000.0) * image_size[0] / 1000
+    y2 = _clamp(float(y2), 0.0, 1000.0) * image_size[1] / 1000
+    return [x1, y1, x2, y2]

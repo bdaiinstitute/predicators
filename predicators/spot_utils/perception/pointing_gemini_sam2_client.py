@@ -64,8 +64,12 @@ def draw_points(
         label = str(point_data["label"])
         
         # Denormalize coordinates from 0-1000 range to image coordinates
-        y = int(float(point[0]) * height / 1000)
-        x = int(float(point[1]) * width / 1000)
+        norm_y = _clamp(float(point[0]), 0.0, 1000.0)
+        norm_x = _clamp(float(point[1]), 0.0, 1000.0)
+        y = int(round(norm_y * height / 1000))
+        x = int(round(norm_x * width / 1000))
+        y = int(_clamp(y, 0, height - 1))
+        x = int(_clamp(x, 0, width - 1))
         
         # Draw point with larger radius and white outline
         draw.ellipse(
@@ -100,10 +104,14 @@ def draw_detections(
         if not isinstance(box, list) or len(box) != 4:
             continue
         x1, y1, x2, y2 = box
-        x1 = int(float(x1) * width / 1000)
-        x2 = int(float(x2) * width / 1000)
-        y1 = int(float(y1) * height / 1000)
-        y2 = int(float(y2) * height / 1000)
+        x1 = int(round(_clamp(float(x1), 0, 1000) * width / 1000))
+        x2 = int(round(_clamp(float(x2), 0, 1000) * width / 1000))
+        y1 = int(round(_clamp(float(y1), 0, 1000) * height / 1000))
+        y2 = int(round(_clamp(float(y2), 0, 1000) * height / 1000))
+        x1 = int(_clamp(x1, 0, width - 1))
+        x2 = int(_clamp(x2, 0, width - 1))
+        y1 = int(_clamp(y1, 0, height - 1))
+        y2 = int(_clamp(y2, 0, height - 1))
         draw.rectangle((x1, y1, x2, y2), outline="cyan", width=box_width)
         label = str(det.get("label", ""))
         if label:
@@ -118,6 +126,10 @@ _MASK_COLORS = [
     (255, 165, 0),
     (186, 85, 211),
 ]
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(value, hi))
 
 
 def overlay_masks(
@@ -144,6 +156,43 @@ def overlay_masks(
         overlay = Image.new("RGBA", base.size, color + (alpha,))
         base = Image.composite(overlay, base, mask)
     return base.convert("RGB")
+
+
+def _save_client_visualizations(entries: Union[List[Dict], Dict], directory: str) -> None:
+    if isinstance(entries, dict):
+        entries = [entries]
+    if not entries:
+        console.print("[yellow]No results to visualize.[/yellow]")
+        return
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    for entry in entries:
+        image_b64 = entry.get("image")
+        if not image_b64:
+            continue
+        try:
+            image = Image.open(io.BytesIO(base64.b64decode(image_b64))).convert("RGB")
+        except Exception as exc:
+            console.print(f"[red]Failed to decode image for visualization: {exc}[/red]")
+            continue
+        if entry.get("points"):
+            image = draw_points(image, entry["points"])
+        detections = entry.get("detections")
+        if not detections and entry.get("boxes"):
+            detections = [{
+                "box_2d": box,
+                "label": entry.get("prompt", "")
+            } for box in entry["boxes"]]
+        if detections:
+            image = draw_detections(image, detections)
+        masks = entry.get("masks") or []
+        if masks:
+            image = overlay_masks(image, masks)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        prompt = entry.get("prompt", "prompt").replace(" ", "_")
+        image_idx = entry.get("image_index", 0)
+        filename = Path(directory) / f"client_pointing_{timestamp}_{prompt}_{image_idx}.png"
+        image.save(filename)
+        console.print(f"Saved pointing visualization to {filename}", style="yellow")
 
 
 class PointingGeminiSAM2Client:
@@ -342,40 +391,3 @@ def predict(
 
 if __name__ == "__main__":
     app()
-
-
-def _save_client_visualizations(entries: Union[List[Dict], Dict], directory: str) -> None:
-    if isinstance(entries, dict):
-        entries = [entries]
-    if not entries:
-        console.print("[yellow]No results to visualize.[/yellow]")
-        return
-    Path(directory).mkdir(parents=True, exist_ok=True)
-    for entry in entries:
-        image_b64 = entry.get("image")
-        if not image_b64:
-            continue
-        try:
-            image = Image.open(io.BytesIO(base64.b64decode(image_b64))).convert("RGB")
-        except Exception as exc:
-            console.print(f"[red]Failed to decode image for visualization: {exc}[/red]")
-            continue
-        if entry.get("points"):
-            image = draw_points(image, entry["points"])
-        detections = entry.get("detections")
-        if not detections and entry.get("boxes"):
-            detections = [{
-                "box_2d": box,
-                "label": entry.get("prompt", "")
-            } for box in entry["boxes"]]
-        if detections:
-            image = draw_detections(image, detections)
-        masks = entry.get("masks") or []
-        if masks:
-            image = overlay_masks(image, masks)
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        prompt = entry.get("prompt", "prompt").replace(" ", "_")
-        image_idx = entry.get("image_index", 0)
-        filename = Path(directory) / f"client_pointing_{timestamp}_{prompt}_{image_idx}.png"
-        image.save(filename)
-        console.print(f"Saved pointing visualization to {filename}", style="yellow")

@@ -9,6 +9,7 @@ from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
 
+from predicators.settings import CFG
 from predicators.spot_utils.perception.perception_structs import RGBDImage, \
     RGBDImageWithContext
 from predicators.spot_utils.spot_localization import SpotLocalizer
@@ -54,7 +55,10 @@ def capture_images(
     global _LAST_CAPTURED_IMAGES  # pylint: disable=global-statement
 
     if camera_names is None:
-        camera_names = set(RGB_TO_DEPTH_CAMERAS)
+        camera_names = ({"hand_color_image"}
+                        if CFG.spot_hand_camera_only else
+                        set(RGB_TO_DEPTH_CAMERAS))
+    camera_names = list(camera_names)
 
     image_client = robot.ensure_client(ImageClient.default_service_name)
 
@@ -131,7 +135,10 @@ def capture_images_without_context(
     If no camera names are provided, all RGB cameras are used.
     """
     if camera_names is None:
-        camera_names = set(RGB_TO_DEPTH_CAMERAS)
+        camera_names = ({"hand_color_image"}
+                        if CFG.spot_hand_camera_only else
+                        set(RGB_TO_DEPTH_CAMERAS))
+    camera_names = list(camera_names)
     image_client = robot.ensure_client(ImageClient.default_service_name)
     rgbds: Dict[str, RGBDImage] = {}
 
