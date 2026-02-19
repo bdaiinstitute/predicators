@@ -1489,6 +1489,7 @@ def nsrt_plan_to_greedy_option_policy(
             raise OptionExecutionFailure(
                 "Executing the NSRT failed to achieve the necessary atoms.")
         cur_nsrt = nsrt_queue.pop(0)
+        logging.info(f"Running nsrt: {cur_nsrt.name}, {cur_nsrt.objects}")
         cur_option = cur_nsrt.sample_option(state, goal, rng)
         logging.debug(f"Using option {cur_option.name}{cur_option.objects}"
                       f"{cur_option.params} from NSRT plan.")
@@ -2358,12 +2359,39 @@ def create_llm_by_name(
     return OpenAILLM(model_name)
 
 
+class _DummyVLM(VisionLanguageModel):
+
+    def get_id(self) -> str:  # pragma: no cover
+        """Return a unique identifier for this VLM."""
+        return "dummy"
+
+    def _sample_completions(
+            self,
+            prompt: str,
+            imgs: Optional[List[PIL.Image.Image]],
+            temperature: float,
+            seed: int,
+            stop_token: Optional[str] = None,
+            num_completions: int = 1) -> List[str]:  # pragma: no cover
+        """Sample completions from the model."""
+        del imgs  # unused.
+        completions = []
+        for _ in range(num_completions):
+            completion = (f"Prompt: {prompt}. Seed: {seed}. "
+                          f"Temp: {temperature:.1f}. Stop: {stop_token}.")
+            completions.append(completion)
+        return completions
+
+
 def create_vlm_by_name(
         model_name: str) -> VisionLanguageModel:  # pragma: no cover
     """Create particular vlm using a provided name."""
     if "gemini" in model_name:
         return GoogleGeminiVLM(model_name)
-    return OpenAIVLM(model_name)
+    if "gpt" in model_name:
+        return OpenAIVLM(model_name)
+    assert model_name == "dummy"
+    return _DummyVLM()
 
 
 def parse_model_output_into_option_plan(
@@ -2499,7 +2527,9 @@ def get_prompt_for_vlm_state_labelling(
         imgs_history: List[List[PIL.Image.Image]],
         cropped_imgs_history: List[List[PIL.Image.Image]],
         skill_history: List[_Option]) -> Tuple[str, List[PIL.Image.Image]]:
-    """Prompt for labelling atom values in a trajectory.
+    """Prompt for generating labels for an entire trajectory. Similar to the
+    above prompting method, this outputs a list of prompts to label the state
+    at each timestep of traj with atom values).
 
     Note that all our prompts are saved as separate txt files under the
     'vlm_input_data_prompts/atom_labelling' folder.
@@ -2521,18 +2551,40 @@ def get_prompt_for_vlm_state_labelling(
     if "img_option_diffs" in prompt_type:
         # In this case, we need to load the 'per_scene_naive' prompt as well
         # for the first timestep.
-        with open(filepath_prefix + "per_scene_naive.txt",
-                  "r",
+        with open(filepath_prefix + "per_scene_cot.txt", "r",
                   encoding="utf-8") as f:
             init_prompt = f.read()
         for atom_str in atoms_list:
             init_prompt += f"\n{atom_str}"
-        if len(label_history) == 0:
+        if len(label_history) == 0 or (skill_history[-1] is None):
             return (init_prompt, imgs_history[0])
         # Now, we use actual difference-based prompting for the second timestep
         # and beyond.
         curr_prompt = prompt[:]
-        curr_prompt_imgs = [imgs_history[-2][0], imgs_history[-1][0]]
+
+        # Note that each element of imgs_history might have multiple
+        # images embedded inside; thus we need to get all of these.
+        curr_prompt_imgs = []
+        assert len(imgs_history[-2]) == len(imgs_history[-1])
+        for prev_img, curr_img in zip(imgs_history[-2], imgs_history[-1]):
+            if "spot" in CFG.env:  # pragma: no cover
+                # For spot envs, we need to label each of the images with
+                # "before" and "after".
+                draw_prev = ImageDraw.Draw(prev_img)
+                prev_img_shape = prev_img.size[:2]
+                draw_curr = ImageDraw.Draw(curr_img)
+                curr_img_shape = curr_img.size[:2]
+                font = get_scaled_default_font(draw_prev, 4)
+                prev_img_font_loc = (int(prev_img_shape[0] * 0.9),
+                                     int(prev_img_shape[1] * 0.9))
+                curr_img_font_loc = (int(curr_img_shape[0] * 0.9),
+                                     int(curr_img_shape[1] * 0.9))
+                _ = add_text_to_draw_img(draw_prev, prev_img_font_loc,
+                                         "Before", font)
+                _ = add_text_to_draw_img(draw_curr, curr_img_font_loc, "After",
+                                         font)
+            curr_prompt_imgs.extend([prev_img, curr_img])
+
         if CFG.vlm_include_cropped_images:
             if CFG.env in ["burger", "burger_no_move"]:  # pragma: no cover
                 curr_prompt_imgs.extend(
@@ -2578,7 +2630,8 @@ def query_vlm_for_atom_vals(
         prev_states_imgs_history = [
             s.simulator_state["images"] for s in prev_states
         ]
-        if "cropped_images" in prev_states[0].simulator_state:
+        if len(prev_states
+               ) > 0 and "cropped_images" in prev_states[0].simulator_state:
             prev_states_imgs_history = [
                 s.simulator_state["cropped_images"] for s in prev_states
             ]
@@ -2596,30 +2649,79 @@ def query_vlm_for_atom_vals(
     # Query VLM.
     if vlm is None:
         vlm = create_vlm_by_name(CFG.vlm_model_name)  # pragma: no cover.
-    vlm_input_imgs = \
-        [PIL.Image.fromarray(img_arr) for img_arr in imgs] # type: ignore
     vlm_output = vlm.sample_completions(vlm_query_str,
-                                        vlm_input_imgs,
+                                        imgs,
                                         0.0,
                                         seed=CFG.seed,
                                         num_completions=1)
     assert len(vlm_output) == 1
     vlm_output_str = vlm_output[0]
-    all_vlm_responses = vlm_output_str.strip().split("\n")
-    # NOTE: this assumption is likely too brittle; if this is breaking, feel
-    # free to remove/adjust this and change the below parsing loop accordingly!
-    if len(atom_queries_list) != len(all_vlm_responses):
-        return set()
-    for i, (atom_query, curr_vlm_output_line) in enumerate(
-            zip(atom_queries_list, all_vlm_responses)):
-        try:
-            assert atom_query + ":" in curr_vlm_output_line
-            assert "." in curr_vlm_output_line
-            value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
-            if value == "true":
-                true_atoms.add(vlm_atoms[i])
-        except AssertionError:  # pragma: no cover
-            continue
+    logging.info(f"VLM output: \n{vlm_output_str}")
+    # Parse the VLM output to find true atoms.
+    true_atoms = set()
+    # Create a mapping from the query string back to the GroundAtom object.
+    query_str_to_atom = {atom.get_vlm_query_str(): atom for atom in vlm_atoms}
+    for atom_query_str in atom_queries_list:
+        # Escape special characters in the atom query string for regex.
+        escaped_query = re.escape(atom_query_str)
+        # Regex to find the atom query string followed by a colon (optional)
+        # and a truth value (True, False, Unknown), case-insensitive.
+        # We look for the value potentially surrounded by whitespace.
+        pattern = re.compile(rf"{escaped_query}\s*:?\s*(True|False|Unknown)",
+                             re.IGNORECASE)
+        matches = list(pattern.finditer(vlm_output_str))
+        if matches:
+            # Find the last match.
+            last_match = matches[-1]
+            # Extract the truth value from the last match.
+            truth_value_str = last_match.group(1)
+            # Check if the truth value is 'True' (case-insensitive).
+            if truth_value_str.lower() == 'true':
+                # Find the corresponding GroundAtom object.
+                if atom_query_str in query_str_to_atom:
+                    true_atoms.add(query_str_to_atom[atom_query_str])
+                else:
+                    # This case should ideally not happen if atom_queries_list
+                    # is derived correctly from vlm_atoms.
+                    logging.warning(
+                        f"Could not find GroundAtom for query: {atom_query_str}"
+                    )
+    logging.info(f"Parsed true atoms: {true_atoms}")
+    # # Parse out stuff.
+    # if len(label_history) > 0:  # pragma: no cover
+    #     truth_values = re.findall(r'\* (.*): (True|False|Unknown)',
+    #                               vlm_output_str)
+    #     for i, (atom_query,
+    #             pred_label) in enumerate(zip(atom_queries_list, truth_values)):
+    #         pred, label = pred_label
+    #         pred = pred.strip()
+    #         try:
+    #             assert pred in atom_query
+    #         except AssertionError:
+    #             import ipdb
+    #             ipdb.set_trace()
+    #         label = label.lower()
+    #         if "true" in label.lower():
+    #             true_atoms.add(vlm_atoms[i])
+    # else:
+    #     if "Predicate Values:" in vlm_output_str:
+    #     all_vlm_responses = vlm_output_str.strip().split("\n")
+    #     # NOTE: this assumption is likely too brittle; if this is breaking,
+    #     # feel free to remove/adjust this and change the below parsing
+    #     # loop accordingly!
+    #     if len(atom_queries_list) != len(all_vlm_responses):
+    #         import ipdb; ipdb.set_trace()
+    #         return true_atoms
+    #     for i, (atom_query, curr_vlm_output_line) in enumerate(
+    #             zip(atom_queries_list, all_vlm_responses)):
+    #         assert atom_query + ":" in curr_vlm_output_line
+    #         assert "." in curr_vlm_output_line
+    #         # period_idx = curr_vlm_output_line.find(".")
+    #         # value = curr_vlm_output_line[len(atom_query + ":"):
+    #         # period_idx].lower().strip()
+    #         value = curr_vlm_output_line.split(': ')[-1].strip('.').lower()
+    #         if "true" in value:
+    #             true_atoms.add(vlm_atoms[i])
     return true_atoms
 
 
@@ -2631,6 +2733,16 @@ def abstract(state: State,
 
     Duplicate arguments in predicates are allowed.
     """
+    try:
+        if state.simulator_state is not None and "abstract_state" in \
+            state.simulator_state: # pragma: no cover
+            return {
+                atom
+                for atom in state.simulator_state["abstract_state"]
+                if atom.predicate in preds
+            }
+    except (AttributeError, TypeError):
+        pass
     # Start by pulling out all VLM predicates.
     vlm_preds = set(pred for pred in preds if isinstance(pred, VLMPredicate))
     # Next, classify all non-VLM predicates.

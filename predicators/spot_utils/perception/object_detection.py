@@ -41,7 +41,7 @@ from predicators.spot_utils.perception.object_specific_grasp_selection import \
 from predicators.spot_utils.perception.perception_structs import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, PythonicObjectDetectionID, \
-    RGBDImageWithContext, SegmentedBoundingBox
+    RGBDImage, RGBDImageWithContext, SegmentedBoundingBox
 from predicators.spot_utils.utils import get_april_tag_transform, \
     get_graph_nav_dir
 from predicators.utils import rotate_point_in_image
@@ -244,6 +244,7 @@ def detect_objects_from_language(
                                  f"{obj_id} because it's out of bounds. " + \
                                  f"(pose = {pose_xy})")
                     continue
+
             # Pose extraction succeeded.
             detections[obj_id] = pose
             break
@@ -259,7 +260,7 @@ def detect_objects_from_language(
 
 def _query_detic_sam(
     object_ids: Collection[LanguageObjectDetectionID],
-    rgbds: Dict[str, RGBDImageWithContext],
+    rgbds: Dict[str, RGBDImageWithContext] | Dict[str, RGBDImage],
     max_server_retries: int = 5,
     detection_threshold: float = CFG.spot_vision_detection_threshold
 ) -> Dict[ObjectDetectionID, Dict[str, SegmentedBoundingBox]]:
@@ -472,7 +473,7 @@ def get_random_mask_pixel_from_artifacts(
     pixels_in_mask = np.where(mask)
     mask_idx = rng.choice(len(pixels_in_mask))
     pixel_tuple = (pixels_in_mask[1][mask_idx], pixels_in_mask[0][mask_idx])
-    # Uncomment to plot the grasp pixel being selected!
+    # # Uncomment to plot the grasp pixel being selected!
     # rgb_img = artifacts["language"]["rgbds"][camera_name].rgb
     # _, axes = plt.subplots()
     # axes.imshow(rgb_img)

@@ -6,7 +6,7 @@ import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, ClassVar, Collection, Dict, Iterator, List, \
+from typing import Any, Callable, ClassVar, Collection, Dict, Iterator, List, \
     Optional, Sequence, Set, Tuple
 
 import matplotlib
@@ -24,14 +24,15 @@ from predicators.envs import BaseEnv
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
-    LanguageObjectDetectionID, ObjectDetectionID, detect_objects, \
-    visualize_all_artifacts
+    LanguageObjectDetectionID, ObjectDetectionID, _query_detic_sam, \
+    detect_objects, visualize_all_artifacts
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     brush_prompt, bucket_prompt, football_prompt, train_toy_prompt, blue_toy_chair_prompt, \
     orange_bucket_prompt
-from predicators.spot_utils.perception.perception_structs import \
-    RGBDImageWithContext
-from predicators.spot_utils.perception.spot_cameras import capture_images
+from predicators.spot_utils.perception.perception_structs import RGBDImage, \
+    RGBDImageWithContext, SegmentedBoundingBox
+from predicators.spot_utils.perception.spot_cameras import capture_images, \
+    capture_images_without_context
 from predicators.spot_utils.skills.spot_find_objects import \
     init_search_for_objects
 from predicators.spot_utils.skills.spot_hand_move import \
@@ -40,9 +41,10 @@ from predicators.spot_utils.skills.spot_navigation import go_home, \
     navigate_to_absolute_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.spot_localization import SpotLocalizer
-from predicators.spot_utils.utils import _base_object_type, _container_type, \
-    _immovable_object_type, _movable_object_type, _robot_type, \
-    construct_state_given_pbrspot, get_allowed_map_regions, \
+from predicators.spot_utils.utils import _base_object_type, _broom_type, \
+    _container_type, _dustpan_type, _immovable_object_type, \
+    _movable_object_type, _robot_type, _table_type, _trash_can_type, \
+    _wrappers_type, construct_state_given_pbrspot, get_allowed_map_regions, \
     get_graph_nav_dir, get_robot_gripper_open_percentage, get_spot_home_pose, \
     load_spot_metadata, object_to_top_down_geom, update_pbrspot_given_state, \
     update_pbrspot_robot_conf, verify_estop
@@ -83,6 +85,31 @@ class _SpotObservation:
     # A placeholder until all predicates have classifiers
     nonpercept_atoms: Set[GroundAtom]
     nonpercept_predicates: Set[Predicate]
+    # Object detections per camera in self.images.
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
+                                                       SegmentedBoundingBox]]]
+
+
+@dataclass(frozen=True)
+class _TruncatedSpotObservation:
+    """An observation for a SpotEnv."""
+    # Camera name to image
+    rgbd_images: Dict[str, RGBDImage]
+    all_objects: Set[Object]
+    # Objects in the environment; NOTE that we might not need this.
+    objects_in_view: Set[Object]
+    # Objects seen only by the hand camera
+    objects_in_hand_view: Set[Object]
+    # Objects seen by any camera except the back camera
+    objects_in_any_view_except_back: Set[Object]
+    # Expose the robot object.
+    robot: Object
+    # Status of the robot gripper.
+    gripper_open_percentage: float
+    # Object detections per camera in self.rgbd_images.
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
+                                                       SegmentedBoundingBox]]]
+    executed_skill: Optional[Action] = None
 
 
 class _PartialPerceptionState(State):
@@ -117,10 +144,8 @@ class _PartialPerceptionState(State):
 
     def copy(self) -> State:
         state_copy = {o: self._copy_state_value(self.data[o]) for o in self}
-        sim_state_copy = {
-            "predicates": self._simulator_state_predicates.copy(),
-            "atoms": self._simulator_state_atoms.copy()
-        }
+        if self.simulator_state is not None:
+            sim_state_copy = self.simulator_state.copy()
         return _PartialPerceptionState(state_copy,
                                        simulator_state=sim_state_copy)
 
@@ -138,10 +163,14 @@ def _create_dummy_predicate_classifier(
 
 @functools.lru_cache(maxsize=None)
 def get_robot(
+    use_localizer: bool = True
 ) -> Tuple[Optional[Robot], Optional[SpotLocalizer], Optional[LeaseClient]]:
     """Create the robot only once.
 
-    If we are doing a dry run, return dummy Nones for each component.
+    If we're using a map, we set the `use_localizer` argument to True,
+    otherwise (for instance in the SpotMinimalVLMPredicateEnv) we set it
+    to `False`. If we are doing a dry run, return dummy Nones for each
+    component.
     """
     if CFG.spot_run_dry:
         return None, None, None
@@ -157,8 +186,10 @@ def get_robot(
     lease_keepalive = LeaseKeepAlive(lease_client,
                                      must_acquire=True,
                                      return_at_exit=True)
+    localizer = None
     assert path.exists()
-    localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+    if use_localizer:
+        localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
     return robot, localizer, lease_client
 
 
@@ -734,7 +765,18 @@ class SpotRearrangementEnv(BaseEnv):
                                 break
                             if response == "n":
                                 break
-
+        # Construct the detections per camera.
+        obj_detections_per_camera: Dict[str,
+                                        List[Tuple[ObjectDetectionID,
+                                                   SegmentedBoundingBox]]] = {
+                                                       k: []
+                                                       for k in rgbds.keys()
+                                                   }
+        for object_id, d in all_artifacts['language'][
+                'object_id_to_img_detections'].items():
+            for camera_name, seg_bb in d.items():
+                obj_detections_per_camera[camera_name].append(
+                    (object_id, seg_bb))
         # Prepare the non-percepts.
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in ground_atoms)
@@ -742,7 +784,8 @@ class SpotRearrangementEnv(BaseEnv):
                                objects_in_hand_view,
                                objects_in_any_view_except_back,
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, ground_atoms, nonpercept_preds)
+                               robot_pos, ground_atoms, nonpercept_preds,
+                               obj_detections_per_camera)
 
         return obs
 
@@ -833,7 +876,15 @@ class SpotRearrangementEnv(BaseEnv):
         # an initial observation.
         assert self._robot is not None
         assert self._localizer is not None
-        objects_in_view = self._actively_construct_initial_object_views()
+        objects_in_view, artifacts = self._actively_construct_initial_object_views(
+        )
+        # ###############
+        # # HACK: just for ViLA running!
+        # objects_in_view = {}
+        # artifacts = {}
+        # artifacts['language'] = {}
+        # artifacts['language']['object_id_to_img_detections'] = {}
+        # ###############
         rgbd_images = capture_images(self._robot, self._localizer)
         gripper_open_percentage = get_robot_gripper_open_percentage(
             self._robot)
@@ -842,9 +893,20 @@ class SpotRearrangementEnv(BaseEnv):
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
         assert all(a.predicate in nonpercept_preds for a in nonpercept_atoms)
+        # Construct the detections per camera.
+        obj_detections_per_camera: Dict[str, List[Tuple[
+            ObjectDetectionID,
+            SegmentedBoundingBox]]] = {k: []
+                                       for k in rgbd_images.keys()}
+        for object_id, d in artifacts['language'][
+                'object_id_to_img_detections'].items():
+            for camera_name, seg_bb in d.items():
+                obj_detections_per_camera[camera_name].append(
+                    (object_id, seg_bb))
         obs = _SpotObservation(rgbd_images, objects_in_view, set(), set(),
                                self._spot_object, gripper_open_percentage,
-                               robot_pos, nonpercept_atoms, nonpercept_preds)
+                               robot_pos, nonpercept_atoms, nonpercept_preds,
+                               obj_detections_per_camera)
         goal_description = self._generate_goal_description()
         task = EnvironmentTask(obs, goal_description)
         # Save the task for future use.
@@ -961,41 +1023,40 @@ class SpotRearrangementEnv(BaseEnv):
         # Prepare the non-percepts.
         nonpercept_atoms = self._get_initial_nonpercept_atoms()
         nonpercept_preds = self.predicates - self.percept_predicates
-        init_obs = _SpotObservation(
-            images,
-            objects_in_view,
-            set(),
-            set(),
-            robot,
-            gripper_open_percentage,
-            robot_pos,
-            nonpercept_atoms,
-            nonpercept_preds,
-        )
+        init_obs = _SpotObservation(images, objects_in_view, set(), set(),
+                                    robot, gripper_open_percentage, robot_pos,
+                                    nonpercept_atoms, nonpercept_preds, {})
         # The goal can remain the same.
         goal = base_env_task.goal_description
         return EnvironmentTask(init_obs, goal)
 
     def _actively_construct_initial_object_views(
-            self) -> Dict[Object, math_helpers.SE3Pose]:
+            self) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[str, Any]]:
         assert self._robot is not None
         assert self._localizer is not None
         stow_arm(self._robot)
-        go_home(self._robot, self._localizer)
+        # go_home(self._robot, self._localizer)
         self._localizer.localize()
         detection_ids = self._detection_id_to_obj.keys()
-        detections = self._run_init_search_for_objects(set(detection_ids))
+        detections, artifacts = self._run_init_search_for_objects(
+            set(detection_ids))
         stow_arm(self._robot)
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
             for (det_id, val) in detections.items()
         }
         self._last_known_object_poses.update(obj_to_se3_pose)
-        return obj_to_se3_pose
+        # Move the robot into a good place to construct the initial state
+        # by running VLM predicates.
+        prompt = "Finished initial search for objects. Take control of the robot and move it into a good initial location for constructing the initial state of the task. Press 'Enter' when done!"
+        _ = input(prompt)
+        assert self._lease_client is not None
+        self._lease_client.take()
+        return obj_to_se3_pose, artifacts
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
-    ) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+    ) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any]]:
         """Have the hand look down from high up at first."""
         assert self._robot is not None
         assert self._localizer is not None
@@ -1017,7 +1078,8 @@ class SpotRearrangementEnv(BaseEnv):
             no_detections_outfile = outdir / f"no_detections_{time_str}.png"
             visualize_all_artifacts(artifacts, detections_outfile,
                                     no_detections_outfile)
-        return detections
+        self._lease_client
+        return detections, artifacts
 
     @property
     @abc.abstractmethod
@@ -1051,11 +1113,8 @@ _ROBOT_SWEEP_READY_TOL = 0.25
 
 ## Types
 _ALL_TYPES = {
-    _robot_type,
-    _base_object_type,
-    _movable_object_type,
-    _immovable_object_type,
-    _container_type,
+    _robot_type, _base_object_type, _movable_object_type,
+    _immovable_object_type, _container_type, _table_type, _trash_can_type
 }
 
 
@@ -1502,12 +1561,77 @@ _SurfaceWiped = Predicate("SurfaceWiped", [_immovable_object_type],
 _IsSemanticallyGreaterThan = Predicate(
     "IsSemanticallyGreaterThan", [_base_object_type, _base_object_type],
     _is_semantically_greater_than_classifier)
+
+
+def _get_vlm_query_str(pred_name: str, objects: Sequence[Object]) -> str:
+    return pred_name + "(" + ", ".join(
+        str(obj.name) for obj in objects) + ")"  # pragma: no cover
+
+
+_VLMOn = utils.create_vlm_predicate("VLMOn",
+                                    [_movable_object_type, _base_object_type],
+                                    lambda o: _get_vlm_query_str("OnTopOf", o))
+_VLMOnTable = utils.create_vlm_predicate(
+    "VLMOnTable", [_movable_object_type, _table_type],
+    lambda o: _get_vlm_query_str("OnTopTable", o))
+_VLMOnFloor = utils.create_vlm_predicate(
+    "VLMOnFloor", [_movable_object_type],
+    lambda o: _get_vlm_query_str("OnFloor", o))
+_TableClear = utils.create_vlm_predicate(
+    "TableClear", [_table_type],
+    lambda o: _get_vlm_query_str("ClearOfObjects", o))
+_CanBeUsedForErasing = utils.create_vlm_predicate(
+    "CanBeUsedForErasing", [_base_object_type],
+    lambda o: _get_vlm_query_str("CanBeUsedForErasing", o))
+_TableWiped = utils.create_vlm_predicate(
+    "TableWiped", [_table_type],
+    lambda o: _get_vlm_query_str("WipedOfMarkerScribbles", o))
+_TableClean = utils.create_vlm_predicate(
+    "TableClean", [_table_type],
+    lambda o: _get_vlm_query_str("CleanOfObjectsAndMarkings", o))
+_Upright = utils.create_vlm_predicate(
+    "Upright", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Upright", o))
+_Toasted = utils.create_vlm_predicate(
+    "Toasted", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Toasted", o))
+_VLMIn = utils.create_vlm_predicate(
+    "VLMIn", [_movable_object_type, _immovable_object_type],
+    lambda o: _get_vlm_query_str("Inside", o))
+_Open = utils.create_vlm_predicate("Open", [_movable_object_type],
+                                   lambda o: _get_vlm_query_str("Open", o))
+_Stained = utils.create_vlm_predicate(
+    "Stained", [_movable_object_type],
+    lambda o: _get_vlm_query_str("Stained", o))
+_Messy = utils.create_vlm_predicate("Messy", [_movable_object_type],
+                                    lambda o: _get_vlm_query_str("Messy", o))
+
+_Touching = utils.create_vlm_predicate(
+    "Touching", [_dustpan_type, _wrappers_type],
+    lambda o: _get_vlm_query_str("Touching", o))
+
 _ALL_PREDICATES = {
-    _NEq, _On, _TopAbove, _Inside, _NotInsideAnyContainer, _FitsInXY,
-    _HandEmpty, _Holding, _NotHolding, _InHandView, _InView, _Reachable,
-    _Blocking, _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable,
-    _IsNotPlaceable, _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
-    _IsSemanticallyGreaterThan, _Open, _NotOpen, _SurfaceWiped
+    _NEq, _On, _TopAbove, _NotInsideAnyContainer, _FitsInXY, _HandEmpty,
+    _Holding, _NotHolding, _InHandView, _InView, _Reachable, _Blocking,
+    _NotBlocked, _ContainerReadyForSweeping, _IsPlaceable, _IsNotPlaceable,
+    _IsSweeper, _HasFlatTopSurface, _RobotReadyForSweeping,
+    _IsSemanticallyGreaterThan, _Inside, _Open, _NotOpen, _SurfaceWiped
+}
+_VLM_PREDICATES = {
+    _VLMOn,
+    _VLMOnTable,
+    _VLMOnFloor,
+    _TableClear,
+    _TableWiped,
+    _TableClean,
+    _Upright,
+    _Toasted,
+    _CanBeUsedForErasing,
+    _VLMIn,
+    _Open,
+    _Stained,
+    _Messy,
+    _Touching,
 }
 _NONPERCEPT_PREDICATES: Set[Predicate] = {_SurfaceWiped}
 
@@ -2041,7 +2165,7 @@ def _dry_simulate_move_to_view_hand(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2073,7 +2197,7 @@ def _dry_simulate_move_to_reach_obj(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2111,7 +2235,7 @@ def _dry_simulate_pick_from_top(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2183,7 +2307,7 @@ def _dry_simulate_place_on_top(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2227,7 +2351,7 @@ def _dry_simulate_drop_inside(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2274,7 +2398,7 @@ def _dry_simulate_drag(last_obs: _SpotObservation, held_obj: Object,
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2329,7 +2453,7 @@ def _dry_simulate_prepare_container_for_sweeping(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2407,7 +2531,7 @@ def _dry_simulate_sweep_into_container(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
 
     return next_obs
 
@@ -2433,7 +2557,7 @@ def _dry_simulate_drop_not_placeable_object(
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
 
 
@@ -2455,7 +2579,7 @@ def _dry_simulate_noop(last_obs: _SpotObservation,
         robot_pos=robot_pose,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
 
 
@@ -2484,8 +2608,586 @@ def _dry_simulate_pick_and_dump_container(
         robot_pos=obs.robot_pos,
         nonpercept_atoms=nonpercept_atoms,
         nonpercept_predicates=last_obs.nonpercept_predicates,
-    )
+        object_detections_per_camera={})
     return next_obs
+
+
+###############################################################################
+#                         VLM No Teleop Test Env                              #
+###############################################################################
+class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
+    """An abstract env that makes it easy to test the VLM-based predicate
+    invention and evaluation pipeline on the real Spot robot.
+
+    Importantly note that every env that inherits from this doesn't
+    require a map. Rather, it just works directly without a map. This
+    means that we don't get to use all the nice navigation skills that
+    we have on the robot. To use those, we need to use a variant of the
+    SpotRearrangementEnv from above.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:  #pylint:disable=super-init-not-called
+        robot, _, lease_client = get_robot(use_localizer=False)
+        self._robot = robot
+        self._lease_client = lease_client
+        self._strips_operators: Set[STRIPSOperator] = set()
+        # Used to do [something] when the agent thinks the goal is reached
+        # but the human says it is not.
+        self._current_task_goal_reached = False
+        # Used when we want to doa special check for a specific
+        # action.
+        self._last_action: Optional[Action] = None
+        # Create constant objects.
+        self._spot_object = Object("robot", _robot_type)
+        op_to_name = {o.name: o
+                      for o in self._create_operators()
+                      } | {o.name: o
+                           for o in _create_operators()}
+        self._strips_operators = {
+            op_to_name[o]
+            for o in self.op_names_to_keep()
+        }
+        self._train_tasks = []
+        self._test_tasks = []
+
+    def op_names_to_keep(self) -> Set[str]:
+        """Return the names of the operators we want to keep."""
+        raise NotImplementedError("Implement in subclass.")
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        """Create the STRIPS operators for this environment."""
+        raise NotImplementedError("Implement in subclass.")
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("No dry task for VLMPredicateEnvs.")
+
+    def _generate_test_tasks(self) -> List[EnvironmentTask]:
+        goal = self._generate_goal_description()  # currently just one goal
+        return [EnvironmentTask(None, goal) for _ in range(CFG.num_test_tasks)]
+
+    def _generate_train_tasks(self) -> List[EnvironmentTask]:
+        goal = self._generate_goal_description()  # currently just one goal
+        return [
+            EnvironmentTask(None, goal) for _ in range(CFG.num_train_tasks)
+        ]
+
+    def _get_task_object_set(self) -> Set[Object]:
+        """Get all the Objects in this particular task."""
+        return set(self._detection_id_to_obj.values())
+
+    def _actively_construct_env_task(self) -> EnvironmentTask:
+        assert self._robot is not None
+        rgbd_images = capture_images_without_context(self._robot)
+        # Uncomment for debugging
+        # import PIL
+        # imgs = [v.rgb for _, v in rgbd_images.items()]
+        # rot_imgs = [v.rotated_rgb for _, v in rgbd_images.items()]
+        # ex1 = PIL.Image.fromarray(imgs[0])
+        # ex2 = PIL.Image.fromarray(rot_imgs[0])
+        # import ipdb; ipdb.set_trace()
+        gripper_open_percentage = get_robot_gripper_open_percentage(
+            self._robot)
+
+        # Perform object detection.
+        object_detections_per_camera = self.detect_objects(rgbd_images)
+
+        # NOTE: uncomment for debugging via images.
+        # artifacts = {
+        #     "language": {
+        #         "rgbds": rgbd_images,
+        #         "object_id_to_img_detections": ret
+        #     }
+        # }
+        # detections_outfile = Path(".") / "object_detection_artifacts.png"
+        # no_detections_outfile = Path(".") / "no_detection_artifacts.png"
+        # visualize_all_artifacts(artifacts, detections_outfile,
+        #                         no_detections_outfile)
+        # # Draw object bounding box on images.
+        # rgbds = artifacts["language"]["rgbds"]
+        # detections = artifacts["language"]["object_id_to_img_detections"]
+        # flat_detections: List[Tuple[RGBDImage, LanguageObjectDetectionID,
+        #                             SegmentedBoundingBox]] = []
+        # for obj_id, img_detections in detections.items():
+        #     for camera, seg_bb in img_detections.items():
+        #         rgbd = rgbds[camera]
+        #         flat_detections.append((rgbd, obj_id, seg_bb))
+        # # For now assume we only have 1 image, front-left.
+        # import PIL
+        # from PIL import ImageDraw, ImageFont
+        # bb_pil_imgs = []
+        # img = list(rgbd_images.values())[0].rotated_rgb
+        # pil_img = PIL.Image.fromarray(img)
+        # draw = ImageDraw.Draw(pil_img)
+        # for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
+        #     # img = rgbd.rotated_rgb
+        #     # pil_img = PIL.Image.fromarray(img)
+        #     x0, y0, x1, y1 = seg_bb.bounding_box
+        #     draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+        #     text = f"{obj_id.language_id}"
+        #     font = ImageFont.load_default()
+        #     # font = utils.get_scaled_default_font(draw, 4)
+        #     # text_width, text_height = draw.textsize(text, font)
+        #     # text_width = draw.textlength(text, font)
+        #     # text_height = font.getsize("hg")[1]
+        #     text_mask = font.getmask(text)
+        #     text_width, text_height = text_mask.size
+        #     text_bbox = [(x0, y0 - text_height - 2),
+        #                   (x0 + text_width + 2, y0)]
+        #     draw.rectangle(text_bbox, fill='green')
+        #     draw.text((x0 + 1, y0 - text_height - 1),
+        #               text,
+        #               fill='white',
+        #               font=font)
+        # import ipdb; ipdb.set_trace()
+
+        obs = _TruncatedSpotObservation(rgbd_images,
+                                        self._get_task_object_set(), set(),
+                                        set(), set(), self._spot_object,
+                                        gripper_open_percentage,
+                                        object_detections_per_camera, None)
+        goal_description = self._generate_goal_description()
+        task = EnvironmentTask(obs, goal_description)
+        return task
+
+    def detect_objects(
+        self, rgbd_images: Dict[str, RGBDImage]
+    ) -> Dict[str, List[Tuple[ObjectDetectionID, SegmentedBoundingBox]]]:
+        """A simple minimal version of the `detect_objects` method that we
+        import from object_detection.py.
+
+        This is more minimal and can be used to construct simple
+        observations specifically for this 'mapless' environment.
+        """
+        object_ids = list(self._detection_id_to_obj.keys())
+        # For now, we assume that all object ids are LanguageObjectDetectionIDs.
+        for obj_id in object_ids:
+            assert isinstance(
+                obj_id, LanguageObjectDetectionID
+            ), "Only LanguageObjectDetectionIDs are supported."
+        object_id_to_img_detections = _query_detic_sam(
+            object_ids, rgbd_images)  # type: ignore
+        # This ^ is currently a mapping of object_id -> camera_name ->
+        # SegmentedBoundingBox.
+        # We want to do our annotations by camera image, so let's turn this
+        # into a mapping of camera_name -> object_id -> SegmentedBoundingBox.
+        detections: Dict[str, List[Tuple[ObjectDetectionID,
+                                         SegmentedBoundingBox]]] = {
+                                             k: []
+                                             for k in rgbd_images.keys()
+                                         }
+        for object_id, d in object_id_to_img_detections.items():
+            for camera_name, seg_bb in d.items():
+                detections[camera_name].append((object_id, seg_bb))
+        return detections
+
+    def reset(self, train_or_test: str, task_idx: int) -> Observation:
+        prompt = f"Please set up {train_or_test} task {task_idx}!"
+        utils.prompt_user(prompt)
+        assert self._lease_client is not None
+        # Automatically retry if a retryable error is encountered.
+        while True:
+            try:
+                self._lease_client.take()
+                self._current_task = self._actively_construct_env_task()
+                break
+            except RetryableRpcError as e:
+                logging.warning("WARNING: the following retryable error "
+                                f"was encountered. Trying again.\n{e}")
+        self._current_observation = self._current_task.init_obs
+        self._current_task_goal_reached = False
+        self._last_action = None
+        return self._current_task.init_obs
+
+    def step(self, action: Action) -> Observation:
+        assert self._robot is not None
+        assert action.extra_info is not None
+        action_name = action.extra_info.action_name
+        # Special case: the action is "done", indicating that the robot
+        # believes it has finished the task. Used for goal checking.
+        if action_name == "done":
+            while True:
+                goal_description = self._current_task.goal_description
+                logging.info(f"The goal is: {goal_description}")
+                prompt = "Is the goal accomplished? Answer y or n. "
+                response = utils.prompt_user(prompt).strip()
+                if response == "y":
+                    self._current_task_goal_reached = True
+                    break
+                # If the answer is no, just stay in an infinite loop;
+                # nothing is going to change anyways unless the robot's
+                # state changes.
+                # NOTE: this is a bit of a hack; we should probably
+                # have a better way to handle this later.
+                # if response == "n":
+                #     self._current_task_goal_reached = False
+                #     break
+                logging.info("Invalid input, must be either 'y' or 'n'")
+            return _TruncatedSpotObservation(
+                self._current_observation.rgbd_images,
+                self._get_task_object_set(),
+                self._current_observation.objects_in_view, set(), set(),
+                self._spot_object,
+                self._current_observation.gripper_open_percentage,
+                self._current_observation.object_detections_per_camera, action)
+
+        # Execute the action in the real environment. Automatically retry
+        # if a retryable error is encountered.
+        action_fn = action.extra_info.real_world_fn
+        action_fn_args = action.extra_info.real_world_fn_args
+        while True:
+            try:
+                action_fn(*action_fn_args)  # type: ignore
+                break
+            except RetryableRpcError as e:
+                logging.warning("WARNING: the following retryable error "
+                                f"was encountered. Trying again.\n{e}")
+        rgbd_images = capture_images_without_context(self._robot)
+
+        camera_names = [
+            'frontleft_fisheye_image', 'frontright_fisheye_image',
+            'hand_color_image', 'back_fisheye_image', 'left_fisheye_image',
+            'right_fisheye_image'
+        ]
+        for camera_name in camera_names:
+            assert camera_name in rgbd_images, \
+                f"Missing image from {camera_name}"
+
+        gripper_open_percentage = get_robot_gripper_open_percentage(
+            self._robot)
+        # Perform object detection.
+        object_detections_per_camera = self.detect_objects(rgbd_images)
+        obs = _TruncatedSpotObservation(rgbd_images,
+                                        self._get_task_object_set(), set(),
+                                        set(), set(), self._spot_object,
+                                        gripper_open_percentage,
+                                        object_detections_per_camera, action)
+        return obs
+
+
+class SimpleVLMCupEnv(SpotMinimalVLMPredicateEnv):
+    """An environment to test a demo task of picking and placing a cup onto a
+    table."""
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
+                   ["Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn"])
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_simple_cup_table_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("yellow_toy_cup", _movable_object_type),
+            Object("cardboard_table", _immovable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        # Pick object
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        add_effs: Set[LiftedAtom] = {LiftedAtom(_Holding, [robot, obj])}
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPick1", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+        # Place object
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {LiftedAtom(_Holding, [robot, obj])}
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOn, [obj, surf])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPlace1", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+    def op_names_to_keep(self) -> Set[str]:
+        """Return the names of the operators we want to keep."""
+        return {"TeleopPick1", "TeleopPlace1"}
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "get the cup onto the table!"
+
+
+class SimpleTableWipingEnv(SpotMinimalVLMPredicateEnv):
+    """An environment to test the task of actually clearing objects from a
+    table and then wiping the table."""
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOnTable",
+            "VLMIn", "CanBeUsedForErasing", "TableClean", "TableWiped",
+            "TableClear", "VLMOnFloor"
+        ])
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_simple_table_wiping_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("clear_plastic_trash_can", _immovable_object_type),
+            Object("fluffy_toy_duster", _movable_object_type),
+            Object("apple", _movable_object_type),
+            Object("childrens_play_table", _table_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        # Pick object to clear table.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj, surface]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_TableClear, [surface])
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Picking from the floor.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPickFromFloor", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Place object inside
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {LiftedAtom(_Holding, [robot, obj])}
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMIn, [obj, surf])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPlaceInside", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Wipe surface
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _table_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_CanBeUsedForErasing, [obj]),
+            LiftedAtom(_TableClear, [surf]),
+        }
+        add_effs = {
+            LiftedAtom(_TableWiped, [surf]),
+        }
+        del_effs = {}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopWipe", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+    def op_names_to_keep(self) -> Set[str]:
+        """Return the names of the operators we want to keep."""
+        return {
+            "TeleopPickToClearTable",
+            "TeleopPlaceInside",
+            "TeleopWipe",
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "TeleopPickFromFloor",
+            "PlaceObjectOnTop",
+        }
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
+
+
+class DustpanSweepingTestEnv(SpotMinimalVLMPredicateEnv):
+    """An environment to test a demo task of sweeping some wrappers into a
+    dustpan."""
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return set(
+            p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in
+            ["Holding", "HandEmpty", "NotHolding", "Touching", "Inside"])
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_dustpan_test_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("wrappers", _wrappers_type),
+            Object("dustpan", _dustpan_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+        return detection_id_to_obj
+
+    def _create_operators(self) -> Iterator[STRIPSOperator]:
+        # Pick(robot, dustpan)
+        robot = Variable("?robot", _robot_type)
+        dustpan = Variable("?dustpan", _dustpan_type)
+        parameters = [robot, dustpan]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, dustpan]),
+        }
+        add_effs: Set[LiftedAtom] = {LiftedAtom(_Holding, [robot, dustpan])}
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, dustpan]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        yield STRIPSOperator("TeleopPick1", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+        # Place(robot, dustpan, mess)
+        robot = Variable("?robot", _robot_type)
+        dustpan = Variable("?dustpan", _dustpan_type)
+        mess = Variable("?mess", _wrappers_type)
+        parameters = [robot, dustpan, mess]
+        preconds = {LiftedAtom(_Holding, [robot, dustpan])}
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, dustpan]),
+            LiftedAtom(_Touching, [dustpan, mess])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, dustpan])}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPlaceNextTo", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+        # Pick(robot, broom)
+        robot = Variable("?robot", _robot_type)
+        broom = Variable("?broom", _broom_type)
+        parameters = [robot, broom]
+        preconds = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, broom]),
+        }
+        add_effs = {LiftedAtom(_Holding, [robot, broom])}
+        del_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, broom]),
+        }
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPick2", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+        # Sweep(robot, broom, mess, dustpan)
+        robot = Variable("?robot", _robot_type)
+        broom = Variable("?broom", _broom_type)
+        mess = Variable("?mess", _wrappers_type)
+        dustpan = Variable("?dustpan", _dustpan_type)
+        parameters = [robot, broom, mess, dustpan]
+        preconds = {
+            LiftedAtom(_Holding, [robot, broom]),
+            LiftedAtom(_NotHolding, [robot, dustpan]),
+            LiftedAtom(_Touching, [dustpan, mess])
+        }
+        add_effs = {LiftedAtom(_Inside, [mess, dustpan])}
+        del_effs = set()
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopSweep", parameters, preconds, add_effs,
+                             del_effs, ignore_effs)
+
+        # Place(robot, broom)
+        robot = Variable("?robot", _robot_type)
+        broom = Variable("?broom", _broom_type)
+        parameters = [robot, broom]
+        preconds = {LiftedAtom(_Holding, [robot, broom])}
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, broom]),
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, broom])}
+        ignore_effs = set()
+        yield STRIPSOperator("TeleopPlaceOnFloor", parameters, preconds,
+                             add_effs, del_effs, ignore_effs)
+
+    def op_names_to_keep(self) -> Set[str]:
+        """Return the names of the operators we want to keep."""
+        return {
+            "TeleopPick1", "TeleopPlaceNextTo", "TeleopPick2", "TeleopSweep",
+            "TeleopPlaceOnFloor"
+        }
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "put the mess in the dustpan"
 
 
 ###############################################################################
@@ -2597,7 +3299,7 @@ class SpotCubeEnv(SpotRearrangementEnv):
             robot_pos=robot_pose,
             nonpercept_atoms=self._get_initial_nonpercept_atoms(),
             nonpercept_predicates=(self.predicates - self.percept_predicates),
-        )
+            object_detections_per_camera={})
 
         # Finish the task.
         goal_description = self._generate_goal_description()
@@ -3021,7 +3723,7 @@ class SpotMainSweepEnv(SpotRearrangementEnv):
             robot_pos=robot_pose,
             nonpercept_atoms=self._get_initial_nonpercept_atoms(),
             nonpercept_predicates=(self.predicates - self.percept_predicates),
-        )
+            object_detections_per_camera={})
 
         # Finish the task.
         goal_description = self._generate_goal_description()
@@ -3616,6 +4318,496 @@ class LISSpotWipeTableEnv(SpotRearrangementEnv):
             obj_to_pose[sponge] = math_helpers.SE3Pose(
                 bucket_pose.x, bucket_pose.y, bucket_pose.z - 0.1, bucket_pose.rot)
         return obj_to_pose
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#                             VLM Test Env with Map                           #
+###############################################################################
+
+
+class VLMCupEnv(SpotRearrangementEnv):
+    """A version of the SimpleVLMCupEnv, but with actual skills that the robot
+    can execute instead of relying on teleop."""
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        op_to_name = {o.name: o for o in _create_operators()}
+        op_names_to_keep = {
+            "MoveToReachObject",
+            "MoveToHandViewObject",
+            "PickObjectFromTop",
+        }
+        self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+        # We add in a place operator that uses VLMOn instead
+        # of the typical 'OnTop' predicate.
+        # PlaceObjectOnTop
+        robot = Variable("?robot", _robot_type)
+        held = Variable("?held", _movable_object_type)
+        surface = Variable("?surface", _immovable_object_type)
+        parameters = [robot, held, surface]
+        preconds = {
+            LiftedAtom(_Holding, [robot, held]),
+            LiftedAtom(_Reachable, [robot, surface]),
+            LiftedAtom(_NEq, [held, surface]),
+            LiftedAtom(_IsPlaceable, [held]),
+            LiftedAtom(_HasFlatTopSurface, [surface]),
+            LiftedAtom(_FitsInXY, [held, surface]),
+        }
+        add_effs = {
+            LiftedAtom(_VLMOn, [held, surface]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, held]),
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [robot, held]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        self._strips_operators.add(
+            STRIPSOperator("PlaceObjectOnTop", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOn",
+            "Reachable", "InHandView", "InView"
+        ])
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_cup_table_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("yellow_toy_cup", _movable_object_type),
+            Object("small_cardboard_box_with_black_tape",
+                   _immovable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[stat_detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "get the cup onto the table!"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#                       Table Wiping Env with Map                             #
+###############################################################################
+
+
+class VLMTableWipingOracleEnv(SpotRearrangementEnv):
+    """A version of the SimpleTableWipingEnv, but with an actual map and some
+    skills that the robot can execute instead of relying on teleop.
+
+    NOTE: for now, we mostly have teleop actions, but we intend to
+    replace them with actual skills in the future.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        # NOTE: temporary just to make data collection easier.
+        # Comment out this block below when actually running!
+        # op_to_name = {o.name: o for o in _create_operators()}
+        # op_names_to_keep = {
+        #     "MoveToReachObject",
+        #     "MoveToHandViewObject",
+        # }
+        # self._strips_operators = {op_to_name[o] for o in op_names_to_keep}
+
+        # NOTE: temporary just to make data collection easier.
+        # Add teleop versions of MoveToReach and MoveToHandView!
+        # MoveToReachObject
+        self._strips_operators = set()
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _base_object_type)
+        parameters = [robot, obj]
+        preconds = {
+            LiftedAtom(_NotBlocked, [obj]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+        }
+        add_effs = {LiftedAtom(_Reachable, [robot, obj])}
+        del_effs: Set[LiftedAtom] = set()
+        ignore_effs = {
+            _Reachable, _InHandView, _InView, _RobotReadyForSweeping
+        }
+        self._strips_operators.add(
+            STRIPSOperator("TeleopMoveToReachObject", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # MoveToHandViewObject
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        parameters = [robot, obj]
+        preconds = {
+            LiftedAtom(_NotBlocked, [obj]),
+            LiftedAtom(_HandEmpty, [robot])
+        }
+        add_effs = {LiftedAtom(_InHandView, [robot, obj])}
+        del_effs = set()
+        ignore_effs = {
+            _Reachable, _InHandView, _InView, _RobotReadyForSweeping
+        }
+        self._strips_operators.add(
+            STRIPSOperator("TeleopMoveToHandViewObject", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # We now add in specific operators for the table wiping task that
+        # are tied to specific teleop actions.
+        # Pick object to clear table.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj, surface]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_InHandView, [robot, obj]),
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_TableClear, [surface])
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMOnTable, [obj, surface]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPickToClearTable", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # Picking from the floor.
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surface = Variable("?table", _table_type)
+        parameters = [robot, obj]
+        preconds: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        add_effs: Set[LiftedAtom] = {
+            LiftedAtom(_Holding, [robot, obj]),
+        }
+        del_effs: Set[LiftedAtom] = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_InHandView, [robot, obj]),
+        }
+        ignore_effs: Set[Predicate] = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPickFromFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # Place object inside
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _immovable_object_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_Reachable, [robot, surf]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [robot]),
+            LiftedAtom(_NotHolding, [robot, obj]),
+            LiftedAtom(_VLMIn, [obj, surf])
+        }
+        del_effs = {LiftedAtom(_Holding, [robot, obj])}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopPlaceInside", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+        # Wipe surface
+        robot = Variable("?robot", _robot_type)
+        obj = Variable("?object", _movable_object_type)
+        surf = Variable("?surf", _table_type)
+        parameters = [robot, obj, surf]
+        preconds = {
+            LiftedAtom(_Reachable, [robot, surf]),
+            LiftedAtom(_Holding, [robot, obj]),
+            LiftedAtom(_CanBeUsedForErasing, [obj]),
+            LiftedAtom(_TableClear, [surf]),
+        }
+        add_effs = {
+            LiftedAtom(_TableWiped, [surf]),
+        }
+        del_effs = {}
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("TeleopWipe", parameters, preconds, add_effs,
+                           del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding", "HandEmpty", "NotHolding", "Inside", "VLMOnTable",
+            "VLMIn", "CanBeUsedForErasing", "TableClean", "TableWiped",
+            "TableClear", "VLMOnFloor", "InHandView", "Reachable"
+        ])
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_table_wiping_oracle_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        objects = {
+            Object("clear_plastic_trash_can", _immovable_object_type),
+            Object("fluffy_toy_duster", _movable_object_type),
+        }
+        for o in objects:
+            detection_id = LanguageObjectDetectionID(o.name)
+            detection_id_to_obj[detection_id] = o
+
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "coffee_table/surfboard")] = Object("table", _table_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "apple/red_ball")] = Object("apple", _movable_object_type)
+
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            detection_id_to_obj[stat_detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
+
+    def _get_dry_task(self, train_or_test: str,
+                      task_idx: int) -> EnvironmentTask:
+        raise NotImplementedError("Dry task generation not implemented.")
+
+
+###############################################################################
+#            Table Wiping Env with Invented Predicates and Map                #
+###############################################################################
+
+
+class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
+    """A version of the SimpleTableWipingEnv, but with an actual map and full
+    skill implementations.
+
+    Also, this environment uses invented predicates for the table wiping
+    task (these are manually copied over from invention done on the env
+    in vlm_envs.py).
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+
+        self._OnFloor = utils.create_vlm_predicate(
+            "OnFloor", [_movable_object_type],
+            lambda o: _get_vlm_query_str("IsOnFloor", o))
+        self._IsEraser = utils.create_vlm_predicate(
+            "IsEraser", [_movable_object_type],
+            lambda o: _get_vlm_query_str("IsEraser", o))
+        self._OnTop = utils.create_vlm_predicate(
+            "OnTop", [_movable_object_type, _table_type],
+            lambda o: _get_vlm_query_str("IsOn", o))
+        self._NoObjectsOnTop = utils.create_vlm_predicate(
+            "NoObjectsOnTop", [_table_type],
+            lambda s: _get_vlm_query_str("NoObjectsOnTop", s))
+        # self._IsGrumpy = utils.create_vlm_predicate(
+        #     "IsGrumpy", [_trash_can_type],
+        #     lambda o: _get_vlm_query_str("IsGrumpy", o))
+
+        # Add in Operators.
+        self._strips_operators = set()
+        # NSRT-Op0: PickFromTop
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _table_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x0, x1]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(self._OnTop, [x0, x1]),
+        }
+        add_effs = {
+            LiftedAtom(_Holding, [x2, x0]),
+            LiftedAtom(self._NoObjectsOnTop, [x1]),
+        }
+        del_effs = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(self._OnTop, [x0, x1]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndPickFromTop", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op1: PlaceInside
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _trash_can_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x1, x0]
+        preconds = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(_VLMIn, [x0, x1]),
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveToReachAndDropInside", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op2: PickFromFloor
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _robot_type)
+        parameters = [x1, x0]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x1]),
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        add_effs = {
+            LiftedAtom(_Holding, [x1, x0]),
+        }
+        del_effs = {
+            LiftedAtom(_HandEmpty, [x1]),
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndPickFromFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op3: WipeAndContinueHoldingEraser
+        x0 = Variable("?x0", _table_type)
+        x1 = Variable("?x1", _movable_object_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x0, x1]
+        preconds = {
+            # LiftedAtom(self._ColorIsGreen, [x1]),
+            LiftedAtom(_Holding, [x2, x1]),
+            LiftedAtom(self._IsEraser, [x1]),
+            LiftedAtom(self._NoObjectsOnTop, [x0]),
+        }
+        add_effs = {
+            LiftedAtom(_TableWiped, [x0]),
+        }
+        del_effs = set()
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndWipeSurfaceAndContinueHoldingEraser",
+                           parameters, preconds, add_effs, del_effs,
+                           ignore_effs))
+
+        # NSRT-Op4: DumpContentsOntoFloor
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _trash_can_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x1, x0]
+        # # HACK: just for testing, change the params
+        # parameters = [x2, x1]
+        preconds = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(_VLMIn, [x0, x1]),
+        }
+        add_effs = {
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        del_effs = {
+            LiftedAtom(_VLMIn, [x0, x1]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("DumpContentsOntoFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        preds = set(p for p in _ALL_PREDICATES | _VLM_PREDICATES if p.name in [
+            "Holding",
+            "HandEmpty",
+            "VLMIn",
+            "TableWiped",
+        ])
+        preds |= {
+            self._OnFloor, self._IsEraser,
+            self._OnTop, self._NoObjectsOnTop
+        }
+        return preds
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return self.predicates
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "spot_vlm_table_wiping_invented_predicates_env"
+
+    @property
+    def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
+        detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "bottle/clear_cup/clear_trashcan")] = Object(
+                "clear_plastic_dustbin", _trash_can_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "apple/red_ball")] = Object("apple", _movable_object_type)
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "fluffy_toy/flower_arrangement")] = Object(
+                "fluffy_green_toy_eraser", _movable_object_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        #     "blue_block")] = Object("blue_block", _movable_object_type)
+
+        detection_id_to_obj[LanguageObjectDetectionID(
+            "cardboard_box")] = Object("cardboard_box_bin", _trash_can_type)
+        # detection_id_to_obj[LanguageObjectDetectionID(
+        # "blue_coffee_cup")] = Object("blue_coffee_cup",
+        #                              _movable_object_type)
+        for obj, pose in get_known_immovable_objects().items():
+            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
+            # if obj.name == "short_round_coffee_table":
+            #     table_obj = Object("short_round_coffee_table", _table_type)
+            #     detection_id_to_obj[stat_detection_id] = table_obj
+            if obj.name == "child_play_table":
+                table_obj = Object("child_play_table", _table_type)
+                detection_id_to_obj[stat_detection_id] = table_obj
+            else:
+                detection_id_to_obj[stat_detection_id] = obj
+
+        return detection_id_to_obj
+
+    def _generate_goal_description(self) -> GoalDescription:
+        return "clean up the table!"
 
     def _get_dry_task(self, train_or_test: str,
                       task_idx: int) -> EnvironmentTask:

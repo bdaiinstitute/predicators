@@ -1021,9 +1021,8 @@ class GrammarSearchInventionApproach(NSRTLearningApproach):
                 for ground_atom in ground_atom_state:
                     assert isinstance(ground_atom, GroundAtom)
                     if ground_atom.predicate not in candidates:
-                        # The cost of this predicate is simply its arity.
-                        candidates[ground_atom.predicate] = float(
-                            len(ground_atom.objects))
+                            candidates[ground_atom.predicate] = float(
+                                len(ground_atom.objects))
         logging.debug(f"All candidate predicates: {candidates.keys()}")
         return (atom_dataset, candidates)
 

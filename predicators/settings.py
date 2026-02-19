@@ -186,6 +186,7 @@ class GlobalSettings:
     spot_run_dry = False
     spot_use_perfect_samplers = False  # for debugging
     spot_sweep_env_goal_description = "get the objects into the bucket"
+    spot_vlm_teleop_demo_folderpath = ""
 
     # pddl blocks env parameters
     pddl_blocks_procedural_train_min_num_blocks = 3
@@ -435,8 +436,9 @@ class GlobalSettings:
     override_json_with_input = False  # Only works with SpotEnv for now
 
     # parameters for vision language models
-    # gemini-1.5-pro-latest, gpt-4-turbo, gpt-4o
-    vlm_model_name = "gemini-pro-vision"
+    # gemini-1.5-pro, gemini-1.5-flash, gpt-4-turbo, gpt-4o
+    # NOTE: we need to create a dummy vlm so that tests on CI pass.
+    vlm_model_name = "dummy"
     vlm_temperature = 0.0
     vlm_num_completions = 1
     vlm_include_cropped_images = False

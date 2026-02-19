@@ -122,7 +122,8 @@ class PretrainedLargeModel(abc.ABC):
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
-        logging.debug(f"Loaded model response from {cache_filepath}.")
+        # logging.debug(f"Loaded model response from {cache_filepath}.")
+        print(f"Loaded model response from {cache_filepath}.")
         assert cache_str.count(_CACHE_SEP) == num_completions
         cached_prompt, completion_strs = cache_str.split(_CACHE_SEP, 1)
         assert cached_prompt == prompt
@@ -276,7 +277,7 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
             temperature=temperature)
         response = self._model.generate_content(
             [prompt], generation_config=generation_config)  # type: ignore
-        response.resolve()
+        response.resolve()  # type: ignore
         return [response.text]
 
     def get_id(self) -> str:
@@ -306,9 +307,9 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
             candidate_count=num_completions,
             temperature=temperature)
         response = self._model.generate_content(
-            [prompt] + imgs,
+            [prompt] + imgs,  # type: ignore
             generation_config=generation_config)  # type: ignore
-        response.resolve()
+        response.resolve()  # type: ignore
         return [response.text]
 
     def get_id(self) -> str:
