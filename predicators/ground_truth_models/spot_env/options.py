@@ -34,6 +34,7 @@ from predicators.spot_utils.skills.spot_navigation import \
 from predicators.spot_utils.skills.spot_place import place_at_relative_position
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.skills.spot_sweep import sweep
+from predicators.spot_utils.skills.spot_wipe_table import wipe_multiple_strokes
 from predicators.spot_utils.spot_localization import SpotLocalizer
 from predicators.spot_utils.utils import DEFAULT_HAND_DROP_OBJECT_POSE, \
     DEFAULT_HAND_LOOK_STRAIGHT_DOWN_POSE, DEFAULT_HAND_POST_DUMP_POSE, \
@@ -440,22 +441,22 @@ def _sweep_objects_into_container_policy(name: str, robot_obj_idx: int,
     ) * middle_bottom_surface_pose
     # Now, compute the actual pose the hand should start sweeping from by
     # clamping it between the surface poses.
-    start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.175,
+    start_x = np.clip(middle_bottom_surface_rel_pose.x, mean_x + 0.275,
                       upper_left_surface_rel_pose.x)
     start_y = np.clip(middle_bottom_surface_rel_pose.y, mean_y + 0.41,
                       upper_left_surface_rel_pose.y)
     # use absolute value so that we don't get messed up by noise in the
     # perception height estimate.
-    start_z = 0.14
+    start_z = 0.17
     pitch = math_helpers.Quat.from_pitch(np.pi / 2)
     yaw = math_helpers.Quat.from_yaw(np.pi / 4)
     rot = pitch * yaw
-    sweep_start_pose = math_helpers.SE3Pose(x=start_x,
-                                            y=start_y,
+    sweep_start_pose = math_helpers.SE3Pose(x=start_x + 1.0,
+                                            y=start_y + 0.4,
                                             z=start_z,
                                             rot=rot)
     sweep_move_dx = 0.0
-    sweep_move_dy = -0.8
+    sweep_move_dy = -1.0
     sweep_move_dz = 0.0
 
     # Execute the sweep. Note simulation fn and args not implemented yet.
@@ -496,13 +497,19 @@ def _pick_and_dump_policy(name: str, robot_obj_idx: int, target_obj_idx: int,
 
     def _fn() -> None:
         for action in actions:
-            assert isinstance(action.extra_info, (list, tuple))
-            _, _, action_fn, action_fn_args, _, _ = action.extra_info
-            action_fn(*action_fn_args)
+            if isinstance(action.extra_info, (list, tuple)):
+                _, _, action_fn, action_fn_args, _, _ = action.extra_info
+                action_fn(*action_fn_args)
+                continue
+            else:
+                action_fn = action.extra_info.real_world_fn
+                action_fn_args = action.extra_info.real_world_fn_args
+                action_fn(*action_fn_args)
+                continue
 
     # Note simulation fn and args not implemented yet.
-    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
-                                            tuple())
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None, tuple())
+    
     return utils.create_spot_env_action(action_extra_info)
 
 
@@ -595,7 +602,7 @@ def _pick_object_to_drag_policy(state: State, memory: Dict,
                                 params: Array) -> Action:
     name = "PickObjectToDrag"
     target_obj_idx = 1
-    if objects[target_obj_idx ].name == 'green_handle':
+    if objects[target_obj_idx ].name == 'green_handle' or 'chair' in objects[target_obj_idx].name:
         return _grasp_policy(name, target_obj_idx, state, memory, objects, params, do_not_stow=True)
     return _grasp_policy(name, target_obj_idx, state, memory, objects, params)
 
@@ -892,7 +899,7 @@ def _prepare_container_for_sweeping_policy(state: State, memory: Dict,
     rot = math_helpers.Quat.from_pitch(np.pi / 2)
     place_rel_pose = math_helpers.SE3Pose(x=0.6,
                                           y=0.0,
-                                          z=container_z - 0.15,
+                                          z=container_z, # TODO - 0.15,
                                           rot=rot)
 
     # Push towards the target a little bit after placing.
@@ -917,7 +924,7 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     name = "MoveToReadySweep"
 
     # Always approach from the same angle.
-    yaw = np.pi / 2.0
+    yaw = 0.0 #np.pi / 2.0
     # Make up new params.
     distance = 0.8
     params = np.array([distance, yaw])
@@ -929,6 +936,55 @@ def _move_to_ready_sweep_policy(state: State, memory: Dict,
     return _move_to_target_policy(name, distance_param_idx, yaw_param_idx,
                                   robot_obj_idx, target_obj_idx, do_gaze,
                                   state, memory, objects, params)
+
+
+def _wipe_table_policy(state: State, memory: Dict,
+                       objects: Sequence[Object],
+                       params: Array) -> Action:
+    del memory  # not used
+
+    robot, _, _ = get_robot()
+    name = "WipeTable"
+
+    robot_obj = objects[0]
+    surface_obj = objects[2]
+
+    robot_pose = utils.get_se3_pose_from_state(state, robot_obj)
+    surface_pose = utils.get_se3_pose_from_state(state, surface_obj)
+    surface_height = state.get(surface_obj, "height")
+    if surface_obj.name == "wooden_table":
+        surface_height -= 1.0
+
+    # Compute relative pose for wiping start position
+    surface_rel_pose = robot_pose.inverse() * surface_pose
+
+    # Extract parameters
+    stroke_dx, stroke_dy, num_strokes_float, duration = params
+    num_strokes = max(1, int(num_strokes_float))
+
+    # Define wipe start pose relative to robot
+    pitch = math_helpers.Quat.from_pitch(np.pi / 2)
+    wipe_start_pose = math_helpers.SE3Pose(
+        x=surface_rel_pose.x,
+        y=surface_rel_pose.y - 0.2,
+        z=surface_height + 0.05,
+        rot=pitch)
+
+    # End look pose after wiping
+    end_look_pose = math_helpers.SE3Pose(
+        x=surface_rel_pose.x - 0.1,
+        y=surface_rel_pose.y,
+        z=surface_height + 0.3,
+        rot=math_helpers.Quat.from_pitch(np.pi / 2.5))
+
+    # Delta between strokes
+    delta_between_strokes = (0.05, 0.0)
+
+    action_extra_info = SpotActionExtraInfo(
+        name, objects, wipe_multiple_strokes,
+        (robot, wipe_start_pose, end_look_pose, stroke_dx, stroke_dy,
+         delta_between_strokes, num_strokes, duration), None, ())
+    return utils.create_spot_env_action(action_extra_info)
 
 
 ###############################################################################
@@ -963,6 +1019,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
     "PrepareContainerForSweeping": Box(-np.inf, np.inf, (3, )),  # dx, dy, dyaw
     "DropNotPlaceableObject": Box(0, 1, (0, )),  # empty
     "MoveToReadySweep": Box(0, 1, (0, )),  # empty
+    "WipeTable": Box(-np.inf, np.inf, (4, )),  # stroke_dx, stroke_dy, num_strokes, duration
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -988,6 +1045,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "PrepareContainerForSweeping": _prepare_container_for_sweeping_policy,
     "DropNotPlaceableObject": _drop_not_placeable_object_policy,
     "MoveToReadySweep": _move_to_ready_sweep_policy,
+    "WipeTable": _wipe_table_policy,
 }
 
 
@@ -1034,7 +1092,10 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_brush_shelf_env",
             "lis_spot_block_floor_env",
             "lis_spot_block_drawer_env",
-            "lis_spot_collect_misplaced_items_env"
+            "lis_spot_collect_misplaced_items_env",
+            "lis_spot_balls_yellow_table_env",
+            "lis_spot_bear_panda_bucket_sweep_env",
+            "lis_spot_wipe_table_env"
         }
 
     @classmethod

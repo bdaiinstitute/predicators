@@ -84,6 +84,10 @@ def _move_to_hand_view_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
+    if obj_to_nav_to.name == "blue_toy_chair":
+        min_dist = 1.8
+        max_dist = 1.9
+
     min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
 
     return _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng, min_dist,
@@ -103,6 +107,12 @@ def _move_to_reach_object_sampler(state: State, goal: Set[GroundAtom],
     robot_obj = objs[0]
     obj_to_nav_to = objs[1]
 
+    if obj_to_nav_to.name == "wooden_table":
+        # For the table, we want to be a bit farther so we can reach over it.
+        # import ipdb; ipdb.set_trace()
+        min_dist = 0.8
+        max_dist = 0.9
+
     min_angle, max_angle = _get_approach_angle_bounds(obj_to_nav_to, state)
     ret_val = _move_offset_sampler(state, robot_obj, obj_to_nav_to, rng,
                                    min_dist, max_dist, min_angle, max_angle)
@@ -114,6 +124,13 @@ def _get_approach_angle_bounds(obj: Object,
     """Helper for move samplers."""
     angle_bounds = load_spot_metadata().get("approach_angle_bounds", {})
     if obj.name in angle_bounds:
+        if obj.name == "blue_toy_chair":
+            # if location of chair is far from the table
+            # we cant approach it from the side
+            # 1.45993    0.6244    -0.0938282
+            # 0.082429   0.991738  -0.178306
+            if state.get(obj, "x") > 1.0:
+                return [-1.6, -1.53]
         return angle_bounds[obj.name]
     # Mega-hack for when the container is next to something with angle bounds,
     # i.e., it is ready to sweep.
@@ -230,7 +247,7 @@ def _drag_to_unblock_object_sampler(state: State, goal: Set[GroundAtom],
                                     objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dyaw to move while holding.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.0, np.pi / 1.5])
+    return np.array([0.0, 0.0, -np.pi / 2])
 
 def _drag_to_open_object_sampler(state: State, goal: Set[GroundAtom],
                                     rng: np.random.Generator,
@@ -252,7 +269,7 @@ def _drag_to_block_object_sampler(state: State, goal: Set[GroundAtom],
                                   objs: Sequence[Object]) -> Array:
     # Parameters are relative dx, dy, dyaw to move while holding.
     del state, goal, objs, rng  # randomization coming soon
-    return np.array([0.0, 0.0, -np.pi / 1.5])
+    return np.array([0.0, 0.0, np.pi / 2])
 
 
 def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
@@ -260,6 +277,7 @@ def _sweep_into_container_sampler(state: State, goal: Set[GroundAtom],
                                   objs: Sequence[Object]) -> Array:
     # Parameters are just one number, a velocity.
     del goal
+    # TODO # return np.array([2.0])
     if CFG.spot_use_perfect_samplers:
         if CFG.spot_run_dry:
             if len(objs) == 6:  # SweepTwoObjectsIntoContainer
@@ -295,6 +313,25 @@ def _prepare_sweeping_sampler(state: State, goal: Set[GroundAtom],
     return np.array([param_dict["dx"], param_dict["dy"], param_dict["angle"]])
 
 
+def _wipe_table_sampler(state: State, goal: Set[GroundAtom],
+                        rng: np.random.Generator,
+                        objs: Sequence[Object]) -> Array:
+    # Parameters are stroke_dx, stroke_dy, num_strokes, duration.
+    del state, goal, objs  # not used for now
+    if CFG.spot_use_perfect_samplers:
+        # Default values for wiping
+        stroke_dx = 0.0
+        stroke_dy = 0.4
+        num_strokes = 5
+        duration = 1.0
+    else:
+        stroke_dx = rng.uniform(-0.1, 0.1)
+        stroke_dy = rng.uniform(0.3, 0.5)
+        num_strokes = rng.integers(3, 8)
+        duration = rng.uniform(0.8, 1.5)
+    return np.array([stroke_dx, stroke_dy, num_strokes, duration])
+
+
 class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
     """Ground-truth NSRTs for the Spot Env."""
 
@@ -305,7 +342,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "spot_soda_bucket_env", "spot_soda_chair_env",
             "spot_main_sweep_env", "spot_ball_and_cup_sticky_table_env",
             "spot_brush_shelf_env", "lis_spot_block_floor_env", "lis_spot_block_drawer_env",
-            "lis_spot_collect_misplaced_items_env"
+            "lis_spot_collect_misplaced_items_env", "lis_spot_balls_yellow_table_env",
+            "lis_spot_bear_panda_bucket_sweep_env", "lis_spot_wipe_table_env"
         }
 
     @staticmethod
@@ -339,6 +377,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
+            "WipeTable": _wipe_table_sampler,
         }
 
         # If we're doing proper bilevel planning with a simulator, then

@@ -1,5 +1,6 @@
 """A perceiver specific to spot envs."""
 
+from datetime import datetime
 import logging
 import time
 from pathlib import Path
@@ -284,6 +285,11 @@ class SpotPerceiver(BasePerceiver):
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state)
+        
+        # Save state for debugging
+        now = datetime.now()
+        with open(CFG.spot_perception_outdir + f"/0_{now.strftime('%Y%m%d_%H%M%S')}_latest_perceived_state.txt", "w") as f:
+            f.write(state.pretty_str())
 
         return state
 
@@ -452,6 +458,28 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(On, [bucket, shelf]),
             }
+        if goal_description == "sweep the brown bear toy and panda toy into the bucket":
+            brown_bear = Object("brown_bear_toy", _movable_object_type)
+            panda = Object("panda_toy", _movable_object_type)
+            chick_toy = Object("chick_toy", _movable_object_type)
+            bucket = Object("bucket", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            # table = Object("wooden_table", _immovable_object_type)
+            # On = pred_name_to_pred["On"]
+            wooden_table = Object("wooden_table", _immovable_object_type)
+            NotBlocked = pred_name_to_pred["NotBlocked"]
+            blue_toy_chair = Object("blue_toy_chair", _movable_object_type)
+            Blocking = pred_name_to_pred["Blocking"]
+            NotInsideAnyContainer = pred_name_to_pred["NotInsideAnyContainer"]
+            return {
+                GroundAtom(Inside, [brown_bear, bucket]),
+                GroundAtom(Inside, [panda, bucket]),
+                # GroundAtom(Inside, [chick_toy, bucket]),
+                # GroundAtom(NotBlocked, [wooden_table]),
+                # GroundAtom(Blocking, [blue_toy_chair, wooden_table]),
+                #GroundAtom(NotInsideAnyContainer, [brown_bear]),
+                #GroundAtom(NotInsideAnyContainer, [panda])
+            }
         if goal_description == "pick up the brush":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
@@ -491,6 +519,26 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(Inside, [blue_block, cardboard_box]),
                 GroundAtom(Inside, [yellow_cup, cardboard_box]),
                 GroundAtom(Inside, [toy_plane, cardboard_box]),
+            }
+        if goal_description == "put the tennis ball and red ball on the yellow table":
+            tennis_ball = Object("tennis_ball", _movable_object_type)
+            red_ball = Object("red_ball", _movable_object_type)
+            yellow_table = Object("yellow_table", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(On, [tennis_ball, yellow_table]),
+                GroundAtom(On, [red_ball, yellow_table]),
+            }
+        if goal_description == "wipe the wooden table with the sponge":
+            wooden_table = Object("wooden_table", _immovable_object_type)
+            sponge = Object("sponge", _movable_object_type)
+            orange_bucket = Object("orange_bucket", _container_type)
+            SurfaceWiped = pred_name_to_pred["SurfaceWiped"]
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(SurfaceWiped, [wooden_table]),
+                GroundAtom(Inside, [sponge, orange_bucket]),
             }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)

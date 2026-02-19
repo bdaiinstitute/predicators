@@ -322,11 +322,11 @@ def task_plan(
     in tests/test_planning for usage examples.
     """
     if not goal.issubset(reachable_atoms):
-        logging.info(f"Detected goal unreachable. Goal: {goal}")
-        logging.info(f"Initial atoms: {init_atoms}")
+        logging.info(f"Detected goal unreachable. Goal: {sorted(list(goal))}\n")
+        logging.info(f"Initial atoms: {sorted(list(init_atoms))}\n")
         logging.info(
-            f"Reachable atoms not in init: {reachable_atoms - init_atoms}")
-        raise PlanningFailure(f"Goal {goal} not dr-reachable")
+            f"Reachable atoms not in init: {sorted(list(reachable_atoms - init_atoms))}\n")
+        raise PlanningFailure(f"Goal {sorted(list(goal))} not dr-reachable\n")
     dummy_task = Task(DefaultState, goal)
     metrics: Metrics = defaultdict(float)
     generator = _skeleton_generator(
