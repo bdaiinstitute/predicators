@@ -154,6 +154,9 @@ class ClusterAndIntersectSTRIPSLearner(ClusteringSTRIPSLearner):
             fraction = len(pnad.datastore) / option_to_dataset_size[option]
             if fraction >= CFG.cluster_and_intersect_min_datastore_fraction:
                 ret_pnads.append(pnad)
+            # elif "Clear0" in str(pnad):
+            #     print(len(pnad.datastore))
+            #     import ipdb; ipdb.set_trace()
         return ret_pnads
 
 

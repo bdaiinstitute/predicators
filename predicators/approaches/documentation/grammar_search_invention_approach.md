@@ -62,7 +62,7 @@ apple_coring__vlm_demos__456__2
     | options.txt
 
 ### Running predicate invention using these image demos
-To use the Gemini VLM, you need to set the `GOOGLE_API_KEY` environment variable in your terminal. You can make/get an API key [here](https://aistudio.google.com/app/apikey).
+To use the Gemini VLM, you need to set the `GOOGLE_API_KEY` environment variable in your terminal. You can make/get an API key [here](https://aistudio.google.com/app/apikey). To use an Open AI VLM, the `OPENAI_API_KEY` variable needs to be set.
 
 Example command: `python predicators/main.py --env apple_coring --seed 456 --approach grammar_search_invention --excluded_predicates all --num_train_tasks 1 --num_test_tasks 0 --offline_data_method saved_vlm_img_demos_folder --vlm_trajs_folder_name apple_coring__vlm_demos__456__1`
 

@@ -23,15 +23,16 @@ def dump_container(robot: Robot,
     Assumes that the container is grasped with a top-down grasp on the
     side of the container, and with the fingers pointed inward.
     """
-    # Construct the desired hand pose for dumping.
-    yaw = math_helpers.Quat.from_yaw(np.pi / 3)
-    pitch = math_helpers.Quat.from_roll(np.pi / 3)
-    roll = math_helpers.Quat.from_roll(np.pi / 3)
-    rot = roll * yaw * pitch
+    # # Construct the desired hand pose for dumping.
+    # yaw = math_helpers.Quat.from_yaw(np.pi / 3)
+    # roll2 = math_helpers.Quat.from_roll(np.pi / 3)
+    # roll1 = math_helpers.Quat.from_roll(np.pi / 3)
+    # rot = roll1 * yaw * roll2
+    dump_quat = math_helpers.Quat(w=0.865, x=-0.201, y=-0.448, z=0.102)
     hand_dump_pose = math_helpers.SE3Pose(x=dump_x,
                                           y=dump_y,
                                           z=dump_z,
-                                          rot=rot)
+                                          rot=dump_quat)
     # Execute the move to the pose.
     move_hand_to_relative_pose(robot, hand_dump_pose)
     # Wait a few seconds for the object(s) to be dumped.
@@ -40,6 +41,32 @@ def dump_container(robot: Robot,
     body_to_position = math_helpers.Vec3(x=dump_x, y=place_y, z=place_z)
     place_at_relative_position(robot, body_to_position, place_angle)
 
+
+# def get_end_effector_state(robot) -> None:
+#     """Get the current position and orientation of the Spot arm's end effector."""
+#     # Create a RobotStateClient to query the robot's state
+#     from bosdyn.client.robot_state import RobotStateClient
+
+#     state_client = robot.ensure_client(RobotStateClient.default_service_name)
+
+#     # Get the robot's state
+#     robot_state = state_client.get_robot_state()
+
+#     # Access the kinematic state of the arm
+#     arm_state = robot_state.kinematic_state
+
+#     # Extract the end-effector pose (position and orientation)
+#     if arm_state and arm_state.transforms_snapshot:
+#         ee_transform = arm_state.transforms_snapshot.child_to_parent_edge_map.get("hand", None)
+#         if ee_transform:
+#             position = ee_transform.parent_tform_child.position
+#             orientation = ee_transform.parent_tform_child.rotation
+#             print(f"End Effector Position: x={position.x}, y={position.y}, z={position.z}")
+#             print(f"End Effector Orientation (Quaternion): x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")
+#         else:
+#             print("End effector transform not found.")
+#     else:
+#         print("Arm state or transforms snapshot not available.")
 
 if __name__ == "__main__":
     # Run this file alone to test manually.
@@ -77,7 +104,7 @@ if __name__ == "__main__":
         hostname = CFG.spot_robot_ip
         path = get_graph_nav_dir()
 
-        sdk = create_standard_sdk('GraspSkillTestClient')
+        sdk = create_standard_sdk('DumpSkillTestClient')
         robot = sdk.create_robot(hostname)
         authenticate(robot)
         verify_estop(robot)
@@ -111,5 +138,6 @@ if __name__ == "__main__":
 
         # Dump!
         dump_container(robot, place_height)
+        # get_end_effector_state(robot)
 
     _run_manual_test()

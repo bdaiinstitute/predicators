@@ -244,6 +244,7 @@ def detect_objects_from_language(
                                  f"{obj_id} because it's out of bounds. " + \
                                  f"(pose = {pose_xy})")
                     continue
+
             # Pose extraction succeeded.
             detections[obj_id] = pose
             break
@@ -472,7 +473,7 @@ def get_random_mask_pixel_from_artifacts(
     pixels_in_mask = np.where(mask)
     mask_idx = rng.choice(len(pixels_in_mask))
     pixel_tuple = (pixels_in_mask[1][mask_idx], pixels_in_mask[0][mask_idx])
-    # Uncomment to plot the grasp pixel being selected!
+    # # Uncomment to plot the grasp pixel being selected!
     # rgb_img = artifacts["language"]["rgbds"][camera_name].rgb
     # _, axes = plt.subplots()
     # axes.imshow(rgb_img)

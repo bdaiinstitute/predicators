@@ -1,9 +1,10 @@
 """A perceiver specific to spot envs."""
 
+from datetime import datetime
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import imageio.v2 as iio
 import numpy as np
@@ -15,19 +16,103 @@ from PIL import ImageDraw
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
-    SpotCubeEnv, SpotRearrangementEnv, _drafting_table_type, \
-    _PartialPerceptionState, _SpotObservation, in_general_view_classifier
+    LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext, \
+    SegmentedBoundingBox, SpotCubeEnv, SpotRearrangementEnv, \
+    _drafting_table_type, _PartialPerceptionState, _SpotObservation, \
+    in_general_view_classifier
 from predicators.perception.base_perceiver import BasePerceiver
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
-    _immovable_object_type, _movable_object_type, _robot_type, \
-    _wrappers_type, get_allowed_map_regions, load_spot_metadata, \
-    object_to_top_down_geom
+    _immovable_object_type, _movable_object_type, _robot_type, _table_type, \
+    _trash_can_type, _wrappers_type, get_allowed_map_regions, \
+    load_spot_metadata, object_to_top_down_geom
 from predicators.structs import Action, DefaultState, EnvironmentTask, \
     GoalDescription, GroundAtom, Object, Observation, Predicate, \
     SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
 
+# Helper functions.
+CAMERA_NAME_TO_ANNOTATION = {
+    'hand_color_image': "Hand Camera Image",
+    'back_fisheye_image': "Back Camera Image",
+    'frontleft_fisheye_image': "Front Left Camera Image",
+    'frontright_fisheye_image': "Front Right Camera Image",
+    'left_fisheye_image': "Left Camera Image",
+    'right_fisheye_image': "Right Camera Image"
+}
 
+
+def annotate_imgs_with_detections(
+    img_objects: Dict[str, RGBDImageWithContext],
+    object_detections_per_camera: Dict[str, List[Tuple[ObjectDetectionID,
+                                                       SegmentedBoundingBox]]]
+) -> List[PIL.Image.Image]:
+    """Annotate images via editing the pixels directly to include object
+    detection bounding boxes and camera names."""
+    img_names = [v.camera_name for _, v in img_objects.items()]
+    imgs = [v.rotated_rgb for _, v in img_objects.items()]
+    pil_imgs = [PIL.Image.fromarray(img) for img in imgs]  # type: ignore
+    # Annotate images with detected objects (names + bounding box)
+    # and camera name.
+    for i, camera_name in enumerate(img_names):
+        draw = ImageDraw.Draw(pil_imgs[i])
+        # Annotate with camera name.
+        font = utils.get_scaled_default_font(draw, 4)
+        _ = utils.add_text_to_draw_img(draw, (0, 0),
+                                       CAMERA_NAME_TO_ANNOTATION[camera_name],
+                                       font)
+    # TODO: just commenting out for now to see if this helps labelling.
+    #     # Annotate with object detections.
+    #     detections = object_detections_per_camera[camera_name]
+    #     for obj_id, seg_bb in detections:
+    #         if isinstance(obj_id, LanguageObjectDetectionID):
+    #             x0, y0, x1, y1 = seg_bb.bounding_box
+    #             x0, x1 = sorted([x0, x1])
+    #             y0, y1 = sorted([y0, y1])
+    #             draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
+    #             text = f"{obj_id.language_id}"
+    #             font = utils.get_scaled_default_font(draw, 3)
+    #             text_mask = font.getmask(text)  # type: ignore
+    #             text_width, text_height = text_mask.size
+    #             text_bbox = [(x0, y0 - 1.5 * text_height),
+    #                          (x0 + text_width + 1, y0)]
+    #             draw.rectangle(text_bbox, fill='green')
+    #             draw.text((x0 + 1, y0 - 1.5 * text_height),
+    #                       text,
+    #                       fill='white',
+    #                       font=font)
+    annotated_imgs = list(pil_imgs)
+    return annotated_imgs
+
+
+def save_annotated_imgs_for_vlm_demo(annotated_imgs: List[PIL.Image.Image],
+                                     save_dir: Path) -> None:
+    """Save annotated images useful images as part of creating demonstrations
+    for learning from teleop'ed Spot trajectories."""
+    # If `save_dir` doesn't exist, create it.
+    save_dir.mkdir(parents=True, exist_ok=True)
+    # Collect all the names of folders within `save_dir`.
+    subfolders = [f for f in save_dir.iterdir() if f.is_dir()]
+    # Find the highest int that's a subfolder of `save_dir`.
+    prev_timestep = -1
+    for folder in subfolders:
+        try:
+            folder_int = int(folder.name)
+            prev_timestep = max(prev_timestep, folder_int)
+        except ValueError:
+            # Skip folders that are not integers.
+            continue
+    # Add 1 to `prev_timestep` to get `curr_timestep`.
+    curr_timestep = prev_timestep + 1
+    curr_timestep_dir = save_dir / str(curr_timestep)
+    # Create the new folder for `curr_timestep`.
+    curr_timestep_dir.mkdir(parents=True, exist_ok=True)
+    # Save all the images as jpg files under the new folder.
+    for i, img in enumerate(annotated_imgs):
+        img_path = curr_timestep_dir / f"image_{i}.jpg"
+        img.save(img_path, format="JPEG")
+
+
+# Main perceiver classes.
 class SpotPerceiver(BasePerceiver):
     """A perceiver specific to spot envs."""
 
@@ -57,6 +142,13 @@ class SpotPerceiver(BasePerceiver):
         # Load static, hard-coded features of objects, like their shapes.
         meta = load_spot_metadata()
         self._static_object_features = meta.get("static-object-features", {})
+        # Histories and other artefacts (for VLM labelling).
+        self._curr_state: Optional[State] = DefaultState
+        self._curr_state.simulator_state = {}
+        self._curr_annotated_imgs: List[PIL.Image.Image] = []
+        self._state_history: List[State] = []
+        self._executed_skill_history: List[Optional[_Option]] = []
+        self._vlm_label_history: List[str] = []
 
     @classmethod
     def get_name(cls) -> str:
@@ -85,6 +177,15 @@ class SpotPerceiver(BasePerceiver):
         self._prev_action = None  # already processed at the end of the cycle
         init_state = self._create_state()
         goal = self._create_goal(init_state, env_task.goal_description)
+
+        # Reset run-specific things.
+        self._curr_state = DefaultState
+        self._curr_state.simulator_state = {}
+        self._state_history = []
+        self._executed_skill_history = []
+        self._vlm_label_history = []
+        self._prev_action = None
+
         return Task(init_state, goal)
 
     def update_perceiver_with_action(self, action: Action) -> None:
@@ -96,6 +197,11 @@ class SpotPerceiver(BasePerceiver):
 
     def step(self, observation: Observation) -> State:
         self._update_state_from_observation(observation)
+        # If we're trying to record VLM demos, then save the images.
+        if len(CFG.spot_vlm_teleop_demo_folderpath) > 0:
+            save_annotated_imgs_for_vlm_demo(
+                self._curr_annotated_imgs,
+                Path(CFG.spot_vlm_teleop_demo_folderpath))
         # Update the curr held item when applicable.
         assert self._curr_env is not None
         if self._prev_action is not None:
@@ -133,6 +239,9 @@ class SpotPerceiver(BasePerceiver):
                 # Check if the item we just placed is in view. It needs to
                 # be in view to assess whether it was placed correctly.
                 robot, obj = objects[:2]
+                if controller_name == "MoveToReachAndDropInside":
+                    # The object is the 3rd argument in this case.
+                    obj = objects[2]
                 state = self._create_state()
                 is_in_view = in_general_view_classifier(state, [robot, obj])
                 if not is_in_view:
@@ -143,7 +252,7 @@ class SpotPerceiver(BasePerceiver):
                      for n in ["sweepintocontainer", "sweeptwoobjects"]):
                 robot = objects[0]
                 state = self._create_state()
-                if controller_name.lower() == "sweepintocontainer":
+                if controller_name.lower() == "sweepintocontsainer":
                     objs = {objects[2]}
                 else:
                     assert controller_name.lower().startswith("sweeptwoobject")
@@ -166,7 +275,6 @@ class SpotPerceiver(BasePerceiver):
                         logging.info("[Perceiver] An object was lost: "
                                      f"{prev_held_object} was lost!")
                         self._lost_objects.add(prev_held_object)
-
         return self._create_state()
 
     def _update_state_from_observation(self, observation: Observation) -> None:
@@ -202,10 +310,13 @@ class SpotPerceiver(BasePerceiver):
         self._robot_pos = observation.robot_pos
         for obj in observation.objects_in_view:
             self._lost_objects.discard(obj)
+        self._curr_annotated_imgs = annotate_imgs_with_detections(
+            observation.images, observation.object_detections_per_camera)
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
             return DefaultState
+        assert self._curr_state is not None
         # Build the continuous part of the state.
         assert self._robot is not None
         state_dict = {
@@ -284,10 +395,75 @@ class SpotPerceiver(BasePerceiver):
         # logging.info("Simulator state:")
         # logging.info(simulator_state)
 
+        # Add the images and histories into the simulator_state.
+        simulator_state["images"] = self._curr_annotated_imgs
+        # At the first timestep, these histories will be empty due to
+        # self.reset(). But at every timestep that isn't the first one,
+        # they will be non-empty.
+        simulator_state["state_history"] = list(self._state_history)
+        # We do this here so the call to `utils.abstract()` a few lines later
+        # has the skill that was just run.
+        executed_skill = None
+
+        if self._prev_action is not None:
+            assert self._prev_action.extra_info is not None
+            if self._prev_action.extra_info.action_name == "done":
+                # Just return the default state
+                return DefaultState
+            if self._prev_action.has_option():
+                executed_skill = self._prev_action.get_option()
+        self._executed_skill_history.append(
+            executed_skill)  # None in first timestep.
+        simulator_state["skill_history"] = list(self._executed_skill_history)
+        simulator_state["vlm_label_history"] = list(self._vlm_label_history)
+
+        # Add to histories.
+        # A bit of extra work is required to build the VLM label history.
+        # We want to keep `utils.abstract()` as straightforward as possible,
+        # so we'll "rebuild" the VLM labels from the abstract state
+        # returned by `utils.abstract()`. And since we call this function,
+        # we might as well store the abstract state as a part of the simulator
+        # state so that we don't need to recompute it later in the approach or
+        # in planning.
+        assert self._curr_env is not None
+        preds = self._curr_env.predicates
+        state_copy = percept_state.copy()
+        state_copy.simulator_state = simulator_state
+        abstract_state = utils.abstract(state_copy, preds)
+        simulator_state["abstract_state"] = abstract_state
+        print(f"abstract_state: {abstract_state}")
+        # Compute all the VLM atoms. `utils.abstract()` only returns the ones
+        # that are True. The remaining ones are the ones that are False.
+        vlm_preds = set(pred for pred in preds
+                        if isinstance(pred, VLMPredicate))
+        vlm_atoms = set()
+        for pred in vlm_preds:
+            for choice in utils.get_object_combinations(
+                    list(state_copy), pred.types):
+                vlm_atoms.add(GroundAtom(pred, choice))
+        vlm_atoms_list = sorted(vlm_atoms)
+        reconstructed_all_vlm_responses = []
+        for atom in vlm_atoms_list:
+            if atom in abstract_state:
+                truth_value = 'True'
+            else:
+                truth_value = 'False'
+            atom_label = f"* {atom.get_vlm_query_str()}: {truth_value}"
+            reconstructed_all_vlm_responses.append(atom_label)
+        str_vlm_response = '\n'.join(reconstructed_all_vlm_responses)
+        self._vlm_label_history.append(str_vlm_response)
+
         # Now finish the state.
         state = _PartialPerceptionState(percept_state.data,
                                         simulator_state=simulator_state)
+        
+        # Save state for debugging
+        now = datetime.now()
+        with open(CFG.spot_perception_outdir + f"/0_{now.strftime('%Y%m%d_%H%M%S')}_latest_perceived_state.txt", "w") as f:
+            f.write(state.pretty_str())
 
+        self._curr_state = state
+        self._state_history.append(self._curr_state.copy())
         return state
 
     def _create_goal(self, state: State,
@@ -455,6 +631,28 @@ class SpotPerceiver(BasePerceiver):
             return {
                 GroundAtom(On, [bucket, shelf]),
             }
+        if goal_description == "sweep the brown bear toy and panda toy into the bucket":
+            brown_bear = Object("brown_bear_toy", _movable_object_type)
+            panda = Object("panda_toy", _movable_object_type)
+            chick_toy = Object("chick_toy", _movable_object_type)
+            bucket = Object("bucket", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            # table = Object("wooden_table", _immovable_object_type)
+            # On = pred_name_to_pred["On"]
+            wooden_table = Object("wooden_table", _immovable_object_type)
+            NotBlocked = pred_name_to_pred["NotBlocked"]
+            blue_toy_chair = Object("blue_toy_chair", _movable_object_type)
+            Blocking = pred_name_to_pred["Blocking"]
+            NotInsideAnyContainer = pred_name_to_pred["NotInsideAnyContainer"]
+            return {
+                GroundAtom(Inside, [brown_bear, bucket]),
+                GroundAtom(Inside, [panda, bucket]),
+                # GroundAtom(Inside, [chick_toy, bucket]),
+                # GroundAtom(NotBlocked, [wooden_table]),
+                # GroundAtom(Blocking, [blue_toy_chair, wooden_table]),
+                #GroundAtom(NotInsideAnyContainer, [brown_bear]),
+                #GroundAtom(NotInsideAnyContainer, [panda])
+            }
         if goal_description == "pick up the brush":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
@@ -467,6 +665,54 @@ class SpotPerceiver(BasePerceiver):
             block = Object("red_block", _movable_object_type)
             Holding = pred_name_to_pred["Holding"]
             return {GroundAtom(Holding, [robot, block])}
+        if goal_description == "pick up the blue block":
+            robot = Object("robot", _robot_type)
+            block = Object("blue_block", _movable_object_type)
+            Holding = pred_name_to_pred["Holding"]
+            return {GroundAtom(Holding, [robot, block])}
+        if goal_description == "open the drawer":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            Open = pred_name_to_pred["Open"]
+            return {GroundAtom(Open, [handle])}
+        if goal_description == "close the drawer":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            NotOpen = pred_name_to_pred["NotOpen"]
+            return {GroundAtom(NotOpen, [handle])}
+        if goal_description == "collect misplaced items":
+            robot = Object("robot", _robot_type)
+            handle = Object("green_handle", _movable_object_type)
+            blue_block = Object("blue_block", _movable_object_type)
+            yellow_cup = Object("yellow_cup", _movable_object_type)
+            toy_plane = Object("toy_plane", _movable_object_type)
+            cardboard_box = Object("cardboard_box", _container_type)
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(Inside, [blue_block, cardboard_box]),
+                GroundAtom(Inside, [yellow_cup, cardboard_box]),
+                GroundAtom(Inside, [toy_plane, cardboard_box]),
+            }
+        if goal_description == "put the tennis ball and red ball on the yellow table":
+            tennis_ball = Object("tennis_ball", _movable_object_type)
+            red_ball = Object("red_ball", _movable_object_type)
+            yellow_table = Object("yellow_table", _immovable_object_type)
+            On = pred_name_to_pred["On"]
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(On, [tennis_ball, yellow_table]),
+                GroundAtom(On, [red_ball, yellow_table]),
+            }
+        if goal_description == "wipe the wooden table with the sponge":
+            wooden_table = Object("wooden_table", _immovable_object_type)
+            sponge = Object("sponge", _movable_object_type)
+            orange_bucket = Object("orange_bucket", _container_type)
+            SurfaceWiped = pred_name_to_pred["SurfaceWiped"]
+            Inside = pred_name_to_pred["Inside"]
+            return {
+                GroundAtom(SurfaceWiped, [wooden_table]),
+                GroundAtom(Inside, [sponge, orange_bucket]),
+            }
         if goal_description == "setup sweeping":
             robot = Object("robot", _robot_type)
             brush = Object("brush", _movable_object_type)
@@ -503,6 +749,42 @@ class SpotPerceiver(BasePerceiver):
                 GroundAtom(ContainerReadyForSweeping, [bucket, black_table]),
                 GroundAtom(IsSweeper, [brush])
             }
+        if goal_description == "get the cup onto the table!":
+            robot = Object("robot", _robot_type)
+            cup = Object("yellow_toy_cup", _movable_object_type)
+            table = Object("small_cardboard_box_with_black_tape",
+                           _immovable_object_type)
+            HandEmpty = pred_name_to_pred["HandEmpty"]
+            VLMOn = pred_name_to_pred["VLMOn"]
+            goal = {
+                GroundAtom(HandEmpty, [robot]),
+                GroundAtom(VLMOn, [cup, table])
+            }
+            return goal
+        if goal_description == "clean up the table!":
+            Inside = pred_name_to_pred["VLMIn"]
+            # TableClean = pred_name_to_pred["TableClean"]
+            # TableClear = pred_name_to_pred["TableClear"]
+            TableWiped = pred_name_to_pred["TableWiped"]
+            # OnFloor = pred_name_to_pred["OnFloor"]
+            # IsGrumpy = pred_name_to_pred["IsGrumpy"]
+            # CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
+            # Holding = pred_name_to_pred["Holding"]
+            clear_trash_can = Object("clear_plastic_dustbin", _trash_can_type)
+            cardboard_trash_can = Object("cardboard_box_bin", _trash_can_type)
+            apple = Object("apple", _movable_object_type)
+            table = Object("child_play_table", _table_type)
+            eraser = Object("fluffy_green_toy_eraser", _movable_object_type)
+            # robot = Object("robot", _robot_type)
+            goal = {
+                # GroundAtom(Holding, [robot, eraser]),
+                GroundAtom(Inside, [eraser, clear_trash_can]),
+                GroundAtom(Inside, [apple, cardboard_trash_can]),
+                GroundAtom(TableWiped, [table]),
+                # GroundAtom(IsGrumpy, [trash_can]),
+                # GroundAtom(Holding, [robot, apple]),
+            }
+            return goal
         raise NotImplementedError("Unrecognized goal description")
 
     def render_mental_images(self, observation: Observation,
@@ -590,15 +872,6 @@ class SpotMinimalPerceiver(BasePerceiver):
     anything about.
     """
 
-    camera_name_to_annotation = {
-        'hand_color_image': "Hand Camera Image",
-        'back_fisheye_image': "Back Camera Image",
-        'frontleft_fisheye_image': "Front Left Camera Image",
-        'frontright_fisheye_image': "Front Right Camera Image",
-        'left_fisheye_image': "Left Camera Image",
-        'right_fisheye_image': "Right Camera Image"
-    }
-
     def render_mental_images(self, observation: Observation,
                              env_task: EnvironmentTask) -> Video:
         raise NotImplementedError()
@@ -636,9 +909,9 @@ class SpotMinimalPerceiver(BasePerceiver):
         Inside = pred_name_to_pred["Inside"]
         Holding = pred_name_to_pred["Holding"]
         HandEmpty = pred_name_to_pred["HandEmpty"]
-        VLMOn = pred_name_to_pred["VLMOn"]
 
         if goal_description == "get the cup onto the table!":
+            VLMOn = pred_name_to_pred["VLMOn"]
             robot = Object("robot", _robot_type)
             cup = Object("yellow_toy_cup", _movable_object_type)
             table = Object("cardboard_table", _immovable_object_type)
@@ -654,6 +927,23 @@ class SpotMinimalPerceiver(BasePerceiver):
             goal = {
                 GroundAtom(Inside, [wrappers, dustpan]),
                 GroundAtom(Holding, [robot, dustpan])
+            }
+            return goal
+        if goal_description == "clean up the table!":
+            VLMIn = pred_name_to_pred["VLMIn"]
+            TableClean = pred_name_to_pred["TableClean"]
+            TableClear = pred_name_to_pred["TableClear"]
+            TableWiped = pred_name_to_pred["TableWiped"]
+            CanBeUsedForErasing = pred_name_to_pred["CanBeUsedForErasing"]
+            trash_can = Object("clear_plastic_trash_can",
+                               _immovable_object_type)
+            apple = Object("apple", _movable_object_type)
+            table = Object("childrens_play_table", _table_type)
+            eraser = Object("neon_green_fluffy_eraser", _movable_object_type)
+            robot = Object("robot", _robot_type)
+            goal = {
+                GroundAtom(VLMIn, [apple, trash_can]),
+                GroundAtom(TableWiped, [table]),
             }
             return goal
 
@@ -689,47 +979,20 @@ class SpotMinimalPerceiver(BasePerceiver):
         self._waiting_for_observation = False
         self._robot = observation.robot
 
-        img_objects = observation.rgbd_images  # RGBDImage objects
-        img_names = [v.camera_name for _, v in img_objects.items()]
-        imgs = [v.rotated_rgb for _, v in img_objects.items()]
-        pil_imgs = [PIL.Image.fromarray(img) for img in imgs]  # type: ignore
-        # Annotate images with detected objects (names + bounding box)
-        # and camera name.
-        object_detections_per_camera = observation.object_detections_per_camera
-        for i, camera_name in enumerate(img_names):
-            draw = ImageDraw.Draw(pil_imgs[i])
-            # Annotate with camera name.
-            font = utils.get_scaled_default_font(draw, 4)
-            _ = utils.add_text_to_draw_img(
-                draw, (0, 0), self.camera_name_to_annotation[camera_name],
-                font)
-            # Annotate with object detections.
-            detections = object_detections_per_camera[camera_name]
-            for obj_id, seg_bb in detections:
-                x0, y0, x1, y1 = seg_bb.bounding_box
-                x0, x1 = sorted([x0, x1])
-                y0, y1 = sorted([y0, y1])
-                draw.rectangle([(x0, y0), (x1, y1)], outline='green', width=2)
-                text = f"{obj_id.language_id}"
-                font = utils.get_scaled_default_font(draw, 3)
-                text_mask = font.getmask(text)  # type: ignore
-                text_width, text_height = text_mask.size
-                text_bbox = [(x0, y0 - 1.5 * text_height),
-                             (x0 + text_width + 1, y0)]
-                draw.rectangle(text_bbox, fill='green')
-                draw.text((x0 + 1, y0 - 1.5 * text_height),
-                          text,
-                          fill='white',
-                          font=font)
-        annotated_imgs = list(pil_imgs)
+        annotated_imgs = annotate_imgs_with_detections(
+            observation.rgbd_images, observation.object_detections_per_camera)
         self._gripper_open_percentage = observation.gripper_open_percentage
+        # If we're trying to record VLM demos, then save the images.
+        if len(CFG.spot_vlm_teleop_demo_folderpath) > 0:
+            save_annotated_imgs_for_vlm_demo(
+                annotated_imgs, Path(CFG.spot_vlm_teleop_demo_folderpath))
 
         self._curr_state = self._create_state()
         if observation.executed_skill is not None:
             if "Pick" in observation.executed_skill.extra_info.action_name:
                 for obj in observation.executed_skill.extra_info.\
                         operator_objects:
-                    if not obj.is_instance(_robot_type):
+                    if obj.is_instance(_movable_object_type):
                         # Turn the held feature on
                         self._curr_state.set(obj, "held", 1.0)
             if "Place" in observation.executed_skill.extra_info.action_name:
@@ -842,7 +1105,7 @@ class SpotMinimalPerceiver(BasePerceiver):
                     "in_view": 0,
                     "is_sweeper": 0,
                 })
-            elif obj.type.name == "immovable":
+            elif obj.type.name in ["immovable", "table"]:
                 state_dict[obj].update({"flat_top_surface": 1})
             else:
                 raise ValueError(

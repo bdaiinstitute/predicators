@@ -122,7 +122,8 @@ class PretrainedLargeModel(abc.ABC):
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
-        logging.debug(f"Loaded model response from {cache_filepath}.")
+        # logging.debug(f"Loaded model response from {cache_filepath}.")
+        print(f"Loaded model response from {cache_filepath}.")
         assert cache_str.count(_CACHE_SEP) == num_completions
         cached_prompt, completion_strs = cache_str.split(_CACHE_SEP, 1)
         assert cached_prompt == prompt

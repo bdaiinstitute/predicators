@@ -67,6 +67,39 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
     def is_learning_based(self) -> bool:
         return True
 
+    def get_goals_for_specific_datasets(self, train_task_idx: int) -> str:
+        """HACK to get the goals for specific datasets.
+
+        Used for spot envs because the invention env is different from
+        the actual execution env.
+        """
+        if CFG.vlm_trajs_folder_name == "spot_vlm_table_wiping_execution_env__vlm_demos__3__8":
+            if train_task_idx in [0, 2, 3]:
+                return "TableWiped(child_play_table:table)"
+            elif train_task_idx in [1, 4]:
+                return "VLMIn(apple:movable, seethru_plastic_dustbin:movable), TableWiped(child_play_table:table)"
+            elif train_task_idx == 5:
+                return "VLMIn(green_block: movable, cardboard_recycling_bin:movable)"
+            elif train_task_idx == 6:
+                return "VLMIn(orange_block: movable, cardboard_recycling_bin:movable)"
+            elif train_task_idx == 7:
+                return "VLMIn(spam_tin:movable, cardboard_recycling_bin:movable)"
+            else:
+                raise NotImplementedError(
+                    "Shouldn't be getting here! i = {}".format(i))
+        elif CFG.vlm_trajs_folder_name == "spot_vlm_table_wiping_human_execution_env__vlm_demos__3__6":
+            if train_task_idx in [0, 1, 2]:
+                return "TableWiped(child_play_table:table)"
+            elif train_task_idx in [3]:
+                return "VLMIn(apple:movable, seethru_plastic_dustbin:movable), TableWiped(child_play_table:table)"
+            elif train_task_idx == 4:
+                return "VLMIn(green_block: movable, cardboard_recycling_bin:movable)"
+            elif train_task_idx == 5:
+                return "VLMIn(spam_tin:movable, cardboard_recycling_bin:movable)"
+            else:
+                raise NotImplementedError(
+                    "Shouldn't be getting here! i = {}".format(i))
+
     def learn_from_offline_dataset(self, dataset: Dataset) -> None:
         """Adds the images and plans from the training dataset to the base
         prompt for use at test time!"""
@@ -77,7 +110,7 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             for img_num, img in enumerate(state.simulator_state["images"]):
                 pil_img = PIL.Image.fromarray(img)  # type: ignore
                 width, height = pil_img.size
-                font_size = 15
+                font_size = 6
                 text = f"Demonstration {traj_num}, " + \
                     f"State {state_num}, Image {img_num}"
                 draw = ImageDraw.Draw(pil_img)
@@ -119,9 +152,16 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
             segment_traj, ll_traj = seg_traj
             if not ll_traj.is_demo:
                 continue
-            traj_goal = self._train_tasks[ll_traj.train_task_idx].goal
+
+            # Get the goal string depending on the env.
+            if "spot" not in CFG.env:
+                traj_goal = self._train_tasks[ll_traj.train_task_idx].goal
+                traj_goal_str = str(sorted(traj_goal))
+            else:
+                traj_goal_str = self.get_goals_for_specific_datasets(traj_num)
+
             self._prompt_demos_str += f"Demonstration {traj_num}, " + \
-                f"Goal: {str(sorted(traj_goal))}\n"
+                f"Goal: {traj_goal_str}\n"
             assert len(segment_traj) > 0
             for state_num, seg in enumerate(segment_traj):
                 state = seg.states[0]
@@ -162,14 +202,20 @@ class VLMOpenLoopApproach(BilevelPlanningApproach):  # pragma: no cover
         assert isinstance(init_state.simulator_state["images"], List)
         curr_options = sorted(self._initial_options)
         imgs = init_state.simulator_state["images"]
-        pil_imgs = [
-            PIL.Image.fromarray(img_arr)  # type: ignore
-            for img_arr in imgs
-        ]
+        if isinstance(imgs[0], np.ndarray):
+            pil_imgs = [
+                PIL.Image.fromarray(img_arr)  # type: ignore
+                for img_arr in imgs
+            ]
+        elif isinstance(imgs[0], PIL.Image.Image):
+            pil_imgs = imgs
+        else:
+            raise ValueError(
+                "Simulator state images are not in a recognized format!")
         imgs_for_vlm = []
         for img_num, pil_img in enumerate(pil_imgs):
             draw = ImageDraw.Draw(pil_img)
-            img_font = utils.get_scaled_default_font(draw, 10)
+            img_font = utils.get_scaled_default_font(draw, 6)
             img_with_txt = utils.add_text_to_draw_img(
                 draw, (50, 50), f"Initial state to plan from, Image {img_num}",
                 img_font)
