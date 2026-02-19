@@ -32,10 +32,10 @@ class SpotTableWipingInventionGroundTruthOptionFactory(GroundTruthOptionFactory
         del env_name, predicates  # unused.
 
         robot_type = types["robot"]
-        movable_type = types["movable_object"]
-        immovable_type = types["immovable_object"]
+        movable_type = types["movable"]
+        immovable_type = types["immovable"]
         table_type = types["table"]
-        trash_can_type = types["trash_can"]
+        trash_can_type = types["trashcan"]
 
         MoveToHandViewObject = utils.SingletonParameterizedOption(
             "MoveToHandViewObject",

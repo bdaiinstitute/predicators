@@ -15,6 +15,7 @@ from PIL import ImageDraw
 
 from predicators import utils
 from predicators.envs import BaseEnv, get_or_create_env
+from predicators.envs.vlm_envs import VLMPredicateEnv
 from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
     LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext, \
     SegmentedBoundingBox, SpotCubeEnv, SpotRearrangementEnv, \
@@ -159,24 +160,47 @@ class SpotPerceiver(BasePerceiver):
         if self._waiting_for_observation or CFG.spot_run_dry:
             self._waiting_for_observation = True
             self._curr_env = get_or_create_env(CFG.env)
-            assert isinstance(self._curr_env, SpotRearrangementEnv)
-            self._known_object_poses = {}
-            self._objects_in_view = set()
-            self._objects_in_hand_view = set()
-            self._objects_in_any_view_except_back = set()
-            self._robot = None
-            self._nonpercept_atoms = set()
-            self._nonpercept_predicates = set()
-            self._percept_predicates = self._curr_env.percept_predicates
-            self._held_object = None
-            self._gripper_open_percentage = 0.0
-            self._robot_pos = math_helpers.SE3Pose(0, 0, 0,
-                                                   math_helpers.Quat())
-            self._lost_objects = set()
-            self._container_to_contained_objects = {}
+            if isinstance(self._curr_env, SpotRearrangementEnv):
+                self._known_object_poses = {}
+                self._objects_in_view = set()
+                self._objects_in_hand_view = set()
+                self._objects_in_any_view_except_back = set()
+                self._robot = None
+                self._nonpercept_atoms = set()
+                self._nonpercept_predicates = set()
+                self._percept_predicates = self._curr_env.percept_predicates
+                self._held_object = None
+                self._gripper_open_percentage = 0.0
+                self._robot_pos = math_helpers.SE3Pose(0, 0, 0,
+                                                    math_helpers.Quat())
+                self._lost_objects = set()
+                self._container_to_contained_objects = {}
+            elif isinstance(self._curr_env, VLMPredicateEnv):
+                self._known_object_poses = {}
+                self._objects_in_view = set()
+                self._objects_in_hand_view = set()
+                self._objects_in_any_view_except_back = set()
+                self._robot = None
+                self._nonpercept_atoms = set()
+                self._nonpercept_predicates = set()
+                self._percept_predicates = self._curr_env.predicates
+                self._held_object = None
+                self._gripper_open_percentage = 0.0
+                self._robot_pos = math_helpers.SE3Pose(0, 0, 0,
+                                                    math_helpers.Quat())
+                self._lost_objects = set()
+                self._container_to_contained_objects = {}
+            else:
+                raise NotImplementedError(f"Don't know how to reset perceiver for env "f"type {type(self._curr_env)}.")
+
+            
         self._prev_action = None  # already processed at the end of the cycle
         init_state = self._create_state()
-        goal = self._create_goal(init_state, env_task.goal_description)
+        if isinstance(self._curr_env, VLMPredicateEnv):
+            import ipdb; ipdb.set_trace()
+            goal = self.get_goal_atoms_from_description(env_task.goal_description)
+        else:
+            goal = self._create_goal(init_state, env_task.goal_description)
 
         # Reset run-specific things.
         self._curr_state = DefaultState
@@ -906,9 +930,12 @@ class SpotMinimalPerceiver(BasePerceiver):
         # Hopefully one day other cleanups will enable cleaning.
         assert self._curr_env is not None
         pred_name_to_pred = {p.name: p for p in self._curr_env.predicates}
-        Inside = pred_name_to_pred["Inside"]
-        Holding = pred_name_to_pred["Holding"]
-        HandEmpty = pred_name_to_pred["HandEmpty"]
+        try:
+            Inside = pred_name_to_pred["Inside"]
+            Holding = pred_name_to_pred["Holding"]
+            HandEmpty = pred_name_to_pred["HandEmpty"]
+        except KeyError:
+            import ipdb; ipdb.set_trace()
 
         if goal_description == "get the cup onto the table!":
             VLMOn = pred_name_to_pred["VLMOn"]
@@ -975,7 +1002,8 @@ class SpotMinimalPerceiver(BasePerceiver):
         # observation, then update the ordered list of known objects.
         if self._waiting_for_observation:
             assert len(self._ordered_objects) == 0
-            self._ordered_objects = sorted(observation.all_objects)
+            # TODO # self._ordered_objects = sorted(observation.all_objects)
+            self._ordered_objects = []
         self._waiting_for_observation = False
         self._robot = observation.robot
 

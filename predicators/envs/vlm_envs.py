@@ -155,12 +155,12 @@ class SpotVLMTableWipingInventionEnv(VLMPredicateEnv):
         super().__init__(use_gui)
         # Env-specific types.
         self._robot_type = Type("robot", [], self._object_type)
-        self._movable_object_type = Type("movable_object", [],
+        self._movable_object_type = Type("movable", [],
                                          self._object_type)
-        self._immovable_object_type = Type("immovable_object", [],
+        self._immovable_object_type = Type("immovable", [],
                                            self._object_type)
         self._table_type = Type("table", [], self._immovable_object_type)
-        self._trash_can_type = Type("trash_can", [],
+        self._trash_can_type = Type("trashcan", [],
                                     self._immovable_object_type)
         self._VLMIn = utils.create_vlm_predicate(
             "InsideContainer",
@@ -306,12 +306,12 @@ class SpotVLMTableWipingHumanInventionEnv(VLMPredicateEnv):
         super().__init__(use_gui)
         # Env-specific types.
         self._robot_type = Type("robot", [], self._object_type)
-        self._movable_object_type = Type("movable_object", [],
+        self._movable_object_type = Type("movable", [],
                                          self._object_type)
-        self._immovable_object_type = Type("immovable_object", [],
+        self._immovable_object_type = Type("immovable", [],
                                            self._object_type)
         self._table_type = Type("table", [], self._immovable_object_type)
-        self._trash_can_type = Type("trash_can", [],
+        self._trash_can_type = Type("trashcan", [],
                                     self._immovable_object_type)
         self._VLMIn = utils.create_vlm_predicate(
             "InsideContainer",

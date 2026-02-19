@@ -40,6 +40,10 @@ known-immovable-objects:
     x: 0.7
     y: -0.7
     z: -0.4
+  child_play_table:
+    x: 1.65
+    y: -0.24
+    z: 0.14
 
 # Helpful for static objects that are up against a wall, for example.
 approach_angle_bounds:
@@ -50,6 +54,12 @@ approach_angle_bounds:
   brush: [1.25, 1.75]
   floor: [-0.1, 0.1]
   bucket: [-0.1, 0.1]
+  # For spot_vlm_table_wiping_invention_env
+  child_play_table: [-0.1, 0.1]
+  apple: [-0.1, 0.1]
+  clear_plastic_dustbin: [1.47, 1.67]
+  cardboard_box_bin: [1.47, 1.67]
+  fluffy_green_toy_eraser: [-0.1, 0.1]
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -202,12 +212,6 @@ static-object-features:
     width: 0.08
     placeable: 1
     is_sweeper: 1
-# This should be calculable, but I'm lazy. These values represent the SE2 pose
-# (in the table frame) for the robot before placing the container.
-prepare_container_relative_xy:
-  dx: -0.25
-  dy: 0.75
-  angle: -1.5707  # - pi / 2
   yellow_toy_cup:
     shape: 2
     height: 0.1
@@ -249,3 +253,71 @@ prepare_container_relative_xy:
     length: 0.3
     width: 0.5
     flat_top_surface: 1
+  # Objects for spot_vlm_table_wiping_invention_env
+  child_play_table:
+    shape: 1
+    height: 0.1
+    length: 0.79
+    width: 0.62
+    flat_top_surface: 1
+  green_block:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  orange_block:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  spam_tin:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  clear_plastic_dustbin:
+    shape: 2
+    height: 0.1
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  fluffy_green_toy_eraser:
+    shape: 1
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  red_drink_cup:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  cardboard_box_bin:
+    shape: 2
+    height: 0.1
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+# This should be calculable, but I'm lazy. These values represent the SE2 pose
+# (in the table frame) for the robot before placing the container.
+prepare_container_relative_xy:
+  dx: -0.25
+  dy: 0.75
+  angle: -1.5707  # - pi / 2
+
+# Wiping skill params.
+wipe_location:
+  child_play_table: [2.48, 0.205, -2.96856]

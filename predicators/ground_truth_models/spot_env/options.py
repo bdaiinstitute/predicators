@@ -1551,15 +1551,6 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
     @classmethod
     def get_env_names(cls) -> Set[str]:
         return {
-            "spot_cube_env",
-            "spot_soda_floor_env",
-            "spot_soda_table_env",
-            "spot_soda_bucket_env",
-            "spot_soda_chair_env",
-            "spot_main_sweep_env",
-            "spot_ball_and_cup_sticky_table_env",
-            "spot_brush_shelf_env",
-            "lis_spot_block_floor_env",
             "spot_vlm_dustpan_test_env", "spot_vlm_cup_table_env",
             "spot_cube_env", "spot_soda_floor_env", "spot_soda_table_env",
             "spot_soda_bucket_env", "spot_soda_chair_env",
@@ -1567,7 +1558,7 @@ class SpotEnvsGroundTruthOptionFactory(GroundTruthOptionFactory):
             "spot_brush_shelf_env", "lis_spot_block_floor_env",
             "spot_vlm_simple_table_wiping_env",
             "spot_vlm_table_wiping_oracle_env",
-            "spot_vlm_table_wiping_invented_predicates_env"
+            "spot_vlm_table_wiping_invented_predicates_env",
             "lis_spot_block_drawer_env",
             "lis_spot_collect_misplaced_items_env",
             "lis_spot_balls_yellow_table_env",

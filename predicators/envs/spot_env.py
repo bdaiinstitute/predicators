@@ -4759,6 +4759,10 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
             "HandEmpty",
             "VLMIn",
             "TableWiped",
+            "Inside",
+            "TableClean",
+            "TableClear",
+            "CanBeUsedForErasing",
         ])
         preds |= {
             self._OnFloor, self._IsEraser,

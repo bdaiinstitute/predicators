@@ -408,7 +408,10 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "PrepareContainerForSweeping": _prepare_sweeping_sampler,
             "DropNotPlaceableObject": utils.null_sampler,
             "MoveToReadySweep": utils.null_sampler,
+            "TeleopPick1": utils.null_sampler,
+            "TeleopPlace1": utils.null_sampler,
             "PlaceNextTo": utils.null_sampler,
+            "TeleopPick2": utils.null_sampler,
             "Sweep": utils.null_sampler,
             "PlaceOnFloor": utils.null_sampler,
             "DumpContentsOntoFloor": _pick_object_from_top_sampler,
@@ -417,7 +420,7 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToReachAndDropInside": _move_to_reach_object_sampler,
             "MoveAndWipeSurfaceAndContinueHoldingEraser":
             _move_and_wipe_table_sampler,
-            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler
+            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler,
             "WipeTable": _wipe_table_sampler,
         }
 
