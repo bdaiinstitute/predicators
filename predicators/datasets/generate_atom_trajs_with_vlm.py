@@ -496,7 +496,9 @@ def _save_img_option_trajs_in_folder(
                 curr_traj_timestep_folder = Path(curr_traj_folder, str(j))
                 os.makedirs(curr_traj_timestep_folder, exist_ok=False)
                 for k, img in enumerate(img_list):
-                    img.save(
+                    # Convert RGBA to RGB since JPEG doesn't support alpha
+                    img_to_save = img.convert('RGB') if img.mode == 'RGBA' else img
+                    img_to_save.save(
                         Path(curr_traj_timestep_folder,
                              str(j) + "_" + str(k) + ".jpg"))
                 # Save the object-centric state alongside the images.
@@ -1338,7 +1340,10 @@ def create_ground_atom_data_from_saved_img_trajs(
     # Each demonstration trajectory is in subfolder traj_<demo_number>.
     traj_folders = [f for f in unfiltered_files if f[0:5] == "traj_"]
     num_trajs = len(traj_folders)
-    assert num_trajs == CFG.num_train_tasks
+    try:
+        assert num_trajs == CFG.num_train_tasks
+    except AssertionError:
+        import ipdb; ipdb.set_trace()
     option_name_to_option = {opt.name: opt for opt in known_options}
     image_option_trajs = []
     all_task_objs = set()

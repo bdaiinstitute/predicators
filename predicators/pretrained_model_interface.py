@@ -117,6 +117,9 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
+                    # Convert RGBA to RGB since JPEG doesn't support alpha
+                    if img.mode == 'RGBA':
+                        img = img.convert('RGB')
                     img.save(os.path.join(imgs_folderpath, filename_suffix))
             logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.

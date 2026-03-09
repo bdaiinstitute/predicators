@@ -448,3 +448,290 @@ class SpotVLMTableWipingHumanInventionEnv(VLMPredicateEnv):
             "noObjectsOntopTable(child_play_table)"
         ])
         return [[a] for a in atom_strs]
+
+
+class LISThesisPickPlaceEnv(VLMPredicateEnv):
+    """Environment for LIS thesis pick-and-place task with Spot robot.
+
+    This is for predicate invention from VLM demos involving picking
+    and placing balls on tables.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+        # Env-specific types.
+        self._robot_type = Type("robot", [], self._object_type)
+        self._ball_type = Type("ball", [], self._object_type)
+        self._table_type = Type("table", [], self._object_type)
+
+        # VLM-based goal predicate: OnTable(ball, table)
+        def _get_vlm_query_str(pred_name: str, objects) -> str:
+            return pred_name + "(" + ", ".join(
+                str(obj.name) for obj in objects) + ")"
+
+        self._OnTable = utils.create_vlm_predicate(
+            "OnTable",
+            [self._ball_type, self._table_type],
+            lambda o: _get_vlm_query_str("OnTable", o))
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_thesis_pickplace"
+
+    @property
+    def types(self) -> Set[Type]:
+        return super().types | {
+            self._robot_type,
+            self._ball_type,
+            self._table_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {self._OnTable}
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return {self._OnTable}
+
+    def _get_tasks(self, num: int,
+                   rng: np.random.Generator) -> List[EnvironmentTask]:
+        del rng  # unused.
+        # Define objects matching the demo
+        spot_obj = Object("spot", self._robot_type)
+        tenis_ball_obj = Object("tenis_ball", self._ball_type)
+        red_ball_obj = Object("red_ball", self._ball_type)
+        yellow_table_obj = Object("yellow_table", self._table_type)
+
+        ret_tasks = []
+        for _ in range(num):
+            init_state_dict = {
+                spot_obj: np.array([]),
+                tenis_ball_obj: np.array([]),
+                red_ball_obj: np.array([]),
+                yellow_table_obj: np.array([]),
+            }
+            # Goal: both balls should be on the yellow table
+            goal = {
+                GroundAtom(self._OnTable, [tenis_ball_obj, yellow_table_obj]),
+                GroundAtom(self._OnTable, [red_ball_obj, yellow_table_obj]),
+            }
+            ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
+        return ret_tasks
+
+    def get_vlm_debug_atom_strs(self,
+                                train_tasks: List[Task]) -> List[List[str]]:
+        """Debug atoms that might be relevant for this domain."""
+        del train_tasks
+        atom_strs = set([
+            "holding(tenis_ball)",
+            "holding(red_ball)",
+            "OnTable(tenis_ball, yellow_table)",
+            "OnTable(red_ball, yellow_table)",
+            "robot_at(spot, yellow_table)",
+            "robot_at(spot, tenis_ball)",
+            "robot_at(spot, red_ball)",
+        ])
+        return [[a] for a in atom_strs]
+
+
+class LISThesisSweepEnv(VLMPredicateEnv):
+    """Environment for LIS thesis sweep task with Spot robot.
+
+    Goal: sweep table and put toys in the plastic bin.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+        # Env-specific types.
+        self._robot_type = Type("robot", [], self._object_type)
+        self._tool_type = Type("tool", [], self._object_type)
+        self._surface_type = Type("surface", [], self._object_type)
+        self._toy_type = Type("toy", [], self._object_type)
+        self._container_type = Type("container", [], self._object_type)
+
+        # VLM-based goal predicates
+        def _get_vlm_query_str(pred_name: str, objects) -> str:
+            return pred_name + "(" + ", ".join(
+                str(obj.name) for obj in objects) + ")"
+
+        self._InContainer = utils.create_vlm_predicate(
+            "InContainer",
+            [self._toy_type, self._container_type],
+            lambda o: _get_vlm_query_str("InContainer", o))
+
+        self._TableSwept = utils.create_vlm_predicate(
+            "TableSwept",
+            [self._surface_type],
+            lambda o: _get_vlm_query_str("TableSwept", o))
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_thesis_sweep"
+
+    @property
+    def types(self) -> Set[Type]:
+        return super().types | {
+            self._robot_type,
+            self._tool_type,
+            self._surface_type,
+            self._toy_type,
+            self._container_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {self._InContainer, self._TableSwept}
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return {self._InContainer, self._TableSwept}
+
+    def _get_tasks(self, num: int,
+                   rng: np.random.Generator) -> List[EnvironmentTask]:
+        del rng  # unused.
+        # Define objects matching the demo
+        spot_obj = Object("spot", self._robot_type)
+        squeegee_obj = Object("squeegee", self._tool_type)
+        wooden_table_obj = Object("wooden_table", self._surface_type)
+        floor_obj = Object("floor", self._surface_type)
+        toy_caterpillar_obj = Object("toy_caterpillar", self._toy_type)
+        toy_elephant_obj = Object("toy_elephant", self._toy_type)
+        toy_frog_obj = Object("toy_frog", self._toy_type)
+        plastic_bin_obj = Object("plastic_bin", self._container_type)
+
+        ret_tasks = []
+        for _ in range(num):
+            init_state_dict = {
+                spot_obj: np.array([]),
+                squeegee_obj: np.array([]),
+                wooden_table_obj: np.array([]),
+                floor_obj: np.array([]),
+                toy_caterpillar_obj: np.array([]),
+                toy_elephant_obj: np.array([]),
+                toy_frog_obj: np.array([]),
+                plastic_bin_obj: np.array([]),
+            }
+            # Goal: all three toys in the plastic bin
+            goal = {
+                GroundAtom(self._InContainer,
+                           [toy_caterpillar_obj, plastic_bin_obj]),
+                GroundAtom(self._InContainer,
+                           [toy_elephant_obj, plastic_bin_obj]),
+                GroundAtom(self._InContainer,
+                           [toy_frog_obj, plastic_bin_obj]),
+            }
+            ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
+        return ret_tasks
+
+    def get_vlm_debug_atom_strs(self,
+                                train_tasks: List[Task]) -> List[List[str]]:
+        """Debug atoms that might be relevant for this domain."""
+        del train_tasks
+        atom_strs = set([
+            "holding(squeegee)",
+            "holding(toy_caterpillar)",
+            "holding(toy_elephant)",
+            "holding(toy_frog)",
+            "InContainer(toy_caterpillar, plastic_bin)",
+            "InContainer(toy_elephant, plastic_bin)",
+            "InContainer(toy_frog, plastic_bin)",
+            "TableSwept(wooden_table)",
+            "OnSurface(squeegee, floor)",
+            "OnSurface(squeegee, wooden_table)",
+        ])
+        return [[a] for a in atom_strs]
+
+
+class LISThesisScrubEnv(VLMPredicateEnv):
+    """Environment for LIS thesis scrub task with Spot robot.
+
+    Goal: clean table and put scrub_sponge back in orange_bucket.
+    """
+
+    def __init__(self, use_gui: bool = True) -> None:
+        super().__init__(use_gui)
+        # Env-specific types.
+        self._robot_type = Type("robot", [], self._object_type)
+        self._tool_type = Type("tool", [], self._object_type)
+        self._surface_type = Type("surface", [], self._object_type)
+        self._container_type = Type("container", [], self._object_type)
+        self._furniture_type = Type("furniture", [], self._object_type)
+
+        # VLM-based goal predicates
+        def _get_vlm_query_str(pred_name: str, objects) -> str:
+            return pred_name + "(" + ", ".join(
+                str(obj.name) for obj in objects) + ")"
+
+        self._InContainer = utils.create_vlm_predicate(
+            "InContainer",
+            [self._tool_type, self._container_type],
+            lambda o: _get_vlm_query_str("InContainer", o))
+
+        self._TableClean = utils.create_vlm_predicate(
+            "TableClean",
+            [self._surface_type],
+            lambda o: _get_vlm_query_str("TableClean", o))
+
+    @classmethod
+    def get_name(cls) -> str:
+        return "lis_thesis_scrub"
+
+    @property
+    def types(self) -> Set[Type]:
+        return super().types | {
+            self._robot_type,
+            self._tool_type,
+            self._surface_type,
+            self._container_type,
+            self._furniture_type,
+        }
+
+    @property
+    def predicates(self) -> Set[Predicate]:
+        return {self._InContainer, self._TableClean}
+
+    @property
+    def goal_predicates(self) -> Set[Predicate]:
+        return {self._InContainer, self._TableClean}
+
+    def _get_tasks(self, num: int,
+                   rng: np.random.Generator) -> List[EnvironmentTask]:
+        del rng  # unused.
+        # Define objects matching the demo
+        spot_obj = Object("spot", self._robot_type)
+        blue_chair_obj = Object("blue_chair", self._furniture_type)
+        wooden_table_obj = Object("wooden_table", self._surface_type)
+        orange_bucket_obj = Object("orange_bucket", self._container_type)
+        scrub_sponge_obj = Object("scrub_sponge", self._tool_type)
+
+        ret_tasks = []
+        for _ in range(num):
+            init_state_dict = {
+                spot_obj: np.array([]),
+                blue_chair_obj: np.array([]),
+                wooden_table_obj: np.array([]),
+                orange_bucket_obj: np.array([]),
+                scrub_sponge_obj: np.array([]),
+            }
+            # Goal: clean table and scrub_sponge in orange_bucket
+            goal = {
+                GroundAtom(self._TableClean, [wooden_table_obj]),
+                GroundAtom(self._InContainer,
+                           [scrub_sponge_obj, orange_bucket_obj]),
+            }
+            ret_tasks.append(EnvironmentTask(State(init_state_dict), goal))
+        return ret_tasks
+
+    def get_vlm_debug_atom_strs(self,
+                                train_tasks: List[Task]) -> List[List[str]]:
+        """Debug atoms that might be relevant for this domain."""
+        del train_tasks
+        atom_strs = set([
+            "holding(scrub_sponge)",
+            "InContainer(scrub_sponge, orange_bucket)",
+            "TableClean(wooden_table)",
+            "Blocking(blue_chair, wooden_table)",
+            "TableAccessible(wooden_table)",
+        ])
+        return [[a] for a in atom_strs]
