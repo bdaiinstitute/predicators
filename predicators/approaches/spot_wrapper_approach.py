@@ -18,6 +18,7 @@ from gym.spaces import Box
 from predicators import utils
 from predicators.approaches import BaseApproach, BaseApproachWrapper
 from predicators.envs.spot_env import get_detection_id_for_object, get_robot
+from predicators.settings import CFG
 from predicators.spot_utils.skills.spot_find_objects import find_objects
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.utils import get_allowed_map_regions
@@ -66,23 +67,24 @@ class SpotWrapperApproach(BaseApproachWrapper):
                     state.get(obj, "lost") > 0.5:
                     lost_objects.add(obj)
             # Need to find the objects.
-            if lost_objects:
-                logging.info(f"[Spot Wrapper] Lost objects: {lost_objects}")
-                # Reset the base approach policy.
-                base_approach_policy = None
-                need_stow = True
-                self._base_approach_has_control = False
-                robot, localizer, lease_client = get_robot()
-                lost_object_ids = {
-                    get_detection_id_for_object(o)
-                    for o in lost_objects
-                }
-                allowed_regions = self._allowed_regions
-                extra_info = SpotActionExtraInfo(
-                    "find-objects", [], find_objects,
-                    (state, self._rng, robot, localizer, lease_client,
-                     lost_object_ids, allowed_regions), None, tuple())
-                return utils.create_spot_env_action(extra_info)
+            # NOTE: HACK: commenting out for now - just for some robot testing!
+            # if lost_objects and len(CFG.spot_vlm_teleop_demo_folderpath) == 0:
+            #     logging.info(f"[Spot Wrapper] Lost objects: {lost_objects}")
+            #     # Reset the base approach policy.
+            #     base_approach_policy = None
+            #     need_stow = True
+            #     self._base_approach_has_control = False
+            #     robot, localizer, lease_client = get_robot()
+            #     lost_object_ids = {
+            #         get_detection_id_for_object(o)
+            #         for o in lost_objects
+            #     }
+            #     allowed_regions = self._allowed_regions
+            #     extra_info = SpotActionExtraInfo(
+            #         "find-objects", [], find_objects,
+            #         (state, self._rng, robot, localizer, lease_client,
+            #          lost_object_ids, allowed_regions), None, tuple())
+            #     return utils.create_spot_env_action(extra_info)
             # Found the objects. Stow the arm before replanning.
             if need_stow:
                 logging.info("[Spot Wrapper] Lost objects found, stowing.")

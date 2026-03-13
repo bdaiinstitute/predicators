@@ -1,0 +1,147 @@
+# Additional info associated with the map.
+---
+# NOTE: close to the center of the room
+#spot-home-pose:
+#  x: 2.85
+#  y: 0.0
+#  angle: -1.45769
+# NOTE: a place closer to the corner that the cable can reach - easier for debug
+spot-home-pose:
+  x: 3.5
+  y: 0.45
+  angle: 0.
+april-tag-offsets: []
+
+# Allowed regions. Each region is defined by a set of points
+# that form the boundary of the region. We will check
+# whether a pose is within the region by checking whether the
+# robot will be within the convex hull of these boundary
+# points.
+allowed-regions:
+  spot-room:
+    - [0.25, 1.9]
+    - [1.2, -2.5]
+    - [5.7, -1.5]
+    - [5.0, 2.7]
+
+# Known immovable objects. Assuming default rotations.
+# TODO note: later we can add static objects like short_round_coffee_tables, chairs, etc. here
+known-immovable-objects:
+  floor:
+    x: 1.4
+    y: 0.5
+    z: -0.5
+  # short_round_coffee_table:
+  #   x: 1.65
+  #   y: -0.24
+  #   z: 0.14
+  child_play_table:
+    x: 1.65
+    y: -0.24
+    z: 0.14
+
+# Static object features, including the shapes and sizes of known objects.
+static-object-features:
+  floor:
+    shape: 1
+    height: 0.0001
+    length: 10000000  # effectively infinite
+    width: 10000000
+    flat_top_surface: 1
+  red_block:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  yellow_toy_cup:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  small_cardboard_box_with_black_tape:
+    shape: 1  # cuboid
+    height: 0.55
+    length: 0.28
+    width: 0.6
+    flat_top_surface: 1
+  apple:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  blue_block:
+    shape: 2
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  blue_coffee_cup:
+    shape: 1
+    height: 0.2
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+  clear_plastic_dustbin:
+    shape: 2
+    height: 0.1
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  cardboard_box_bin:
+    shape: 2
+    height: 0.1
+    length: 0.2
+    width: 0.2
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  fluffy_green_toy_eraser:
+    shape: 1
+    height: 0.1
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  short_round_coffee_table:
+    shape: 1
+    height: 0.1
+    length: 0.79
+    width: 0.62
+    flat_top_surface: 1
+  child_play_table:
+    shape: 1
+    height: 0.1
+    length: 0.79
+    width: 0.62
+    flat_top_surface: 1
+
+# Helpful for static objects that are up against a wall, for example.
+approach_angle_bounds:
+  # only approach the apple from in front of it!
+  apple: [-0.1, 0.1]
+  # only approach the coffee cup from in front of it!
+  blue_coffee_cup: [-0.1, 0.1]
+  # also only approach the short_round_coffee_table from in front of it!
+  short_round_coffee_table: [-0.1, 0.1]
+  # only approach the child_play_table from in front of it!
+  child_play_table: [-0.1, 0.1]
+  # approach trash can from the side
+  clear_plastic_dustbin: [1.47, 1.67]
+  cardboard_box_bin: [1.47, 1.67]
+  # approach the duster from the other side.
+  fluffy_green_toy_eraser: [-0.1, 0.1] #[-1.67, -1.47]
+
+# Wiping skill params.
+wipe_location:
+  short_round_coffee_table: [2.48, 0.205, -2.96856]
+  child_play_table: [2.48, 0.205, -2.96856]

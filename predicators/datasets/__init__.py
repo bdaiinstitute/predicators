@@ -9,7 +9,8 @@ from predicators.datasets.demo_replay import create_demo_replay_data
 from predicators.datasets.generate_atom_trajs_with_vlm import \
     create_ground_atom_data_from_generated_demos, \
     create_ground_atom_data_from_labelled_txt, \
-    create_ground_atom_data_from_saved_img_trajs
+    create_ground_atom_data_from_saved_img_trajs, \
+    create_low_level_trajs_from_saved_img_trajs
 from predicators.datasets.ground_atom_data import create_ground_atom_data
 from predicators.envs import BaseEnv
 from predicators.settings import CFG
@@ -77,7 +78,7 @@ def create_dataset(env: BaseEnv, train_tasks: List[Task],
             "demo+labelled_atoms", "geo_and_demo+labelled_atoms"
     ]:
         return create_ground_atom_data_from_labelled_txt(
-            env, train_tasks, known_options)
+            env, train_tasks, known_options, known_predicates=known_predicates)
     if CFG.offline_data_method in [
             "saved_vlm_img_demos_folder", "geo_and_saved_vlm_img_demos_folder"
     ]:  # pragma: no cover.
@@ -86,6 +87,9 @@ def create_dataset(env: BaseEnv, train_tasks: List[Task],
         # instantiated and called from inside this method, but when testing,
         # we want to instantiate our own 'dummy' VLM.
         return create_ground_atom_data_from_saved_img_trajs(
+            env, train_tasks, known_predicates, known_options)
+    if CFG.offline_data_method == "saved_vlm_img_demos_folder_nolabel":
+        return create_low_level_trajs_from_saved_img_trajs(
             env, train_tasks, known_predicates, known_options)
     if CFG.offline_data_method == "empty":
         return Dataset([])

@@ -117,12 +117,16 @@ class PretrainedLargeModel(abc.ABC):
                 os.makedirs(imgs_folderpath, exist_ok=True)
                 for i, img in enumerate(imgs):
                     filename_suffix = str(i) + ".jpg"
+                    # Convert RGBA to RGB since JPEG doesn't support alpha
+                    if img.mode == 'RGBA':
+                        img = img.convert('RGB')
                     img.save(os.path.join(imgs_folderpath, filename_suffix))
             logging.debug(f"Saved model response to {cache_filepath}.")
         # Load the saved completion.
         with open(cache_filepath, 'r', encoding='utf-8') as f:
             cache_str = f.read()
-        logging.debug(f"Loaded model response from {cache_filepath}.")
+        # logging.debug(f"Loaded model response from {cache_filepath}.")
+        print(f"Loaded model response from {cache_filepath}.")
         assert cache_str.count(_CACHE_SEP) == num_completions
         cached_prompt, completion_strs = cache_str.split(_CACHE_SEP, 1)
         assert cached_prompt == prompt
