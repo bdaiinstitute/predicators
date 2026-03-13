@@ -451,8 +451,10 @@ class SpotPerceiver(BasePerceiver):
         # in planning.
         assert self._curr_env is not None
         preds = self._curr_env.predicates
-        state_copy = percept_state.copy()
-        state_copy.simulator_state = simulator_state
+        # Create a _PartialPerceptionState before abstracting because some
+        # predicate classifiers (e.g., _surface_wiped_classifier) require it.
+        state_copy = _PartialPerceptionState(percept_state.data,
+                                             simulator_state=simulator_state)
         abstract_state = utils.abstract(state_copy, preds)
         simulator_state["abstract_state"] = abstract_state
         print(f"abstract_state: {abstract_state}")
