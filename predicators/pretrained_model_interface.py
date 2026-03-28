@@ -11,10 +11,11 @@ import os
 from io import BytesIO
 from typing import Collection, Dict, List, Optional, Union
 
-import google.generativeai as genai
 import imagehash
 import openai
 import PIL.Image
+from google import genai
+from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from predicators.settings import CFG
@@ -209,8 +210,7 @@ class GoogleGeminiModel():
         model names."""
         self._model_name = model_name
         assert "GOOGLE_API_KEY" in os.environ
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        self._model = genai.GenerativeModel(self._model_name)  # pylint:disable=no-member
+        self._client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
 
 class OpenAILLM(LargeLanguageModel, OpenAIModel):
@@ -254,14 +254,14 @@ class OpenAILLM(LargeLanguageModel, OpenAIModel):
 
 
 class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
-    """Interface to the Google Gemini VLM (1.5).
+    """Interface to the Google Gemini LLM.
 
     Assumes that an environment variable GOOGLE_API_KEY is set with the
     necessary API key to query the particular model name.
     """
 
-    @retry(wait=wait_random_exponential(min=1, max=60),
-           stop=stop_after_attempt(10))
+    # @retry(wait=wait_random_exponential(min=1, max=60),
+    #        stop=stop_after_attempt(10))
     def _sample_completions(
             self,
             prompt: str,
@@ -272,12 +272,13 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
             num_completions: int = 1) -> List[str]:  # pragma: no cover
         del seed, stop_token  # unused
         assert imgs is None
-        generation_config = genai.types.GenerationConfig(  # pylint:disable=no-member
-            candidate_count=num_completions,
-            temperature=temperature)
-        response = self._model.generate_content(
-            [prompt], generation_config=generation_config)  # type: ignore
-        response.resolve()  # type: ignore
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            candidate_count=num_completions)
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=[prompt],
+            config=config)
         return [response.text]
 
     def get_id(self) -> str:
@@ -285,14 +286,14 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
 
 
 class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
-    """Interface to the Google Gemini VLM (1.5).
+    """Interface to the Google Gemini VLM.
 
     Assumes that an environment variable GOOGLE_API_KEY is set with the
     necessary API key to query the particular model name.
     """
 
-    @retry(wait=wait_random_exponential(min=1, max=60),
-           stop=stop_after_attempt(20))
+    # @retry(wait=wait_random_exponential(min=1, max=60),
+    #        stop=stop_after_attempt(10))
     def _sample_completions(
             self,
             prompt: str,
@@ -303,13 +304,13 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
             num_completions: int = 1) -> List[str]:  # pragma: no cover
         del seed, stop_token  # unused
         assert imgs is not None
-        generation_config = genai.types.GenerationConfig(  # pylint:disable=no-member
-            candidate_count=num_completions,
-            temperature=temperature)
-        response = self._model.generate_content(
-            [prompt] + imgs,  # type: ignore
-            generation_config=generation_config)  # type: ignore
-        response.resolve()  # type: ignore
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            candidate_count=num_completions)
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=[prompt] + imgs,
+            config=config)
         return [response.text]
 
     def get_id(self) -> str:

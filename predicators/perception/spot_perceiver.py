@@ -705,10 +705,10 @@ class SpotPerceiver(BasePerceiver):
             robot = Object("robot", _robot_type)
             goal = {
                 # GroundAtom(Holding, [robot, eraser]),
-                GroundAtom(Inside, [eraser, clear_trash_can]),
+                # GroundAtom(Inside, [eraser, clear_trash_can]),
                 # GroundAtom(Inside, [apple, clear_trash_can]),
                 GroundAtom(TableWiped, [table]),
-                GroundAtom(Inside, [soda, recycling_bin]),
+                # GroundAtom(Inside, [soda, recycling_bin]),
                 # GroundAtom(IsGrumpy, [trash_can]),
                 # GroundAtom(Holding, [robot, soda]),
                 # GroundAtom(Inside, [soda, clear_trash_can]),

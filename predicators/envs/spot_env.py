@@ -1172,6 +1172,14 @@ class SpotRearrangementEnv(BaseEnv):
 
         obj_to_se3_pose = get_known_movable_objects()
         obj_to_se3_pose.update(get_known_immovable_objects())
+        # Remap object types using _detection_id_to_obj so that e.g.
+        # short_round_coffee_table gets _table_type instead of _immovable_type.
+        det_id_to_obj = self._detection_id_to_obj
+        name_to_remapped_obj = {o.name: o for o in det_id_to_obj.values()}
+        obj_to_se3_pose = {
+            name_to_remapped_obj.get(o.name, o): pose
+            for o, pose in obj_to_se3_pose.items()
+        }
         self._last_known_object_poses.update(obj_to_se3_pose)
         # Move the robot into a good place to construct the initial state
         # by running VLM predicates.

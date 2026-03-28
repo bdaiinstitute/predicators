@@ -31,14 +31,32 @@ known-immovable-objects:
     x: 1.4
     y: 0.5
     z: -0.5
-  # short_round_coffee_table:
-  #   x: 1.65
-  #   y: -0.24
-  #   z: 0.14
-  child_play_table:
+  short_round_coffee_table:
     x: 1.65
     y: -0.24
     z: 0.14
+
+known-movable-objects:
+  # soda_can:
+  #   x: 2.0
+  #   y: 0.3
+  #   z: 0.20
+  #   object_type: "movable"
+  pink_furry_eraser:
+    x: 2.5
+    y: -0.5
+    z: 0.20
+    object_type: "movable"
+  # recycling_bin:
+  #   x: 3.0
+  #   y: 0.8
+  #   z: 0.2
+  #   object_type: "trashcan"
+  # clear_plastic_container:
+  #   x: 1.5
+  #   y: 1.0
+  #   z: 0.0
+  #   object_type: "trashcan"
 
 # Static object features, including the shapes and sizes of known objects.
 static-object-features:
@@ -105,20 +123,29 @@ static-object-features:
     placeable: 1
     is_sweeper: 0
     flat_top_surface: 0
-  fluffy_green_toy_eraser:
+  pink_furry_eraser:
     shape: 1
     height: 0.1
     length: 0.1
     width: 0.1
     placeable: 1
     is_sweeper: 0
-  short_round_coffee_table:
-    shape: 1
+  soda_can:
+    shape: 2
     height: 0.1
-    length: 0.79
-    width: 0.62
-    flat_top_surface: 1
-  child_play_table:
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+  recycling_bin:
+    shape: 2
+    height: 0.4
+    length: 0.1
+    width: 0.1
+    placeable: 1
+    is_sweeper: 0
+    flat_top_surface: 0
+  short_round_coffee_table:
     shape: 1
     height: 0.1
     length: 0.79
@@ -127,21 +154,12 @@ static-object-features:
 
 # Helpful for static objects that are up against a wall, for example.
 approach_angle_bounds:
-  # only approach the apple from in front of it!
-  apple: [-0.1, 0.1]
-  # only approach the coffee cup from in front of it!
-  blue_coffee_cup: [-0.1, 0.1]
-  # also only approach the short_round_coffee_table from in front of it!
   short_round_coffee_table: [-0.1, 0.1]
-  # only approach the child_play_table from in front of it!
-  child_play_table: [-0.1, 0.1]
-  # approach trash can from the side
   clear_plastic_container: [1.47, 1.67]
-  cardboard_box_bin: [1.47, 1.67]
-  # approach the duster from the other side.
-  fluffy_green_toy_eraser: [-0.1, 0.1] #[-1.67, -1.47]
+  recycling_bin: [-0.1, 0.1]
+  pink_furry_eraser: [-1.67, -1.47]
+  soda_can: [-1.67, -1.47]
 
 # Wiping skill params.
 wipe_location:
   short_round_coffee_table: [2.48, 0.205, -2.96856]
-  child_play_table: [2.48, 0.205, -2.96856]
