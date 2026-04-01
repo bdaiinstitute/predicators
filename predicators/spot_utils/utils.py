@@ -150,8 +150,8 @@ def object_to_top_down_geom(
         return utils.Rectangle.from_center(center_x, center_y, width, length,
                                            angle)
     assert shape_type == _Spot3DShape.CYLINDER.value
-    assert np.isclose(width, length)
-    radius = width / 2
+    # Width and length may differ slightly due to perception noise.
+    radius = (width + length) / 4
     return utils.Circle(center_x, center_y, radius)
 
 

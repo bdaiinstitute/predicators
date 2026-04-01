@@ -2692,6 +2692,9 @@ def query_vlm_for_atom_vals(
     assert len(vlm_output) == 1
     vlm_output_str = vlm_output[0]
     logging.info(f"VLM output: \n{vlm_output_str}")
+    # Strip markdown formatting (e.g. bold **...**) that VLMs may add,
+    # so that regex matching against atom query strings works correctly.
+    vlm_output_str = re.sub(r'\*\*', '', vlm_output_str)
     # Parse the VLM output to find true atoms.
     true_atoms = set()
     # Create a mapping from the query string back to the GroundAtom object.

@@ -596,49 +596,68 @@ def _move_to_reach_and_wipe_surface_policy(name: str, state: State,
                                            objects: Sequence[Object],
                                            params: Array) -> Action:
 
+    # =========================================================================
+    # WIPE IMPLEMENTATION TOGGLE
+    # Set to True  -> use iPhone-based online wiping (VLM + iPhone depth)
+    # Set to False -> use old hardcoded wiping (spot_wipe_table)
+    USE_IPHONE_WIPE = True
+    # =========================================================================
+
     def _fn() -> None:
         robot, localizer, _ = get_robot()
         target_pose = math_helpers.SE2Pose(params[0], params[1], params[2])
         navigate_to_absolute_pose(robot, localizer, target_pose)
-        # #######################
-        # # NOTE: just for testing -> ask for the eraser!
-        # # Move the hand to the side.
-        # hand_side_pose = math_helpers.SE3Pose(x=0.80,
-        #                                       y=0.0,
-        #                                       z=0.25,
-        #                                       rot=math_helpers.Quat.from_yaw(
-        #                                           -np.pi / 2))
-        # move_hand_to_relative_pose(robot, hand_side_pose)
-        # # Ask for the eraser.
-        # open_gripper(robot)
-        # # Press any key, instead of just enter. Useful for remote control.
-        # msg = "Put the brush in the robot's gripper, then press any key"
-        # utils.wait_for_any_button_press(msg)
-        # close_gripper(robot)
-        # ###################
-        # NOTE: these parameters hardcoded for a particular child_play_table
-        # object njk is experimenting with. Please swap out depending on the
-        # actual object you have
-        # start_pose = math_helpers.SE3Pose(x=0.8,
-        #                                   y=-0.35,
-        #                                   z=-0.08,
-        #                                   rot=math_helpers.Quat.from_pitch(
-        #                                       np.pi / 2))
-        start_pose = math_helpers.SE3Pose(x=0.8,
-                                          y=-0.1,
-                                          z=-0.1,
-                                          rot=math_helpers.Quat.from_pitch(
-                                              np.pi / 2))
-        end_pose = math_helpers.SE3Pose(x=0.65,
-                                        y=0.0,
-                                        z=0.55,
-                                        rot=math_helpers.Quat.from_pitch(
-                                            np.pi / 2))
-        rel_dx, rel_dy, delta_dx, delta_dy, num_wipes, duration_per_stroke = params[
-            3:9]
-        wipe_multiple_strokes(robot, start_pose, end_pose,
-                              rel_dx, rel_dy, (delta_dx, delta_dy),
-                              int(num_wipes), duration_per_stroke, int(2))
+
+        if USE_IPHONE_WIPE:
+            # --- NEW: iPhone-based online wiping ---
+            # Uses VLM (Gemini) to detect the spill via iPhone depth camera,
+            # then computes wipe params from the bounding box automatically.
+            # Requires iPhone streaming to be running.
+            # Lazy import to avoid pulling in open3d/rerun/etc at module load.
+            from predicators.spot_utils.skills.spot_wipe_online_iphone import \
+                wipe_online
+            wipe_online(robot)
+        else:
+            # --- OLD: Hardcoded wiping (spot_wipe_table) ---
+            # #######################
+            # # NOTE: just for testing -> ask for the eraser!
+            # # Move the hand to the side.
+            # hand_side_pose = math_helpers.SE3Pose(x=0.80,
+            #                                       y=0.0,
+            #                                       z=0.25,
+            #                                       rot=math_helpers.Quat.from_yaw(
+            #                                           -np.pi / 2))
+            # move_hand_to_relative_pose(robot, hand_side_pose)
+            # # Ask for the eraser.
+            # open_gripper(robot)
+            # # Press any key, instead of just enter. Useful for remote control.
+            # msg = "Put the brush in the robot's gripper, then press any key"
+            # utils.wait_for_any_button_press(msg)
+            # close_gripper(robot)
+            # ###################
+            # NOTE: these parameters hardcoded for a particular child_play_table
+            # object njk is experimenting with. Please swap out depending on the
+            # actual object you have
+            # start_pose = math_helpers.SE3Pose(x=0.8,
+            #                                   y=-0.35,
+            #                                   z=-0.08,
+            #                                   rot=math_helpers.Quat.from_pitch(
+            #                                       np.pi / 2))
+            start_pose = math_helpers.SE3Pose(x=0.8,
+                                              y=-0.1,
+                                              z=-0.1,
+                                              rot=math_helpers.Quat.from_pitch(
+                                                  np.pi / 2))
+            end_pose = math_helpers.SE3Pose(x=0.65,
+                                            y=0.0,
+                                            z=0.55,
+                                            rot=math_helpers.Quat.from_pitch(
+                                                np.pi / 2))
+            rel_dx, rel_dy, delta_dx, delta_dy, num_wipes, \
+                duration_per_stroke = params[3:9]
+            wipe_multiple_strokes(robot, start_pose, end_pose,
+                                  rel_dx, rel_dy, (delta_dx, delta_dy),
+                                  int(num_wipes), duration_per_stroke, int(2))
 
     # Note simulation fn and args not implemented yet.
     action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,

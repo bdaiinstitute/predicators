@@ -15,7 +15,9 @@ are currently detected. Rotations should be ignored.
 """
 
 import io
+import json
 import logging
+import re
 from functools import partial
 from pathlib import Path
 from typing import Any, Collection, Dict, List, Optional, Set, Tuple
@@ -35,6 +37,8 @@ from matplotlib import pyplot as plt
 from scipy import ndimage
 from scipy.spatial import Delaunay
 
+from predicators.pretrained_model_interface import GoogleGeminiVLM, \
+    OpenAIVLM, VisionLanguageModel
 from predicators.settings import CFG
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     OBJECT_SPECIFIC_GRASP_SELECTORS
@@ -209,7 +213,10 @@ def detect_objects_from_language(
     visualize_all_artifacts().
     """
 
-    object_id_to_img_detections = _query_detic_sam(object_ids, rgbds)
+    if CFG.spot_use_vlm_detection:
+        object_id_to_img_detections = _query_vlm(object_ids, rgbds)
+    else:
+        object_id_to_img_detections = _query_detic_sam(object_ids, rgbds)
 
     # Convert the image detections into pose detections. Use the best scoring
     # image for which a pose can be successfully extracted.
@@ -240,9 +247,10 @@ def detect_objects_from_language(
                         in_allowed_region = True
                         break
                 if not in_allowed_region:
-                    logging.info("WARNING: throwing away detection for " +\
+                    logging.warning("Throwing away detection for " +\
                                  f"{obj_id} because it's out of bounds. " + \
-                                 f"(pose = {pose_xy})")
+                                 f"(pose = {pose_xy}). Stale pose may be " +
+                                 "used instead!")
                     continue
 
             # Pose extraction succeeded.
@@ -370,6 +378,217 @@ def _rotate_bounding_box(bb: Tuple[float, float, float,
     return (rx1, ry1, rx2, ry2)
 
 
+_VLM_MODEL: Optional[VisionLanguageModel] = None
+
+
+def _get_vlm_model() -> VisionLanguageModel:
+    """Lazily instantiate a VLM for object detection using CFG.vlm_model_name.
+
+    Infers the provider from the model name prefix (gemini-* -> Google,
+    gpt-* -> OpenAI).
+    """
+    global _VLM_MODEL  # pylint: disable=global-statement
+    if _VLM_MODEL is None:
+        model_name = CFG.vlm_model_name
+        if model_name.startswith("gemini"):
+            _VLM_MODEL = GoogleGeminiVLM(model_name)
+        elif model_name.startswith("gpt"):
+            _VLM_MODEL = OpenAIVLM(model_name)
+        else:
+            raise ValueError(
+                f"Cannot infer VLM provider from model name: {model_name}. "
+                f"Expected a name starting with 'gemini' or 'gpt'.")
+    return _VLM_MODEL
+
+
+def _parse_vlm_detections(response_text: str) -> List[Dict]:
+    """Parse JSON bounding box detections from a VLM response."""
+    text = response_text.strip()
+    # Strip markdown code fences if present.
+    match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        text = match.group(1)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Try to find a JSON array substring.
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                pass
+        logging.warning(f"VLM response could not be parsed: {text}")
+        return []
+
+
+def _parse_vlm_batch_detections(response_text: str) -> Dict[str, List[Dict]]:
+    """Parse a JSON dict of camera_name -> list of detections from a VLM
+    response."""
+    text = response_text.strip()
+    # Strip markdown code fences if present.
+    match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        text = match.group(1)
+    try:
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+    except json.JSONDecodeError:
+        # Try to find a JSON object substring.
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                result = json.loads(match.group(0))
+                if isinstance(result, dict):
+                    return result
+            except json.JSONDecodeError:
+                pass
+    logging.warning(f"VLM batch response could not be parsed: {text}")
+    return {}
+
+
+def _label_image(img: PIL.Image.Image,
+                 label: str) -> PIL.Image.Image:
+    """Burn a text label into the top-left corner of an image."""
+    from PIL import ImageDraw, ImageFont
+    img = img.copy()
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", size=20)
+    except (IOError, OSError):
+        font = ImageFont.load_default()
+    # Draw text with a dark background for readability.
+    bbox = draw.textbbox((0, 0), label, font=font)
+    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.rectangle([0, 0, text_w + 10, text_h + 10], fill="black")
+    draw.text((5, 5), label, fill="white", font=font)
+    return img
+
+
+def _query_vlm(
+    object_ids: Collection[LanguageObjectDetectionID],
+    rgbds: Dict[str, RGBDImageWithContext] | Dict[str, RGBDImage],
+) -> Dict[ObjectDetectionID, Dict[str, SegmentedBoundingBox]]:
+    """Query a VLM for object detection with all camera images in a single
+    batched call. Returns the same format as _query_detic_sam."""
+
+    object_id_to_img_detections: Dict[ObjectDetectionID,
+                                      Dict[str, SegmentedBoundingBox]] = {
+                                          obj_id: {}
+                                          for obj_id in object_ids
+                                      }
+
+    if not object_ids:
+        return object_id_to_img_detections
+
+    vlm = _get_vlm_model()
+    classes = sorted(o.language_id for o in object_ids)
+    class_names_str = ", ".join(classes)
+
+    # Build a lookup from language_id to object_id.
+    language_id_to_obj_id = {o.language_id: o for o in object_ids}
+
+    # Prepare all camera images with labels burned in.
+    camera_names = list(rgbds.keys())
+    all_imgs: List[PIL.Image.Image] = []
+    camera_dims: Dict[str, Tuple[int, int]] = {}
+    for camera_name in camera_names:
+        rgbd = rgbds[camera_name]
+        pil_img = PIL.Image.fromarray(rgbd.rotated_rgb)  # type: ignore
+        labeled_img = _label_image(pil_img, camera_name)
+        all_imgs.append(labeled_img)
+        rot_h, rot_w = rgbd.rotated_rgb.shape[:2]
+        camera_dims[camera_name] = (rot_w, rot_h)
+
+    # Build image descriptions for the prompt.
+    img_descriptions = []
+    for i, camera_name in enumerate(camera_names):
+        w, h = camera_dims[camera_name]
+        img_descriptions.append(
+            f"  Image {i + 1}: \"{camera_name}\" ({w}x{h} pixels)")
+    img_desc_str = "\n".join(img_descriptions)
+
+    prompt = (
+        f"You are an object detection system. You are given "
+        f"{len(camera_names)} images from different cameras. Each image has "
+        f"its camera name labeled in the top-left corner.\n\n"
+        f"The images are:\n{img_desc_str}\n\n"
+        f"Detect ONLY these objects: {class_names_str}.\n\n"
+        f"Return a JSON object mapping camera names to arrays of detections. "
+        f"Each detection has class, bounding_box [x1, y1, x2, y2] in pixel "
+        f"coordinates for that image, and confidence (0.0 to 1.0).\n\n"
+        f"Example:\n"
+        f'{{"camera_1": [{{"class": "cup", "bounding_box": [10, 20, 100, '
+        f'200], "confidence": 0.9}}], "camera_2": []}}\n\n'
+        f"Return ONLY JSON. Use the exact camera names shown above. "
+        f"Use an empty array for cameras where no objects are detected."
+    )
+
+    try:
+        completions = vlm.sample_completions(
+            prompt, all_imgs, temperature=0.0, seed=0, num_completions=1)
+        response_text = completions[0]
+    except Exception as e:  # pylint: disable=broad-except
+        logging.warning(f"VLM batch query failed: {e}")
+        return object_id_to_img_detections
+
+    # Parse the response as a dict of camera_name -> list of detections.
+    parsed = _parse_vlm_batch_detections(response_text)
+
+    # Process detections per camera.
+    for camera_name in camera_names:
+        camera_detections = parsed.get(camera_name, [])
+        rgbd = rgbds[camera_name]
+        h, w = rgbd.rgb.shape[:2]
+        image_rot = rgbd.image_rot
+
+        for det in camera_detections:
+            cls_name = det.get("class", "")
+            raw_box = det.get("bounding_box", [])
+            if len(raw_box) != 4 or cls_name not in language_id_to_obj_id:
+                continue
+
+            obj_id = language_id_to_obj_id[cls_name]
+
+            # Skip if this object already has a detection for this camera
+            # (take the first/most prominent one).
+            if rgbd.camera_name in object_id_to_img_detections[obj_id]:
+                continue
+
+            # Un-rotate the bounding box from rotated image space back to
+            # original image space.
+            rot_box = tuple(float(v) for v in raw_box)
+            box = _rotate_bounding_box(rot_box, -image_rot, h, w)
+
+            # Ensure x1 < x2, y1 < y2.
+            x1, y1, x2, y2 = box
+            x1, x2 = sorted([x1, x2])
+            y1, y2 = sorted([y1, y2])
+
+            # Discard detections whose bounding box falls outside the image.
+            if x1 < 0 or y1 < 0 or x2 > w or y2 > h:
+                logging.warning(
+                    f"Discarding out-of-bounds detection for "
+                    f"'{cls_name}' in {camera_name}: "
+                    f"box=({x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}) "
+                    f"image=({w}x{h})")
+                continue
+
+            box = (x1, y1, x2, y2)
+
+            # Create a rectangular mask (no segmentation, just the bbox).
+            mask = np.zeros((h, w), dtype=np.uint8)
+            mask[int(y1):int(y2), int(x1):int(x2)] = 1
+
+            score = float(det.get("confidence",
+                                   CFG.spot_vlm_detection_default_score))
+            seg_bb = SegmentedBoundingBox(box, mask, score)
+            object_id_to_img_detections[obj_id][rgbd.camera_name] = seg_bb
+
+    return object_id_to_img_detections
+
+
 def _get_pose_from_segmented_bounding_box(
         seg_bb: SegmentedBoundingBox,
         rgbd: RGBDImageWithContext,
@@ -391,7 +610,10 @@ def _get_pose_from_segmented_bounding_box(
     # See docstring.
     if len(segmented_depth) == 0:
         # logging.warning doesn't work here because of poor spot logging.
-        print("WARNING: depth reading failed. Is hand occluding?")
+        print("WARNING: depth reading failed for bounding box "
+              f"({seg_bb.bounding_box}). Is hand occluding? "
+              "This object's pose will NOT be updated — stale pose "
+              "may be used!")
         return None
     depth_value = np.median(segmented_depth)
 

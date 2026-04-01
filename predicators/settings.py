@@ -179,6 +179,8 @@ class GlobalSettings:
     spot_robot_ip = "invalid-IP-address"
     spot_fiducial_size = 44.45
     spot_vision_detection_threshold = 0.5
+    spot_use_vlm_detection = True
+    spot_vlm_detection_default_score = 0.9
     spot_perception_outdir = "spot_perception_outputs"
     spot_render_perception_outputs = True
     spot_graph_nav_map = "floor8-sweeping"

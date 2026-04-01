@@ -25,7 +25,7 @@ from predicators.settings import CFG
 from predicators.spot_utils.perception.object_detection import \
     AprilTagObjectDetectionID, KnownStaticObjectDetectionID, \
     LanguageObjectDetectionID, ObjectDetectionID, _query_detic_sam, \
-    detect_objects, visualize_all_artifacts
+    _query_vlm, detect_objects, visualize_all_artifacts
 from predicators.spot_utils.perception.object_specific_grasp_selection import \
     brush_prompt, bucket_prompt, football_prompt, train_toy_prompt
 from predicators.spot_utils.perception.perception_structs import RGBDImage, \
@@ -630,6 +630,12 @@ class SpotRearrangementEnv(BaseEnv):
                 else:
                     assert action_name == "MoveToReachObject"
                     obj_pose = self._last_known_object_poses[target_obj]
+                    logging.warning(
+                        f"MoveToReachObject using last known pose for "
+                        f"'{target_obj.name}': "
+                        f"({obj_pose.x:.3f}, {obj_pose.y:.3f}, "
+                        f"{obj_pose.z:.3f}). This pose may be STALE "
+                        f"if the object was not re-detected recently.")
                     obj_position = math_helpers.Vec3(x=obj_pose.x,
                                                      y=obj_pose.y,
                                                      z=obj_pose.z)
@@ -734,6 +740,19 @@ class SpotRearrangementEnv(BaseEnv):
             if (self._detection_id_to_obj[det_id].type.name == "movable")
             # or self._detection_id_to_obj[det_id].name == "clear_plastic_container")
         }
+        for obj, pose in all_objects_in_view.items():
+            old_pose = self._last_known_object_poses.get(obj)
+            if old_pose is not None:
+                dist = np.sqrt((pose.x - old_pose.x)**2 +
+                               (pose.y - old_pose.y)**2 +
+                               (pose.z - old_pose.z)**2)
+                if dist > 0.1:
+                    logging.warning(
+                        f"Object '{obj.name}' pose changed significantly: "
+                        f"old=({old_pose.x:.3f}, {old_pose.y:.3f}, "
+                        f"{old_pose.z:.3f}) -> "
+                        f"new=({pose.x:.3f}, {pose.y:.3f}, {pose.z:.3f}) "
+                        f"(dist={dist:.3f}m)")
         self._last_known_object_poses.update(all_objects_in_view)
         objects_in_hand_view = set(self._detection_id_to_obj[det_id]
                                    for det_id in hand_detections)
@@ -1157,37 +1176,52 @@ class SpotRearrangementEnv(BaseEnv):
             self) -> Tuple[Dict[Object, math_helpers.SE3Pose], Dict[str, Any]]:
         assert self._robot is not None
         assert self._localizer is not None
-        # stow_arm(self._robot)
-        # go_home(self._robot, self._localizer)
         self._localizer.localize()
-        # detection_ids = self._detection_id_to_obj.keys()
-        # import ipdb; ipdb.set_trace()
-        # detections, artifacts = self._run_init_search_for_objects(
-        #     set(detection_ids))
-        # stow_arm(self._robot)
-        # obj_to_se3_pose = {
-        #     self._detection_id_to_obj[det_id]: val
-        #     for (det_id, val) in detections.items()
-        # }
 
-        obj_to_se3_pose = get_known_movable_objects()
-        obj_to_se3_pose.update(get_known_immovable_objects())
-        # Remap object types using _detection_id_to_obj so that e.g.
-        # short_round_coffee_table gets _table_type instead of _immovable_type.
+        # Capture images from the current position and run detection
+        # without moving the robot.
+        rgbds = capture_images(self._robot, self._localizer)
+        detection_ids = set(self._detection_id_to_obj.keys())
+        detections, artifacts = detect_objects(
+            detection_ids, rgbds, self._allowed_regions)
+
+        if CFG.spot_render_perception_outputs:
+            outdir = Path(CFG.spot_perception_outdir)
+            time_str = time.strftime("%Y%m%d-%H%M%S")
+            detections_outfile = outdir / f"detections_{time_str}.png"
+            no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+            visualize_all_artifacts(artifacts, detections_outfile,
+                                    no_detections_outfile)
+
+        obj_to_se3_pose = {
+            self._detection_id_to_obj[det_id]: val
+            for (det_id, val) in detections.items()
+        }
+
+        # For any movable objects not detected, fall back to known poses
+        # from the config map file with a warning.
+        known_movable = get_known_movable_objects()
         det_id_to_obj = self._detection_id_to_obj
         name_to_remapped_obj = {o.name: o for o in det_id_to_obj.values()}
-        obj_to_se3_pose = {
-            name_to_remapped_obj.get(o.name, o): pose
-            for o, pose in obj_to_se3_pose.items()
-        }
+        for o, pose in known_movable.items():
+            remapped = name_to_remapped_obj.get(o.name, o)
+            if remapped not in obj_to_se3_pose:
+                logging.warning(
+                    f"Object '{o.name}' not detected by perception. "
+                    f"Falling back to known pose from config map: "
+                    f"({pose.x:.3f}, {pose.y:.3f}, {pose.z:.3f}). "
+                    f"THIS POSE MAY BE INCORRECT!")
+                obj_to_se3_pose[remapped] = pose
+
+        # Always use known poses for immovable objects.
+        known_immovable = get_known_immovable_objects()
+        for o, pose in known_immovable.items():
+            remapped = name_to_remapped_obj.get(o.name, o)
+            if remapped not in obj_to_se3_pose:
+                obj_to_se3_pose[remapped] = pose
+
         self._last_known_object_poses.update(obj_to_se3_pose)
-        # Move the robot into a good place to construct the initial state
-        # by running VLM predicates.
-        prompt = "Finished initial search for objects. Take control of the robot and move it into a good initial location for constructing the initial state of the task. Press 'Enter' when done!"
-        _ = input(prompt)
-        assert self._lease_client is not None
-        self._lease_client.take()
-        return obj_to_se3_pose, {}
+        return obj_to_se3_pose, artifacts
 
     def _run_init_search_for_objects(
         self, detection_ids: Set[ObjectDetectionID]
@@ -1235,7 +1269,7 @@ class SpotRearrangementEnv(BaseEnv):
 ###############################################################################
 
 ## Constants
-HANDEMPTY_GRIPPER_THRESHOLD = 2.5  # made public for use in perceiver
+HANDEMPTY_GRIPPER_THRESHOLD = 4.5  # made public for use in perceiver
 _ONTOP_Z_THRESHOLD = 0.2
 _INSIDE_Z_THRESHOLD = 0.3
 _ONTOP_SURFACE_BUFFER = 0.48
@@ -2791,8 +2825,12 @@ class SpotMinimalVLMPredicateEnv(SpotRearrangementEnv):
             assert isinstance(
                 obj_id, LanguageObjectDetectionID
             ), "Only LanguageObjectDetectionIDs are supported."
-        object_id_to_img_detections = _query_detic_sam(
-            object_ids, rgbd_images)  # type: ignore
+        if CFG.spot_use_vlm_detection:
+            object_id_to_img_detections = _query_vlm(
+                object_ids, rgbd_images)  # type: ignore
+        else:
+            object_id_to_img_detections = _query_detic_sam(
+                object_ids, rgbd_images)  # type: ignore
         # This ^ is currently a mapping of object_id -> camera_name ->
         # SegmentedBoundingBox.
         # We want to do our annotations by camera image, so let's turn this
@@ -4417,9 +4455,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
             if obj.name == "short_round_coffee_table":
                 table_obj = Object("short_round_coffee_table", _table_type)
                 detection_id_to_obj[stat_detection_id] = table_obj
-            # if obj.name == "child_play_table":
-            #     table_obj = Object("child_play_table", _table_type)
-            #     detection_id_to_obj[stat_detection_id] = table_obj
+            elif obj.name == "childs_play_table":
+                table_obj = Object("childs_play_table", _table_type)
+                detection_id_to_obj[stat_detection_id] = table_obj
             else:
                 detection_id_to_obj[stat_detection_id] = obj
 

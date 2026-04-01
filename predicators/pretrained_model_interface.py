@@ -310,7 +310,7 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
         response = self._client.models.generate_content(
             model=self._model_name,
             contents=[prompt] + imgs,
-            config=config)
+            config=config)    
         return [response.text]
 
     def get_id(self) -> str:

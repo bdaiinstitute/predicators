@@ -47,7 +47,9 @@ setup(
         "ImageHash",
         "google-genai",
         "tenacity",
-        "httpx==0.27.0"
+        "httpx==0.27.0",
+        "open3d",
+        "rerun-sdk",
     ],
     include_package_data=True,
     extras_require={
