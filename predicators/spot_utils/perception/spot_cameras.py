@@ -4,7 +4,7 @@ from typing import Collection, Dict, Optional, Type
 import cv2
 import numpy as np
 from bosdyn.api import image_pb2
-from bosdyn.client.frame_helpers import BODY_FRAME_NAME, get_a_tform_b
+from bosdyn.client.frame_helpers import ODOM_FRAME_NAME, get_a_tform_b
 from bosdyn.client.image import ImageClient, build_image_request
 from bosdyn.client.sdk import Robot
 from numpy.typing import NDArray
@@ -60,12 +60,15 @@ def capture_images(
 
     rgbds: Dict[str, RGBDImageWithContext] = {}
 
-    # Get the world->robot transform so we can store world->camera transforms
-    # in the RGBDWithContexts.
+    # Get world_tform_odom so we can compute world_tform_camera using
+    # the odom frame from each image's own transforms_snapshot. This avoids
+    # timing mismatches between localization and image capture — odom is
+    # continuously tracked, so odom_tform_camera from the image snapshot is
+    # exact at capture time, and world_tform_odom is stable between
+    # localizations.
     if relocalize:
         localizer.localize()
-    world_tform_body = localizer.get_last_robot_pose()
-    body_tform_world = world_tform_body.inverse()
+    world_tform_odom = localizer.get_world_tform_odom()
 
     # Package all the requests together.
     img_reqs: image_pb2.ImageRequest = []
@@ -96,12 +99,12 @@ def capture_images(
         depth_img_resp = name_to_response[RGB_TO_DEPTH_CAMERAS[camera_name]]
         rgb_img = _image_response_to_image(rgb_img_resp)
         depth_img = _image_response_to_image(depth_img_resp)
-        # Create transform.
-        camera_tform_body = get_a_tform_b(
+        # Create transform using odom frame from the image's own snapshot
+        # to avoid timing mismatch between localization and image capture.
+        odom_tform_camera = get_a_tform_b(
             rgb_img_resp.shot.transforms_snapshot,
-            rgb_img_resp.shot.frame_name_image_sensor, BODY_FRAME_NAME)
-        camera_tform_world = camera_tform_body * body_tform_world
-        world_tform_camera = camera_tform_world.inverse()
+            ODOM_FRAME_NAME, rgb_img_resp.shot.frame_name_image_sensor)
+        world_tform_camera = world_tform_odom * odom_tform_camera
         # Extract other context.
         rot = ROTATION_ANGLE[camera_name]
         depth_scale = depth_img_resp.source.depth_scale

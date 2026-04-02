@@ -53,6 +53,7 @@ class SpotLocalizer:
 
         # Initialize robot pose, which will be updated in localize().
         self._robot_pose = math_helpers.SE3Pose(0, 0, 0, math_helpers.Quat())
+        self._odom_tform_body_at_localization = None
         # Initialize the robot's position in the map.
         robot_state = get_robot_state(self._robot)
         current_odom_tform_body = get_odom_tform_body(
@@ -125,6 +126,19 @@ class SpotLocalizer:
         """
         return self._robot_pose
 
+    def get_world_tform_odom(self) -> math_helpers.SE3Pose:
+        """Get world_tform_odom derived from the last localization.
+
+        This is: world_tform_body * (odom_tform_body)^{-1}
+        Both captured at the same localization instant, so they are
+        consistent. Use this to bridge from odom-frame transforms
+        (available in image snapshots) to the world frame.
+        """
+        assert self._odom_tform_body_at_localization is not None, \
+            "Must call localize() before get_world_tform_odom()"
+        body_tform_odom = self._odom_tform_body_at_localization.inverse()
+        return self._robot_pose * body_tform_odom
+
     def localize(self,
                  num_retries: int = 10,
                  retry_wait_time: float = 1.0) -> None:
@@ -150,6 +164,11 @@ class SpotLocalizer:
                                  retry_wait_time=retry_wait_time)
         logging.info("Localization succeeded.")
         self._robot_pose = math_helpers.SE3Pose.from_proto(transform)
+        # Also store odom_tform_body at localization time so we can
+        # compute world_tform_odom for bridging to image timestamps.
+        robot_state = get_robot_state(self._robot)
+        self._odom_tform_body_at_localization = get_odom_tform_body(
+            robot_state.kinematic_state.transforms_snapshot)
         return None
 
 

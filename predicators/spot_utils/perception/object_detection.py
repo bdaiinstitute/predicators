@@ -578,8 +578,9 @@ def _query_vlm(
             box = (x1, y1, x2, y2)
 
             # Create a rectangular mask (no segmentation, just the bbox).
-            mask = np.zeros((h, w), dtype=np.uint8)
-            mask[int(y1):int(y2), int(x1):int(x2)] = 1
+            # Must be bool so numpy uses boolean masking, not integer indexing.
+            mask = np.zeros((h, w), dtype=bool)
+            mask[int(y1):int(y2), int(x1):int(x2)] = True
 
             score = float(det.get("confidence",
                                    CFG.spot_vlm_detection_default_score))

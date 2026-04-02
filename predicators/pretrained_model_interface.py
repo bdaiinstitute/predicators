@@ -306,11 +306,12 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
         assert imgs is not None
         config = types.GenerateContentConfig(
             temperature=temperature,
-            candidate_count=num_completions)
+            candidate_count=num_completions,
+            http_options=types.HttpOptions(timeout=15_000))
         response = self._client.models.generate_content(
             model=self._model_name,
             contents=[prompt] + imgs,
-            config=config)    
+            config=config)
         return [response.text]
 
     def get_id(self) -> str:
