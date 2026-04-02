@@ -37,6 +37,10 @@ from matplotlib import pyplot as plt
 from scipy import ndimage
 from scipy.spatial import Delaunay
 
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
+
 from predicators.pretrained_model_interface import GoogleGeminiVLM, \
     OpenAIVLM, VisionLanguageModel
 from predicators.settings import CFG
@@ -516,11 +520,12 @@ def _query_vlm(
         f"The images are:\n{img_desc_str}\n\n"
         f"Detect ONLY these objects: {class_names_str}.\n\n"
         f"Return a JSON object mapping camera names to arrays of detections. "
-        f"Each detection has class, bounding_box [x1, y1, x2, y2] in pixel "
-        f"coordinates for that image, and confidence (0.0 to 1.0).\n\n"
+        f"Each detection has class, bounding_box as "
+        f"[ymin, xmin, ymax, xmax] normalized to 0-1000, "
+        f"and confidence (0.0 to 1.0).\n\n"
         f"Example:\n"
-        f'{{"camera_1": [{{"class": "cup", "bounding_box": [10, 20, 100, '
-        f'200], "confidence": 0.9}}], "camera_2": []}}\n\n'
+        f'{{"camera_1": [{{"class": "cup", "bounding_box": [100, 200, 500, '
+        f'800], "confidence": 0.9}}], "camera_2": []}}\n\n'
         f"Return ONLY JSON. Use the exact camera names shown above. "
         f"Use an empty array for cameras where no objects are detected."
     )
@@ -543,6 +548,8 @@ def _query_vlm(
         h, w = rgbd.rgb.shape[:2]
         image_rot = rgbd.image_rot
 
+        rot_w, rot_h = camera_dims[camera_name]
+
         for det in camera_detections:
             cls_name = det.get("class", "")
             raw_box = det.get("bounding_box", [])
@@ -556,9 +563,17 @@ def _query_vlm(
             if rgbd.camera_name in object_id_to_img_detections[obj_id]:
                 continue
 
+            # Gemini returns [ymin, xmin, ymax, xmax] normalized to 0-1000.
+            # Convert to pixel coords [x1, y1, x2, y2] in the rotated image.
+            ymin_n, xmin_n, ymax_n, xmax_n = [float(v) for v in raw_box]
+            rx1 = xmin_n / 1000.0 * rot_w
+            ry1 = ymin_n / 1000.0 * rot_h
+            rx2 = xmax_n / 1000.0 * rot_w
+            ry2 = ymax_n / 1000.0 * rot_h
+
             # Un-rotate the bounding box from rotated image space back to
             # original image space.
-            rot_box = tuple(float(v) for v in raw_box)
+            rot_box = (rx1, ry1, rx2, ry2)
             box = _rotate_bounding_box(rot_box, -image_rot, h, w)
 
             # Ensure x1 < x2, y1 < y2.
@@ -644,11 +659,73 @@ def _get_pose_from_segmented_bounding_box(
     return final_pose
 
 
+def _query_vlm_grasp_pixel(
+    rgbds: Dict[str, RGBDImageWithContext],
+    object_id: LanguageObjectDetectionID,
+    camera_name: str,
+) -> Optional[Tuple[int, int]]:
+    """Query the VLM for the best grasp pixel for an object.
+
+    Returns (x, y) pixel coordinates or None if the query fails.
+    """
+    vlm = _get_vlm_model()
+    rgbd = rgbds[camera_name]
+    pil_img = PIL.Image.fromarray(rgbd.rotated_rgb)  # type: ignore
+    w, h = pil_img.size
+
+    object_name = object_id.language_id
+    prompt = (
+        f"You are a robotic grasping system. You are given an image from a "
+        f"robot's hand camera. The image contains an object "
+        f"called \"{object_name}\".\n\n"
+        f"Identify the single best pixel coordinate to grasp this object. "
+        f"Choose a point that is inside the object and would "
+        f"allow a stable grasp.\n\n"
+        f"Return ONLY a JSON object with keys \"y\" and \"x\" representing "
+        f"the point coordinates normalized to 0-1000. "
+        f"Example: {{\"y\": 500, \"x\": 500}}\n\n"
+        f"Return ONLY JSON, no other text."
+    )
+
+    try:
+        completions = vlm.sample_completions(
+            prompt, [pil_img], temperature=0.0, seed=0, num_completions=1)
+        response_text = completions[0].strip()
+    except Exception as e:  # pylint: disable=broad-except
+        logging.warning(f"VLM grasp pixel query failed: {e}")
+        return None
+
+    # Parse the response.
+    text = response_text
+    match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL)
+    if match:
+        text = match.group(1)
+    try:
+        parsed = json.loads(text)
+        # Denormalize from 0-1000 to pixel coordinates.
+        x = int(float(parsed["x"]) / 1000.0 * w)
+        y = int(float(parsed["y"]) / 1000.0 * h)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        logging.warning(f"VLM grasp pixel response could not be parsed: "
+                        f"{response_text}")
+        return None
+
+    # Validate that the pixel is within image bounds.
+    if 0 <= x < w and 0 <= y < h:
+        return (x, y)
+    logging.warning(f"VLM grasp pixel ({x}, {y}) out of bounds for "
+                    f"{w}x{h} image")
+    return None
+
+
 def get_grasp_pixel(
     rgbds: Dict[str, RGBDImageWithContext], artifacts: Dict[str, Any],
     object_id: ObjectDetectionID, camera_name: str, rng: np.random.Generator
 ) -> Tuple[Tuple[int, int], Optional[math_helpers.Quat]]:
     """Select a pixel for grasping in the given camera image.
+
+    Uses a VLM to select the best grasp pixel for language-based detections.
+    Falls back to random mask pixel selection if the VLM query fails.
 
     NOTE: for april tag detections, the pixel returned will correspond to the
     center of the april tag, which may not always be ideal for grasping.
@@ -659,6 +736,28 @@ def get_grasp_pixel(
         selector = OBJECT_SPECIFIC_GRASP_SELECTORS[object_id]
         return selector(rgbds, artifacts, camera_name, rng)
 
+    # Try VLM-based grasp pixel selection for language detections.
+    if isinstance(object_id, LanguageObjectDetectionID):
+        vlm_pixel = _query_vlm_grasp_pixel(rgbds, object_id, camera_name)
+        if vlm_pixel is not None:
+            logging.info(f"VLM selected grasp pixel {vlm_pixel} for "
+                         f"{object_id.language_id}")
+            # Visualize the selected grasp pixel.
+            fig = Figure()
+            FigureCanvas(fig)
+            axes = fig.add_subplot(1, 1, 1)
+            rgb_img = rgbds[camera_name].rotated_rgb
+            axes.imshow(rgb_img)
+            axes.plot(vlm_pixel[0], vlm_pixel[1], 'r+', markersize=15,
+                      markeredgewidth=3)
+            axes.set_title(f"VLM grasp pixel for '{object_id.language_id}'")
+            fig.tight_layout()
+            outdir = Path(CFG.spot_perception_outdir)
+            outdir.mkdir(parents=True, exist_ok=True)
+            fig.savefig(outdir / "vlm_grasp_pixel.png", dpi=300)
+            return vlm_pixel, None
+
+    # Fallback to random mask pixel selection.
     pixel = get_random_mask_pixel_from_artifacts(artifacts, object_id,
                                                  camera_name, rng)
     return (pixel[0], pixel[1]), None
@@ -730,12 +829,11 @@ def visualize_all_artifacts(artifacts: Dict[str,
     # duplicate first cols.
     fig_scale = 2
     if flat_detections:
-        _, axes = plt.subplots(len(flat_detections),
-                               5,
-                               squeeze=False,
-                               figsize=(5 * fig_scale,
-                                        len(flat_detections) * fig_scale))
-        plt.suptitle("Detections")
+        fig = Figure(figsize=(5 * fig_scale,
+                              len(flat_detections) * fig_scale))
+        FigureCanvas(fig)
+        axes = fig.subplots(len(flat_detections), 5, squeeze=False)
+        fig.suptitle("Detections")
         for i, (rgbd, obj_id, seg_bb) in enumerate(flat_detections):
             ax_row = axes[i]
             for ax in ax_row:
@@ -751,12 +849,12 @@ def visualize_all_artifacts(artifacts: Dict[str,
             x0, y0 = box[0], box[1]
             w, h = box[2] - box[0], box[3] - box[1]
             ax_row[3].add_patch(
-                plt.Rectangle((x0, y0),
-                              w,
-                              h,
-                              edgecolor='green',
-                              facecolor=(0, 0, 0, 0),
-                              lw=1))
+                Rectangle((x0, y0),
+                           w,
+                           h,
+                           edgecolor='green',
+                           facecolor=(0, 0, 0, 0),
+                           lw=1))
 
             ax_row[4].imshow(seg_bb.mask, cmap="binary_r", vmin=0, vmax=1)
 
@@ -777,10 +875,9 @@ def visualize_all_artifacts(artifacts: Dict[str,
                 ax_row[3].set_xlabel("Bounding Box")
                 ax_row[4].set_xlabel("Mask")
 
-        plt.tight_layout()
-        plt.savefig(detections_outfile, dpi=300)
+        fig.tight_layout()
+        fig.savefig(detections_outfile, dpi=300)
         print(f"Wrote out to {detections_outfile}.")
-        plt.close()
 
     # Visualize all of the images that have no detections.
     all_cameras = set(rgbds)
@@ -788,13 +885,11 @@ def visualize_all_artifacts(artifacts: Dict[str,
     cameras_without_detections = sorted(all_cameras - cameras_with_detections)
 
     if cameras_without_detections:
-        _, axes = plt.subplots(len(cameras_without_detections),
-                               3,
-                               squeeze=False,
-                               figsize=(3 * fig_scale,
-                                        len(cameras_without_detections) *
-                                        fig_scale))
-        plt.suptitle("Cameras without Detections")
+        fig = Figure(figsize=(3 * fig_scale,
+                              len(cameras_without_detections) * fig_scale))
+        FigureCanvas(fig)
+        axes = fig.subplots(len(cameras_without_detections), 3, squeeze=False)
+        fig.suptitle("Cameras without Detections")
         for i, camera in enumerate(cameras_without_detections):
             rgbd = rgbds[camera]
             ax_row = axes[i]
@@ -812,10 +907,9 @@ def visualize_all_artifacts(artifacts: Dict[str,
                 ax_row[1].set_xlabel("Original RGB")
                 ax_row[2].set_xlabel("Original Depth")
 
-        plt.tight_layout()
-        plt.savefig(no_detections_outfile, dpi=300)
+        fig.tight_layout()
+        fig.savefig(no_detections_outfile, dpi=300)
         print(f"Wrote out to {no_detections_outfile}.")
-        plt.close()
 
 
 def display_camera_detections(artifacts: Dict[str, Any],
@@ -866,12 +960,12 @@ def display_camera_detections(artifacts: Dict[str, Any],
             x0, y0 = box[0], box[1]
             w, h = box[2] - box[0], box[3] - box[1]
             ax.add_patch(
-                plt.Rectangle((x0, y0),
-                              w,
-                              h,
-                              edgecolor=color,
-                              facecolor=(0, 0, 0, 0),
-                              lw=1))
+                Rectangle((x0, y0),
+                           w,
+                           h,
+                           edgecolor=color,
+                           facecolor=(0, 0, 0, 0),
+                           lw=1))
             # Label with the detection and score.
             ax.text(
                 -250,  # off to the left side

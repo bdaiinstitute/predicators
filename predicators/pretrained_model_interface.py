@@ -233,6 +233,12 @@ class GoogleGeminiModel():
         assert "GOOGLE_API_KEY" in os.environ
         self._client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
+    def _supports_thinking(self) -> bool:
+        """Check if this model version supports thinking (2.5+)."""
+        import re
+        match = re.search(r'(\d+\.\d+)', self._model_name)
+        return match is not None and float(match.group(1)) >= 2.5
+
 
 class OpenAILLM(LargeLanguageModel, OpenAIModel):
     """Interface to openAI LLMs.
@@ -293,9 +299,12 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
             num_completions: int = 1) -> List[str]:  # pragma: no cover
         del seed, stop_token  # unused
         assert imgs is None
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            candidate_count=num_completions)
+        config_kwargs = dict(temperature=temperature,
+                             candidate_count=num_completions)
+        if self._supports_thinking():
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=0)
+        config = types.GenerateContentConfig(**config_kwargs)
         with _GeminiTimeout(seconds=30):
             response = self._client.models.generate_content(
                 model=self._model_name,
@@ -326,9 +335,12 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
             num_completions: int = 1) -> List[str]:  # pragma: no cover
         del seed, stop_token  # unused
         assert imgs is not None
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            candidate_count=num_completions)
+        config_kwargs = dict(temperature=temperature,
+                             candidate_count=num_completions)
+        if self._supports_thinking():
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=0)
+        config = types.GenerateContentConfig(**config_kwargs)
         with _GeminiTimeout(seconds=30):
             response = self._client.models.generate_content(
                 model=self._model_name,

@@ -26,8 +26,8 @@ from bosdyn.client.sdk import Robot
 from bosdyn.client.util import authenticate
 from PIL import Image
 
-from calibrate_iphone import rgbd_to_point_cloud  # external: see-spot-plan
-from iphone_streaming import get_latest_frame  # external: see-spot-plan
+from predicators.spot_utils.skills.calibrate_iphone import rgbd_to_point_cloud
+from predicators.spot_utils.skills.iphone_streaming import get_latest_frame
 from predicators.spot_utils.skills.spot_hand_move import (
     move_hand_to_relative_pose,
     move_hand_to_relative_pose_with_velocity,
