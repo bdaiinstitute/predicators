@@ -181,7 +181,7 @@ approach_angle_bounds:
   clear_plastic_container: [1.47, 1.67]
   recycling_bin: [-0.1, 0.1]
   pink_furry_eraser: [-1.67, -1.47]
-  green_and_blue_furry_eraser: [-1.67, -1.47]
+  green_and_blue_furry_eraser: [-0.1, 0.1]
   soda_can: [-1.67, -1.47]
 
 # Wiping skill params.

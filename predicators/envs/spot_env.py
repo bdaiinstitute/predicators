@@ -1180,18 +1180,23 @@ class SpotRearrangementEnv(BaseEnv):
 
         # Capture images from the current position and run detection
         # without moving the robot.
-        rgbds = capture_images(self._robot, self._localizer)
-        detection_ids = set(self._detection_id_to_obj.keys())
-        detections, artifacts = detect_objects(
-            detection_ids, rgbds, self._allowed_regions)
+        # rgbds = capture_images(self._robot, self._localizer)
+        # detection_ids = set(self._detection_id_to_obj.keys())
+        # detections, artifacts = detect_objects(
+        #     detection_ids, rgbds, self._allowed_regions)
 
-        if CFG.spot_render_perception_outputs:
-            outdir = Path(CFG.spot_perception_outdir)
-            time_str = time.strftime("%Y%m%d-%H%M%S")
-            detections_outfile = outdir / f"detections_{time_str}.png"
-            no_detections_outfile = outdir / f"no_detections_{time_str}.png"
-            visualize_all_artifacts(artifacts, detections_outfile,
-                                    no_detections_outfile)
+        # if CFG.spot_render_perception_outputs:
+        #     outdir = Path(CFG.spot_perception_outdir)
+        #     time_str = time.strftime("%Y%m%d-%H%M%S")
+        #     detections_outfile = outdir / f"detections_{time_str}.png"
+        #     no_detections_outfile = outdir / f"no_detections_{time_str}.png"
+        #     visualize_all_artifacts(artifacts, detections_outfile,
+        #                             no_detections_outfile)
+
+        # Detection is currently disabled (commented out above), so default
+        # to empty so the fallback to known poses below still works.
+        detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
+        artifacts: Dict[str, Any] = {}
 
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val

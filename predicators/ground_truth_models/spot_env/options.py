@@ -522,7 +522,9 @@ def _move_to_view_and_grasp_policy(name: str, robot_obj_idx: int,
         time.sleep(0.5)  # Wait for the hand image to settle
         while True:
             robot, localizer, lease_client = get_robot()
-            rgbds = capture_images(robot, localizer, relocalize=True)
+            rgbds = capture_images(robot, localizer,
+                                   camera_names=["hand_color_image"],
+                                   relocalize=True)
             pick_obj_id = get_detection_id_for_object(objects[target_obj_idx])
             _, artifacts = detect_objects([pick_obj_id], rgbds)
             try:

@@ -8,6 +8,7 @@ import abc
 import base64
 import logging
 import os
+import signal
 from io import BytesIO
 from typing import Collection, Dict, List, Optional, Union
 
@@ -198,6 +199,26 @@ class OpenAIModel():
         return completion.choices[0].message.content
 
 
+class _GeminiTimeout:
+    """Context manager that raises TimeoutError after a deadline (seconds)."""
+
+    def __init__(self, seconds: int = 30) -> None:
+        self._seconds = seconds
+
+    def _handler(self, signum, frame):
+        raise TimeoutError(
+            f"Gemini API call timed out after {self._seconds}s")
+
+    def __enter__(self):
+        self._old_handler = signal.signal(signal.SIGALRM, self._handler)
+        signal.alarm(self._seconds)
+        return self
+
+    def __exit__(self, *args):
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, self._old_handler)
+
+
 class GoogleGeminiModel():
     """Common interface and methods for all Gemini-based models.
 
@@ -260,8 +281,8 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
     necessary API key to query the particular model name.
     """
 
-    # @retry(wait=wait_random_exponential(min=1, max=60),
-    #        stop=stop_after_attempt(10))
+    @retry(wait=wait_random_exponential(min=1, max=30),
+           stop=stop_after_attempt(5))
     def _sample_completions(
             self,
             prompt: str,
@@ -275,10 +296,11 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
         config = types.GenerateContentConfig(
             temperature=temperature,
             candidate_count=num_completions)
-        response = self._client.models.generate_content(
-            model=self._model_name,
-            contents=[prompt],
-            config=config)
+        with _GeminiTimeout(seconds=30):
+            response = self._client.models.generate_content(
+                model=self._model_name,
+                contents=[prompt],
+                config=config)
         return [response.text]
 
     def get_id(self) -> str:
@@ -292,8 +314,8 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
     necessary API key to query the particular model name.
     """
 
-    # @retry(wait=wait_random_exponential(min=1, max=60),
-    #        stop=stop_after_attempt(10))
+    @retry(wait=wait_random_exponential(min=1, max=30),
+           stop=stop_after_attempt(5))
     def _sample_completions(
             self,
             prompt: str,
@@ -306,12 +328,12 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
         assert imgs is not None
         config = types.GenerateContentConfig(
             temperature=temperature,
-            candidate_count=num_completions,
-            http_options=types.HttpOptions(timeout=15_000))
-        response = self._client.models.generate_content(
-            model=self._model_name,
-            contents=[prompt] + imgs,
-            config=config)
+            candidate_count=num_completions)
+        with _GeminiTimeout(seconds=30):
+            response = self._client.models.generate_content(
+                model=self._model_name,
+                contents=[prompt] + imgs,
+                config=config)
         return [response.text]
 
     def get_id(self) -> str:
