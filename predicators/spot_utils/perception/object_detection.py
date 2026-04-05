@@ -244,7 +244,7 @@ def detect_objects_from_language(
                 continue
             # If the detected pose is outside the allowed bounds, skip.
             pose_xy = np.array([pose.x, pose.y])
-            if allowed_regions is not None:
+            if allowed_regions is not None and len(allowed_regions) > 0:
                 in_allowed_region = False
                 for region in allowed_regions:
                     if region.find_simplex(pose_xy).item() >= 0:

@@ -172,6 +172,39 @@ class SpotLocalizer:
         return None
 
 
+class OdomLocalizer:
+    """Uses the odom frame as the world frame. No GraphNav map required.
+
+    Drop-in replacement for SpotLocalizer for short sessions in small
+    areas where odometry drift is acceptable.
+    """
+
+    def __init__(self, robot: Robot) -> None:
+        self._robot = robot
+        self._robot.time_sync.wait_for_sync()
+        self._robot_pose = math_helpers.SE3Pose(0, 0, 0, math_helpers.Quat())
+        self.localize()
+
+    def get_last_robot_pose(self) -> math_helpers.SE3Pose:
+        """Get the last estimated robot pose in the odom frame."""
+        return self._robot_pose
+
+    def get_world_tform_odom(self) -> math_helpers.SE3Pose:
+        """Identity transform since world frame IS the odom frame."""
+        return math_helpers.SE3Pose(0, 0, 0, math_helpers.Quat())
+
+    def localize(self,
+                 num_retries: int = 10,
+                 retry_wait_time: float = 1.0) -> None:
+        """Read odom_tform_body from robot state."""
+        robot_state = get_robot_state(self._robot)
+        odom_tform_body = get_odom_tform_body(
+            robot_state.kinematic_state.transforms_snapshot)
+        self._robot_pose = math_helpers.SE3Pose.from_proto(
+            odom_tform_body.to_proto())
+        return None
+
+
 if __name__ == "__main__":
     # Run this file alone to test manually.
     # Make sure to pass in --spot_robot_ip.

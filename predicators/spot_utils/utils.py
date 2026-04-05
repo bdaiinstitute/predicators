@@ -195,8 +195,59 @@ def get_graph_nav_dir() -> Path:
     return upload_dir / CFG.spot_graph_nav_map
 
 
+def _get_mapless_static_object_features(env_name: str) -> Dict:
+    """Return static object features for mapless mode, per environment."""
+    # Floor is always present.
+    feats: Dict = {
+        "floor": {
+            "shape": 1,
+            "height": 0.0001,
+            "length": 10000000,
+            "width": 10000000,
+            "flat_top_surface": 1,
+        },
+    }
+    if env_name == "spot_vlm_table_wiping_invented_predicates_env":
+        feats["childs_play_table"] = {
+            "shape": 2,
+            "height": 0.1,
+            "length": 0.35,
+            "width": 0.62,
+            "flat_top_surface": 1,
+        }
+        feats["green_and_blue_furry_eraser"] = {
+            "shape": 1,
+            "height": 0.1,
+            "length": 0.1,
+            "width": 0.1,
+            "placeable": 1,
+            "is_sweeper": 0,
+        }
+    return feats
+
+
 def load_spot_metadata() -> Dict:
-    """Load from the YAML config."""
+    """Load from the YAML config.
+
+    In mapless mode, returns sensible defaults so that no map directory
+    or metadata.yaml file is required.
+    """
+    from predicators.settings import CFG  # pylint: disable=import-outside-toplevel
+    if CFG.spot_mapless_mode:
+        return {
+            "allowed-regions": {},
+            "known-immovable-objects": {
+                # The floor always exists with a sensible default pose.
+                # z=-0.5 is roughly where the floor sits relative to the
+                # robot's body frame origin.
+                "floor": {"x": 0.0, "y": 0.0, "z": -0.5},
+            },
+            "known-movable-objects": {},
+            "static-object-features": _get_mapless_static_object_features(
+                CFG.env),
+            "spot-home-pose": {"x": 0.0, "y": 0.0, "angle": 0.0},
+            "april-tag-offsets": {},
+        }
     config_filepath = get_graph_nav_dir() / "metadata.yaml"
     with open(config_filepath, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)

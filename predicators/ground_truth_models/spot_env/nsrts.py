@@ -284,7 +284,27 @@ def _move_and_wipe_table_sampler(state: State, goal: Set[GroundAtom],
                                  rng: np.random.Generator,
                                  objs: Sequence[Object]) -> Array:
     target_obj = objs[1]
-    move_sample_params = load_spot_metadata()["wipe_location"][target_obj.name]
+    if CFG.spot_mapless_mode:
+        # In mapless mode, derive the wipe approach pose from the
+        # detected table pose and robot pose in the state.
+        robot_obj = objs[0]
+        table_x = state.get(target_obj, "x")
+        table_y = state.get(target_obj, "y")
+        robot_x = state.get(robot_obj, "x")
+        robot_y = state.get(robot_obj, "y")
+        # Angle from table to robot (i.e., the direction to stand back).
+        angle_table_to_robot = np.arctan2(robot_y - table_y,
+                                          robot_x - table_x)
+        # Stand ~0.85m from the table center, along that direction.
+        standoff = 0.85
+        stand_x = table_x + standoff * np.cos(angle_table_to_robot)
+        stand_y = table_y + standoff * np.sin(angle_table_to_robot)
+        # Face toward the table (opposite direction).
+        facing_angle = angle_table_to_robot + np.pi
+        move_sample_params = [stand_x, stand_y, facing_angle]
+    else:
+        move_sample_params = load_spot_metadata()["wipe_location"][
+            target_obj.name]
     # Hardcoded params; probably need to change in the future.
     rel_dx = 0.0
     # # Params for child play table:

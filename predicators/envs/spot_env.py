@@ -39,7 +39,8 @@ from predicators.spot_utils.skills.spot_hand_move import \
 from predicators.spot_utils.skills.spot_navigation import go_home, \
     navigate_to_absolute_pose
 from predicators.spot_utils.skills.spot_stow_arm import stow_arm
-from predicators.spot_utils.spot_localization import SpotLocalizer
+from predicators.spot_utils.spot_localization import OdomLocalizer, \
+    SpotLocalizer
 from predicators.spot_utils.utils import _base_object_type, _broom_type, \
     _container_type, _cup_type, _dustpan_type, _immovable_object_type, \
     _juicer_type, _movable_object_type, _robot_type, _table_type, \
@@ -176,7 +177,6 @@ def get_robot(
         return None, None, None
     setup_logging(False)
     hostname = CFG.spot_robot_ip
-    path = get_graph_nav_dir()
     sdk = create_standard_sdk("PredicatorsClient-")
     robot = sdk.create_robot(hostname)
     authenticate(robot)
@@ -187,9 +187,14 @@ def get_robot(
                                      must_acquire=True,
                                      return_at_exit=True)
     localizer = None
-    assert path.exists()
     if use_localizer:
-        localizer = SpotLocalizer(robot, path, lease_client, lease_keepalive)
+        if CFG.spot_mapless_mode:
+            localizer = OdomLocalizer(robot)
+        else:
+            path = get_graph_nav_dir()
+            assert path.exists()
+            localizer = SpotLocalizer(robot, path, lease_client,
+                                      lease_keepalive)
     return robot, localizer, lease_client
 
 
@@ -1178,25 +1183,28 @@ class SpotRearrangementEnv(BaseEnv):
         assert self._localizer is not None
         self._localizer.localize()
 
-        # Capture images from the current position and run detection
-        # without moving the robot.
-        # rgbds = capture_images(self._robot, self._localizer)
-        # detection_ids = set(self._detection_id_to_obj.keys())
-        # detections, artifacts = detect_objects(
-        #     detection_ids, rgbds, self._allowed_regions)
-
-        # if CFG.spot_render_perception_outputs:
-        #     outdir = Path(CFG.spot_perception_outdir)
-        #     time_str = time.strftime("%Y%m%d-%H%M%S")
-        #     detections_outfile = outdir / f"detections_{time_str}.png"
-        #     no_detections_outfile = outdir / f"no_detections_{time_str}.png"
-        #     visualize_all_artifacts(artifacts, detections_outfile,
-        #                             no_detections_outfile)
-
-        # Detection is currently disabled (commented out above), so default
-        # to empty so the fallback to known poses below still works.
-        detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
-        artifacts: Dict[str, Any] = {}
+        if CFG.spot_mapless_mode:
+            # In mapless mode, we must actually run object detection since
+            # there are no metadata poses to fall back on. Use the init
+            # search procedure which spins the robot to find objects.
+            detection_ids = set(self._detection_id_to_obj.keys())
+            # Filter out KnownStaticObjectDetectionIDs (e.g. floor) since
+            # those don't need searching.
+            search_ids = {
+                d for d in detection_ids
+                if not isinstance(d, KnownStaticObjectDetectionID)
+            }
+            detections, artifacts = self._run_init_search_for_objects(
+                search_ids)
+            # Also include known static objects (e.g. floor).
+            for d in detection_ids:
+                if isinstance(d, KnownStaticObjectDetectionID):
+                    detections[d] = d.pose
+        else:
+            # Detection is currently disabled for map-based mode; fall back
+            # to known poses from metadata below.
+            detections = {}
+            artifacts = {}
 
         obj_to_se3_pose = {
             self._detection_id_to_obj[det_id]: val
@@ -4422,49 +4430,50 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
     @property
     def _detection_id_to_obj(self) -> Dict[ObjectDetectionID, Object]:
         detection_id_to_obj: Dict[ObjectDetectionID, Object] = {}
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "bottle/clear_cup/clear_trashcan")] = Object(
-        #         "clear_plastic_container", _trash_can_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "apple/red_ball")] = Object("apple", _movable_object_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "soda_can")] = Object(
-        #         "soda_can", _movable_object_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "fluffy_toy/flower_arrangement")] = Object(
-        #         "fluffy_green_toy_eraser", _movable_object_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "blue_block")] = Object("blue_block", _movable_object_type)
 
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        #     "cardboard_box")] = Object("cardboard_box_bin", _trash_can_type)
-        # detection_id_to_obj[LanguageObjectDetectionID(
-        # "blue_coffee_cup")] = Object("blue_coffee_cup",
-        #                              _movable_object_type)
-        for obj, pose in get_known_movable_objects().items():
-            if obj.name == "pink_furry_eraser":
-                eraser_obj = Object("pink_furry_eraser",
-                                    _movable_object_type)
-                detection_id = LanguageObjectDetectionID("toy/flower_arrangement")
-                detection_id_to_obj[detection_id] = eraser_obj
-            elif obj.name == "clear_plastic_container":
-                container_obj = Object("clear_plastic_container",
-                                       _trash_can_type)
-                detection_id = LanguageObjectDetectionID("bottle/clear_cup/clear_trashcan")
-                detection_id_to_obj[detection_id] = container_obj
-            else:
-                detection_id = LanguageObjectDetectionID(obj.name)
-                detection_id_to_obj[detection_id] = obj
-        for obj, pose in get_known_immovable_objects().items():
-            stat_detection_id = KnownStaticObjectDetectionID(obj.name, pose)
-            if obj.name == "short_round_coffee_table":
-                table_obj = Object("short_round_coffee_table", _table_type)
-                detection_id_to_obj[stat_detection_id] = table_obj
-            elif obj.name == "childs_play_table":
-                table_obj = Object("childs_play_table", _table_type)
-                detection_id_to_obj[stat_detection_id] = table_obj
-            else:
+        if CFG.spot_mapless_mode:
+            # In mapless mode, hardcode the objects to detect via
+            # language rather than relying on metadata.
+            detection_id_to_obj[LanguageObjectDetectionID(
+                "green_and_blue_furry_eraser")] = Object(
+                    "green_and_blue_furry_eraser", _movable_object_type)
+            detection_id_to_obj[LanguageObjectDetectionID(
+                "childs_play_table")] = Object(
+                    "childs_play_table", _table_type)
+            # Floor is always a known static object.
+            for obj, pose in get_known_immovable_objects().items():
+                stat_detection_id = KnownStaticObjectDetectionID(
+                    obj.name, pose)
                 detection_id_to_obj[stat_detection_id] = obj
+        else:
+            for obj, pose in get_known_movable_objects().items():
+                if obj.name == "pink_furry_eraser":
+                    eraser_obj = Object("pink_furry_eraser",
+                                        _movable_object_type)
+                    detection_id = LanguageObjectDetectionID(
+                        "toy/flower_arrangement")
+                    detection_id_to_obj[detection_id] = eraser_obj
+                elif obj.name == "clear_plastic_container":
+                    container_obj = Object("clear_plastic_container",
+                                           _trash_can_type)
+                    detection_id = LanguageObjectDetectionID(
+                        "bottle/clear_cup/clear_trashcan")
+                    detection_id_to_obj[detection_id] = container_obj
+                else:
+                    detection_id = LanguageObjectDetectionID(obj.name)
+                    detection_id_to_obj[detection_id] = obj
+            for obj, pose in get_known_immovable_objects().items():
+                stat_detection_id = KnownStaticObjectDetectionID(
+                    obj.name, pose)
+                if obj.name == "short_round_coffee_table":
+                    table_obj = Object("short_round_coffee_table",
+                                       _table_type)
+                    detection_id_to_obj[stat_detection_id] = table_obj
+                elif obj.name == "childs_play_table":
+                    table_obj = Object("childs_play_table", _table_type)
+                    detection_id_to_obj[stat_detection_id] = table_obj
+                else:
+                    detection_id_to_obj[stat_detection_id] = obj
 
         return detection_id_to_obj
 
