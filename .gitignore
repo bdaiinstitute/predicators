@@ -42,3 +42,6 @@ top-down-state-view.png
 # Jetbrains IDEs
 .idea/
 hand_image_failed_detection.png
+
+# Spot wiping skill
+wipe_online_images_iphone/*

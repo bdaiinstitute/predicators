@@ -32,8 +32,8 @@ from predicators.spot_utils.skills.spot_hand_move import (
     move_hand_to_relative_pose,
     move_hand_to_relative_pose_with_velocity,
     open_gripper,
-    stow_arm,
 )
+from predicators.spot_utils.skills.spot_stow_arm import stow_arm
 from predicators.spot_utils.perception.spot_cameras import \
     _image_response_to_image
 from predicators.pretrained_model_interface import GoogleGeminiVLM
@@ -645,12 +645,9 @@ def get_bbox_from_gemini(
         List of [ymin, xmin, ymax, xmax] in pixel coordinates
 
     """
-    # Ensure API key is set for Gemini
-    # vlm = GoogleGeminiVLM("gemini-2.5-flash-preview-05-20")
+    from predicators.settings import CFG
     print('inside the function to get the bbox from gemini')
-    # vlm = GoogleGeminiVLM("gemini-2.5-flash")
-    # vlm = GoogleGeminiVLM("gemini-2.0-flash")
-    vlm = GoogleGeminiVLM("gemini-2.5-pro")
+    vlm = GoogleGeminiVLM(CFG.vlm_model_name)
     def _parse_bbox_list(raw: str) -> list[float]:
         """Parse a bbox dict {"bbox": [ymin, xmin, ymax, xmax]} from model output.
         Supports optional ```json fenced blocks. Returns raw numeric values
@@ -1055,7 +1052,18 @@ def main() -> None:
         default=0.0,
         help="Fraction to expand bbox in image space (e.g., 0.2 for +20%).",
     )
+    parser.add_argument(
+        "--vlm_model_name",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Gemini model name to use for VLM queries.",
+    )
     args = parser.parse_args()
+
+    # Update CFG so get_bbox_from_gemini picks up the model name.
+    from predicators.settings import CFG
+    CFG.vlm_model_name = args.vlm_model_name
+
     robot, lease_client, lease_keepalive = init_robot(args.hostname, "")
     
     wipe_online(

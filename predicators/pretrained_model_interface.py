@@ -303,7 +303,7 @@ class GoogleGeminiLLM(LargeLanguageModel, GoogleGeminiModel):
                              candidate_count=num_completions)
         if self._supports_thinking():
             config_kwargs["thinking_config"] = types.ThinkingConfig(
-                thinking_budget=0)
+                thinking_budget=128)
         config = types.GenerateContentConfig(**config_kwargs)
         with _GeminiTimeout(seconds=30):
             response = self._client.models.generate_content(
@@ -339,7 +339,7 @@ class GoogleGeminiVLM(VisionLanguageModel, GoogleGeminiModel):
                              candidate_count=num_completions)
         if self._supports_thinking():
             config_kwargs["thinking_config"] = types.ThinkingConfig(
-                thinking_budget=0)
+                thinking_budget=128)
         config = types.GenerateContentConfig(**config_kwargs)
         with _GeminiTimeout(seconds=30):
             response = self._client.models.generate_content(
