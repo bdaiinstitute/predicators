@@ -4384,7 +4384,27 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
                            parameters, preconds, add_effs, del_effs,
                            ignore_effs))
 
-        # NSRT-Op4: DumpContentsOntoFloor
+        # NSRT-Op4: MoveAndPlaceOnFloor
+        x0 = Variable("?x0", _movable_object_type)
+        x1 = Variable("?x1", _immovable_object_type)
+        x2 = Variable("?x2", _robot_type)
+        parameters = [x2, x1, x0]
+        preconds = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        add_effs = {
+            LiftedAtom(_HandEmpty, [x2]),
+            LiftedAtom(self._OnFloor, [x0]),
+        }
+        del_effs = {
+            LiftedAtom(_Holding, [x2, x0]),
+        }
+        ignore_effs = set()
+        self._strips_operators.add(
+            STRIPSOperator("MoveAndPlaceOnFloor", parameters, preconds,
+                           add_effs, del_effs, ignore_effs))
+
+        # NSRT-Op5: DumpContentsOntoFloor
         x0 = Variable("?x0", _movable_object_type)
         x1 = Variable("?x1", _trash_can_type)
         x2 = Variable("?x2", _robot_type)
@@ -4437,6 +4457,9 @@ class VLMTableWipingInventedPredsEnv(SpotRearrangementEnv):
             detection_id_to_obj[LanguageObjectDetectionID(
                 "green_and_blue_furry_eraser")] = Object(
                     "green_and_blue_furry_eraser", _movable_object_type)
+            detection_id_to_obj[LanguageObjectDetectionID(
+                "black_water_bottle")] = Object(
+                    "black_water_bottle", _movable_object_type)
             detection_id_to_obj[LanguageObjectDetectionID(
                 "childs_play_table")] = Object(
                     "childs_play_table", _table_type)

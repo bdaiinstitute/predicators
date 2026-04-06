@@ -1133,6 +1133,25 @@ def _move_and_drop_inside_policy(state: State, memory: Dict,
                                                  params)
 
 
+def _move_and_place_on_floor_policy(state: State, memory: Dict,
+                                    objects: Sequence[Object],
+                                    params: Array) -> Action:
+    name = "MoveAndPlaceOnFloor"
+    move_action = _move_to_reach_object_policy(state, memory, objects,
+                                               params[:2])
+
+    def _fn() -> None:
+        assert isinstance(move_action.extra_info, SpotActionExtraInfo)
+        move_action.extra_info.real_world_fn(
+            *move_action.extra_info.real_world_fn_args)
+        robot, _, _ = get_robot()
+        _drop_and_stow(robot)
+
+    action_extra_info = SpotActionExtraInfo(name, objects, _fn, tuple(), None,
+                                            tuple())
+    return utils.create_spot_env_action(action_extra_info)
+
+
 def _move_and_wipe_surface_policy(state: State, memory: Dict,
                                   objects: Sequence[Object],
                                   params: Array) -> Action:
@@ -1221,6 +1240,7 @@ _OPERATOR_NAME_TO_PARAM_SPACE = {
         ),  # move_abs_x, move_abs_y, move_abs_yaw, rel dx, dy, number of wipes
     "DumpContentsOntoFloor": Box(-np.inf, np.inf, (2, )),  # params for moving.
     "MoveToReachAndDropInside": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
+    "MoveAndPlaceOnFloor": Box(-np.inf, np.inf, (2, )),  # rel dist, dyaw
 }
 
 # NOTE: the policies MUST be unique because they output actions with extra info
@@ -1252,6 +1272,7 @@ _OPERATOR_NAME_TO_POLICY = {
     "MoveAndWipeSurfaceAndContinueHoldingEraser":
     _move_and_wipe_surface_policy,
     "MoveToReachAndDropInside": _move_and_drop_inside_policy,
+    "MoveAndPlaceOnFloor": _move_and_place_on_floor_policy,
 }
 
 

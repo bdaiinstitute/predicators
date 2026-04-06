@@ -238,7 +238,8 @@ class SpotPerceiver(BasePerceiver):
                 # Check if the item we just placed is in view. It needs to
                 # be in view to assess whether it was placed correctly.
                 robot, obj = objects[:2]
-                if controller_name == "MoveToReachAndDropInside":
+                if controller_name in ("MoveToReachAndDropInside",
+                                       "MoveAndPlaceOnFloor"):
                     # The object is the 3rd argument in this case.
                     obj = objects[2]
                 state = self._create_state()

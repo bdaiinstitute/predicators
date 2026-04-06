@@ -777,6 +777,7 @@ def wipe_online(
     iphone_extrinsics_path: str = DEFAULT_IPHONE_EXTRINSICS_PATH,
 ) -> None:
     """Run the online wiping loop using VLM-guided spill detection and iPhone depth sensing."""
+    rr.init("wipe_online_iphone", spawn=True)
     # stow the arm
     stow_arm(robot)
     # have the robot look ahead to look at the spill

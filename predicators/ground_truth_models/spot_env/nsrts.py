@@ -31,6 +31,49 @@ def _move_offset_sampler(state: State, robot_obj: Object,
                                    "x"), state.get(obj_to_nav_to, "y"))
     spot_pose = utils.get_se3_pose_from_state(state, robot_obj)
     robot_geom = spot_pose_to_geom2d(spot_pose)
+
+    if CFG.spot_mapless_mode:
+        # In mapless mode, pick the angle that minimizes distance from the
+        # robot's current position to the sampled goal pose. This means
+        # choosing the angle from the target object back toward the robot,
+        # and using the minimum allowed distance.
+        robot_x, robot_y = robot_geom.x, robot_geom.y
+        target_x, target_y = obj_to_nav_to_pos
+        angle_to_robot = np.arctan2(robot_y - target_y, robot_x - target_x)
+        # Clamp to the allowed angle range if specified.
+        angle = np.clip(angle_to_robot, min_angle, max_angle)
+        distance = min_dist
+        # Check collision at this pose; if it collides, try small
+        # perturbations around the ideal angle.
+        collision_geoms = get_collision_geoms_for_nav(state)
+        dx = np.cos(angle) * distance
+        dy = np.sin(angle) * distance
+        x = target_x + dx
+        y = target_y + dy
+        rot = angle + np.pi if angle < 0 else angle - np.pi
+        cand_geom = utils.Rectangle.from_center(x, y, robot_geom.width,
+                                                 robot_geom.height, rot)
+        if any(cand_geom.intersects(g) for g in collision_geoms):
+            # Try perturbations to find a collision-free pose nearby.
+            best_distance_to_robot = float("inf")
+            best_params = (distance, angle)
+            for _ in range(100):
+                a = rng.uniform(min_angle, max_angle)
+                d = rng.uniform(min_dist, max_dist)
+                dx = np.cos(a) * d
+                dy = np.sin(a) * d
+                cx, cy = target_x + dx, target_y + dy
+                r = a + np.pi if a < 0 else a - np.pi
+                cand = utils.Rectangle.from_center(cx, cy, robot_geom.width,
+                                                   robot_geom.height, r)
+                if not any(cand.intersects(g) for g in collision_geoms):
+                    dist_to_robot = np.hypot(cx - robot_x, cy - robot_y)
+                    if dist_to_robot < best_distance_to_robot:
+                        best_distance_to_robot = dist_to_robot
+                        best_params = (d, a)
+            distance, angle = best_params
+        return np.array([distance, angle])
+
     convex_hulls = get_allowed_map_regions()
     collision_geoms = get_collision_geoms_for_nav(state)
     try:
@@ -380,7 +423,8 @@ class SpotEnvsGroundTruthNSRTFactory(GroundTruthNSRTFactory):
             "MoveToReachAndDropInside": _move_to_reach_object_sampler,
             "MoveAndWipeSurfaceAndContinueHoldingEraser":
             _move_and_wipe_table_sampler,
-            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler
+            "DumpContentsOntoFloor": _move_to_hand_view_object_sampler,
+            "MoveAndPlaceOnFloor": _move_to_reach_object_sampler
         }
 
         # If we're doing proper bilevel planning with a simulator, then

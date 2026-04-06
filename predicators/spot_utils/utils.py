@@ -223,6 +223,14 @@ def _get_mapless_static_object_features(env_name: str) -> Dict:
             "placeable": 1,
             "is_sweeper": 0,
         }
+        feats["black_water_bottle"] = {
+            "shape": 2,
+            "height": 0.25,
+            "length": 0.08,
+            "width": 0.08,
+            "placeable": 1,
+            "is_sweeper": 0,
+        }
     return feats
 
 
