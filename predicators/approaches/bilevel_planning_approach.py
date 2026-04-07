@@ -5,7 +5,7 @@ then Execution.
 """
 import abc
 import logging
-from typing import Any, Callable, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from gym.spaces import Box
 
@@ -51,6 +51,7 @@ class BilevelPlanningApproach(BaseApproach):
         self._last_plan: List[_Option] = []  # used if plan WITH sim
         self._last_nsrt_plan: List[_GroundNSRT] = []  # plan WITHOUT sim
         self._last_atoms_seq: List[Set[GroundAtom]] = []  # plan WITHOUT sim
+        self._last_monitor_info: List[Dict[str, Any]] = []
 
     def _solve(self, task: Task, timeout: int) -> Callable[[State], Action]:
         self._num_calls += 1
@@ -66,6 +67,10 @@ class BilevelPlanningApproach(BaseApproach):
                 task, nsrts, preds, timeout, seed)
             self._last_nsrt_plan = nsrt_plan
             self._last_atoms_seq = atoms_seq
+            self._record_execution_monitor_info(
+                nsrt_plan=nsrt_plan,
+                atoms_seq=atoms_seq,
+                option_plan=None)
             policy = utils.nsrt_plan_to_greedy_policy(nsrt_plan, task.goal,
                                                       self._rng)
             logging.debug("Current Task Plan:")
@@ -81,6 +86,10 @@ class BilevelPlanningApproach(BaseApproach):
             atoms_seq = utils.compute_atoms_seq_from_plan(
                 nsrt_plan, utils.abstract(task.init, preds))
             self._last_atoms_seq = atoms_seq
+            self._record_execution_monitor_info(
+                nsrt_plan=nsrt_plan,
+                atoms_seq=atoms_seq,
+                option_plan=option_plan)
             policy = utils.option_plan_to_policy(option_plan)
 
         self._save_metrics(metrics, nsrts, preds)
@@ -122,6 +131,33 @@ class BilevelPlanningApproach(BaseApproach):
             raise ApproachTimeout(e.args[0], e.info)
 
         return option_plan, nsrt_plan, metrics
+
+    def _record_execution_monitor_info(
+            self,
+            nsrt_plan: List[_GroundNSRT],
+            atoms_seq: List[Set[GroundAtom]],
+            option_plan: Optional[List[_Option]]) -> None:
+        """Prepare rich execution-monitoring info for downstream monitors."""
+        self._last_monitor_info = []
+        metadata: Dict[str, Any] = {}
+        if option_plan is not None:
+            metadata["current_option_plan"] = option_plan
+        if nsrt_plan:
+            metadata["current_nsrt_plan"] = nsrt_plan
+        if metadata:
+            self._last_monitor_info.append(metadata)
+
+        for idx, expected_atoms in enumerate(atoms_seq):
+            info: Dict[str, Any] = {"expected_atoms": expected_atoms}
+            if idx < len(nsrt_plan):
+                ground_nsrt = nsrt_plan[idx]
+                info["operator_name"] = ground_nsrt.name
+                info["is_information_gathering"] = (
+                    utils.is_information_gathering_operator_name(
+                        ground_nsrt.name))
+            else:
+                info["is_information_gathering"] = False
+            self._last_monitor_info.append(info)
 
     def _run_task_plan(
         self, task: Task, nsrts: Set[NSRT], preds: Set[Predicate],
@@ -236,6 +272,11 @@ class BilevelPlanningApproach(BaseApproach):
         return self._last_nsrt_plan
 
     def get_execution_monitoring_info(self) -> List[Set[GroundAtom]]:
+        if self._last_monitor_info:
+            remaining_info = list(self._last_monitor_info)
+            if remaining_info:
+                self._last_monitor_info.pop(0)
+            return remaining_info
         remaining_atoms_seq = list(self._last_atoms_seq)
         if remaining_atoms_seq:
             self._last_atoms_seq.pop(0)

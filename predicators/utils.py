@@ -260,6 +260,23 @@ def create_json_dict_from_ground_atoms(
     return dict(predicate_to_argument_lists)
 
 
+def is_information_gathering_operator_name(name: str) -> bool:
+    """Heuristic check for information-gathering operators based on name."""
+    info_patterns = (
+        "Observe",
+        "Inspect",
+        "Check",
+        "Examine",
+        "Look",
+        "Detect",
+        "Measure",
+        "Scan",
+    )
+    lowered = name.lower()
+    return any(name.startswith(pattern) or lowered.startswith(pattern.lower())
+               for pattern in info_patterns)
+
+
 def create_json_dict_from_task(task: Task) -> Dict[str, Any]:
     """Create a JSON-compatible dict from a task.
 
