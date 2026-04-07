@@ -48,7 +48,7 @@ from predicators.structs import (State, Task, GroundAtom, Object, Video,
                            EnvironmentTask, Type, Observation, AugmentedState, VLMPredicate, VLMGroundAtom, Action)
 from predicators.settings import CFG
 from predicators.envs.mock_spot_env import _MockSpotObservation
-from predicators.envs.spot_env import _robot_type
+from predicators.spot_utils.utils import _robot_type
 from rich.table import Table
 from predicators.utils import log_rich_table
 
@@ -157,6 +157,7 @@ class MockSpotPerceiver(BasePerceiver):
             # NOTE: if invisible objects are included, we will generate queries for them to VLM
             # However, these queries (1) for belief-space ones will be unknown and won't update VLM atoms
             # (2) for binary world-state ones, they may wrongly update VLM atoms
+            # TODO check if visible objects are correctly from the data annotation process
             visible_objects = list(obs.object_dict.values()) + [self._spot_object]
         else:
             visible_objects = list(obs.objects_in_view) + [self._spot_object]
@@ -184,6 +185,12 @@ class MockSpotPerceiver(BasePerceiver):
             assert isinstance(curr_vlm_atom_values, dict)
             
             # [Belief Update: Update predicate labels]
+            # NOTE: Keep this block in sync with predicators/perception/belief_update.py.
+            # That helper is available for other perceivers, but we retain the
+            # original implementation here for clarity and future refactoring.
+            # Later we can replace this section with:
+            #   from predicators.perception.belief_update import merge_vlm_beliefs
+            #   self._vlm_atom_dict = merge_vlm_beliefs(self._vlm_atom_dict, curr_vlm_atom_values)
             # First get the latest VLM atom values from current observation
             updated_vlm_atom_values = self._vlm_atom_dict.copy()  # Start with previous values
             

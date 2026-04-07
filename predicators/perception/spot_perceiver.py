@@ -1,9 +1,13 @@
 """A perceiver specific to spot envs."""
 
+from __future__ import annotations
+
+import importlib
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from types import ModuleType
+from typing import Dict, List, Optional, Set, TYPE_CHECKING
 
 import imageio.v2 as iio
 import numpy as np
@@ -13,20 +17,31 @@ from matplotlib import pyplot as plt
 from PIL import ImageDraw
 
 from predicators import utils
-from predicators.envs import BaseEnv, get_or_create_env
-from predicators.envs.spot_env import HANDEMPTY_GRIPPER_THRESHOLD, \
-    SpotCubeEnv, SpotRearrangementEnv, _drafting_table_type, \
-    _PartialPerceptionState, _SpotObservation, in_general_view_classifier, AugmentedState
 from predicators.perception.base_perceiver import BasePerceiver
+from predicators.perception.belief_update import merge_vlm_beliefs
 from predicators.settings import CFG
 from predicators.spot_utils.utils import _container_type, _dustpan_type, \
     _immovable_object_type, _movable_object_type, _robot_type, \
     _wrappers_type, get_allowed_map_regions, load_spot_metadata, \
     object_to_top_down_geom
-from predicators.structs import Action, DefaultState, EnvironmentTask, \
-    GoalDescription, GroundAtom, Object, Observation, Predicate, \
-    SpotActionExtraInfo, State, Task, Video, VLMPredicate, _Option
+from predicators.structs import Action, AugmentedState, DefaultState, \
+    EnvironmentTask, GoalDescription, GroundAtom, Object, Observation, Predicate, \
+    SpotActionExtraInfo, State, Task, Video, VLMGroundAtom, VLMPredicate, \
+    _Option
+if TYPE_CHECKING:
+    from predicators.envs.spot_env import SpotCubeEnv, SpotRearrangementEnv, \
+        _PartialPerceptionState, _SpotObservation
 
+_SPOT_ENV_MODULE: Optional[ModuleType] = None
+
+
+def _get_spot_env_module() -> ModuleType:
+    """Import spot_env lazily to avoid circular imports at module import time."""
+    global _SPOT_ENV_MODULE
+    if _SPOT_ENV_MODULE is None:
+        _SPOT_ENV_MODULE = importlib.import_module(
+            "predicators.envs.spot_env")
+    return _SPOT_ENV_MODULE
 
 class SpotPerceiver(BasePerceiver):
     """A perceiver specific to spot envs."""
@@ -47,7 +62,7 @@ class SpotPerceiver(BasePerceiver):
         self._robot_pos: math_helpers.SE3Pose = math_helpers.SE3Pose(
             0, 0, 0, math_helpers.Quat())
         self._lost_objects: Set[Object] = set()
-        self._curr_env: Optional[BaseEnv] = None
+        self._curr_env: Optional["BaseEnv"] = None
         self._waiting_for_observation = True
         self._ordered_objects: List[Object] = []  # list of all known objects
         # Keep track of objects that are contained (out of view) in another
@@ -57,6 +72,9 @@ class SpotPerceiver(BasePerceiver):
         # Load static, hard-coded features of objects, like their shapes.
         meta = load_spot_metadata()
         self._static_object_features = meta.get("static-object-features", {})
+        self._camera_images: Optional[Dict[str, object]] = None
+        self._vlm_atom_dict: Dict[VLMGroundAtom, bool] = {}
+        self._vlm_predicates: Set[VLMPredicate] = set()
 
     @classmethod
     def get_name(cls) -> str:
@@ -66,8 +84,11 @@ class SpotPerceiver(BasePerceiver):
         # Unless dry running, don't reset after the first time.
         if self._waiting_for_observation or CFG.spot_run_dry:
             self._waiting_for_observation = True
+            from predicators.envs import get_or_create_env  # lazy import to avoid circular
             self._curr_env = get_or_create_env(CFG.env)
-            assert isinstance(self._curr_env, SpotRearrangementEnv)
+            spot_env_mod = _get_spot_env_module()
+            spot_rearrangement_env_cls = spot_env_mod.SpotRearrangementEnv
+            assert isinstance(self._curr_env, spot_rearrangement_env_cls)
             self._known_object_poses = {}
             self._objects_in_view = set()
             self._objects_in_hand_view = set()
@@ -82,6 +103,9 @@ class SpotPerceiver(BasePerceiver):
                                                    math_helpers.Quat())
             self._lost_objects = set()
             self._container_to_contained_objects = {}
+            self._camera_images = None
+            self._vlm_atom_dict = {}
+            self._vlm_predicates = set()
         self._prev_action = None  # already processed at the end of the cycle
         init_state = self._create_state()
         goal = self._create_goal(init_state, env_task.goal_description)
@@ -99,6 +123,11 @@ class SpotPerceiver(BasePerceiver):
         # Update the curr held item when applicable.
         assert self._curr_env is not None
         if self._prev_action is not None:
+            spot_env_mod = _get_spot_env_module()
+            in_general_view_classifier = \
+                spot_env_mod.in_general_view_classifier
+            handempty_threshold = \
+                spot_env_mod.HANDEMPTY_GRIPPER_THRESHOLD
             assert isinstance(self._prev_action.extra_info,
                               SpotActionExtraInfo)
             controller_name = self._prev_action.extra_info.action_name
@@ -120,8 +149,7 @@ class SpotPerceiver(BasePerceiver):
                         contained.discard(object_attempted_to_grasp)
                     # We only want to update the holding item id feature
                     # if we successfully picked something.
-                    if self._gripper_open_percentage > \
-                        HANDEMPTY_GRIPPER_THRESHOLD:
+                    if self._gripper_open_percentage > handempty_threshold:
                         self._held_object = object_attempted_to_grasp
                     else:
                         # We lost the object!
@@ -157,7 +185,7 @@ class SpotPerceiver(BasePerceiver):
             else:
                 # Ensure the held object is reset if the hand is empty.
                 prev_held_object = self._held_object
-                if self._gripper_open_percentage <= HANDEMPTY_GRIPPER_THRESHOLD:
+                if self._gripper_open_percentage <= handempty_threshold:
                     self._held_object = None
                     # This can only happen if the item was dropped during
                     # something other than a place.
@@ -167,10 +195,15 @@ class SpotPerceiver(BasePerceiver):
                                      f"{prev_held_object} was lost!")
                         self._lost_objects.add(prev_held_object)
 
-        return self._create_state()
+        next_state = self._create_state()
+        # Reset previous action once it has been processed.
+        self._prev_action = None
+        return next_state
 
     def _update_state_from_observation(self, observation: Observation) -> None:
-        assert isinstance(observation, _SpotObservation)
+        spot_env_mod = _get_spot_env_module()
+        spot_observation_cls = spot_env_mod._SpotObservation
+        assert isinstance(observation, spot_observation_cls)
         # If a container is being updated, change the poses for contained
         # objects.
         for container in observation.objects_in_view:
@@ -203,21 +236,42 @@ class SpotPerceiver(BasePerceiver):
         for obj in observation.objects_in_view:
             self._lost_objects.discard(obj)
 
-        # NOTE: This is only used when using VLM for predicate evaluation
-        # NOTE: Performance aspect should be considered later
         if CFG.spot_vlm_eval_predicate:
-            # Add current Spot images to the state if needed
-            self._camera_images = observation.images
-            self._vlm_atom_dict = observation.vlm_atom_dict
-            self._vlm_predicates = observation.vlm_predicates
+            self._update_vlm_beliefs(observation)
         else:
             self._camera_images = None
-            self._vlm_atom_dict = None
-            self._vlm_predicates = None
+            self._vlm_atom_dict = {}
+            self._vlm_predicates = set()
+
+    def _update_vlm_beliefs(self, observation: _SpotObservation) -> None:
+        """Merge newly observed VLM atoms with the running belief state."""
+        self._camera_images = observation.images
+        if observation.vlm_predicates is not None:
+            self._vlm_predicates.update(observation.vlm_predicates)
+
+        incoming_values: Dict[VLMGroundAtom, Optional[bool]] = (
+            dict(observation.vlm_atom_dict)
+            if observation.vlm_atom_dict is not None else {})
+
+        # Delegate merge logic to shared helper so the real and mock perceivers
+        # stay perfectly aligned.
+        self._vlm_atom_dict = merge_vlm_beliefs(
+            self._vlm_atom_dict,
+            incoming_values,
+            logger=logging.getLogger(__name__))
+
+        true_atoms = {
+            atom: val
+            for atom, val in self._vlm_atom_dict.items() if val
+        }
+        if true_atoms:
+            logging.info("[Perceiver] True VLM atoms: %s", true_atoms)
 
     def _create_state(self) -> State:
         if self._waiting_for_observation:
             return DefaultState
+        spot_env_mod = _get_spot_env_module()
+        partial_state_cls = spot_env_mod._PartialPerceptionState
         # Build the continuous part of the state.
         assert self._robot is not None
         state_dict = {
@@ -300,7 +354,7 @@ class SpotPerceiver(BasePerceiver):
         camera_images = self._camera_images if CFG.spot_vlm_eval_predicate else None
 
         # Now finish the state.
-        state = _PartialPerceptionState(
+        state = partial_state_cls(
             percept_state.data,
             simulator_state=simulator_state,
             camera_images=camera_images,  # NOTE: may not need now
@@ -318,9 +372,12 @@ class SpotPerceiver(BasePerceiver):
         # Unfortunate hack to deal with the fact that the state is actually
         # not yet set. Hopefully one day other cleanups will enable cleaning.
         assert self._curr_env is not None
+        spot_env_mod = _get_spot_env_module()
+        spot_cube_env_cls = spot_env_mod.SpotCubeEnv
+        drafting_table_type = spot_env_mod._drafting_table_type
         pred_name_to_pred = {p.name: p for p in self._curr_env.predicates}
         if goal_description == "put the cube on the sticky table":
-            assert isinstance(self._curr_env, SpotCubeEnv)
+            assert isinstance(self._curr_env, spot_cube_env_cls)
             cube = Object("cube", _movable_object_type)
             target = Object("sticky_table", _immovable_object_type)
             On = pred_name_to_pred["On"]
@@ -458,7 +515,7 @@ class SpotPerceiver(BasePerceiver):
             }
         if goal_description == "put the ball on the table":
             ball = Object("ball", _movable_object_type)
-            drafting_table = Object("drafting_table", _drafting_table_type)
+            drafting_table = Object("drafting_table", drafting_table_type)
             On = pred_name_to_pred["On"]
             return {
                 GroundAtom(On, [ball, drafting_table]),
@@ -720,7 +777,9 @@ class SpotPerceiver(BasePerceiver):
             return []
         state = self._create_state()
 
-        assert isinstance(self._curr_env, SpotRearrangementEnv)
+        spot_env_mod = _get_spot_env_module()
+        spot_rearrangement_env_cls = spot_env_mod.SpotRearrangementEnv
+        assert isinstance(self._curr_env, spot_rearrangement_env_cls)
         x_lb = self._curr_env.render_x_lb
         x_ub = self._curr_env.render_x_ub
         y_lb = self._curr_env.render_y_lb
@@ -876,6 +935,7 @@ class SpotMinimalPerceiver(BasePerceiver):
         self._prev_action = action
 
     def reset(self, env_task: EnvironmentTask) -> Task:
+        from predicators.envs import get_or_create_env
         self._curr_env = get_or_create_env(CFG.env)
         state = self._create_state()
         self._curr_state = state
