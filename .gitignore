@@ -43,3 +43,16 @@ top-down-state-view.png
 .idea/
 .vscode/
 .run
+
+# Local assistant / scratch files
+.claude/
+CLAUDE.md
+tmp.png
+
+# Secrets / deployment credentials
+predicators_deploy/*.pem
+predicators_deploy/*.key
+
+# Large local perception debug outputs
+spot_perception_outputs_old1/
+spot_pointing_outputs_cli/
