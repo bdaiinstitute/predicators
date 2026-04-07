@@ -1052,9 +1052,11 @@ class MockSpotDrawerCleaningEnv(MockSpotEnv):
             GroundAtom(_Inside, [self.blue_cup, self.container]),  # Blue cup should be inside container
             GroundAtom(_DrawerClosed, [self.drawer])  # Drawer should be closed
         }
-        
+        # Add goal_atoms_or for compatibility with creator
+        self.goal_atoms_or = [self.goal_atoms]
+
         # GroundAtom(_Known_ContainerEmpty, [self.drawer]),  # We want to know drawer content
-        
+
         # if self.oracle_env:
         #     self.goal_atoms = {
         #         GroundAtom(_Inside, [self.red_cup, self.container]),  # Red cup should be inside container
@@ -1237,10 +1239,13 @@ class MockSpotSortWeight(MockSpotEnv):
             {
                 GroundAtom(_Inside, [self.green_box, self.container]),  
                 GroundAtom(_Inside, [self.white_box, self.container]), 
+                GroundAtom(_Known_ObjectHeavy, [self.green_box]),
+                GroundAtom(_Known_ObjectHeavy, [self.white_box]),
             },
             {
                 GroundAtom(_Inside, [self.green_box, self.container]),  
                 GroundAtom(_BelieveFalse_ObjectHeavy, [self.white_box]),  
+                GroundAtom(_Known_ObjectHeavy, [self.green_box]),
             },
             {
                 GroundAtom(_Inside, [self.white_box, self.container]),  
@@ -1332,7 +1337,7 @@ class MockSpotSortWeight(MockSpotEnv):
         """Get list of test tasks."""
         # Reset environment to get initial observation
         obs = self.reset("test", 0)
-        # Create task with initial observation and goal
+        # Create task with initial observation and goal description.
         task = EnvironmentTask(obs, self.goal_atoms_or)
         return [task]
 

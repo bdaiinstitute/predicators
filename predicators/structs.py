@@ -5,10 +5,11 @@ from __future__ import annotations
 import abc
 import copy
 import itertools
+import logging
 from dataclasses import dataclass, field
 from functools import cached_property, lru_cache
 from typing import Any, Callable, Collection, DefaultDict, Dict, Iterator, \
-    List, Optional, Sequence, Set, Tuple, TypeVar, Union, cast
+    List, Mapping, Optional, Sequence, Set, Tuple, TypeVar, Union, cast
 
 import numpy as np
 import PIL.Image
@@ -724,6 +725,8 @@ class EnvironmentTask:
     goal_description: GoalDescription
     # See Task._alt_goal for the reason for this field.
     alt_goal_desc: Optional[GoalDescription] = field(default=None)
+    # Arbitrary, environment-specific metadata (e.g., perception hints).
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @cached_property
     def task(self) -> Task:
@@ -753,11 +756,21 @@ class EnvironmentTask:
 
     @cached_property
     def goal(self) -> Set[GroundAtom]:
-        """Convenience method for environment tasks that are fully observed."""
-        # assert isinstance(self.goal_description, set)
-        # assert not self.goal_description or isinstance(
-        #     next(iter(self.goal_description)), GroundAtom)
-        return self.goal_description
+        """Convenience method for environment tasks that are fully observed.
+
+        The planning stack expects a single conjunctive goal set. If a
+        disjunctive goal (list of sets) is provided, fail loudly so the
+        caller can decide how to handle OR-goals explicitly.
+        """
+        goal_desc = self.goal_description
+        if isinstance(goal_desc, list):
+            raise ValueError(
+                "EnvironmentTask.goal_description is disjunctive (list); "
+                "planner requires a single conjunctive goal set. "
+                f"goal_description={goal_desc}")
+        # assert isinstance(goal_desc, set)
+        # assert not goal_desc or isinstance(next(iter(goal_desc)), GroundAtom)
+        return goal_desc
 
     def replace_goal_with_alt_goal(self) -> EnvironmentTask:
         """Return an EnvironmentTask with the goal description replaced with
@@ -768,7 +781,8 @@ class EnvironmentTask:
         """
         if self.alt_goal_desc is not None:
             return EnvironmentTask(self.init_obs,
-                                   goal_description=self.alt_goal_desc)
+                                   goal_description=self.alt_goal_desc,
+                                   metadata=self.metadata)
         return self
 
 

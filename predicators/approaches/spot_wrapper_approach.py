@@ -36,6 +36,8 @@ class SpotWrapperApproach(BaseApproachWrapper):
                          types, action_space, train_tasks)
         self._base_approach_has_control = False  # for execution monitoring
         self._allowed_regions = get_allowed_map_regions()
+        # VLM client may be optional (e.g., mock runs); guard goal checks.
+        self._vlm = getattr(base_approach, "_vlm", None)
 
     @classmethod
     def get_name(cls) -> str:
@@ -55,7 +57,9 @@ class SpotWrapperApproach(BaseApproachWrapper):
         def _policy(state: State) -> Action:
             nonlocal base_approach_policy, need_stow
             # If we think that we're done, return the done action.
-            if task.goal_holds(state, self._vlm):
+            # Guard in case _vlm is None (e.g., mock runs).
+            if task.goal_holds(state, self._vlm) if self._vlm is not None \
+                    else task.goal_holds(state):
                 extra_info = SpotActionExtraInfo("done", [], None, tuple(),
                                                  None, tuple())
                 return utils.create_spot_env_action(extra_info)
