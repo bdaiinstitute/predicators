@@ -174,6 +174,7 @@ def point_objects_with_gemini(
         points = _denormalize_points(points_data, width, height)
         boxes = _denormalize_boxes(boxes_data, width, height, label)
         masks = _decode_masks(mask_entries, width, height, label)
+        points, boxes, masks = _select_primary_instance(points, boxes, masks)
         parsed.append(
             GeminiPointingResult(
                 image_index=entry.get("image_index", 0),
@@ -202,6 +203,38 @@ def point_single_image(
                                         detection=detection,
                                         segmentation=segmentation)
     return results[0] if results else None
+
+
+def _select_primary_instance(points: List[GeminiPointPrediction],
+                             boxes: List[GeminiBoxPrediction],
+                             masks: List[GeminiMaskPrediction]
+                             ) -> Tuple[List[GeminiPointPrediction],
+                                        List[GeminiBoxPrediction],
+                                        List[GeminiMaskPrediction]]:
+    """Match DETIC/SAM behavior: surface a single detection per prompt.
+
+    DETIC has always kept the highest-score detection for a class; the rest
+    of the Spot stack (pose extraction, grasping) assumes just one instance
+    per ObjectDetectionID. To preserve parity we keep the first Gemini box
+    or point and drop the rest, filtering masks by their anchor metadata.
+    """
+    if boxes:
+        primary_idx = 0
+        filtered_boxes = [boxes[primary_idx]]
+        filtered_masks = [
+            mask for mask in masks
+            if mask.source == "detection" and mask.anchor_index == primary_idx
+        ]
+        return [], filtered_boxes, filtered_masks
+    if points:
+        primary_idx = 0
+        filtered_points = [points[primary_idx]]
+        filtered_masks = [
+            mask for mask in masks
+            if mask.source == "point" and mask.anchor_index == primary_idx
+        ]
+        return filtered_points, [], filtered_masks
+    return points, boxes, masks
 
 
 def _cli() -> None:

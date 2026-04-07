@@ -1,4 +1,5 @@
 """Interface for finding objects by moving around and running detection."""
+import logging
 import time
 from collections import defaultdict
 from typing import Any, Collection, Dict, List, Optional, Sequence, Set, Tuple
@@ -14,11 +15,12 @@ from scipy.spatial import Delaunay
 
 from predicators import utils
 from predicators.settings import CFG
+from predicators.spot_utils.perception import vlm_pointing
 from predicators.spot_utils.perception.object_detection import detect_objects
 from predicators.spot_utils.perception.object_perception import \
     get_vlm_atom_combinations, vlm_predicate_batch_classify
 from predicators.spot_utils.perception.perception_structs import \
-    ObjectDetectionID, RGBDImageWithContext
+    LanguageObjectDetectionID, ObjectDetectionID, RGBDImageWithContext
 from predicators.spot_utils.perception.spot_cameras import capture_images
 from predicators.spot_utils.skills.spot_hand_move import close_gripper, \
     move_hand_to_relative_pose, open_gripper
@@ -160,6 +162,208 @@ def _find_objects_with_choreographed_moves(
     raise RuntimeError(f"Could not find objects: {remaining_object_ids}")
 
 
+def _teleop_search_for_objects(
+    robot: Robot,
+    localizer: SpotLocalizer,
+    object_ids: Collection[ObjectDetectionID],
+    allowed_regions: Optional[Collection[Delaunay]] = None,
+    vlm_predicates: Optional[Set[VLMPredicate]] = None,
+    id2object: Optional[Dict[ObjectDetectionID, Object]] = None,
+) -> Tuple[Dict[ObjectDetectionID, math_helpers.SE3Pose], Dict[str, Any], Dict[
+        VLMGroundAtom, Optional[bool]]]:
+    """Manual object search for demo mode.
+
+    The operator is expected to move Spot (via tablet/teleop) until the objects
+    are in view, then press Enter to trigger detection.
+    """
+    print("\n=== Demo Mode: Teleop object search ===")
+    print("Use the tablet/teleop controls to position Spot so that the target")
+    print("objects are visible. When ready, press Enter to run detection.")
+    print("Type 'skip' to abort teleop search.\n")
+
+    # Track detections and VLM atoms across attempts.
+    all_vlm_atom_dict: Dict[VLMGroundAtom, Optional[bool]] = defaultdict(
+        lambda: None)
+    attempt = 0
+
+    while True:
+        attempt += 1
+        user_input = input(
+            f"[Teleop Search] Attempt {attempt}: press Enter to capture images "
+            "or type 'skip' to abort: ").strip().lower()
+        if user_input == "skip":
+            raise RuntimeError("Teleop object search aborted by operator.")
+
+        rgbds = capture_images(robot, localizer)
+
+        language_ids: Set[ObjectDetectionID] = {
+            obj_id for obj_id in object_ids
+            if isinstance(obj_id, LanguageObjectDetectionID)
+        }
+        if CFG.spot_teleop_pointing_detection:
+            detic_ids = set(object_ids) - language_ids
+            if detic_ids:
+                logging.info(
+                    "[Teleop Search] Skipping DETIC/SAM for %d language IDs;"
+                    " still running for %d non-language IDs.",
+                    len(language_ids), len(detic_ids))
+        else:
+            detic_ids = set(object_ids)
+
+        detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
+        artifacts: Dict[str, Any] = {
+            "rgbds": rgbds,
+            "language": {"object_id_to_img_detections": {}},
+            "april": {}
+        }
+        if detic_ids:
+            detic_detections, artifacts = detect_objects(detic_ids,
+                                                         rgbds,
+                                                         allowed_regions=
+                                                         allowed_regions)
+            detections.update(detic_detections)
+
+        if CFG.spot_use_vlm_pointing and id2object is not None:
+            if CFG.spot_teleop_pointing_detection:
+                target_ids = language_ids
+            else:
+                target_ids = language_ids - set(detections)
+            if target_ids:
+                pointing_detections = _pointing_detect_language_objects(
+                    target_ids, rgbds, allowed_regions, id2object)
+                if pointing_detections:
+                    detections.update(pointing_detections)
+                else:
+                    logging.warning("[Teleop Search] Gemini pointing returned no"
+                                    " detections for %s.", target_ids)
+                    if CFG.spot_teleop_pointing_detection:
+                        logging.info("[Teleop Search] Falling back to DETIC/SAM "
+                                     "for %s after Gemini failure.",
+                                     target_ids)
+                        fallback_detections, _ = detect_objects(
+                            target_ids, rgbds,
+                            allowed_regions=allowed_regions)
+                        if fallback_detections:
+                            detections.update(fallback_detections)
+
+        remaining_object_ids = set(object_ids) - set(detections)
+        print(f"[Teleop Search] Found: {set(detections)}")
+        if not remaining_object_ids:
+            # Optionally evaluate VLM predicates once objects are in view.
+            if CFG.spot_vlm_eval_predicate and vlm_predicates and id2object:
+                from predicators.spot_utils.utils import _robot_type
+
+                objects = [id2object[obj_id] for obj_id in detections]
+                objects.append(Object("robot", _robot_type))
+                vlm_atoms = get_vlm_atom_combinations(objects, vlm_predicates)
+                vlm_atom_dict = vlm_predicate_batch_classify(
+                    vlm_atoms, rgbds, predicates=vlm_predicates, get_dict=True)
+                for atom, result in vlm_atom_dict.items():
+                    if all_vlm_atom_dict[atom] is None and result is not None:
+                        all_vlm_atom_dict[atom] = result
+            return detections, artifacts, all_vlm_atom_dict
+
+        print(f"[Teleop Search] Remaining objects: {remaining_object_ids}")
+        print("Adjust Spot's position and try again.\n")
+
+
+def _pose_within_allowed_regions(
+        pose: math_helpers.SE3Pose,
+        allowed_regions: Optional[Collection[Delaunay]]) -> bool:
+    if allowed_regions is None:
+        return True
+    pose_xy = np.array([pose.x, pose.y])
+    for region in allowed_regions:
+        if region.find_simplex(pose_xy).item() >= 0:
+            return True
+    return False
+
+
+def _pose_from_pixel(rgbd: RGBDImageWithContext,
+                     pixel: Tuple[int, int],
+                     min_depth_value: float = 2.0
+                    ) -> Optional[math_helpers.SE3Pose]:
+    """Convert a pixel in an RGBD image into a world-frame pose."""
+    x_pix, y_pix = pixel
+    height, width = rgbd.depth.shape
+    if not (0 <= x_pix < width and 0 <= y_pix < height):
+        return None
+    depth_value = rgbd.depth[y_pix, x_pix]
+    if depth_value <= min_depth_value:
+        logging.debug("Pointing fallback depth too small at pixel %s", pixel)
+        return None
+    fx = rgbd.camera_model.intrinsics.focal_length.x
+    fy = rgbd.camera_model.intrinsics.focal_length.y
+    cx = rgbd.camera_model.intrinsics.principal_point.x
+    cy = rgbd.camera_model.intrinsics.principal_point.y
+    depth_scale = rgbd.depth_scale
+    camera_z = depth_value / depth_scale
+    camera_x = np.multiply(camera_z, (x_pix - cx)) / fx
+    camera_y = np.multiply(camera_z, (y_pix - cy)) / fy
+    camera_pose = math_helpers.SE3Pose(
+        float(camera_x),
+        float(camera_y),
+        float(camera_z),
+        rot=math_helpers.Quat(),
+    )
+    return rgbd.world_tform_camera * camera_pose
+
+
+def _pointing_detect_language_objects(
+        remaining_ids: Collection[ObjectDetectionID],
+        rgbds: Dict[str, RGBDImageWithContext],
+        allowed_regions: Optional[Collection[Delaunay]],
+        id2object: Dict[ObjectDetectionID, Object]
+) -> Dict[ObjectDetectionID, math_helpers.SE3Pose]:
+    """Use the VLM pointing service to approximate detections for teleop mode."""
+    detections: Dict[ObjectDetectionID, math_helpers.SE3Pose] = {}
+    if not remaining_ids:
+        return detections
+
+    camera_priority = [
+        "hand_color_image",
+        "frontleft_fisheye_image",
+        "frontright_fisheye_image",
+        "left_fisheye_image",
+        "right_fisheye_image",
+        "back_fisheye_image",
+    ]
+    other_cameras = [c for c in rgbds if c not in camera_priority]
+    ordered_cameras = camera_priority + other_cameras
+
+    for obj_id in remaining_ids:
+        if not isinstance(obj_id, LanguageObjectDetectionID):
+            continue
+        target_obj = id2object.get(obj_id)
+        if target_obj is None:
+            continue
+        for camera_name in ordered_cameras:
+            if camera_name not in rgbds:
+                continue
+            result = vlm_pointing.compute_pointing_result(
+                target_obj,
+                rgbds,
+                detection_artifacts=None,
+                detection_id_to_obj={},
+                rng=None,
+                camera_name=camera_name)
+            if result is None or result.pixel is None:
+                continue
+            pose = _pose_from_pixel(rgbds[camera_name], result.pixel)
+            if pose is None:
+                continue
+            if not _pose_within_allowed_regions(pose, allowed_regions):
+                logging.info(
+                    "Pointing fallback pose for %s outside allowed region; skipping.",
+                    obj_id.language_id)
+                continue
+            detections[obj_id] = pose
+            logging.info("Pointing fallback succeeded for %s using %s camera.",
+                         obj_id.language_id, camera_name)
+            break
+    return detections
+
+
 def init_search_for_objects(
     robot: Robot,
     localizer: SpotLocalizer,
@@ -175,6 +379,15 @@ def init_search_for_objects(
 
     Raise a RuntimeError if an object can't be found after spinning.
     """
+    if CFG.spot_demo_teleop_find_objects:
+        return _teleop_search_for_objects(
+            robot,
+            localizer,
+            object_ids,
+            allowed_regions=allowed_regions,
+            vlm_predicates=vlm_predicates,
+            id2object=id2object,
+        )
     spin_amount = 2 * np.pi / (num_spins + 1)
     relative_pose = math_helpers.SE2Pose(0, 0, spin_amount)
     base_moves = [relative_pose] * num_spins

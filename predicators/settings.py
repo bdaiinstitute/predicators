@@ -6,7 +6,7 @@ Anything that varies between runs should be a command-line arg
 
 from collections import defaultdict
 from types import SimpleNamespace
-from typing import Any, Dict, Set
+from typing import Any, Dict, Set, Tuple
 
 import numpy as np
 
@@ -190,6 +190,21 @@ class GlobalSettings:
     spot_grasp_stow_volume_threshold = 0.074
     spot_run_dry = False
     spot_use_perfect_samplers = False  # for debugging
+    spot_demo_teleop_find_objects = False
+    spot_teleop_pointing_detection = False
+    spot_enable_manual_reset_teleop = False
+    spot_hand_camera_only = False
+    spot_pointing_debug_visuals = False
+    spot_pointing_debug_dir = "spot_pointing_outputs"
+    spot_initial_unknown_predicates: Tuple[str, ...] = ()
+    spot_skip_perception_for_manipulation = False
+    spot_perception_refresh_observe_only = False
+    spot_use_vlm_pointing = False
+    spot_pointing_host = "localhost"
+    spot_pointing_port = 7100
+    spot_pointing_mode = "point"  # "point" or "detection"
+    spot_incidental_discovery_candidates = ()
+    spot_enable_interactive_checks = True
     spot_sweep_env_goal_description = "get the objects into the bucket"
     # Evaluate some predicates with VLM; need additional setup; WIP
     spot_vlm_eval_predicate = False

@@ -587,7 +587,8 @@ class SpotRearrangementEnv(BaseEnv):
                 atoms.add(GroundAtom(unknown_pred, combo_list))
                 if known_pred is not None:
                     atoms.discard(GroundAtom(known_pred, combo_list))
-        return self._apply_initial_unknown_overrides(atoms)
+        # No further recursion: we already traversed configured predicates.
+        return atoms
 
     def _reuse_cached_observation(
             self, nonpercept_atoms: Set[GroundAtom]) -> _SpotObservation:
@@ -4558,7 +4559,9 @@ _OBJECT_PROMPTS = {
 
     # Containers
     "green_bowl": "green bowl/greenish bowl",
-    "cardboard_box": "cardboard (paper) box on the ground",
+    # "cardboard_box": "cardboard (paper) box on the ground",
+    "cardboard_box": "white plastic box on the ground",
+    "plastic_container": "white plastic container box on the ground",
     
     # Table cleaning objects
     "ceramic_bowl": "ceramic bowl/white bowl/ceramic dish",

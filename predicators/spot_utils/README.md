@@ -97,23 +97,38 @@ boundary points into the yaml. Note that you can do SHIFT + right click to unsel
 
 ## Perception
 
-> Last updated: 07/17/2023
+> Last updated: 11/07/2025
 
-We are currently using Detic + Segmentation Anything to provide text-conditioned bounding box + detection-conditioned segmentation mask.
+We now have two perception services that run in parallel:
 
-We currently use REST interface from the [DETIC SAM BDAI repo](https://github.com/bdaiinstitute/detic-sam/).
+1. **DETIC + SAM (bounding boxes + segmentation)** – same as before; used for full-scene detection and as the fallback when Gemini is unavailable.
+   - Source repo: [DETIC SAM BDAI](https://github.com/bdaiinstitute/detic-sam/).
+   - Run `server.py` from that repo on a CUDA GPU host.
+   - Forward port 5550 if running remotely (e.g., `ssh -L 5550:localhost:5550 <gpu-host>`).
+   - Our client posts to `http://localhost:5550/batch_predict`.
 
-The pipeline is as follows:
-- Set up the repo
-  - See the instructions in the above-linked repo. Note that you need to use the branch listed above.
-- Run the server by running `server.py` from the above-linked repo
-  - You only need to run the server once
-  - It is recommended to run on a local computer (faster connection) with CUDA GPU (faster inference)
-- Connect to server from local
-  - Use SSH "local port forward"
-  - `ssh -L 5550:localhost:5550 10.17.1.102`
-- Request from your local computer
-  - You can see perception_utils.py, or the `client.py` function in the BDAI repo.
+2. **Gemini SAM2 pointing service** – used for hand-camera grasp pointing and teleop object search.
+   - Located in this repo at `predicators/spot_utils/perception/server/pointing_gemini_sam2_server_standalone.py`.
+   - Requires CUDA GPU + Google Gemini API key (`GOOGLE_API_KEY` etc.).
+   - Start via `python pointing_gemini_sam2_server_standalone.py --host 0.0.0.0 --port 7100 [--save-visualizations]`.
+   - Runtime client accesses `http://localhost:7100/pointing_gemini_sam2_service`.
+   - To capture server-side debug PNGs (points/boxes/masks), pass `--save-visualizations` – files are saved under `src/models/tmp` by default.
+   - For local smoke tests you can hit the service directly:
+     ```bash
+     python predicators/spot_utils/perception/pointing_gemini_sam2_client.py \
+       -i tests/datasets/test_vlm_predicate_img.jpg \
+       -p "cup" \
+       --segmentation --save-viz --viz-dir spot_pointing_outputs_cli
+     ```
+     The CLI prints the raw Gemini response and saves annotated PNGs (points, boxes, SAM2 masks) under `spot_pointing_outputs_cli/`.
+
+### Runtime flags
+- `spot_use_vlm_pointing`: enable Gemini for hand-view pointing.
+- `spot_teleop_pointing_detection`: skip DETIC during teleop object search and rely entirely on Gemini + depth (fallback to DETIC if Gemini returns nothing).
+- `spot_pointing_debug_visuals`: when `True`, the client saves annotated PNGs locally (under `spot_pointing_outputs/` or the directory set via `spot_pointing_debug_dir`).
+- `spot_pointing_debug_dir`: override the destination for automatic Gemini debug dumps (default `spot_pointing_outputs/`).
+- `spot_hand_camera_only`: capture only the hand RGB/depth pair during scans (reduces imaging latency in teleop mode).
+- `spot_render_perception_outputs`: still controls DETIC/SAM viz dumps.
 
 ## Simulation
 
