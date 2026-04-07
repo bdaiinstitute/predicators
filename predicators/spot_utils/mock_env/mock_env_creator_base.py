@@ -219,9 +219,9 @@ class MockEnvCreatorBase(ABC):
             self.env_initial_atoms = env.initial_atoms
             
             # FIXME: handle env goals init
-            if env.goal_atoms_or is not None:
+            if getattr(env, "goal_atoms_or", None) is not None:
                 self.env_goal_atoms_or = env.goal_atoms_or
-            if env.goal_atoms is not None:
+            if getattr(env, "goal_atoms", None) is not None:
                 self.env_goal_atoms = env.goal_atoms
         elif env_info is not None:
             self.types = {t.name: t for t in env_info["types"]}
@@ -643,7 +643,7 @@ class MockEnvCreatorBase(ABC):
         except StopIteration:
             return None
 
-    def plan_and_visualize(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], task_name: str, use_graphviz: bool = False) -> None:
+    def plan_and_visualize(self, initial_atoms: Set[GroundAtom], goal_atoms_or: List[Set[GroundAtom]], objects: Set[Object], task_name: str, use_graphviz: bool = False, belief_viz_log: Optional[List[Dict[str, Any]]] = None) -> None:
         """Plan and visualize transitions.
         
         Args:
@@ -673,6 +673,34 @@ class MockEnvCreatorBase(ABC):
         try:
             # TODO: visualize all shortest-path skeletons
             skeleton, atoms_sequence, metrics = next(planner())
+
+            # Log belief metrics if requested
+            if belief_viz_log is not None:
+                for i, atoms in enumerate(atoms_sequence):
+                    # Calculate simple belief metrics based on predicates
+                    # Map predicates to "Unknown-ness": Unknown=1.0, Known/Believe=0.0
+                    belief_state = {}
+                    for atom in atoms:
+                        name = atom.predicate.name
+                        if name.startswith("Known_"):
+                            key = f"{name[6:]}({','.join(o.name for o in atom.objects)})"
+                            belief_state[key] = 0.0
+                        elif name.startswith("BelieveTrue_"):
+                            key = f"{name[12:]}({','.join(o.name for o in atom.objects)})"
+                            belief_state[key] = 0.0
+                        elif name.startswith("BelieveFalse_"):
+                            key = f"{name[13:]}({','.join(o.name for o in atom.objects)})"
+                            belief_state[key] = 0.0
+                        elif name.startswith("Unknown_"):
+                            key = f"{name[8:]}({','.join(o.name for o in atom.objects)})"
+                            belief_state[key] = 1.0
+
+                    belief_viz_log.append({
+                        "step": i,
+                        "belief_state": belief_state,
+                        "atoms": [str(a) for a in atoms]
+                    })
+
             # Follow plan to get shortest path
             curr_atoms = initial_atoms.copy()
             for op in skeleton:
